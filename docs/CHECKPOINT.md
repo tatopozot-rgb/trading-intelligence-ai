@@ -3,6 +3,33 @@
 > Last updated: 2026-10-05 — import in progress (no final PAPER acceptance)
 > Agent: Trading Codex
 
+## Live status (autonomous session, 2026-10-05)
+
+- Issue #2 open. PR #3 open: `codex/import-paper-baseline` -> `ccr-b66a9a9e-okj2pl`, not draft, not merged.
+  PR #1 open: `ccr-b66a9a9e-okj2pl` -> `main` (remote specs/strategy package). Remote `main` untouched.
+- Verified GitHub (private repo, read via existing git credential): PR #3 head `933642a`; import branch code is
+  byte-identical to local `C:\Users\tatop\trading-ai` root `*.py` once CRLF is ignored (0 content diffs).
+  Only local-only files: runtime/data (`trading.db`, `runner*.json/lock`, `claude_request*`, `DETENER_SESION_*`); not published.
+- Publication guard on PR #3 tree: `tools/check_repository.py` -> 153 files, 0 findings.
+- Baseline reproduced locally in `C:\Users\tatop\trading-ai` (original `.venv`): 547 tests OK (52.6s).
+- PR #3 tree reproduced: 558 tests OK (54.4s). The 11 extra are `test_repository_safety`.
+- "32 tests" claim (`docs/history/CHECKPOINT_CLAUDE_2026-10-05_1615.md`): NOT reproduced. Its breakdown is
+  in the research package under `tests/` (pytest, separate deps), not in the root suite. Not summed with 558.
+- Working copy for this session: `C:\Users\tatop\trading-intelligence-work\repo` (git clone, not the `.codex` snapshot).
+  Original `C:\Users\tatop\trading-ai` was only read and executed, never modified.
+
+### Branch `codex/market-lot-contract` (from `codex/import-paper-baseline`)
+
+- New `execution_market_filters.py` (`MARKET_FILTERS_OFFLINE_V1`): offline MARKET quantity contract, fail-closed.
+  Requires both MARKET_LOT_SIZE and LOT_SIZE; rejects `quoteOrderQty`; rejects MIN_NOTIONAL/NOTIONAL applying
+  to MARKET (needs a reference price); remainder helper `remanente_de_lote` reports dust, never rounds an order.
+- New `test_execution_market_filters.py`: 16 tests OK (0.004s).
+- Full suite on this branch: 574 tests OK (56.465s) = 558 + 16.
+- Official Binance docs (developers.binance.com filters page) confirm LOT_SIZE/MARKET_LOT_SIZE rules and
+  MIN_NOTIONAL/NOTIONAL `applyToMarket` flags. They do NOT specify quoteOrderQty validation, nor whether LOT_SIZE
+  also applies to MARKET orders. Those points are therefore conservative (reject) and remain UNVERIFIED.
+- `execution_filters.py`, `execution_percent.py`, `paper_fills.py`, `paper_store.py`, `risk_engine.py`, V1 evidence: unchanged.
+
 ## Current State
 
 **Phase**: IMPORT & REVIEW of existing Windows PAPER program.
@@ -53,9 +80,13 @@ Guard tools/check_repository.py and test_repository_safety.py completed and test
 
 ## Exact next step
 
-Guard and directed/full tests are finished. Build explicit publication manifest (never copy runtime), publish source to branch,
-open PR for Issue #2 and request Trading Claude Work cross-review. Reconcile published file hashes and update Notion.
-Then address findings before merge and resume the technical next step below; no reconstruction or repeated historical runs.
+1. Push `codex/market-lot-contract` and open a PR into `codex/import-paper-baseline` (stacked; does not touch `main`
+   or PR #3 merge state). Include the guard result and the 574-test result in the PR body.
+2. Request Trading Claude Work cross-review of PR #3 (migration, risk/architecture) and of the new MARKET contract
+   (quantitative/fill-semantics review). No merge until review.
+3. Then decide, with review input, how the MARKET contract integrates with `paper_fills.py`. Not done in this block:
+   no change to LIMIT/FOK V1 paths, no persisted-model change, no quoteOrderQty support.
+4. Still open: Notion update for PR #3 (Mission Control), and whether the cross-review requires PR #3 fixes first.
 
 Technical next step retained from 30 September: read MODELO_FILLS_PAPER.md, execution_filters.py,
 execution_percent.py, execution_context.py and paper_fills.py. Verify official Binance MARKET_LOT_SIZE/LOT_SIZE
@@ -73,6 +104,8 @@ Do not reuse LIMIT filters by analogy or modify risk/strategy to fit adverse res
 ## Test Status
 
 547 baseline tests OK (56.717s), then 11 new guard tests OK (0.097s), then full 558 tests OK (52.808s), 05-10-2026.
+Session re-run 05-10-2026: root baseline 547 OK (52.6s, original venv); PR #3 tree 558 OK (54.4s);
+branch `codex/market-lot-contract` 574 OK (56.5s) = 558 + 16 new MARKET contract tests.
 No operational session; new publication guard scans only explicit/tracked paths and does not certify complete security.
 Sandbox initially denied Python process; permitted isolated execution succeeded. Mock HTTP/disk errors expected.
 
