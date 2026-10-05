@@ -1,19 +1,20 @@
 # Checkpoint — Trading Intelligence AI
 
-> Last updated: 2026-10-05T21:15:00Z
+> Last updated: 2026-10-05T21:45:00Z
 > Agent: Trading Codex (cloud session)
-> Branch: `ccr-b66a9a9e-okj2pl` @ commit pending (this update + risk/execution layer)
-> PRs: #1 (specs, open), #3 (real PAPER runtime import, open — reviewed, NOT merged)
+> Branch: `ccr-b66a9a9e-okj2pl` @ commit pending (nomenclature fix + PR #4/#5 review)
+> PRs: #1 (specs, open), #3 (real PAPER import, open, NOT merged), #4 (MARKET lot contract, open, NOT merged), #5 (is_junction fix, open, NOT merged)
 
-## IMPORTANT — environment note for future sessions
+## IMPORTANT — three-agent structure (corrected nomenclature)
 
-This checkpoint entry was written by a **cloud-based** Trading Codex session
-(Linux container, path `/home/user/trading-intelligence-ai`), which has **no
-access to the owner's local Windows PC** (`C:\Users\tatop\trading-ai`). A
-separate **local** Trading Codex session (running on that PC) did the actual
-codebase import and opened **PR #3**. If you are a fresh session reading
-this: check which environment you are in before assuming you can act on
-local-PC paths. GitHub is the shared source of truth between both.
+Per explicit owner correction, there are exactly **three** agents on this
+project — see `AGENTS.md` for the permanent definition:
+1. **Trading Claude-Work** — the real ChatGPT Work agent (cross-review, architecture, risk, quant, Notion Mission Control). Any older doc saying "Trading claude work" (lowercase, no hyphen) means this same agent, never a plain chat session.
+2. **Trading Codex** (this agent) — cloud container (`/home/user/trading-intelligence-ai`), **no access to the owner's local Windows PC**.
+3. **Claude Code local** — runs via PowerShell on the owner's PC, has real access to `C:\Users\tatop\trading-ai`. Did the actual codebase import (PR #3) and the MARKET lot/dust contract (PR #4).
+
+GitHub is the shared source of truth between all three. Check PR/issue state
+before assuming what another agent has or hasn't done.
 
 ## Current State
 
@@ -51,24 +52,32 @@ Posted a full cross-review on PR #3 (see GitHub). Independently reproduced on Li
 - **Finding 1 (trivial, not blocking)**: `tools/check_repository.py::_linked()` calls `Path.is_junction()`, which doesn't exist on `PosixPath` → 14 test errors on Linux (all isolated to the new safety-guard tool, zero impact on trading logic or their actual Windows CI)
 - **Finding 2 (needs a decision, not blocking this PR)**: `docs/RISK_ENGINE_SPEC.md` specifies daily-loss reset at 00:00 UTC; the real code (`paper_store.asegurar_dia`) resets on local UTC-5 day boundary. Needs explicit sign-off — either the spec or the code should change, not silently diverge.
 - **Finding 3 (real gap vs spec, not previously flagged by either session)**: no automatic drawdown pause/halt (8%/15% equity-peak per spec) and no connectivity-watchdog auto-kill-switch (>60s per spec) exist in the real system — only the manual file-based kill switch. This is genuine unimplemented spec coverage, distinct from the already-known MARKET/quoteOrderQty/lot/dust gap.
-- **Did NOT merge PR #3** — Issue #2's checklist isn't fully checked yet and the PR's own checkpoint says "address findings before merge." Left for cross-review resolution (Finding 2 in particular needs Trading claude work's input per AGENTS.md: "Risk engine changes require review from Trading claude work").
+- **Did NOT merge PR #3** — Issue #2's checklist isn't fully checked yet and the PR's own checkpoint says "address findings before merge." Left for cross-review resolution (Finding 2 in particular needs Trading Claude-Work's input per AGENTS.md: "Risk engine changes require review from Trading Claude-Work").
 - Posted one comment on Issue #2 flagging that the actual local-PC import (criterion 1 of the issue) is something this cloud session cannot do itself — not repeating that per the WAITING_FOR_USER rule.
 
 ### 3. Documentation correction
 - My own Session 2 test count breakdown had an arithmetic bug: wrote "21/21" for indicators when it's actually 20 (20+7+5=32, matching the stated 32 total — the total was always right, only the per-file line was wrong). Corrected below.
 
+### 4. Discovered, reviewed, and fixed PR #4 and opened PR #5 (second session block, same day)
+- **PR #4** (`codex/market-lot-contract`, stacked on PR #3, by Claude Code local): adds `execution_market_filters.py` — offline MARKET lot/dust contract, fail-closed (rejects `quoteOrderQty` outright, requires both `MARKET_LOT_SIZE` and `LOT_SIZE`, rejects `MIN_NOTIONAL`/`NOTIONAL` unless explicitly flagged as not applying to MARKET). 16 new tests.
+  - Independently reproduced on Linux: 565/574 tests (549+16; the 9-test gap is the same already-documented Tkinter/Windows-only platform gap from the PR #3 review, not a new regression).
+  - Read the full 104-line module: no bugs found. Correctly cites what official Binance docs do and don't confirm (quoteOrderQty semantics and LOT_SIZE-on-MARKET applicability are explicitly left unverified/conservative, matching their own docstring).
+  - Confirmed it does NOT touch `risk_engine.py`, `paper_store.py`, `paper_fills.py` — orthogonal to PR #3 Findings 2/3, which remain open and still block the final merge per Issue #2.
+  - Posted a COMMENT review on GitHub: no changes requested; final semantic sign-off left to Trading Claude-Work per AGENTS.md review protocol.
+- **PR #5** (`codex/fix-is-junction-linux`, stacked on PR #4, opened by this agent): fixes Finding 1 from the PR #3 review — `tools/check_repository.py::_linked()` called `Path.is_junction()`, which doesn't exist on `PosixPath` (Windows-only, Python ≥3.12 only). One-line `getattr` guard. Verified: 14 errors → 0 on Linux; only 2 residual failures remain, both pure environment gaps (no tkinter installed in this container), unrelated to the fix. Opened as its own PR (not pushed directly to PR #3/#4's branches) to respect the no-simultaneous-edit rule, since those branches are owned by Claude Code local.
+- **Nomenclature correction** (this update): per explicit owner correction, rewrote `AGENTS.md` to define exactly three agents (Trading Claude-Work = real ChatGPT Work, Trading Codex = this agent, Claude Code local = PowerShell session on the owner's PC) and corrected all "Trading claude work" references in this file and `docs/AGENT_COORDINATION.md` to "Trading Claude-Work".
+
 ## What's Next
 
-**For whichever session (local or cloud) picks this up next:**
-1. Resolve PR #3 Findings 2 and 3 above — likely needs Trading claude work's input on risk semantics (UTC vs local day boundary; whether to add automatic drawdown/connectivity kill-switches to the real system now or explicitly defer them)
-2. Fix the trivial `is_junction()` Linux portability bug in `tools/check_repository.py` (one-line `hasattr`/`getattr` guard)
-3. Once findings are addressed: merge PR #3 into `ccr-b66a9a9e-okj2pl`, then decide whether `trading_intelligence/` continues as a parallel research package or is formally designated as the validation/backtesting layer that calls into the real system's modules
-4. Continue the real system's own already-known next step (per `docs/CHECKPOINT.md` on `codex/import-paper-baseline`): MARKET/quoteOrderQty/lot/dust versioned filter contract, reading `MODELO_FILLS_PAPER.md`, `execution_filters.py`, `execution_percent.py`, `execution_context.py`, `paper_fills.py`
-5. `trading_intelligence/` outstanding items (lower priority now that the real system is authoritative): historical data downloader, real-data backtest, walk-forward run on actual BTCUSDT data
+**For whichever agent picks this up next:**
+1. **Trading Claude-Work**: rule on PR #3 Findings 2 and 3 — risk-policy sign-off on UTC vs local day boundary for daily loss reset, and whether to add automatic drawdown/connectivity kill-switches to the real system now or explicitly defer them. Also give final semantic sign-off on PR #4's MARKET contract.
+2. **Claude Code local**: continue integrating `execution_market_filters.py` (PR #4) with `paper_fills.py`/`paper_store.py` once Trading Claude-Work's review lands — explicitly not done yet per PR #4's own checkpoint note.
+3. Once Findings 2/3 are resolved: merge the PR #3 → #4 → #5 chain into `ccr-b66a9a9e-okj2pl`, then decide whether `trading_intelligence/` continues as a parallel research package or becomes the validation/backtesting layer calling into the real system's modules.
+4. `trading_intelligence/` outstanding items (lower priority now that the real system is authoritative): historical data downloader, real-data backtest, walk-forward run on actual BTCUSDT data.
 
 ## Blockers
 
-- **Local-PC import work (Issue #2 criterion 1)**: requires a session with actual access to `C:\Users\tatop\trading-ai` — this cloud session cannot do it. **Already done** by the local session via PR #3; nothing further blocked here.
+- **PR #3/#4/#5 merge chain**: blocked on Trading Claude-Work's risk/quant sign-off on Findings 2 & 3 (see above). Nothing further blocks engineering work in the meantime.
 - **Binance API keys not configured** — not required for public market data or PAPER mode; needed only for live trading authorization later (explicitly not requested yet)
 - **XM/MetaTrader credentials unknown** — Phase 2, separate adapter, not blocking current PAPER work
 
