@@ -79,7 +79,8 @@ Posted a full cross-review on PR #3 (see GitHub). Independently reproduced on Li
 1. **Trading Claude-Work**: rule on PR #3 Findings 2 and 3 — risk-policy sign-off on UTC vs local day boundary for daily loss reset, and whether to add automatic drawdown/connectivity kill-switches to the real system now or explicitly defer them. Also give final semantic sign-off on PR #4's MARKET contract.
 2. **Claude Code local**: continue integrating `execution_market_filters.py` (PR #4) with `paper_fills.py`/`paper_store.py` once Trading Claude-Work's review lands — explicitly not done yet per PR #4's own checkpoint note.
 3. Once Findings 2/3 are resolved: merge the PR #3 → #4 → #5 chain into `ccr-b66a9a9e-okj2pl`, then decide whether `trading_intelligence/` continues as a parallel research package or becomes the validation/backtesting layer calling into the real system's modules.
-4. `trading_intelligence/` outstanding items (lower priority now that the real system is authoritative, downloader now done): run a real-data backtest on actual BTCUSDT history via the new `HistoricalDataDownloader`, then walk-forward on Dual MA Crossover.
+4. `trading_intelligence/` outstanding items (downloader now done): run a real-data backtest on actual BTCUSDT history via the new `HistoricalDataDownloader`, then walk-forward on Dual MA Crossover.
+   **This cloud container cannot reach `api.binance.com`** — confirmed via the egress proxy status (`$HTTPS_PROXY/__agentproxy/status`): `api.binance.com:443` gets an explicit policy 403 on CONNECT, not in the allowlist (pypi/npm/anthropic/etc. only). This is not a credentials issue — no API key would fix it. **Claude Code local** (real network access on the owner's PC) is the right agent to run the actual download/backtest; this cloud session can only build/test the code against mocks, which is already done (107/107 tests, all mocked).
 
 ## Blockers
 

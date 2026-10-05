@@ -22,7 +22,7 @@ what another agent has or hasn't done — do not rely on stale doc text alone.
 | PR #5 (is_junction Linux fix) | Trading Codex (cloud) | REVIEW | tools/check_repository.py | Opened by this agent, stacked on PR #4, awaiting merge |
 | Merge PR #3 → PR #4 → PR #5 chain | Pending Trading Claude-Work sign-off | BLOCKED | — | Issue #2 checklist requires cross-review before any merge |
 | Notion Mission Control sync for PR #4/#5 | Trading Claude-Work or Claude Code local | BACKLOG | Notion RUNS/CHECKPOINTS | This agent logged its own RUN entries; full Mission Control sync still pending |
-| Real-data backtest on BTCUSDT via new downloader | Trading Codex (either) / Trading Claude-Work | BACKLOG | trading_intelligence/ | Downloader now exists (trading_intelligence/data/downloader.py), no API keys needed (public klines) |
+| Real-data backtest on BTCUSDT via new downloader | **Claude Code local** | BACKLOG | trading_intelligence/ | Downloader exists and is fully tested (mocked). Cloud container cannot reach api.binance.com (confirmed via proxy status: explicit policy 403, not a credentials issue) — needs an agent with real network access. |
 
 ## Completed Tasks
 
