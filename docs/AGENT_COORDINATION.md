@@ -22,6 +22,7 @@ what another agent has or hasn't done — do not rely on stale doc text alone.
 | PR #5 (is_junction Linux fix) | Trading Codex (cloud) | REVIEW | tools/check_repository.py | Opened by this agent, stacked on PR #4, awaiting merge |
 | Merge PR #3 → PR #4 → PR #5 chain | Pending Trading Claude-Work sign-off | BLOCKED | — | Issue #2 checklist requires cross-review before any merge |
 | Notion Mission Control sync for PR #4/#5 | Trading Claude-Work or Claude Code local | BACKLOG | Notion RUNS/CHECKPOINTS | This agent logged its own RUN entries; full Mission Control sync still pending |
+| Real-data backtest on BTCUSDT via new downloader | Trading Codex (either) / Trading Claude-Work | BACKLOG | trading_intelligence/ | Downloader now exists (trading_intelligence/data/downloader.py), no API keys needed (public klines) |
 
 ## Completed Tasks
 
@@ -39,6 +40,8 @@ what another agent has or hasn't done — do not rely on stale doc text alone.
 | Cross-review of PR #4 (independent Linux reproduction) | Trading Codex (cloud) | 2026-10-05 | #4 (review) |
 | Fix is_junction() Linux/Mac crash in tools/check_repository.py | Trading Codex (cloud) | 2026-10-05 | #5 |
 | Nomenclature correction: 3-agent structure in AGENTS.md | Trading Codex (cloud) | 2026-10-05 | this branch |
+| Fixed BinanceSpotAdapter requiring credentials for public market data | Trading Codex (cloud) | 2026-10-05 | this branch |
+| trading_intelligence/data/downloader.py (historical OHLCV, Parquet cache) | Trading Codex (cloud) | 2026-10-05 | this branch |
 
 ## Technical Decisions
 

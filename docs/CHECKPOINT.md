@@ -1,8 +1,8 @@
 # Checkpoint — Trading Intelligence AI
 
-> Last updated: 2026-10-05T21:45:00Z
+> Last updated: 2026-10-05T22:05:00Z
 > Agent: Trading Codex (cloud session)
-> Branch: `ccr-b66a9a9e-okj2pl` @ commit pending (nomenclature fix + PR #4/#5 review)
+> Branch: `ccr-b66a9a9e-okj2pl` @ commit pending (downloader + Binance public-data fix)
 > PRs: #1 (specs, open), #3 (real PAPER import, open, NOT merged), #4 (MARKET lot contract, open, NOT merged), #5 (is_junction fix, open, NOT merged)
 
 ## IMPORTANT — three-agent structure (corrected nomenclature)
@@ -65,6 +65,12 @@ Posted a full cross-review on PR #3 (see GitHub). Independently reproduced on Li
   - Confirmed it does NOT touch `risk_engine.py`, `paper_store.py`, `paper_fills.py` — orthogonal to PR #3 Findings 2/3, which remain open and still block the final merge per Issue #2.
   - Posted a COMMENT review on GitHub: no changes requested; final semantic sign-off left to Trading Claude-Work per AGENTS.md review protocol.
 - **PR #5** (`codex/fix-is-junction-linux`, stacked on PR #4, opened by this agent): fixes Finding 1 from the PR #3 review — `tools/check_repository.py::_linked()` called `Path.is_junction()`, which doesn't exist on `PosixPath` (Windows-only, Python ≥3.12 only). One-line `getattr` guard. Verified: 14 errors → 0 on Linux; only 2 residual failures remain, both pure environment gaps (no tkinter installed in this container), unrelated to the fix. Opened as its own PR (not pushed directly to PR #3/#4's branches) to respect the no-simultaneous-edit rule, since those branches are owned by Claude Code local.
+
+### 5. Fixed a real bug in BinanceSpotAdapter + built the historical data downloader
+- **Bug found and fixed**: `BinanceSpotAdapter` required credentials for *every* operation, including `get_current_price`, `get_ohlcv`, `is_connected` — but `docs/BINANCE_INTEGRATION_NOTES.md` explicitly states klines/ticker/exchangeInfo/ping are public, no API key needed. Only account/trading endpoints should require credentials. Fixed: `_get_client()` no longer requires credentials to construct; `submit_order`, `get_position`, `get_account_info` now explicitly call `_require_credentials()`; `is_connected()` and the new `verify_public_connectivity()` work with zero credentials. Updated/added tests accordingly (22 tests in `test_binance_adapter.py`, up from 18).
+- **`trading_intelligence/data/downloader.py`** — `HistoricalDataDownloader`: downloads and caches OHLCV to Parquet (`data/historical/{symbol}/{interval}/{YYYY-MM}.parquet`), paginates the public klines endpoint by close-time per `docs/BINANCE_INTEGRATION_NOTES.md`'s example, never re-downloads a cached month unless `force=True`, de-duplicates overlapping bars. Uses `BinanceSpotAdapter` with **zero credentials** (public data only — consistent with the owner's explicit instruction not to request Binance API keys).
+- 11 new tests (`test_downloader.py`), all mocked (no real network calls): caching, forced re-download, pagination by close-time, empty-response handling, no-duplicate-bars, multi-month range spanning, missing-cache error.
+- **107/107 tests passing, ruff clean, mypy clean** on the full `trading_intelligence/` package (up from 92).
 - **Nomenclature correction** (this update): per explicit owner correction, rewrote `AGENTS.md` to define exactly three agents (Trading Claude-Work = real ChatGPT Work, Trading Codex = this agent, Claude Code local = PowerShell session on the owner's PC) and corrected all "Trading claude work" references in this file and `docs/AGENT_COORDINATION.md` to "Trading Claude-Work".
 
 ## What's Next
@@ -73,7 +79,7 @@ Posted a full cross-review on PR #3 (see GitHub). Independently reproduced on Li
 1. **Trading Claude-Work**: rule on PR #3 Findings 2 and 3 — risk-policy sign-off on UTC vs local day boundary for daily loss reset, and whether to add automatic drawdown/connectivity kill-switches to the real system now or explicitly defer them. Also give final semantic sign-off on PR #4's MARKET contract.
 2. **Claude Code local**: continue integrating `execution_market_filters.py` (PR #4) with `paper_fills.py`/`paper_store.py` once Trading Claude-Work's review lands — explicitly not done yet per PR #4's own checkpoint note.
 3. Once Findings 2/3 are resolved: merge the PR #3 → #4 → #5 chain into `ccr-b66a9a9e-okj2pl`, then decide whether `trading_intelligence/` continues as a parallel research package or becomes the validation/backtesting layer calling into the real system's modules.
-4. `trading_intelligence/` outstanding items (lower priority now that the real system is authoritative): historical data downloader, real-data backtest, walk-forward run on actual BTCUSDT data.
+4. `trading_intelligence/` outstanding items (lower priority now that the real system is authoritative, downloader now done): run a real-data backtest on actual BTCUSDT history via the new `HistoricalDataDownloader`, then walk-forward on Dual MA Crossover.
 
 ## Blockers
 
@@ -83,14 +89,15 @@ Posted a full cross-review on PR #3 (see GitHub). Independently reproduced on Li
 
 ## Test Status
 
-**`trading_intelligence/` package: 92/92 tests passing**, ruff clean, mypy clean.
+**`trading_intelligence/` package: 107/107 tests passing**, ruff clean, mypy clean.
 ```
 tests/test_indicators.py       20/20 PASS
 tests/test_ma_crossover.py      7/7  PASS
 tests/test_backtest_engine.py   5/5  PASS
 tests/test_risk_engine.py      30/30 PASS
 tests/test_paper_adapter.py    12/12 PASS
-tests/test_binance_adapter.py  18/18 PASS
+tests/test_binance_adapter.py  22/22 PASS
+tests/test_downloader.py       11/11 PASS
 ```
 
 **Real PAPER system (PR #3, `codex/import-paper-baseline`): 549/558 tests**,

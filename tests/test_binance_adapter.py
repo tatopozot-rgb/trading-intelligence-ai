@@ -59,14 +59,21 @@ class FakeBinanceClient:
         return {"orderId": 12345, "transactTime": 1735689600000}
 
 
-def _adapter_with_fake_client() -> tuple[BinanceSpotAdapter, FakeBinanceClient]:
-    adapter = BinanceSpotAdapter(api_key="fake", secret_key="fake", testnet=True)
+def _adapter_with_fake_client(*, with_credentials: bool = True) -> tuple[BinanceSpotAdapter, FakeBinanceClient]:
+    kwargs = {"api_key": "fake", "secret_key": "fake"} if with_credentials else {}
+    adapter = BinanceSpotAdapter(testnet=True, **kwargs)
     fake_client = FakeBinanceClient()
     adapter._get_client = lambda: fake_client
     return adapter, fake_client
 
 
 class TestCredentialGating:
+    """
+    Per docs/BINANCE_INTEGRATION_NOTES.md: market data (klines, ticker,
+    exchangeInfo, ping) is public and needs no API key. Only account/trading
+    endpoints require credentials.
+    """
+
     def test_construction_without_credentials_does_not_raise(self):
         _adapter_without_credentials()  # should not raise
 
@@ -75,14 +82,10 @@ class TestCredentialGating:
         assert adapter.has_credentials is False
 
     def test_connect_raises_without_credentials(self):
+        """connect() does the full authenticated startup (verifies trading permissions)."""
         adapter = _adapter_without_credentials()
         with pytest.raises(BinanceCredentialsMissing):
             adapter.connect()
-
-    def test_get_current_price_raises_without_credentials(self):
-        adapter = _adapter_without_credentials()
-        with pytest.raises(BinanceCredentialsMissing):
-            adapter.get_current_price("BTCUSDT")
 
     def test_submit_order_raises_without_credentials(self):
         adapter = _adapter_without_credentials()
@@ -90,9 +93,46 @@ class TestCredentialGating:
         with pytest.raises(BinanceCredentialsMissing):
             adapter.submit_order(order)
 
-    def test_is_connected_false_without_credentials(self):
-        adapter = _adapter_without_credentials()
-        assert adapter.is_connected() is False
+    def test_get_position_raises_without_credentials(self):
+        adapter, _ = _adapter_with_fake_client(with_credentials=False)
+        with pytest.raises(BinanceCredentialsMissing):
+            adapter.get_position("BTCUSDT")
+
+    def test_get_account_info_raises_without_credentials(self):
+        adapter, _ = _adapter_with_fake_client(with_credentials=False)
+        with pytest.raises(BinanceCredentialsMissing):
+            adapter.get_account_info()
+
+
+class TestPublicMarketDataNeedsNoCredentials:
+    """get_current_price, get_ohlcv, is_connected, verify_public_connectivity
+    are all public Binance endpoints — must work with zero credentials."""
+
+    def test_get_current_price_works_without_credentials(self):
+        adapter, _ = _adapter_with_fake_client(with_credentials=False)
+        assert adapter.has_credentials is False
+        price = adapter.get_current_price("BTCUSDT")
+        assert price == Decimal("50123.45")
+
+    def test_is_connected_works_without_credentials(self):
+        adapter, _ = _adapter_with_fake_client(with_credentials=False)
+        assert adapter.has_credentials is False
+        assert adapter.is_connected() is True
+
+    def test_verify_public_connectivity_works_without_credentials(self):
+        adapter, _ = _adapter_with_fake_client(with_credentials=False)
+        adapter.verify_public_connectivity()  # should not raise
+        assert adapter._exchange_info_cache is not None
+
+    def test_get_ohlcv_works_without_credentials(self):
+        adapter, fake_client = _adapter_with_fake_client(with_credentials=False)
+        fake_client.get_klines = lambda symbol, interval, limit: [
+            [1735689600000, "50000", "50500", "49500", "50200", "10.5",
+             1735693199999, "525000", 100, "5", "250000", "0"]
+        ]
+        df = adapter.get_ohlcv("BTCUSDT", "1h", limit=1)
+        assert len(df) == 1
+        assert df.iloc[0]["close"] == 50200.0
 
 
 class TestExchangeName:

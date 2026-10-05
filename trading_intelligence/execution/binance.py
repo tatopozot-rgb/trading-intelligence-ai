@@ -1,11 +1,14 @@
 """
 BinanceSpotAdapter — real exchange integration via python-binance.
 
-Per docs/BINANCE_INTEGRATION_NOTES.md. NOT usable until BINANCE_API_KEY /
-BINANCE_SECRET_KEY are provided by the owner — construction succeeds but any
-network method raises RuntimeError until configured. No code path here can
-place a live order without passing through RiskEngine.validate_order() first
-(enforced by the execution loop, not by this adapter).
+Per docs/BINANCE_INTEGRATION_NOTES.md, market data (klines, ticker price,
+exchangeInfo, ping/server time) is public and needs NO API key. Only
+account/trading endpoints (submit_order, get_position, get_account_info, and
+the permission-verification step of connect()) require
+BINANCE_API_KEY/BINANCE_SECRET_KEY — those raise BinanceCredentialsMissing
+cleanly until the owner provides them. No code path here can place a live
+order without passing through RiskEngine.validate_order() first (enforced by
+the execution loop, not by this adapter).
 
 Withdrawal permission must NEVER be enabled on the API key (see spec).
 """
@@ -71,7 +74,12 @@ class BinanceSpotAdapter(AbstractExchangeAdapter):
             )
 
     def _get_client(self):
-        self._require_credentials()
+        """
+        Constructs the underlying client WITHOUT requiring credentials — most
+        Binance endpoints (market data) are public. Callers that need an
+        authenticated endpoint must call self._require_credentials() themselves
+        before using the client for that purpose.
+        """
         if self._client is None:
             from binance.client import Client  # local import: no hard dependency until used
 
@@ -85,20 +93,29 @@ class BinanceSpotAdapter(AbstractExchangeAdapter):
     # Startup sequence (per docs/BINANCE_INTEGRATION_NOTES.md)
     # ------------------------------------------------------------------
 
-    def connect(self) -> None:
+    def verify_public_connectivity(self) -> None:
         """
-        1. Verify connectivity (ping)
-        2. Sync server time
-        3. Load exchangeInfo (cache 1h)
-        4. Verify API key permissions (read + trading required, NOT withdraw)
+        Public-only startup check: ping, server time sync, exchangeInfo load.
+        No credentials required — safe to call for market-data-only usage
+        (e.g. the historical data downloader).
         """
         client = self._get_client()
         client.ping()
         server_time = client.get_server_time()["serverTime"]
         self._server_time_offset_ms = server_time - int(time.time() * 1000)
-
         self._load_exchange_info(force=True)
-        self._verify_permissions(client)
+
+    def connect(self) -> None:
+        """
+        Full authenticated startup sequence:
+        1. Verify connectivity (ping)
+        2. Sync server time
+        3. Load exchangeInfo (cache 1h)
+        4. Verify API key permissions (read + trading required, NOT withdraw)
+        """
+        self._require_credentials()
+        self.verify_public_connectivity()
+        self._verify_permissions(self._get_client())
         self._connected = True
         logger.info("BinanceSpotAdapter connected (testnet=%s)", self.testnet)
 
@@ -153,6 +170,7 @@ class BinanceSpotAdapter(AbstractExchangeAdapter):
     # ------------------------------------------------------------------
 
     def submit_order(self, order: OrderRequest) -> OrderResult:
+        self._require_credentials()
         client = self._get_client()
         quantity = self.round_to_lot_size(order.symbol, order.quantity)
         if quantity <= 0:
@@ -197,6 +215,7 @@ class BinanceSpotAdapter(AbstractExchangeAdapter):
         )
 
     def get_position(self, symbol: str) -> Optional[Position]:
+        self._require_credentials()
         client = self._get_client()
         base_asset = symbol.replace("USDT", "").replace("BUSD", "")
         account = client.get_account()
@@ -212,6 +231,7 @@ class BinanceSpotAdapter(AbstractExchangeAdapter):
         return None
 
     def get_account_info(self) -> AccountInfo:
+        self._require_credentials()
         client = self._get_client()
         account = client.get_account()
         cash_balance = Decimal("0")
@@ -247,8 +267,7 @@ class BinanceSpotAdapter(AbstractExchangeAdapter):
         return df[["open", "high", "low", "close", "volume"]]
 
     def is_connected(self) -> bool:
-        if not self.has_credentials:
-            return False
+        """Ping is a public endpoint — works regardless of credentials."""
         try:
             self._get_client().ping()
             return True
