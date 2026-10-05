@@ -65,3 +65,21 @@ htmlcov/
 # Distribution
 *.tar.gz
 *.whl
+
+# Operational state, historical data and future credentials stay local
+.env.*
+!.env.example
+*.db-*
+*.sqlite*
+datasets/
+backups/
+solicitudes/
+respuestas/
+runner_status.json
+runner.lock
+claude_request.json
+claude_request.txt
+DETENER_*
+PAUSA_*
+market_cooldown.json
+.publication/
