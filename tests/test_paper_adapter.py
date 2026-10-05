@@ -1,0 +1,212 @@
+"""Tests for PaperAdapter — fills, position accounting, state persistence."""
+from decimal import Decimal
+from pathlib import Path
+
+import pandas as pd
+import pytest
+
+from trading_intelligence.execution.base import AbstractExchangeAdapter
+from trading_intelligence.execution.order_models import AccountInfo, OrderRequest
+from trading_intelligence.execution.paper import PaperAdapter
+
+
+class FakeMarketDataAdapter(AbstractExchangeAdapter):
+    """Minimal stand-in for BinanceSpotAdapter used read-only for market data."""
+
+    def __init__(self, price: Decimal = Decimal("50000")):
+        self._price = price
+        self._connected = True
+
+    def submit_order(self, order):
+        raise AssertionError("PaperAdapter must never forward orders to market data adapter")
+
+    def cancel_order(self, client_order_id):
+        raise AssertionError("not used")
+
+    def get_position(self, symbol):
+        return None
+
+    def get_account_info(self):
+        raise AssertionError("not used")
+
+    def get_current_price(self, symbol: str) -> Decimal:
+        return self._price
+
+    def get_ohlcv(self, symbol, timeframe, limit=500):
+        return pd.DataFrame()
+
+    def is_connected(self) -> bool:
+        return self._connected
+
+    def get_exchange_name(self) -> str:
+        return "fake_market_data"
+
+
+def _adapter(tmp_path: Path, equity: Decimal = Decimal("10000")) -> PaperAdapter:
+    return PaperAdapter(
+        market_data_adapter=FakeMarketDataAdapter(),
+        initial_equity=equity,
+        state_path=tmp_path / "paper_state.json",
+    )
+
+
+class TestOrderSubmission:
+    def test_submit_market_order_is_pending_until_next_bar(self, tmp_path):
+        adapter = _adapter(tmp_path)
+        order = OrderRequest(symbol="BTCUSDT", side="BUY", order_type="MARKET", quantity=Decimal("0.1"))
+        result = adapter.submit_order(order)
+        assert result.status == "SUBMITTED"
+        assert adapter.get_position("BTCUSDT") is None  # not filled yet
+
+    def test_zero_quantity_rejected(self, tmp_path):
+        adapter = _adapter(tmp_path)
+        order = OrderRequest(symbol="BTCUSDT", side="BUY", order_type="MARKET", quantity=Decimal("0"))
+        result = adapter.submit_order(order)
+        assert result.status == "REJECTED"
+
+    def test_cancel_pending_order(self, tmp_path):
+        adapter = _adapter(tmp_path)
+        order = OrderRequest(symbol="BTCUSDT", side="BUY", order_type="MARKET", quantity=Decimal("0.1"))
+        adapter.submit_order(order)
+        assert adapter.cancel_order(order.client_order_id) is True
+        assert adapter.cancel_order(order.client_order_id) is False  # already cancelled
+
+
+class TestNextBarFill:
+    def test_market_buy_fills_at_next_bar_open_with_slippage(self, tmp_path):
+        adapter = _adapter(tmp_path)
+        order = OrderRequest(symbol="BTCUSDT", side="BUY", order_type="MARKET", quantity=Decimal("0.1"))
+        adapter.submit_order(order)
+
+        filled = adapter.on_new_bar(
+            "BTCUSDT", open_=Decimal("50000"), high=Decimal("50500"),
+            low=Decimal("49500"), close=Decimal("50200"), bar_time="2026-01-01T01:00:00Z",
+        )
+        assert len(filled) == 1
+        assert filled[0].status == "FILLED"
+        expected_price = Decimal("50000") * (1 + Decimal("0.0005"))
+        assert filled[0].fill_price == expected_price
+
+        position = adapter.get_position("BTCUSDT")
+        assert position is not None
+        assert position.quantity == Decimal("0.1")
+
+    def test_buy_reduces_cash_by_cost_plus_fee(self, tmp_path):
+        adapter = _adapter(tmp_path, equity=Decimal("10000"))
+        order = OrderRequest(symbol="BTCUSDT", side="BUY", order_type="MARKET", quantity=Decimal("0.1"))
+        adapter.submit_order(order)
+        adapter.on_new_bar("BTCUSDT", Decimal("50000"), Decimal("50500"), Decimal("49500"),
+                            Decimal("50200"), "2026-01-01T01:00:00Z")
+
+        fill_price = Decimal("50000") * Decimal("1.0005")
+        fee = fill_price * Decimal("0.1") * Decimal("0.001")
+        expected_cash = Decimal("10000") - (fill_price * Decimal("0.1") + fee)
+        assert adapter.cash == expected_cash
+
+    def test_sell_closes_position_with_realized_pnl(self, tmp_path):
+        adapter = _adapter(tmp_path)
+        buy = OrderRequest(symbol="BTCUSDT", side="BUY", order_type="MARKET", quantity=Decimal("0.1"))
+        adapter.submit_order(buy)
+        adapter.on_new_bar("BTCUSDT", Decimal("50000"), Decimal("50500"), Decimal("49500"),
+                            Decimal("50200"), "2026-01-01T01:00:00Z")
+
+        sell = OrderRequest(symbol="BTCUSDT", side="SELL", order_type="MARKET", quantity=Decimal("0.1"))
+        adapter.submit_order(sell)
+        filled = adapter.on_new_bar("BTCUSDT", Decimal("52000"), Decimal("52500"), Decimal("51500"),
+                                     Decimal("52200"), "2026-01-01T02:00:00Z")
+
+        assert adapter.get_position("BTCUSDT") is None
+        assert filled[-1].status == "FILLED"
+        # Bought ~50025, sold ~51974 -> profitable trade
+        assert adapter.cash > Decimal("10000")
+
+    def test_sell_more_than_held_raises(self, tmp_path):
+        adapter = _adapter(tmp_path)
+        buy = OrderRequest(symbol="BTCUSDT", side="BUY", order_type="MARKET", quantity=Decimal("0.1"))
+        adapter.submit_order(buy)
+        adapter.on_new_bar("BTCUSDT", Decimal("50000"), Decimal("50500"), Decimal("49500"),
+                            Decimal("50200"), "2026-01-01T01:00:00Z")
+
+        sell = OrderRequest(symbol="BTCUSDT", side="SELL", order_type="MARKET", quantity=Decimal("1.0"))
+        adapter.submit_order(sell)
+        with pytest.raises(ValueError, match="insufficient"):
+            adapter.on_new_bar("BTCUSDT", Decimal("52000"), Decimal("52500"), Decimal("51500"),
+                                Decimal("52200"), "2026-01-01T02:00:00Z")
+
+
+class TestLimitOrders:
+    def test_limit_buy_fills_when_price_touches(self, tmp_path):
+        adapter = _adapter(tmp_path)
+        order = OrderRequest(symbol="BTCUSDT", side="BUY", order_type="LIMIT",
+                              quantity=Decimal("0.1"), limit_price=Decimal("49000"))
+        adapter.submit_order(order)
+        filled = adapter.on_new_bar("BTCUSDT", Decimal("50000"), Decimal("50200"),
+                                     Decimal("48500"), Decimal("49800"), "2026-01-01T01:00:00Z")
+        assert len(filled) == 1
+        assert filled[0].status == "FILLED"
+        assert filled[0].fill_price == Decimal("49000")  # worse of open(50000)/limit(49000) = limit
+
+    def test_limit_buy_does_not_fill_when_price_does_not_touch(self, tmp_path):
+        adapter = _adapter(tmp_path)
+        order = OrderRequest(symbol="BTCUSDT", side="BUY", order_type="LIMIT",
+                              quantity=Decimal("0.1"), limit_price=Decimal("40000"))
+        adapter.submit_order(order)
+        filled = adapter.on_new_bar("BTCUSDT", Decimal("50000"), Decimal("50200"),
+                                     Decimal("48500"), Decimal("49800"), "2026-01-01T01:00:00Z")
+        assert len(filled) == 1
+        assert filled[0].status == "PENDING"
+        assert adapter.get_position("BTCUSDT") is None
+
+
+class TestStopOrders:
+    def test_stop_triggers_with_gap_through_slippage(self, tmp_path):
+        adapter = _adapter(tmp_path)
+        buy = OrderRequest(symbol="BTCUSDT", side="BUY", order_type="MARKET", quantity=Decimal("0.1"))
+        adapter.submit_order(buy)
+        adapter.on_new_bar("BTCUSDT", Decimal("50000"), Decimal("50500"), Decimal("49500"),
+                            Decimal("50200"), "2026-01-01T01:00:00Z")
+
+        stop = OrderRequest(symbol="BTCUSDT", side="SELL", order_type="STOP",
+                             quantity=Decimal("0.1"), stop_price=Decimal("49000"))
+        adapter.submit_order(stop)
+
+        # Next bar gaps down through the stop
+        filled = adapter.on_new_bar("BTCUSDT", Decimal("48000"), Decimal("48200"),
+                                     Decimal("47500"), Decimal("47800"), "2026-01-01T02:00:00Z")
+        stop_fills = [f for f in filled if f.side == "SELL"]
+        assert len(stop_fills) == 1
+        assert stop_fills[0].fill_price < Decimal("48000")  # slippage applied on gap fill
+        assert adapter.get_position("BTCUSDT") is None
+
+
+class TestAccountInfo:
+    def test_equity_includes_open_position_value(self, tmp_path):
+        adapter = _adapter(tmp_path, equity=Decimal("10000"))
+        buy = OrderRequest(symbol="BTCUSDT", side="BUY", order_type="MARKET", quantity=Decimal("0.1"))
+        adapter.submit_order(buy)
+        adapter.on_new_bar("BTCUSDT", Decimal("50000"), Decimal("50500"), Decimal("49500"),
+                            Decimal("50200"), "2026-01-01T01:00:00Z")
+
+        info: AccountInfo = adapter.get_account_info()
+        assert info.is_paper is True
+        assert len(info.positions) == 1
+        # equity = cash + mark-to-market position value; should be close to 10000 minus fees
+        assert info.equity > Decimal("9900")
+        assert info.equity < Decimal("10100")
+
+
+class TestStatePersistence:
+    def test_state_survives_restart(self, tmp_path):
+        state_path = tmp_path / "paper_state.json"
+        adapter1 = PaperAdapter(FakeMarketDataAdapter(), Decimal("10000"), state_path=state_path)
+        buy = OrderRequest(symbol="BTCUSDT", side="BUY", order_type="MARKET", quantity=Decimal("0.1"))
+        adapter1.submit_order(buy)
+        adapter1.on_new_bar("BTCUSDT", Decimal("50000"), Decimal("50500"), Decimal("49500"),
+                             Decimal("50200"), "2026-01-01T01:00:00Z")
+
+        adapter2 = PaperAdapter(FakeMarketDataAdapter(), Decimal("999999"), state_path=state_path)
+        # Loaded state should override the constructor's initial_equity
+        assert adapter2.cash == adapter1.cash
+        position = adapter2.get_position("BTCUSDT")
+        assert position is not None
+        assert position.quantity == Decimal("0.1")

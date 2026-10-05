@@ -3,7 +3,6 @@ from decimal import Decimal
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from trading_intelligence.backtesting.backtest_engine import BacktestEngine
 from trading_intelligence.strategy.strategies.ma_crossover import DualMACrossover

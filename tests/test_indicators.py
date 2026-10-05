@@ -4,6 +4,7 @@ import pandas as pd
 import pytest
 
 from trading_intelligence.analysis.indicators import (
+    above_ma_filter,
     atr,
     donchian_high,
     donchian_low,
@@ -12,7 +13,6 @@ from trading_intelligence.analysis.indicators import (
     roc,
     rsi,
     sma,
-    above_ma_filter,
 )
 
 
@@ -165,7 +165,7 @@ class TestAboveMAFilter:
         s = _series([float(i) for i in range(1, 30)])
         result = above_ma_filter(s, period=10)
         # Near end, price should be above MA
-        assert result.dropna().iloc[-1] is True or result.dropna().iloc[-1] == True
+        assert bool(result.dropna().iloc[-1])
 
     def test_trending_down(self):
         s = _series([float(i) for i in range(30, 0, -1)])

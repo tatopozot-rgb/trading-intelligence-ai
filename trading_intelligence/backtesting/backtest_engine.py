@@ -14,15 +14,14 @@ RiskEngine logic so backtests match live paper behavior.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
-from decimal import Decimal, ROUND_DOWN
+from dataclasses import dataclass
+from decimal import ROUND_DOWN, Decimal
 from typing import Optional
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 from trading_intelligence.strategy.base import AbstractStrategy
-from trading_intelligence.strategy.models import TradeProposal
 
 logger = logging.getLogger(__name__)
 
@@ -183,15 +182,8 @@ class BacktestEngine:
             bar_time = data.index[i]
             historical = data.iloc[: i + 1]  # up to and including current bar
 
-            # --- Check if pending entry fills this bar (signal was last bar) ---
-            if open_trade is None and trades and trades[-1].exit_price is None:
-                # Should not happen with our logic, but guard anyway
-                pass
-
             # --- Evaluate open position at this bar's open ---
             if open_trade is not None:
-                open_bar_open = Decimal(str(current_bar["open"]))
-                open_bar_high = Decimal(str(current_bar["high"]))
                 open_bar_low = Decimal(str(current_bar["low"]))
 
                 # Stop hit? Check low vs stop (gap-through: 2× slippage)
@@ -234,7 +226,6 @@ class BacktestEngine:
                     )
                     trades.append(trade)
                     open_trade = trade
-                    i_skip = next_bar_idx  # will be processed next loop naturally
 
             elif open_trade is not None:
                 # Check exit signal on open position

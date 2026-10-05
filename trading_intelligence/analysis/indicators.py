@@ -2,7 +2,6 @@
 Pure indicator functions. No state, no side effects.
 All functions accept a pd.Series or pd.DataFrame and return a pd.Series.
 """
-from decimal import Decimal
 from typing import Literal
 
 import numpy as np

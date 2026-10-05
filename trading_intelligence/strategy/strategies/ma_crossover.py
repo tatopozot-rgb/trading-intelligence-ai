@@ -8,15 +8,13 @@ Stop: placed at the most recent swing low (lowest low of the last `stop_lookback
 """
 import logging
 from decimal import Decimal
-from typing import Literal, Optional
+from typing import Optional
 
 import pandas as pd
 
 from trading_intelligence.analysis.indicators import (
     above_ma_filter,
-    ema,
     ma_crossover_signal,
-    sma,
 )
 from trading_intelligence.strategy.base import AbstractStrategy
 from trading_intelligence.strategy.models import TradeProposal

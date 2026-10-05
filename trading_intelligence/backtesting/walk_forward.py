@@ -13,14 +13,11 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Optional
 
-import numpy as np
 import pandas as pd
 from scipy import stats
 
 from trading_intelligence.backtesting.backtest_engine import BacktestEngine, BacktestResult
-from trading_intelligence.strategy.base import AbstractStrategy
 
 logger = logging.getLogger(__name__)
 
