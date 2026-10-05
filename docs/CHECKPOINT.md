@@ -18,7 +18,7 @@
 - Working copy for this session: `C:\Users\tatop\trading-intelligence-work\repo` (git clone, not the `.codex` snapshot).
   Original `C:\Users\tatop\trading-ai` was only read and executed, never modified.
 
-### Branch `codex/market-lot-contract` (from `codex/import-paper-baseline`)
+### Branch `codex/market-lot-contract` (commit `a33f4e2`, PR #4 open -> `codex/import-paper-baseline`, not draft, not merged)
 
 - New `execution_market_filters.py` (`MARKET_FILTERS_OFFLINE_V1`): offline MARKET quantity contract, fail-closed.
   Requires both MARKET_LOT_SIZE and LOT_SIZE; rejects `quoteOrderQty`; rejects MIN_NOTIONAL/NOTIONAL applying
@@ -80,8 +80,7 @@ Guard tools/check_repository.py and test_repository_safety.py completed and test
 
 ## Exact next step
 
-1. Push `codex/market-lot-contract` and open a PR into `codex/import-paper-baseline` (stacked; does not touch `main`
-   or PR #3 merge state). Include the guard result and the 574-test result in the PR body.
+1. DONE: PR #4 opened (`codex/market-lot-contract` -> `codex/import-paper-baseline`; does not touch `main` or PR #3 merge state).
 2. Request Trading Claude Work cross-review of PR #3 (migration, risk/architecture) and of the new MARKET contract
    (quantitative/fill-semantics review). No merge until review.
 3. Then decide, with review input, how the MARKET contract integrates with `paper_fills.py`. Not done in this block:

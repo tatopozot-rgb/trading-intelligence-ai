@@ -18,7 +18,7 @@ No merge until cross-review. The old no-code setup description is historical, no
 | Notion operations center | Trading Codex | DONE | — | Existing center verified; update rather than duplicate |
 | Import baseline, dependency declaration, safety guard, manual CI | Trading Codex | IN PROGRESS | root source/tests/docs, .github, tools/check_repository.py | No operational logic changes; Issue #2 |
 | Architecture/risk cross-review | Trading Claude Work | WAITING FOR PR | read-only source and PR comments | Task confirmed no concurrent implementation |
-| MARKET lot/dust offline contract | Trading Codex | IN PROGRESS (branch `codex/market-lot-contract`, stacked on PR #3) | execution_market_filters.py, test_execution_market_filters.py | Offline only; fail-closed; quoteOrderQty and LOT_SIZE-on-MARKET unverified in official docs; no paper_fills change |
+| MARKET lot/dust offline contract | Trading Codex | IN REVIEW (PR #4, branch `codex/market-lot-contract`, stacked on PR #3) | execution_market_filters.py, test_execution_market_filters.py | Offline only; fail-closed; quoteOrderQty and LOT_SIZE-on-MARKET unverified in official docs; no paper_fills change |
 
 ## Completed Tasks
 
