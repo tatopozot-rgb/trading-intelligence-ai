@@ -1,8 +1,8 @@
 # Checkpoint — Trading Intelligence AI
 
-> Last updated: 2026-10-06T01:35:00Z
+> Last updated: 2026-10-06T01:50:00Z
 > Agent: Trading Codex (cloud session)
-> Branch: `ccr-b66a9a9e-okj2pl` @ commit pending (alerting)
+> Branch: `ccr-b66a9a9e-okj2pl` @ commit pending (crash recovery tests)
 > PRs: #1 (specs, open), #3 (real PAPER import, open, NOT merged), #4 (MARKET lot contract, open, NOT merged), #5 (is_junction fix, open, NOT merged)
 
 ## IMPORTANT — corrected project objective (2026-10-06)
@@ -118,6 +118,11 @@ No new activity from PR #3/#4/#5 or Issue #2 since the last session (all SHAs un
 - **157/157 tests passing, ruff clean, mypy clean** (up from 143).
 - Updated `docs/DEPLOYMENT_RUNBOOK.md`'s Known Gaps accordingly: alerting now has a real pluggable mechanism (still logging-only by default — no Slack/email/SMS wired in yet, that remains the actual gap before unattended LIVE operation).
 
+### 10. Crash-simulation tests — "simulación de fallos; crash/restart test" from the final checklist (same session, continued)
+- **`tests/test_crash_recovery.py`** (5 tests): directly simulates the exact crash window the atomic write pattern (write `.tmp`, then `rename`/`replace`) exists to protect against — writes corrupt/truncated content to the `.tmp` file and confirms the real state file is completely untouched, loads cleanly, and `RiskEngine`/`PaperAdapter` recover their last-good state on a simulated restart. Also confirms a stray leftover `.tmp` from a previous crash doesn't interfere with the next successful save, and that a genuinely-missing state file (first-ever cold start) is handled as the normal case, not an error.
+- This is a different (stronger) claim than the existing happy-path save/load round-trip tests already in `test_risk_engine.py`/`test_paper_adapter.py` — those prove persistence works; these prove it survives the process dying mid-write.
+- **162/162 tests passing, ruff clean, mypy clean** (up from 157).
+
 ## What's Next
 
 **For whichever agent picks this up next:**
@@ -137,7 +142,7 @@ No new activity from PR #3/#4/#5 or Issue #2 since the last session (all SHAs un
 
 ## Test Status
 
-**`trading_intelligence/` package: 157/157 tests passing**, ruff clean, mypy clean.
+**`trading_intelligence/` package: 162/162 tests passing**, ruff clean, mypy clean.
 ```
 tests/test_indicators.py       20/20 PASS
 tests/test_ma_crossover.py      7/7  PASS
@@ -150,6 +155,7 @@ tests/test_report.py           11/11 PASS
 tests/test_dry_run_adapter.py  15/15 PASS
 tests/test_shadow_runner.py     8/8  PASS
 tests/test_alerts.py           14/14 PASS
+tests/test_crash_recovery.py    5/5  PASS
 ```
 
 **Real PAPER system (PR #3, `codex/import-paper-baseline`): 549/558 tests**,
