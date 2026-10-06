@@ -82,21 +82,30 @@ class TestStrategyRouter:
 
 
 class TestDefaultRouter:
-    def test_only_covers_trend_up_today_honestly(self):
+    def test_covers_exactly_trend_up_and_breakout_up_today_honestly(self):
         """The whole point of this router: it must not claim coverage the
-        project doesn't actually have. Exactly one strategy exists today."""
+        project doesn't actually validate. TREND_UP + BREAKOUT_UP, both for
+        the one strategy that exists — BREAKOUT_UP added after running the
+        engine end-to-end on real data showed DualMACrossover's actual
+        crossover signals land there (and in RANGE), not in ADX-confirmed
+        TREND_UP, which only registers once the move it would have caught
+        is already underway. See router.py's own docstring for the evidence."""
         router = default_router()
-        assert router.registered_regimes() == frozenset({Regime.TREND_UP})
+        assert router.registered_regimes() == frozenset({Regime.TREND_UP, Regime.BREAKOUT_UP})
 
     def test_trend_up_routes_to_dual_ma_crossover(self):
         router = default_router()
         decision = router.route(_snapshot(Regime.TREND_UP, confidence=0.9))
         assert isinstance(decision.strategy, DualMACrossover)
 
+    def test_breakout_up_routes_to_dual_ma_crossover(self):
+        router = default_router()
+        decision = router.route(_snapshot(Regime.BREAKOUT_UP, confidence=1.0))
+        assert isinstance(decision.strategy, DualMACrossover)
+
     def test_every_other_regime_is_no_trade(self):
         router = default_router()
-        for regime in (Regime.TREND_DOWN, Regime.RANGE, Regime.BREAKOUT_UP,
-                       Regime.BREAKOUT_DOWN, Regime.NO_EDGE):
+        for regime in (Regime.TREND_DOWN, Regime.RANGE, Regime.BREAKOUT_DOWN, Regime.NO_EDGE):
             decision = router.route(_snapshot(regime, confidence=1.0))
             assert decision.is_no_trade, f"{regime} should be NO_TRADE but got a strategy"
             assert decision.reason == NO_STRATEGY_FOR_REGIME

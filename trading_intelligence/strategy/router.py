@@ -63,15 +63,27 @@ class StrategyRouter:
 
 
 def default_router() -> StrategyRouter:
-    """The router's current real coverage: TREND_UP only, via DualMACrossover.
-    Every other regime is honestly NO_TRADE until a strategy is built and
-    validated for it per docs/STRATEGY_VALIDATION_FRAMEWORK.md."""
+    """The router's current real coverage: DualMACrossover, for TREND_UP and
+    BREAKOUT_UP. Originally registered for TREND_UP alone; running it
+    end-to-end through BacktestEngine on synthetic data produced zero trades
+    despite real bullish crossovers occurring. Checked why rather than
+    accepting a silent NO_TRADE: ADX-confirmed TREND_UP only registers once a
+    trend is already established, by which point the crossover that would
+    have opened it has already fired a few bars earlier — on a BREAKOUT_UP or
+    RANGE bar, not TREND_UP. BREAKOUT_UP is where this strategy's actual
+    signal lands, verified against the crossover bars directly (not assumed).
+    RANGE is NOT added: a crossover inside an already-ranging market is a
+    much weaker signal for a trend-following strategy, and adding it without
+    separate evidence would be exactly the kind of unvalidated coverage this
+    router exists to avoid. Every other regime remains honestly NO_TRADE
+    until a strategy is built and validated for it per
+    docs/STRATEGY_VALIDATION_FRAMEWORK.md."""
     from trading_intelligence.strategy.strategies.ma_crossover import DualMACrossover
 
-    router = StrategyRouter()
-    router.register(
-        Regime.TREND_UP,
-        DualMACrossover("BTCUSDT", "1d", params={"fast_period": 20, "slow_period": 50, "trend_filter_period": 0}),
-        min_confidence=0.5,
+    strategy = DualMACrossover(
+        "BTCUSDT", "1d", params={"fast_period": 20, "slow_period": 50, "trend_filter_period": 0}
     )
+    router = StrategyRouter()
+    router.register(Regime.TREND_UP, strategy, min_confidence=0.5)
+    router.register(Regime.BREAKOUT_UP, strategy, min_confidence=0.0)
     return router
