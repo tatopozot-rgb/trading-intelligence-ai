@@ -7,9 +7,9 @@ aliases: ["Checkpoint"]
 
 # Checkpoint — Trading Intelligence AI
 
-> Last updated: 2026-10-06T10:05:00Z
+> Last updated: 2026-10-06T10:20:00Z
 > Agent: Trading Codex (cloud session)
-> Branch: `ccr-b66a9a9e-okj2pl` @ commit `7fd75cc`
+> Branch: `ccr-b66a9a9e-okj2pl` @ commit `485e116`
 > PRs: #1 (specs, open), #3 (real PAPER import, open, NOT merged), #4 (MARKET lot contract, open, NOT merged), #5 (is_junction fix, open, NOT merged), #6 (Agent City handoff, MERGED)
 > Other branches: `claude-code/finding-3-persistent-halt` (Claude Code local, Finding 2/3 implemented, reviewed, no PR yet)
 
@@ -680,6 +680,20 @@ end on the same run.
 
 5 new `BacktestEngine` tests, 2 router tests updated, 259/259 total,
 ruff + mypy clean.
+
+### 23. Extended the strategy-validation gate itself to cover regime-aware configs (same day, continued)
+
+Section 22 wired the Regime Engine + Strategy Router into `BacktestEngine`
+and proved it runs end to end. One gap remained: `docs/STRATEGY_VALIDATION_FRAMEWORK.md`'s
+own walk-forward gate (`run_anchored_walk_forward`) could only validate a
+single fixed strategy — not the regime+strategy pairing that actually
+runs now. Added an optional `router_factory=` parameter, mutually
+exclusive with `strategy_factory=` (same validation pattern as
+`BacktestEngine`'s own split), called fresh per fold per side, same
+discipline `strategy_factory` always had. Ran the real `default_router()`
+through the full fold/factory machinery on synthetic data, not just unit
+tests. 3 new tests, 262/262 total, ruff + mypy clean across the whole
+package (checked, not assumed).
 
 ## What's Next
 
