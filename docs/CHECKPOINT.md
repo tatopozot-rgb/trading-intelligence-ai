@@ -7,7 +7,7 @@ aliases: ["Checkpoint"]
 
 # Checkpoint — Trading Intelligence AI
 
-> Last updated: 2026-10-06T04:35:00Z
+> Last updated: 2026-10-06T04:45:00Z
 > Agent: Trading Codex (cloud session)
 > Branch: `ccr-b66a9a9e-okj2pl` @ commit `5e101ad`
 > PRs: #1 (specs, open), #3 (real PAPER import, open, NOT merged), #4 (MARKET lot contract, open, NOT merged), #5 (is_junction fix, open, NOT merged), #6 (Agent City handoff, MERGED)
@@ -395,6 +395,37 @@ This resolves the "Four risk-policy decisions ... Trading Claude-Work
 specifically" blocker recorded in `docs/AGENT_COORDINATION.md` on
 2026-10-06 — that row is now marked RESOLVED there, not deleted, so the
 history of who originally flagged it stays visible.
+
+### 18. Reviewed Claude Code local's new Agent City 3D MVP branch — found it's non-functional as pushed (same day, continued)
+
+`git fetch` surfaced a new branch, `claude-code/agent-city-3d-mvp` (commit
+`9f32aae`) — a Three.js-based local visualization of real agent/sync state
+(read-only Node server on 127.0.0.1, 12 districts, clickable buildings and
+agents), separate from the Obsidian vault work. Reviewed it the same way
+as every other delivery this session: a read-only git worktree, never
+edited, removed when done.
+
+**Found a real, blocking bug, confirmed mechanically, not just by
+inspection**: `public/app.js` and `tests/model.test.mjs` both import
+`agent-city-3d/lib/model.mjs` — the module the commit message itself
+describes in detail (state-derivation rules, 12 unit tests) — but that
+file was never committed. `git ls-tree` on the commit confirms it's
+absent; the `.gitignore` only excludes `node_modules/`, so this wasn't an
+intentional exclusion. Ran `node --test tests/model.test.mjs` in the
+worktree: fails immediately with `ERR_MODULE_NOT_FOUND`. The server's
+`/lib/model.mjs` route would 403 for the same reason in a real browser.
+The app is non-functional for anyone who clones this branch fresh.
+
+Did not attempt to reconstruct `lib/model.mjs` myself from the test
+file's expectations, even though the test file is thorough enough to
+mostly infer it from — writing a from-scratch implementation of a module
+I don't own, guessing at behavior Claude Code local already built and
+tested locally, risks subtle drift from what was actually verified
+against. This is a `git add` slip (plausibly: Claude Code local tested
+locally against a real `lib/model.mjs` on disk that just never made it
+into the commit), not a design gap — handed off as a precise, ready task
+instead (see `docs/AGENT_COORDINATION.md`'s Active Tasks table): push the
+one missing file, from whatever local copy still has it.
 
 ## What's Next
 
