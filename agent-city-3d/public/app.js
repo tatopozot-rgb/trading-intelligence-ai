@@ -180,6 +180,31 @@ for (const b of BUILDINGS) {
   techo.position.y = alto + 0.18;
   techo.castShadow = true;
   grupo.add(cuerpo, techo);
+  // Silueta propia por edificio (no sólo cajas): techo y remates según la función.
+  if (b.id === "hall") {
+    techo.visible = false;
+    const piramide = new THREE.Mesh(new THREE.ConeGeometry(3.6, 2.6, 4), new THREE.MeshStandardMaterial({ color: 0xfbbf24, metalness: 0.4, roughness: 0.35 }));
+    piramide.rotation.y = Math.PI / 4; piramide.position.y = alto + 1.3; piramide.castShadow = true;
+    grupo.add(piramide);
+  } else if (b.id === "command_center") {
+    techo.visible = false;
+    const cupula = new THREE.Mesh(new THREE.SphereGeometry(2.1, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x93c5fd, metalness: 0.5, roughness: 0.2, transparent: true, opacity: 0.85 }));
+    cupula.position.y = alto; cupula.castShadow = true;
+    const antena = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.4, 6), new THREE.MeshStandardMaterial({ color: 0xe2e8f0 }));
+    antena.position.y = alto + 2.2;
+    grupo.add(cupula, antena);
+  } else if (b.id === "risk_tower") {
+    cuerpo.scale.set(0.78, 1, 0.78);
+    techo.scale.set(0.78, 1, 0.78);
+    const remate = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.2, 1.4, 6), new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.6, roughness: 0.3 }));
+    remate.position.y = alto + 0.9;
+    grupo.add(remate);
+  } else if (b.id.startsWith("house")) {
+    techo.visible = false;
+    const tejado = new THREE.Mesh(new THREE.ConeGeometry(2.3, 1.5, 4), new THREE.MeshStandardMaterial({ color: 0x7c2d12, roughness: 0.8 }));
+    tejado.rotation.y = Math.PI / 4; tejado.position.y = alto + 0.75; tejado.castShadow = true;
+    grupo.add(tejado);
+  }
   const interior = TIENE_INTERIOR.has(b.id) ? interiorDe(b.id) : null;
   if (interior) grupo.add(interior);
   const ventana = new THREE.MeshStandardMaterial({ color: 0xbef264, emissive: 0x3f6212, emissiveIntensity: 0.5, transparent: true, opacity: 0.8 });
@@ -211,7 +236,7 @@ for (const b of BUILDINGS) {
   cuerpo.userData = grupo.userData;
   techo.userData = grupo.userData;
   scene.add(grupo);
-  edificios[b.id] = { grupo, cuerpo, material, anillos, interior };
+  edificios[b.id] = { grupo, cuerpo, material, anillos, interior, etiqueta };
 }
 
 for (const [x, z] of [[24.5, 27], [28, 22], [26, 30], [21, 24], [31, 30]]) {
@@ -225,8 +250,17 @@ for (const [x, z] of [[24.5, 27], [28, 22], [26, 30], [21, 24], [31, 30]]) {
 const agentes = {};
 const PIEL = [0xfcd9b6, 0xe0ac7e, 0xc68642, 0x8d5524];
 const PELO = [0x1f2937, 0x78350f, 0xa16207, 0x111827];
+const PALETA_ROPA = [0x60a5fa, 0xf472b6, 0x34d399, 0xfbbf24, 0xa78bfa, 0xf87171, 0x22d3ee, 0xfb923c, 0x94a3b8];
+function hashClave(key) {
+  let h = 0;
+  for (const c of key) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return h;
+}
 function crearAvatar(key, nombre, color, esSimulado) {
   const grupo = new THREE.Group();
+  const h = hashClave(key);
+  if (esSimulado) color = PALETA_ROPA[h % PALETA_ROPA.length];
+  grupo.scale.y = 0.9 + ((h >> 3) % 5) * 0.04;
   const ropa = new THREE.MeshStandardMaterial({ color, roughness: 0.55, transparent: esSimulado, opacity: esSimulado ? 0.85 : 1 });
   const piel = new THREE.MeshStandardMaterial({ color: PIEL[key.length % PIEL.length] });
   const pelo = new THREE.MeshStandardMaterial({ color: PELO[key.charCodeAt(0) % PELO.length] });
@@ -238,6 +272,17 @@ function crearAvatar(key, nombre, color, esSimulado) {
   cabeza.position.y = 2.0;
   const cabello = new THREE.Mesh(new THREE.SphereGeometry(0.29, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), pelo);
   cabello.position.y = 2.05;
+  const extras = [];
+  if (h % 3 === 0) {
+    const largo = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.5, 0.18), pelo);
+    largo.position.set(0, 1.8, -0.16);
+    extras.push(largo);
+  }
+  if (h % 4 === 1) {
+    const barba = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.14, 0.12), pelo);
+    barba.position.set(0, 1.78, 0.2);
+    extras.push(barba);
+  }
   const brazoI = new THREE.Group(); brazoI.position.set(-0.42, 1.6, 0);
   const brazoD = new THREE.Group(); brazoD.position.set(0.42, 1.6, 0);
   const malI = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.62, 0.18), ropa); malI.position.y = -0.31;
@@ -273,6 +318,7 @@ function crearAvatar(key, nombre, color, esSimulado) {
     brazoD.add(tabla);
     elementos.push(tabla);
   }
+  elementos.push(...extras);
   grupo.add(...elementos);
   grupo.userData = { kind: "agent", key };
   for (const m of [torso, cabeza, cabello, subI, subD, malI, malD]) m.userData = grupo.userData;
@@ -451,6 +497,15 @@ function resaltarSeleccion() {
   }
 }
 let interioresVisibles = true;
+// Clutter: al alejarse sólo quedan las etiquetas de los distritos principales.
+const EDIFICIOS_PRINCIPALES = new Set(["command_center", "risk_tower", "trading_floor", "quant_lab", "university", "residential", "foundry", "hall"]);
+function aplicarEtiquetasEdificios() {
+  const dist = camara.position.distanceTo(controles.target);
+  for (const id in edificios) {
+    const e = edificios[id];
+    e.etiqueta.visible = dist < 50 || (EDIFICIOS_PRINCIPALES.has(id) && dist < 110);
+  }
+}
 function aplicarInteriores() {
   for (const id in edificios) if (edificios[id].interior) edificios[id].interior.visible = interioresVisibles;
 }
@@ -460,13 +515,26 @@ $("cortes").addEventListener("click", () => {
   aplicarInteriores();
 });
 
+let vuelo = null;
+function volarA(objetivo, desplazamiento) {
+  vuelo = {
+    t0: performance.now(), dur: 900,
+    desdeT: controles.target.clone(), hastaT: objetivo.clone(),
+    desdeP: camara.position.clone(), hastaP: objetivo.clone().add(desplazamiento),
+  };
+}
+function animarVuelo(ahora) {
+  if (!vuelo) return;
+  const f = Math.min(1, (ahora - vuelo.t0) / vuelo.dur);
+  const e = f < 0.5 ? 2 * f * f : 1 - Math.pow(-2 * f + 2, 2) / 2;
+  controles.target.lerpVectors(vuelo.desdeT, vuelo.hastaT, e);
+  camara.position.lerpVectors(vuelo.desdeP, vuelo.hastaP, e);
+  if (f >= 1) vuelo = null;
+}
 function enfocarEdificio(id) {
   const b = ids(id);
   const p = posicionMundo(b);
-  const centro = new THREE.Vector3(p.x, 0, p.z);
-  controles.target.copy(centro);
-  camara.position.copy(centro).add(new THREE.Vector3(12, 12, 12));
-  controles.update();
+  volarA(new THREE.Vector3(p.x, 0, p.z), new THREE.Vector3(12, 12, 12));
 }
 
 const raycaster = new THREE.Raycaster();
@@ -690,6 +758,8 @@ renderer.setAnimationLoop(() => {
   anterior = ahora;
   avanzarAgentes(dt, ahora, camara.position);
   animarPulsos(Date.now());
+  aplicarEtiquetasEdificios();
+  animarVuelo(ahora);
   if (seguir && agentes[seguir] && agentes[seguir].grupo.visible) {
     const d = agentes[seguir].grupo.position.clone().sub(controles.target);
     controles.target.add(d);
