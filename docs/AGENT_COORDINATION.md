@@ -7,7 +7,7 @@ aliases: ["Agent Coordination"]
 
 # Agent Coordination — Trading Intelligence AI
 
-> Last updated: 2026-10-06T09:15:00Z
+> Last updated: 2026-10-06T09:35:00Z
 
 ## "Automated trading company" directive (2026-10-06) — triage and stance
 
@@ -126,6 +126,7 @@ what another agent has or hasn't done — do not rely on stale doc text alone.
 | Merged PR #6 (Agent City Notion handoff, docs-only, no conflicts) | Trading Codex (cloud) | 2026-10-06 | #6 |
 | Agent City web MVP (V1) — real-data snapshot dashboard | Trading Codex (cloud) | 2026-10-06 | https://claude.ai/artifact/98zjB7JbToV2ernTsjdLKD — static snapshot, not live-polling; discloses the Notion query-limit gap instead of guessing at Task Board totals; relink/regenerate periodically, don't treat as a live feed |
 | Regime Engine (`trading_intelligence/regime/detector.py`) + Strategy Router (`trading_intelligence/strategy/router.py`) | Trading Codex (cloud) | 2026-10-06 | this branch — 25 new tests, 245/245 total, ruff+mypy clean. Confirmed via a real gap check this didn't exist anywhere before; `default_router()` honestly covers only TREND_UP (the one strategy this project actually has validated) |
+| Post-Trade Learning (`trading_intelligence/learning/regime_performance.py`) | Trading Codex (cloud) | 2026-10-06 | this branch — 8 new tests, 253/253 total, ruff+mypy clean. Tags BacktestEngine's trades with the regime detector's output at each trade's own entry bar (no lookahead); produces plain-language per-regime performance notes, never an auto-applied threshold change (see docs/CHECKPOINT.md section 21 for why) |
 
 ## Technical Decisions
 

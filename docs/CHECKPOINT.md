@@ -7,9 +7,9 @@ aliases: ["Checkpoint"]
 
 # Checkpoint — Trading Intelligence AI
 
-> Last updated: 2026-10-06T09:15:00Z
+> Last updated: 2026-10-06T09:35:00Z
 > Agent: Trading Codex (cloud session)
-> Branch: `ccr-b66a9a9e-okj2pl` @ commit `d5dafe8`
+> Branch: `ccr-b66a9a9e-okj2pl` @ commit `3ac99ab`
 > PRs: #1 (specs, open), #3 (real PAPER import, open, NOT merged), #4 (MARKET lot contract, open, NOT merged), #5 (is_junction fix, open, NOT merged), #6 (Agent City handoff, MERGED)
 > Other branches: `claude-code/finding-3-persistent-halt` (Claude Code local, Finding 2/3 implemented, reviewed, no PR yet)
 
@@ -597,6 +597,35 @@ company directive" section):
   domain (local filesystem/Computer Use); this session reviews what
   lands there (section 19's `lib/model.mjs` finding) rather than
   building it.
+
+### 21. Post-Trade Learning: closing the OBSERVE→...→LEARN loop per regime (same day, continued)
+
+The owner's canonical directive arrived again verbatim (a repeat, not a
+new ask) — per its own "no reconstruyas contexto antiguo, no dupliques
+trabajo," did not redo section 20's work. Continued straight to the
+other confirmed gap from that section's audit: **Post-Trade Learning**
+didn't exist anywhere either.
+
+Built `trading_intelligence/learning/regime_performance.py` without
+touching `BacktestEngine` or `StrategyRouter` — both shipped and tested
+earlier today, and risky to reopen for this. Instead: `tag_trades_with_regime()`
+re-runs the already-tested `detect_regime()` against the exact data
+slice (`data.iloc[:trade.entry_bar+1]`) each trade actually saw at entry
+— no lookahead, verified by a dedicated test (a trade entered right
+before a sharp reversal must classify by the pre-reversal data, not the
+reversal). `summarize_by_regime()` aggregates realized win rate/PnL per
+regime; `recommend_confidence_adjustments()` turns that into
+plain-language notes.
+
+**Deliberately produces recommendations only, never an auto-applied
+change.** Silently raising or lowering the router's `min_confidence`
+from a backtest sample would itself be an unreviewed, risk-relevant
+change — the same category of autonomous risk-escalation this project's
+own engine exists to prevent agents from doing to themselves. A minimum
+sample size (20 closed trades) gates any claim; a test confirms that an
+open trade's `pnl=0` doesn't dilute `win_rate`/`avg_pnl` toward a false
+breakeven (counted in `trade_count`, excluded from `closed_trade_count`
+and the averages). 8 new tests, 253/253 total, ruff + mypy clean.
 
 ## What's Next
 
