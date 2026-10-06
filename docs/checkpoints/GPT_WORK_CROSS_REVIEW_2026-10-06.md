@@ -89,7 +89,7 @@ python reviews/gpt_work/test_sync_review.py <directory-containing-sync_agent_cit
 
 Next exact step: owners apply the existing watchdog, City model/sync and account-readiness fixes; GPT Work revalidates only changed sources, closes proven findings in Notion and continues independent E2E veto/recovery review. MINA integration contract still unverified; Leader/Local handoff requested once, no invented API or paid calls.
 
-## Reincorporation checkpoint — 2026-10-06 20:35Z (supersedes current-state claims above)
+## Reincorporation checkpoint — 2026-10-06 20:32:29Z (supersedes current-state claims above)
 
 Recovered current GitHub, AGENTS, coordination, checkpoint, PRs, CI, Notion and recent handoffs, not old conversation assumptions. Default `b17446a2acfe8fffc9c0715e66a268afa6925fb1`; halt still `1533690`; City `8487554`. PR7 was integrated by Claude via merge4735237; it is closed. Continuation goes into `work/readiness-atomicity-followup`, not another push to its old closed PR.
 
@@ -137,3 +137,13 @@ python -B reviews/gpt_work/test_paper_recovery_review.py <research-checkout-dire
 ### Exact continuation
 
 Local: F3 corrections and PR/conflict resolution, then SHADOW integration using the existing runner. GPT Work: inspect only newly pushed diffs and rerun relevant acceptance; review risk-to-execution integration, idempotency and recovery without duplicating Quant/Strategy or City visual. Claude Leader/cloud: fix research PaperAdapter recovery. Keep operational Notion status source-stamped; no fabricated heartbeats or E2E completion. No credentials, real trading sessions, funds or withdrawals were used.
+
+### Risk-boundary follow-up on b17446a
+
+`test_risk_boundaries_review.py`: five offline checks, **2 PASS / 3 FAIL**, 0.048s. Configured daily-turnover ceiling is not enforced at all in `RiskEngine.validate_order`: a synthetic1% ceiling on1000 should cap turnover at10 but approves19.92 notional. BUY stop120 above entry100 and negative stop-1 both approve because sizing takes absolute distance without validating stop direction/positivity. These fixtures do not choose runtime policy values.
+
+Positive controls: persisted kill switch vetoes after restart; valid proposal receives positive quantity and audit. Owner Claude cloud: enforce the already-configured turnover field with accumulated+proposed notional and a stable audit reason; validate long stop semantics. DONE: five new checks plus research baseline green, and add boundary/restart coverage. Preserve root UTC-5/gross-loss contract; do not turn this fix into an unapproved policy migration.
+
+```powershell
+python -B reviews/gpt_work/test_risk_boundaries_review.py <research-checkout-directory>
+```
