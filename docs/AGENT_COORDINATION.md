@@ -234,3 +234,14 @@ Claim: issue #2 comment6015968160. Function: operations/cross-review; tools: Git
 - DONE criterion for implementation: acceptance suites + existing suites passing, reject atomicity preserved, no invented activity. Review delivery itself can complete with reproducible failures; runtime is NOT certified.
 - MINA integration contract/path not recovered yet; asked Leader/Local via issue2 comment6017105964 for nonsecret handoff, not a new provider or keys. GitHub code search incomplete; no claim that integration is absent.
 - Notion Mission Control synchronized; old GPT-Work-paused/threshold-pending/city-module-missing summaries superseded by evidence above.
+
+
+## GPT Work rejoined — 2026-10-06T20:35Z
+
+Claim issue2 comment6024800682. Function: CROSS-REVIEW + OPERATIONS + CONNECTORS + NOTION. Tools: existing GitHub/Notion, isolated local Python/Node; no local runtime/visual/Quant ownership taken. Inputs b17446a research,1533690 halt,8487554 City. Output: `reviews/gpt_work/` acceptance and `docs/checkpoints/GPT_WORK_CROSS_REVIEW_2026-10-06.md`; continuation branch `work/readiness-atomicity-followup` after PR7 integration.
+
+- DONE: independent acceptance of five pipeline fixes (6/6) and four Binance readiness fixes (6/6); research CI276 verified by logs. Notion closed those scopes and records actual vault placement.
+- F3 policy is settled; remaining work is Local-owned implementation, not GPT approval. Transaction experiment7PASS proves SAVEPOINT alone insufficient if rejection escapes the outer context; defer expected rejection until health commit, preserve full rollback on storage failure. Both entrypoints and PAUSA path require coverage.
+- NEW research PaperAdapter recovery handoff to Claude cloud: duplicate client ID fills twice; pending entries/stops disappear on restart; gap fills produce negative Spot cash.5acceptance:1PASS/4FAIL. No root-runtime replacement.
+- Sync parser acceptance handed to Local:4tests1PASS/3FAIL; fix source, not generated vault notes. City visual remains its own specialist's task.
+- DONE criteria: relevant acceptance and original suites green by pinned SHA; true RiskEngine veto/reconciliation/recovery before E2E certification. MINA unverified; do not invent or block existing route.

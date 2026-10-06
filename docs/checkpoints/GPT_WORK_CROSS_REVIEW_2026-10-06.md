@@ -60,3 +60,80 @@ python reviews/gpt_work/test_pipeline_review.py <research-checkout-directory>
 ```
 
 PR7 is DRAFT intentionally: reproducible failure evidence, not implementation approval. Research CI independently read at dea892f:253passed4.10s,ruffOK,mypy34filesOK. This green baseline missed the new acceptance cases and must not be used to override them.
+
+## Block3 — corrected pipeline revalidated; account readiness and provenance
+
+**Pipeline RESOLVED:** Claude corrected all five Block2 defects in `29067d2409b0bcb13f490083c6a24088a8183839`. GPT Work read the changes and reran the same independent harness against the corrected modules: **6/6 PASS**, 0.016s (Python 3.12.14/pandas 3.0.1). Do not repeat or reopen those five findings. This acceptance does not prove full RiskEngine integration or runtime end-to-end readiness. Claude reports 269 research tests; verify CI separately by SHA.
+
+**Binance readiness:** six offline acceptance checks, **2 PASS / 4 FAIL**, 0.021s, on `execution/binance.py` and `dry_run.py` unchanged from `2170d8e` to `29067d2`. Injected fake clients, cleared environment, synthetic credentials, sockets blocked; no account or order requests.
+
+- `permissions=['SPOT']` with `canTrade=false` passes `_verify_permissions`. Category is not trading eligibility.
+- BTC holdings `free=0`, `locked=0.5` produce no position: false flat during reconciliation.
+- `submit_order` with `_connected=false` reaches the fake exchange order method without verified startup. This is a readiness gate gap, not proof of a production incident. The required RiskEngine veto is not enforced by this adapter itself; callers need separate integration evidence.
+- DryRun accepts a MARKET order worth 0.1 with a minimum notional of 10 (`applyToMarket=true`, `avgPriceMins=0`), while the comparable LIMIT rejection works. Valid LIMIT interception also passes; no real submit is forwarded.
+
+Owner: Claude Leader/cloud for existing research adapters; coordinate with Local, which owns account scaffolds. DONE: six offline checks plus existing adapter suite green; verify mandatory session/risk/limits boundaries before any eventual activation. Official account response documents `canTrade` and both free/locked balances: https://developers.binance.com/en/docs/catalog/core-trading-spot-trading/api/rest-api/account . Account withdrawal flags are not assumed equivalent to key-scope permission evidence.
+
+**XM:** root `broker_adapters.py` remains a separate pure snapshot adapter, without MetaTrader transport, account connection or order submission. Exported lot/contract/profit/margin evidence is not treated as Binance Spot arithmetic. Readiness scaffolding remains Local-owned, not an integrated broker session.
+
+**Vault placement VERIFIED:** nine planned notes/canvas exist in `C:\Users\tatop\TATO`. `Agent City.canvas` parses as JSON: 40 nodes/2 edges. Generated checkpoint observed at 13:20:06Z with source `2170d8e`. Do not repeat placement. No staging files deleted and no generated notes edited. Live Obsidian UI is not independently verified.
+
+**Local sync provenance:** `C:\Users\tatop\agent-city-sync\sync_agent_city.py`, SHA256 `A1B6B1DDB9304BFB0D040292881ACD388DFA91431CC45EF39B574F0E8BFD05C3`. Four pure-function checks: **1 PASS / 3 FAIL**, 0.017s. Completed Tasks table without Status yields NOT_SYNCED; markdown `**DONE**` is not normalized; `last_result` chooses historical 92/92 instead of later 262/262. Unknown activity correctly stays NOT_SYNCED. No sync, git, daemon, vault writer or original side-effectful sync test suite was executed.
+
+Owner: Claude Code Local, patch the sync source and publish the source/version for review; do not manually fix generated notes. DONE: four isolated checks pass plus existing suite in a safe temporary workspace. Current sync explicitly labels Notion Mission Control and PRs NOT_SYNCED; JSONL contains task deltas, not evidence of a runtime trading Event Bus. Agent City frontend model defects from Block1 remain open; latest `16b9aba` adds SIM life/paths, not their correction.
+
+```powershell
+python reviews/gpt_work/test_exchange_readiness_review.py <research-checkout-directory>
+python reviews/gpt_work/test_sync_review.py <directory-containing-sync_agent_city.py>
+```
+
+Next exact step: owners apply the existing watchdog, City model/sync and account-readiness fixes; GPT Work revalidates only changed sources, closes proven findings in Notion and continues independent E2E veto/recovery review. MINA integration contract still unverified; Leader/Local handoff requested once, no invented API or paid calls.
+
+## Reincorporation checkpoint — 2026-10-06 20:35Z (supersedes current-state claims above)
+
+Recovered current GitHub, AGENTS, coordination, checkpoint, PRs, CI, Notion and recent handoffs, not old conversation assumptions. Default `b17446a2acfe8fffc9c0715e66a268afa6925fb1`; halt still `1533690`; City `8487554`. PR7 was integrated by Claude via merge4735237; it is closed. Continuation goes into `work/readiness-atomicity-followup`, not another push to its old closed PR.
+
+### Resolved and independently accepted
+
+- Pipeline five defects: 29067d2, six independent checks PASS (previous block).
+- Binance four defects: d899d49, six independent checks PASS in b17446a, 0.012s. This is an offline adapter acceptance, not a private account test.
+- Current research CI run37481047824/job112328931002: **276 PASS in12.84s**, ruff PASS, mypy clean on34 source files, logs read directly.
+- Notion task/blocker status now reflects these closures and actual vault placement. Earlier two Notion update attempts failed at the approval reviewer due to usage capacity and did NOT execute; retried only after the user's explicit resumption and fresh official capacity check, now succeeded. No bypass, reset or purchase.
+- MINA: no verified implemented/documented integration in current repo/checkpoint; do not invent it. Continue existing route, not a blocker.
+
+### Finding3: policy settled, implementation still blocked
+
+No new numerical decision or GPT sign-off is required. The actual remaining blockers are watchdog NULL/init/release and transactional preservation. Claude Code Local owns root implementation and must push a corrected commit, open the Finding3 PR, and reconcile the import PR3 conflict. Do not claim fixed while the remote branch is still1533690.
+
+`reviews/gpt_work/atomicity_review.py`: **7 PASS in0.848s**, internal independent reviewer. This is a proof using existing helpers and an in-memory orchestration experiment, NOT an applied runtime patch. Main reviewed its full source before handoff.
+
+- SAVEPOINT + rollback/release + re-raise inside the outer transaction still loses the health record: outer rollback wins.
+- Capture expected order rejection, roll back only order writes, exit `conectar()` normally to commit health, then raise the rejection outside. SAVEPOINT must start before `asegurar_dia` and cover trade/request/event/final-check writes. Preserve the current lock and evaluate only once.
+- PAUSA_DRAWDOWN currently loses successful observation for the same reason; defer that rejection too.
+- Confirmed no partial order after a deliberately late rejection (after actual trade INSERT, request UPDATE and APERTURA event). Success path commits completely. Unexpected storage or commit failure aborts and propagates; never masquerades as ordinary rejection.
+- Apply through both `ejecutar_respuesta` and `ejecutar_reglas`. Never globally commit on exceptions, use a second locked writer, commit early then continue with stale authorization, or bypass risk.
+
+```powershell
+python -B reviews/gpt_work/atomicity_review.py <halt-checkout-directory>
+python -B reviews/gpt_work/test_watchdog_review.py <halt-checkout-directory>
+```
+
+### New research PaperAdapter recovery findings
+
+Scope only `trading_intelligence/execution/paper.py` at b17446a; does not replace the authoritative root runtime. Five isolated acceptance methods: **1 PASS / 4 FAIL**, 0.044s, temporary state, sockets blocked.
+
+1. Same client_order_id submitted twice fills twice (quantity2, expected1).
+2. Pending entry disappears on restart.
+3. Protective STOP disappears on restart; later gap leaves open exposure.
+4. Next-open gap produces negative Spot cash: decision-time affordable900 at100 becomes1800 at200, cash -801.8 after fee. Recheck feasibility at fill.
+5. Filled position and cash do survive restart (positive control).
+
+Owner: Claude Leader/cloud. Tools: Python/tests, GitHub; permissions: existing research code and synthetic fixtures, no operational account. Input: harness/source SHA; output: implementation commit and test evidence. DONE: five acceptance checks plus existing paper/recovery suite green, preserve idempotency across restart and explicit failure semantics.
+
+```powershell
+python -B reviews/gpt_work/test_paper_recovery_review.py <research-checkout-directory>
+```
+
+### Exact continuation
+
+Local: F3 corrections and PR/conflict resolution, then SHADOW integration using the existing runner. GPT Work: inspect only newly pushed diffs and rerun relevant acceptance; review risk-to-execution integration, idempotency and recovery without duplicating Quant/Strategy or City visual. Claude Leader/cloud: fix research PaperAdapter recovery. Keep operational Notion status source-stamped; no fabricated heartbeats or E2E completion. No credentials, real trading sessions, funds or withdrawals were used.
