@@ -5,6 +5,7 @@ import pytest
 
 from trading_intelligence.analysis.indicators import (
     above_ma_filter,
+    adx,
     atr,
     donchian_high,
     donchian_low,
@@ -78,6 +79,38 @@ class TestATR:
         s = _series([100.0] * 20)
         result = atr(s, s, s, period=5)
         assert (result.dropna().abs() < 1e-10).all()
+
+
+# ── ADX ──────────────────────────────────────────────────────────────────────
+
+class TestADX:
+    def test_strong_trend_scores_higher_than_a_range(self):
+        n = 150
+        rng = np.random.default_rng(0)
+        trend_close = 100 + np.arange(n) * 0.5 + rng.normal(0, 0.3, n)
+        range_close = 100 + np.sin(np.arange(n) / 3.0) * 1.0 + rng.normal(0, 0.1, n)
+        trend_adx = adx(
+            _series(trend_close + 0.5), _series(trend_close - 0.5), _series(trend_close)
+        ).iloc[-1]
+        range_adx = adx(
+            _series(range_close + 0.5), _series(range_close - 0.5), _series(range_close)
+        ).iloc[-1]
+        assert trend_adx > range_adx
+
+    def test_flat_price_is_zero_not_nan(self):
+        # No directional movement at all: DX's 0/0 must resolve to 0, not NaN.
+        s = _series([100.0] * 40)
+        result = adx(s, s, s, period=14)
+        assert (result.dropna() == 0.0).all()
+
+    def test_bounded_zero_to_hundred(self):
+        n = 100
+        rng = np.random.default_rng(1)
+        close = 100 + rng.normal(0, 1.0, n).cumsum()
+        high = _series(close + np.abs(rng.normal(0, 0.5, n)))
+        low = _series(close - np.abs(rng.normal(0, 0.5, n)))
+        result = adx(high, low, _series(close), period=14).dropna()
+        assert (result >= 0).all() and (result <= 100).all()
 
 
 # ── RSI ──────────────────────────────────────────────────────────────────────

@@ -36,6 +36,27 @@ def atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> 
     return tr.ewm(span=period, adjust=False, min_periods=period).mean()
 
 
+def adx(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> pd.Series:
+    """Average Directional Index (Wilder). Measures trend STRENGTH, not direction —
+    high ADX means a strong trend (either way), low ADX means ranging/choppy price."""
+    up_move = high.diff()
+    down_move = -low.diff()
+    plus_dm = pd.Series(np.where((up_move > down_move) & (up_move > 0), up_move, 0.0), index=high.index)
+    minus_dm = pd.Series(np.where((down_move > up_move) & (down_move > 0), down_move, 0.0), index=high.index)
+    tr = pd.concat(
+        [high - low, (high - close.shift(1)).abs(), (low - close.shift(1)).abs()], axis=1
+    ).max(axis=1)
+    smoothed_tr = tr.ewm(alpha=1 / period, adjust=False, min_periods=period).mean()
+    smoothed_plus_dm = plus_dm.ewm(alpha=1 / period, adjust=False, min_periods=period).mean()
+    smoothed_minus_dm = minus_dm.ewm(alpha=1 / period, adjust=False, min_periods=period).mean()
+    plus_di = 100 * smoothed_plus_dm / smoothed_tr
+    minus_di = 100 * smoothed_minus_dm / smoothed_tr
+    di_sum = plus_di + minus_di
+    # Both DIs zero (no directional movement at all, e.g. a flat price) -> DX undefined; treat as 0, not NaN.
+    dx = np.where(di_sum == 0, 0.0, 100 * (plus_di - minus_di).abs() / di_sum)
+    return pd.Series(dx, index=high.index).ewm(alpha=1 / period, adjust=False, min_periods=period).mean()
+
+
 def rsi(series: pd.Series, period: int = 14) -> pd.Series:
     """Relative Strength Index (Wilder smoothing)."""
     delta = series.diff()
