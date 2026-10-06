@@ -199,3 +199,14 @@ WAIT-NOTION-VISUAL-001 only blocks authenticated browser visual QA, not the
 working connector. WAIT-CLAUDE-CODE-001 was superseded by the user's delegation;
 this does not certify CLI setup. Source timestamps and authorship conflicts are
 flagged in Notion; avoid treating a reported future finish as observed heartbeat.
+
+
+## GPT Work independent cross-review — observed 2026-10-06T13:17Z
+
+Claim: issue #2 comment6015968160. Function: operations/cross-review; tools: GitHub + Notion connectors, local isolated Python/Node. Permissions: review fixtures, own review files and operational records; no edits to local-owned runtime/city branches, no financial activation. Inputs pinned: halt1533690, city7913bb0, shareddea892f. Output: executable acceptance checks and evidence in `docs/checkpoints/GPT_WORK_CROSS_REVIEW_2026-10-06.md`.
+
+- Watchdog: 8 acceptance tests,4PASS/4FAIL; includes NEW rollback-of-valid-valuation defect on duplicate rejection (issue2 comment6017057938), plus known NULL/init/release gaps. Claude Code Local retains correction ownership; Claude Leader decides integration.
+- Agent City: original12model tests PASS;4new acceptance tests yield1PASS/3FAIL (future snapshot/event and snapshot WORKING without event). Local retains ownership, no second frontend.
+- DONE criterion for implementation: acceptance suites + existing suites passing, reject atomicity preserved, no invented activity. Review delivery itself can complete with reproducible failures; runtime is NOT certified.
+- MINA integration contract/path not recovered yet; asked Leader/Local via issue2 comment6017105964 for nonsecret handoff, not a new provider or keys. GitHub code search incomplete; no claim that integration is absent.
+- Notion Mission Control synchronized; old GPT-Work-paused/threshold-pending/city-module-missing summaries superseded by evidence above.
