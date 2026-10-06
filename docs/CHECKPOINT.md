@@ -7,9 +7,9 @@ aliases: ["Checkpoint"]
 
 # Checkpoint — Trading Intelligence AI
 
-> Last updated: 2026-10-06T03:30:00Z
+> Last updated: 2026-10-06T03:45:00Z
 > Agent: Trading Codex (cloud session)
-> Branch: `ccr-b66a9a9e-okj2pl` @ commit `ea82d9a`
+> Branch: `ccr-b66a9a9e-okj2pl` @ commit `4095e76`
 > PRs: #1 (specs, open), #3 (real PAPER import, open, NOT merged), #4 (MARKET lot contract, open, NOT merged), #5 (is_junction fix, open, NOT merged), #6 (Agent City handoff, MERGED)
 > Other branches: `claude-code/finding-3-persistent-halt` (Claude Code local, Finding 2/3 implemented, reviewed, no PR yet)
 
@@ -265,6 +265,40 @@ no test coverage. Added `REASON_INVALID_REFERENCE_PRICE` and 3 tests
 entry_price set directly on a LIMIT-style proposal).
 **216/216 tests passing, ruff clean, mypy clean** (up from 213).
 
+### 15. A fourth, more serious bug: PaperAdapter was double-charging the entry fee on every sell (same day, continued)
+
+Continuing the line-by-line audit into `execution/paper.py` against
+`PAPER_TRADING_SIMULATION_SPEC.md`. `_apply_sell()` credited cash with
+`entry_cost + realized_pnl` instead of the sale's actual proceeds.
+`realized_pnl` already subtracts `entry_fee_share` once (correctly);
+adding `entry_cost` back on top double-charges that same fee share —
+cash ends up under-credited by `entry_fee_share` on **every single
+sell**, partial or full. Verified numerically before touching anything:
+a realistic $5,000 BTC round trip was off by exactly the entry fee's
+dollar amount ($5.00). The one existing test on this path asserted only
+`cash > 10000` — far too weak to catch it.
+
+Fixed to the simplest correct form: `cash += proceeds` — the entry cost
+was already fully debited at `_apply_buy()`, so there is nothing separate
+to "give back" at exit beyond what the sale actually paid out.
+`realized_pnl` itself was always correct and is unchanged. Added two
+precise tests (full sell, partial sell) that reconcile cash against a
+plain buy-then-sell ledger, which would have caught this immediately.
+
+**The same arithmetic error was in `PAPER_TRADING_SIMULATION_SPEC.md`'s
+own pseudocode** (it double-subtracted `exit_fee` too) — corrected there
+as well, so nothing else gets implemented against the wrong formula.
+
+Checked whether the real PAPER system shares this pattern: it doesn't —
+`paper_store.cerrar()` uses a different model entirely (adds net
+`resultado_usd` once at close; never debits the full cost basis from
+`saldo_actual` at open), so this bug was confined to this research
+package. Flagging the spec correction for Trading Claude-Work's eventual
+review since it touches a document it authored, even though the fix is
+plain arithmetic (verified numerically), not a policy call.
+
+**218/218 tests passing, ruff clean, mypy clean** (up from 216).
+
 ## What's Next
 
 **For whichever agent picks this up next:**
@@ -285,13 +319,13 @@ entry_price set directly on a LIMIT-style proposal).
 
 ## Test Status
 
-**`trading_intelligence/` package: 216/216 tests passing**, ruff clean, mypy clean.
+**`trading_intelligence/` package: 218/218 tests passing**, ruff clean, mypy clean.
 ```
 tests/test_indicators.py       20/20 PASS
 tests/test_ma_crossover.py      7/7  PASS
 tests/test_backtest_engine.py   7/7  PASS  (incl. 2 new deterministic gap-fill edge cases)
 tests/test_risk_engine.py      33/33 PASS  (30 + 3 for the entry/reference-price reason-code fix)
-tests/test_paper_adapter.py    12/12 PASS
+tests/test_paper_adapter.py    14/14 PASS  (12 + 2 for the cash double-fee fix)
 tests/test_binance_adapter.py  22/22 PASS
 tests/test_downloader.py       18/18 PASS  (11 + 7 for the testnet-default fix)
 tests/test_report.py           11/11 PASS
