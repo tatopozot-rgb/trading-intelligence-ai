@@ -21,7 +21,9 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
+from trading_intelligence.regime.detector import detect_regime
 from trading_intelligence.strategy.base import AbstractStrategy
+from trading_intelligence.strategy.router import StrategyRouter
 
 logger = logging.getLogger(__name__)
 
@@ -142,13 +144,26 @@ class BacktestEngine:
 
     def __init__(
         self,
-        strategy: AbstractStrategy,
+        strategy: Optional[AbstractStrategy] = None,
         initial_equity: Decimal = Decimal("10000"),
         risk_pct: Decimal = DEFAULT_RISK_PCT,
         taker_fee: Decimal = TAKER_FEE,
         slippage_factor: Decimal = SLIPPAGE_FACTOR,
+        router: Optional[StrategyRouter] = None,
+        regime_kwargs: Optional[dict] = None,
     ):
+        """
+        Exactly one of `strategy` (the original, fixed-strategy mode every
+        existing test uses) or `router` (regime-aware: re-evaluates which
+        strategy, if any, should see each bar via `detect_regime()` +
+        `StrategyRouter.route()` — NO_TRADE when the router routes to no
+        strategy for the current regime) must be given.
+        """
+        if (strategy is None) == (router is None):
+            raise ValueError("Pass exactly one of `strategy` or `router`, not both or neither.")
         self.strategy = strategy
+        self.router = router
+        self.regime_kwargs = regime_kwargs or {}
         self.initial_equity = initial_equity
         self.risk_pct = risk_pct
         self.taker_fee = taker_fee
@@ -176,6 +191,11 @@ class BacktestEngine:
         equity_history: list[tuple[pd.Timestamp, float]] = []
         trades: list[BacktestTrade] = []
         open_trade: Optional[BacktestTrade] = None
+        # The strategy that opened the current position, for exit-signal checks —
+        # NOT necessarily today's routed strategy: the regime (and therefore what
+        # the router would route to right now) can change while a trade is open,
+        # but only the strategy that actually opened it understands its own exit.
+        open_trade_strategy: Optional[AbstractStrategy] = None
 
         for i in range(1, len(data)):
             current_bar = data.iloc[i]
@@ -197,11 +217,16 @@ class BacktestEngine:
                     equity += open_trade.pnl
                     trades[-1] = open_trade
                     open_trade = None
+                    open_trade_strategy = None
 
             # Signal generation: pass all bars up to i (inclusive) but signal
             # fires at bar i close, will fill at bar i+1 open (next iteration)
             if open_trade is None:
-                proposal = self.strategy.on_bar(historical)
+                active_strategy = self.strategy
+                if self.router is not None:
+                    snapshot = detect_regime(historical, **self.regime_kwargs)
+                    active_strategy = self.router.route(snapshot).strategy
+                proposal = active_strategy.on_bar(historical) if active_strategy is not None else None
                 if proposal is not None:
                     # Will fill on NEXT bar open — store as "pending" for next iteration
                     next_bar_idx = i + 1
@@ -234,10 +259,13 @@ class BacktestEngine:
                     )
                     trades.append(trade)
                     open_trade = trade
+                    open_trade_strategy = active_strategy
 
             elif open_trade is not None:
-                # Check exit signal on open position
-                if self.strategy.on_exit_signal(historical, open_trade.entry_price):
+                # Check exit signal on open position — using the strategy that
+                # actually opened it (see open_trade_strategy's own comment above).
+                assert open_trade_strategy is not None
+                if open_trade_strategy.on_exit_signal(historical, open_trade.entry_price):
                     next_bar_idx = i + 1
                     if next_bar_idx < len(data):
                         next_bar = data.iloc[next_bar_idx]
@@ -251,6 +279,7 @@ class BacktestEngine:
                     equity += open_trade.pnl
                     trades[-1] = open_trade
                     open_trade = None
+                    open_trade_strategy = None
 
             equity_history.append((bar_time, float(equity)))
 
