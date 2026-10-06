@@ -176,6 +176,20 @@ class TestExchangeSideValidation:
         assert result.status == "DRY_RUN"
         assert result.client_order_id == order.client_order_id
 
+    def test_market_order_rejected_when_exchange_flags_notional_applies_to_market(self):
+        """Real bug found by GPT Work's independent review: a MARKET order
+        has no limit_price, so meets_min_notional could never run for it —
+        this used to silently skip the check entirely, even when the
+        exchange's own filter says it applies to MARKET orders too. Must
+        fail closed (reject) rather than silently pass an unverifiable case."""
+        live = FakeLiveAdapter()
+        live.market_notional_check_required = lambda symbol: True
+        adapter = DryRunAdapter(live)
+        order = OrderRequest(symbol="BTCUSDT", side="BUY", order_type="MARKET", quantity=Decimal("0.001"))
+        result = adapter.submit_order(order)
+        assert result.status == "REJECTED"
+        assert "notional" in result.reject_reason
+
 
 class TestDegradesGracefullyWithoutFilterHelpers:
     """A live adapter with no round_to_lot_size/round_to_tick_size/meets_min_notional

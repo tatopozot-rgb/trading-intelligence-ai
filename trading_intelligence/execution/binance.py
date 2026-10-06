@@ -124,6 +124,13 @@ class BinanceSpotAdapter(AbstractExchangeAdapter):
         permissions = account.get("permissions", [])
         if "SPOT" not in permissions:
             raise RuntimeError(f"API key missing SPOT trading permission: {permissions}")
+        # canTrade is account-wide (e.g. Binance can disable it for compliance
+        # reasons) and independent of the permissions list — an account can
+        # have permissions=['SPOT'] and canTrade=False simultaneously. Found
+        # by GPT Work's independent review: this check used to accept that
+        # combination since it only looked at `permissions`, never `canTrade`.
+        if account.get("canTrade") is not True:
+            raise RuntimeError(f"Account trading is disabled (canTrade={account.get('canTrade')!r})")
         # python-binance's get_account() does not expose withdrawal permission
         # directly in all API versions — this must be manually verified by the
         # owner in the Binance UI when creating the key (see spec: NO withdrawal
@@ -165,12 +172,34 @@ class BinanceSpotAdapter(AbstractExchangeAdapter):
         min_notional = Decimal(filters.get("MIN_NOTIONAL", {}).get("minNotional", "0"))
         return (price * quantity) >= min_notional
 
+    def market_notional_check_required(self, symbol: str) -> bool:
+        """True if this symbol's notional filter explicitly applies to MARKET
+        orders too (MIN_NOTIONAL's applyToMarket, or the newer NOTIONAL
+        filter's applyMinToMarket) — i.e. a MARKET order here cannot be
+        assumed exempt from the minimum-notional check that LIMIT orders get.
+        """
+        filters = self._symbol_filters(symbol)
+        min_notional = filters.get("MIN_NOTIONAL")
+        if min_notional is not None and min_notional.get("applyToMarket"):
+            return True
+        notional = filters.get("NOTIONAL")
+        if notional is not None and notional.get("applyMinToMarket"):
+            return True
+        return False
+
     # ------------------------------------------------------------------
     # AbstractExchangeAdapter interface
     # ------------------------------------------------------------------
 
     def submit_order(self, order: OrderRequest) -> OrderResult:
         self._require_credentials()
+        if not self._connected:
+            # Credentials being present is not the same as a verified session —
+            # connect() must have actually succeeded (ping, permissions, canTrade)
+            # first. Found by GPT Work's independent review: this used to reach
+            # client.create_order() with credentials alone, never checking that
+            # connect() had run and passed.
+            raise RuntimeError("submit_order called before a successful connect(); session not verified.")
         client = self._get_client()
         quantity = self.round_to_lot_size(order.symbol, order.quantity)
         if quantity <= 0:
@@ -221,10 +250,14 @@ class BinanceSpotAdapter(AbstractExchangeAdapter):
         account = client.get_account()
         for balance in account["balances"]:
             if balance["asset"] == base_asset:
-                free = Decimal(balance["free"])
-                if free > 0:
+                # Real exposure is free + locked, not free alone — a balance
+                # tied up in an open order (e.g. an unfilled SELL) is still a
+                # real position, not "flat." Found by GPT Work's independent
+                # review: free=0 with locked=0.5 used to report None here.
+                total = Decimal(balance["free"]) + Decimal(balance["locked"])
+                if total > 0:
                     return Position(
-                        symbol=symbol, quantity=free,
+                        symbol=symbol, quantity=total,
                         avg_entry_price=Decimal("0"),  # not tracked by exchange; use trade DB
                         entry_fee=Decimal("0"),
                     )

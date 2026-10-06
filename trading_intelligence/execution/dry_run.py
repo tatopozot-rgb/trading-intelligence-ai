@@ -134,5 +134,21 @@ class DryRunAdapter(AbstractExchangeAdapter):
             meets_min_notional = getattr(self._live, "meets_min_notional", None)
             if meets_min_notional is not None and not meets_min_notional(order.symbol, price, rounded_qty):
                 return "order value below exchange minimum notional"
+        elif order.order_type == "MARKET":
+            # A MARKET order has no limit_price, so meets_min_notional (which
+            # needs a price) cannot run here at all — this used to silently
+            # skip the check entirely, even when the exchange's own filter
+            # says it applies to MARKET orders too (found by GPT Work's
+            # independent review: a notional-0.1 MARKET order passed against
+            # a minNotional-10/applyToMarket=true filter while the equivalent
+            # LIMIT order correctly failed). Fail closed instead of silently
+            # passing: reject when we can't verify what the exchange itself
+            # would check, rather than let an untested path through.
+            market_notional_check_required = getattr(self._live, "market_notional_check_required", None)
+            if market_notional_check_required is not None and market_notional_check_required(order.symbol):
+                return (
+                    "MARKET order notional cannot be verified without a reference "
+                    "price (exchange filter applies minimum notional to MARKET orders)"
+                )
 
         return None

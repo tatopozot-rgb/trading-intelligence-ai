@@ -45,6 +45,7 @@ class FakeBinanceClient:
     def get_account(self):
         return {
             "permissions": ["SPOT"],
+            "canTrade": True,
             "balances": [
                 {"asset": "USDT", "free": "5000.00", "locked": "0"},
                 {"asset": "BTC", "free": "0.1", "locked": "0"},
@@ -102,6 +103,29 @@ class TestCredentialGating:
         adapter, _ = _adapter_with_fake_client(with_credentials=False)
         with pytest.raises(BinanceCredentialsMissing):
             adapter.get_account_info()
+
+
+class TestPositionReporting:
+    def test_locked_only_balance_is_still_a_real_position(self):
+        """Real bug found by GPT Work's independent review: free=0 with
+        locked=0.5 (e.g. BTC tied up in an open SELL order) used to report
+        None here — a real position silently reported as flat."""
+        adapter, fake_client = _adapter_with_fake_client()
+        fake_client.get_account = lambda: {
+            "permissions": ["SPOT"], "canTrade": True,
+            "balances": [{"asset": "BTC", "free": "0", "locked": "0.5"}],
+        }
+        position = adapter.get_position("BTCUSDT")
+        assert position is not None
+        assert position.quantity == Decimal("0.5")
+
+    def test_zero_free_and_zero_locked_is_genuinely_flat(self):
+        adapter, fake_client = _adapter_with_fake_client()
+        fake_client.get_account = lambda: {
+            "permissions": ["SPOT"], "canTrade": True,
+            "balances": [{"asset": "BTC", "free": "0", "locked": "0"}],
+        }
+        assert adapter.get_position("BTCUSDT") is None
 
 
 class TestPublicMarketDataNeedsNoCredentials:
@@ -177,10 +201,28 @@ class TestFiltersAndRounding:
         # FakeBinanceClient has no call counter, but cache object identity confirms reuse
         assert adapter._exchange_info_cache is not None
 
+    def test_market_notional_check_not_required_when_filter_has_no_flag(self):
+        adapter, _ = _adapter_with_fake_client()  # fixture's MIN_NOTIONAL has no applyToMarket key
+        assert adapter.market_notional_check_required("BTCUSDT") is False
+
+    def test_market_notional_check_required_when_filter_flags_it(self):
+        """Real bug found by GPT Work's independent review: a MARKET order's
+        notional was never checked at all, even when the exchange's own
+        filter explicitly applies the minimum to MARKET orders too."""
+        adapter, fake_client = _adapter_with_fake_client()
+        fake_client.get_exchange_info = lambda: {
+            "symbols": [{
+                "symbol": "BTCUSDT",
+                "filters": [{"filterType": "MIN_NOTIONAL", "minNotional": "10.0", "applyToMarket": True}],
+            }]
+        }
+        assert adapter.market_notional_check_required("BTCUSDT") is True
+
 
 class TestOrderSubmission:
     def test_submit_market_order_rounds_quantity(self):
         adapter, fake_client = _adapter_with_fake_client()
+        adapter._connected = True  # a verified session is a precondition, not this test's subject
         order = OrderRequest(symbol="BTCUSDT", side="BUY", order_type="MARKET", quantity=Decimal("0.123456"))
         result = adapter.submit_order(order)
         assert result.status == "SUBMITTED"
@@ -189,9 +231,19 @@ class TestOrderSubmission:
 
     def test_submit_order_zero_after_rounding_is_rejected(self):
         adapter, _ = _adapter_with_fake_client()
+        adapter._connected = True
         order = OrderRequest(symbol="BTCUSDT", side="BUY", order_type="MARKET", quantity=Decimal("0.00001"))
         result = adapter.submit_order(order)
         assert result.status == "REJECTED"
+
+    def test_submit_order_without_a_verified_session_is_refused(self):
+        """Real bug found by GPT Work's independent review: credentials being
+        present is not the same as connect() having actually succeeded.
+        _connected must be checked, not just has_credentials."""
+        adapter, _ = _adapter_with_fake_client()
+        order = OrderRequest(symbol="BTCUSDT", side="BUY", order_type="MARKET", quantity=Decimal("0.1"))
+        with pytest.raises(RuntimeError, match="session not verified"):
+            adapter.submit_order(order)
 
 
 class TestConnect:
@@ -204,4 +256,14 @@ class TestConnect:
         adapter, fake_client = _adapter_with_fake_client()
         fake_client.get_account = lambda: {"permissions": ["FUTURES"], "balances": []}
         with pytest.raises(RuntimeError, match="SPOT"):
+            adapter.connect()
+
+    def test_connect_rejects_canTrade_false_even_with_spot_permission(self):
+        """Real bug found by GPT Work's independent review: permissions=['SPOT']
+        and canTrade=False can occur simultaneously (Binance can disable
+        trading account-wide for compliance reasons) — this check used to
+        only look at the permissions list, never canTrade itself."""
+        adapter, fake_client = _adapter_with_fake_client()
+        fake_client.get_account = lambda: {"permissions": ["SPOT"], "canTrade": False, "balances": []}
+        with pytest.raises(RuntimeError, match="canTrade"):
             adapter.connect()
