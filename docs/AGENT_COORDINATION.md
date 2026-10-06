@@ -1,6 +1,16 @@
 # Agent Coordination — Trading Intelligence AI
 
-> Last updated: 2026-10-06T00:30:00Z
+> Last updated: 2026-10-06T01:00:00Z
+
+## Corrected project objective (2026-10-06)
+
+PAPER/backtesting/walk-forward/shadow validation are internal gates, not
+the destination — the goal is a complete, production-ready, deployable
+system. See `AGENTS.md`'s "Project Goal" section for the full statement.
+Once PAPER validates, continue immediately into LIVE-readiness
+infrastructure (real adapters, dry-run, shadow mode, deployment prep) — do
+not stop at "PAPER works." Only one human gate remains before real money:
+`LIVE_ACTIVATION_APPROVAL`, asked once, only when everything else is done.
 
 ## Current Phase: REVIEW — PR #3 and PR #4 cross-reviewed; PR #5 (fix) opened; none merged yet
 
@@ -23,6 +33,8 @@ what another agent has or hasn't done — do not rely on stale doc text alone.
 | Merge PR #3 → PR #4 → PR #5 chain | Pending Trading Claude-Work sign-off | BLOCKED | — | Issue #2 checklist requires cross-review before any merge |
 | Notion Mission Control sync for PR #4/#5 | Trading Claude-Work or Claude Code local | BACKLOG | Notion RUNS/CHECKPOINTS | This agent logged its own RUN entries; full Mission Control sync still pending |
 | Real-data backtest on BTCUSDT via new downloader | **Claude Code local** | BACKLOG | trading_intelligence/ | Downloader exists and is fully tested (mocked). Cloud container cannot reach api.binance.com (confirmed via proxy status: explicit policy 403, not a credentials issue) — needs an agent with real network access. |
+| Port DryRunAdapter pattern to the real system's broker_adapters.py/execution_context.py | Claude Code local or Trading Codex (local) | BACKLOG | broker_adapters.py, execution_context.py | Reference design in trading_intelligence/execution/dry_run.py. LIVE-readiness track. |
+| Shadow mode (risk engine + strategy vs REAL current market data, never submits) | Unclaimed | BACKLOG | trading_intelligence/ or real system | Distinct from PAPER (simulated fills). Not built yet. LIVE-readiness track. |
 
 ## Completed Tasks
 
@@ -44,6 +56,9 @@ what another agent has or hasn't done — do not rely on stale doc text alone.
 | trading_intelligence/data/downloader.py (historical OHLCV, Parquet cache) | Trading Codex (cloud) | 2026-10-05 | this branch |
 | Fixed gap-down stop-fill bug in BacktestEngine (understated losses on crashes) | Trading Codex (cloud) | 2026-10-06 | this branch |
 | trading_intelligence/backtesting/report.py (CSV + self-contained HTML report) | Trading Codex (cloud) | 2026-10-06 | this branch |
+| trading_intelligence/execution/dry_run.py (DryRunAdapter — LIVE-readiness execution gate) | Trading Codex (cloud) | 2026-10-06 | this branch |
+| docs/DEPLOYMENT_RUNBOOK.md (modes, startup, crash recovery, rollback) | Trading Codex (cloud) | 2026-10-06 | this branch |
+| Corrected project objective in AGENTS.md (production-ready, not PAPER-as-destination) | Trading Codex (cloud) | 2026-10-06 | this branch |
 
 ## Technical Decisions
 

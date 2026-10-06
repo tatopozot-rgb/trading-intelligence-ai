@@ -1,9 +1,24 @@
 # Checkpoint — Trading Intelligence AI
 
-> Last updated: 2026-10-06T00:30:00Z
+> Last updated: 2026-10-06T01:00:00Z
 > Agent: Trading Codex (cloud session)
-> Branch: `ccr-b66a9a9e-okj2pl` @ commit pending (gap-fill bug fix, backtest report generator)
+> Branch: `ccr-b66a9a9e-okj2pl` @ commit pending (DryRunAdapter, deployment runbook)
 > PRs: #1 (specs, open), #3 (real PAPER import, open, NOT merged), #4 (MARKET lot contract, open, NOT merged), #5 (is_junction fix, open, NOT merged)
+
+## IMPORTANT — corrected project objective (2026-10-06)
+
+**PAPER, backtesting, walk-forward, and shadow validation are internal
+validation gates, not the destination.** The goal is a complete,
+production-ready, deployable system. See the "Project Goal" section at the
+top of `AGENTS.md` for the full statement. In practice this means: once
+PAPER is validated enough, continue immediately into LIVE-readiness
+infrastructure (real adapters, dry-run, shadow mode, deployment prep) —
+never stop at "PAPER works." The only human gate before real trading is a
+single `LIVE_ACTIVATION_APPROVAL` ask, made once, only when architecture,
+risk, quant validation, security, tests, CI, crash recovery, and
+cross-agent review are genuinely all done. We are not there yet — PR #3
+Findings 2/3 are still open and no strategy has passed out-of-sample
+validation.
 
 ## IMPORTANT — three-agent structure (corrected nomenclature)
 
@@ -82,6 +97,14 @@ No new activity from PR #3/#4/#5 or Issue #2 since the last session (all SHAs un
 - 11 new tests (`test_report.py`): CSV round-trip, HTML structure, HTML-escaping (XSS safety on the title), empty-trades/empty-equity-curve edge cases.
 - **120/120 tests passing, ruff clean, mypy clean** (up from 107).
 
+### 7. First LIVE-readiness infrastructure, per the corrected objective (same session, continued)
+- **`trading_intelligence/execution/dry_run.py`** — `DryRunAdapter`: wraps any real `AbstractExchangeAdapter` (e.g. `BinanceSpotAdapter`). All read-only methods (market data, account info, position, connectivity) pass through to the wrapped adapter — so auth, connectivity, and real market data genuinely get exercised. `submit_order`/`cancel_order` are intercepted: validated against the wrapped adapter's own exchange-side filters (lot size, tick size, min notional, when available — degrades gracefully if the wrapped adapter has none) and logged, but **never forwarded**. This is the execution gate for "build and test everything that doesn't move money" — not a replacement for `RiskEngine` approval, which must still happen upstream.
+- Added `"DRY_RUN"` to the shared `OrderStatus` type (`execution/order_models.py`) so a dry-run result is never mistaken for a real `SUBMITTED` order.
+- 15 new tests (`test_dry_run_adapter.py`): read-only passthrough, order-never-forwarded (asserts the wrapped adapter's `submit_order` raises if ever called), every exchange-side rejection reason, graceful degradation when the wrapped adapter has no filter helpers at all.
+- **`docs/DEPLOYMENT_RUNBOOK.md`** (new): modes (PAPER/DRY_RUN/LIVE) and how code never silently escalates between them, required env vars, startup sequence, restart/crash recovery guarantees (atomic state writes, kill-switch persistence), audit trail policy, known gaps before LIVE can be considered, rollback notes (including that the real system's SQLite DB is the harder rollback case — no migration plan exists yet).
+- Updated `AGENTS.md` with the corrected project objective at the top, so Trading Claude-Work and Claude Code local see it on their next read.
+- **135/135 tests passing, ruff clean, mypy clean** (up from 120).
+
 ## What's Next
 
 **For whichever agent picks this up next:**
@@ -89,7 +112,8 @@ No new activity from PR #3/#4/#5 or Issue #2 since the last session (all SHAs un
 2. **Claude Code local**: continue integrating `execution_market_filters.py` (PR #4) with `paper_fills.py`/`paper_store.py` once Trading Claude-Work's review lands — explicitly not done yet per PR #4's own checkpoint note.
 3. Once Findings 2/3 are resolved: merge the PR #3 → #4 → #5 chain into `ccr-b66a9a9e-okj2pl`, then decide whether `trading_intelligence/` continues as a parallel research package or becomes the validation/backtesting layer calling into the real system's modules.
 4. `trading_intelligence/` outstanding items (downloader now done): run a real-data backtest on actual BTCUSDT history via the new `HistoricalDataDownloader`, then walk-forward on Dual MA Crossover.
-   **This cloud container cannot reach `api.binance.com`** — confirmed via the egress proxy status (`$HTTPS_PROXY/__agentproxy/status`): `api.binance.com:443` gets an explicit policy 403 on CONNECT, not in the allowlist (pypi/npm/anthropic/etc. only). This is not a credentials issue — no API key would fix it. **Claude Code local** (real network access on the owner's PC) is the right agent to run the actual download/backtest; this cloud session can only build/test the code against mocks, which is already done (107/107 tests, all mocked).
+   **This cloud container cannot reach `api.binance.com`** — confirmed via the egress proxy status (`$HTTPS_PROXY/__agentproxy/status`): `api.binance.com:443` gets an explicit policy 403 on CONNECT, not in the allowlist (pypi/npm/anthropic/etc. only). This is not a credentials issue — no API key would fix it. **Claude Code local** (real network access on the owner's PC) is the right agent to run the actual download/backtest; this cloud session can only build/test the code against mocks, which is already done (135/135 tests, all mocked).
+5. LIVE-readiness track (per the corrected objective): the real system's `broker_adapters.py`/`execution_context.py`/`exchange_context.py` have no dry-run wrapper yet — `trading_intelligence/execution/dry_run.py`'s `DryRunAdapter` is a reference design (wrap, pass through reads, intercept+log orders, never forward) that could be ported there once Findings 2/3 are resolved and PR #3/#4 merge. Shadow mode (running the risk engine + strategy against REAL current market data, still never submitting orders — distinct from PAPER's simulated fills) is not built yet; next LIVE-readiness step for whoever picks this up.
 
 ## Blockers
 
@@ -99,7 +123,7 @@ No new activity from PR #3/#4/#5 or Issue #2 since the last session (all SHAs un
 
 ## Test Status
 
-**`trading_intelligence/` package: 120/120 tests passing**, ruff clean, mypy clean.
+**`trading_intelligence/` package: 135/135 tests passing**, ruff clean, mypy clean.
 ```
 tests/test_indicators.py       20/20 PASS
 tests/test_ma_crossover.py      7/7  PASS
@@ -109,6 +133,7 @@ tests/test_paper_adapter.py    12/12 PASS
 tests/test_binance_adapter.py  22/22 PASS
 tests/test_downloader.py       11/11 PASS
 tests/test_report.py           11/11 PASS
+tests/test_dry_run_adapter.py  15/15 PASS
 ```
 
 **Real PAPER system (PR #3, `codex/import-paper-baseline`): 549/558 tests**,

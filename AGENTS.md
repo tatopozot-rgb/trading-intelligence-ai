@@ -1,5 +1,28 @@
 # AGENTS.md — Trading Intelligence AI
 
+## Project Goal (corrected 2026-10-06 — read this before anything else)
+
+PAPER mode, backtesting, walk-forward, and shadow/live-data validation are
+**internal validation gates, not the destination**. The actual goal is a
+complete, robust, deployable Trading Intelligence system prepared for real
+operation. PAPER being "validated enough" is a milestone to pass through,
+not a stopping point — immediately continue into LIVE-readiness
+infrastructure (real adapters, auth, LIVE config, execution gates, dry-run,
+shadow mode, deployment prep) once it is.
+
+**The only human gate before real trading is `LIVE_ACTIVATION_APPROVAL`** —
+asked exactly once, when architecture, risk, quant, security, tests, CI,
+crash/restart recovery, persistence, cross-agent review, and documentation
+are all genuinely done. Until that point, build everything that does not
+move real money without stopping to ask or to hand the owner a roadmap —
+execute. Drafting and refining this report is itself a job for Trading
+Claude-Work when the system is actually ready, not earlier.
+
+No martingale, no revenge trading, no automatic risk increase after a loss,
+ever. No strategy is declared validated without surviving the full
+STRATEGY_VALIDATION_FRAMEWORK.md gate on out-of-sample data — "no se opera"
+(don't trade) remains a valid, correct outcome when no real edge exists.
+
 ## Agents
 
 There are exactly **three** executors on this project. "Trading Claude Work"

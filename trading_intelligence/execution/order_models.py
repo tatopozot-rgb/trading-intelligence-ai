@@ -6,7 +6,10 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Literal, Optional
 
-OrderStatus = Literal["PENDING", "SUBMITTED", "FILLED", "REJECTED", "CANCELLED", "EXPIRED"]
+OrderStatus = Literal[
+    "PENDING", "SUBMITTED", "FILLED", "REJECTED", "CANCELLED", "EXPIRED",
+    "DRY_RUN",  # validated as if real, but never sent to the exchange — see DryRunAdapter
+]
 
 
 @dataclass
