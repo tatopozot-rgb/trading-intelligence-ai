@@ -98,3 +98,33 @@ what another agent has or hasn't done — do not rely on stale doc text alone.
 2. **Claude Code local**: continue the real system's own next step (MARKET/quoteOrderQty semantics are now partly covered by PR #4 — remaining: integrate `execution_market_filters.py` with `paper_fills.py`/`paper_store.py` once review lands, per that PR's own checkpoint note "no change to LIMIT/FOK V1 paths... not done in this block")
 3. **Trading Codex (either)**: once PR #3→#4→#5 merge, re-run `pytest tests/` to confirm `trading_intelligence/` still passes untouched
 4. **Whoever syncs Notion**: PR #4 and #5 RUN entries from this agent are logged; full Mission Control task-board update for the market-lot-contract work is still open
+
+
+## GPT Work operational addendum — 2026-10-06 (proposed cross-review)
+
+Latest user direction: Claude is project leader and tie-breaker; GPT Work joins
+as operational collaborator/reviewer, not an independent team. Existing agent
+aliases remain traceable rather than multiplying executors.
+
+Claim: Notion Agent City/evidence synchronization and independent PR #3 F2/F3
+review, by GPT Work / Trading Claude-Work. No root runtime or research package
+files modified; no frontend claimed without Claude's assignment. Claim and
+review: Issue #2 comment 6007520212; PR #3 comment 6007551700.
+
+Delivered: six linked Notion views over existing sources; corrected stale states;
+CI research logs verified (162 tests, ruff/mypy); data contract and checkpoint in
+`docs/AGENT_CITY_DATA_CONTRACT.md` and
+`docs/checkpoints/GPT_WORK_AGENT_CITY_2026-10-06.md`.
+
+F2 is a team contract reconciliation (REVIEW), not WAITING_FOR_USER. F3's
+persistent automatic gates remain unimplemented in the root opening path;
+existing HTTP/snapshot protections do not replace them. Preserve the baseline
+until Claude resolves the versioned contract; no policy change or merge approved
+by this addendum. Public historical data do not require Binance API keys.
+
+Agent City: https://app.notion.com/p/3f102a0ff45f81678550e6b88514b55f
+WAIT-NOTION-VISUAL-001 only blocks authenticated browser visual QA, not the
+working connector. WAIT-CLAUDE-CODE-001 was superseded by the user's delegation;
+this does not certify CLI setup. Source timestamps and authorship conflicts are
+flagged in Notion; avoid treating a reported future finish as observed heartbeat.
+
