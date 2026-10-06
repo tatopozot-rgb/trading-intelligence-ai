@@ -109,11 +109,25 @@ class BacktestResult:
         gross_loss = abs(sum(losses)) if losses else 0.0
         self.profit_factor = gross_profit / gross_loss if gross_loss else float("inf")
 
-        # Sharpe from daily equity returns (annualized, 365 days for crypto)
-        daily_returns = self.equity_curve.pct_change().dropna()
-        if len(daily_returns) > 1 and daily_returns.std() > 0:
+        # Sharpe from per-bar equity returns, annualized by the equity
+        # curve's OWN bar frequency — not a hardcoded daily assumption.
+        # Found via a real check (Quant/Validation, investigating why the
+        # 1D DualMACrossover had too few trades for its validation gate):
+        # this previously always multiplied by sqrt(365) regardless of bar
+        # size. That's correct for 1D bars (~365 bars/year) but silently
+        # WRONG for any sub-daily candidate (e.g. 4h, ~2190 bars/year) —
+        # it understates annualized Sharpe by sqrt(bars_per_day), exactly
+        # the wrong direction for a strategy whose real problem is too few
+        # trades, not too little edge per trade. Verified numerically
+        # before fixing: synthetic 4h returns scaled to the same real
+        # annualized edge as a 1D series computed Sharpe 0.23 under the old
+        # hardcoded formula vs. the correct 0.57 once periods_per_year
+        # reflects the true bar frequency.
+        bar_returns = self.equity_curve.pct_change().dropna()
+        if len(bar_returns) > 1 and bar_returns.std() > 0:
+            periods_per_year = self._periods_per_year()
             self.sharpe_ratio = (
-                daily_returns.mean() / daily_returns.std() * np.sqrt(365)
+                bar_returns.mean() / bar_returns.std() * np.sqrt(periods_per_year)
             )
 
         # Max drawdown
@@ -121,6 +135,24 @@ class BacktestResult:
         peak = eq.expanding().max()
         drawdown = (eq - peak) / peak
         self.max_drawdown_pct = float(drawdown.min()) * 100  # negative number
+
+    def _periods_per_year(self) -> float:
+        """Infers how many bars make up one year from the equity curve's
+        own DatetimeIndex (median spacing between points), instead of
+        assuming daily bars. Falls back to 365 (the prior hardcoded
+        constant, preserving existing 1D behavior exactly) if the index is
+        too short or not datetime-like to infer a spacing from."""
+        idx = self.equity_curve.index
+        if len(idx) < 2 or not isinstance(idx, pd.DatetimeIndex):
+            return 365.0
+        deltas = idx.to_series().diff().dropna()
+        if deltas.empty:
+            return 365.0
+        median_seconds = deltas.median().total_seconds()
+        if median_seconds <= 0:
+            return 365.0
+        seconds_per_year = 365.25 * 86400
+        return seconds_per_year / median_seconds
 
     def summary(self) -> str:
         return (

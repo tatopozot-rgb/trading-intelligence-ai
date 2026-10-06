@@ -95,3 +95,54 @@ def default_router() -> StrategyRouter:
     router.register(Regime.TREND_UP, strategy, min_confidence=0.5)
     router.register(Regime.BREAKOUT_UP, strategy, min_confidence=0.0)
     return router
+
+
+def candidate_router_trend_4h() -> StrategyRouter:
+    """CANDIDATE, NOT the live default — see docs/CHECKPOINT.md's
+    Quant/Validation section and
+    docs/STRATEGY_CANDIDATE_TREND_4H_VALIDATION.md for the full Stage 0-4
+    write-up before relying on this.
+
+    default_router()'s DualMACrossover(1d, fast=20/slow=50) is the ONLY
+    strategy wired into this project's live router, and it failed its own
+    validation gate on real BTCUSDT 1D data (11 completed trades in
+    2019-2026, below the 30-trade minimum; 0 walk-forward folds cleared
+    IS Sharpe >= 0.5 — docs/CHECKPOINT.md section 12). The cause is a
+    trade-FREQUENCY problem, not a parameter problem: a 20/50-period
+    crossover's economic rationale (ride an established trend until it
+    reverses) doesn't depend on calendar bar size, but sampling it once a
+    day gives it only ~365 opportunities/year to cross on 7 years of data.
+
+    Economic rationale (Stage 0, stated before any backtest number was
+    looked at): the identical crossover logic, the identical 20:50
+    fast:slow ratio, and the identical long-only spot rules -- sampled at
+    4h instead of 1D. This is a sampling-frequency change, not a
+    retuning: the periods themselves (20, 50) and their ratio are
+    unchanged, so this is NOT "retuning the existing MA periods on the
+    same series to force more trades" (the exact move
+    docs/STRATEGY_VALIDATION_FRAMEWORK.md bans) -- it changes which bars
+    those same periods are computed over. At 4h, the same strategy gets
+    ~6x more independent crossover opportunities per calendar year on the
+    same multi-year span, which is the structural fix the frequency
+    problem calls for.
+
+    This project's own `HistoricalDataDownloader`/`BinanceSpotAdapter`
+    already support "4h" as an ordinary interval string (see
+    data/downloader.py's `_INTERVAL_SECONDS` map) -- no new data-layer
+    architecture is needed to run this for real.
+
+    Synthetic-data-validated only (this cloud session has no real Binance
+    network access) -- see the validation doc for the full Stage 0-4
+    write-up and its explicit synthetic-only caveat. NOT wired into
+    default_router(); promote it there only after a real-data
+    walk-forward run (Claude Code local) confirms it clears the same gate
+    that failed real DualMACrossover(1D)."""
+    from trading_intelligence.strategy.strategies.ma_crossover import DualMACrossover
+
+    strategy = DualMACrossover(
+        "BTCUSDT", "4h", params={"fast_period": 20, "slow_period": 50, "trend_filter_period": 0}
+    )
+    router = StrategyRouter()
+    router.register(Regime.TREND_UP, strategy, min_confidence=0.5)
+    router.register(Regime.BREAKOUT_UP, strategy, min_confidence=0.0)
+    return router

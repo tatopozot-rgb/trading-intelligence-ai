@@ -346,3 +346,101 @@ class TestEquityCurveIncludesFinalForcedClose:
 
         assert result.trades[0].exit_reason == "end_of_data"
         assert float(result.final_equity) == pytest.approx(result.equity_curve.iloc[-1])
+
+
+class TestSharpeAnnualizationMatchesBarFrequency:
+    """
+    Real bug found while investigating why DualMACrossover's real-data 1D
+    walk-forward had too few trades (CHECKPOINT.md section 12): looking at
+    a shorter timeframe as a candidate fix exposed that compute_metrics()
+    always annualized Sharpe with a hardcoded sqrt(365), regardless of the
+    equity curve's actual bar frequency. That's correct for 1D bars but
+    silently wrong for anything sub-daily — it understates annualized
+    Sharpe by sqrt(bars_per_day), the exact opposite of what a fair
+    evaluation of a higher-frequency candidate needs.
+    """
+
+    def _equity_result(self, freq: str, n: int, *, seed: int = 0) -> "object":
+        from trading_intelligence.backtesting.backtest_engine import BacktestResult
+
+        rng = np.random.default_rng(seed)
+        returns = rng.normal(0.0005, 0.01, n)
+        equity = pd.Series(
+            10000.0 * np.cumprod(1 + returns),
+            index=pd.date_range("2024-01-01", periods=n, freq=freq),
+            name="equity",
+        )
+        return BacktestResult(
+            trades=[], equity_curve=equity,
+            initial_equity=Decimal("10000"), final_equity=Decimal(str(equity.iloc[-1])),
+        )
+
+    def test_periods_per_year_matches_daily_bars(self):
+        result = self._equity_result("1D", 400)
+        assert result._periods_per_year() == pytest.approx(365.25, rel=1e-3)
+
+    def test_periods_per_year_matches_4h_bars(self):
+        result = self._equity_result("4h", 400)
+        # 6 bars/day at 4h spacing -> ~6x the daily bar count per year.
+        assert result._periods_per_year() == pytest.approx(365.25 * 6, rel=1e-3)
+
+    def test_periods_per_year_falls_back_to_365_for_short_or_non_datetime_index(self):
+        from trading_intelligence.backtesting.backtest_engine import BacktestResult
+
+        single_point = pd.Series([10000.0], index=pd.date_range("2024-01-01", periods=1))
+        result = BacktestResult(
+            trades=[], equity_curve=single_point,
+            initial_equity=Decimal("10000"), final_equity=Decimal("10000"),
+        )
+        assert result._periods_per_year() == 365.0
+
+        non_datetime = pd.Series([10000.0, 10100.0], index=[0, 1])
+        result2 = BacktestResult(
+            trades=[], equity_curve=non_datetime,
+            initial_equity=Decimal("10000"), final_equity=Decimal("10100"),
+        )
+        assert result2._periods_per_year() == 365.0
+
+    def test_4h_sharpe_is_not_understated_relative_to_equivalent_daily_edge(self):
+        """Same real annualized edge, expressed as 1D bars vs. 4h bars
+        (returns/vol scaled by the sqrt-time rule so the TRUE annualized
+        Sharpe is identical either way) must produce comparable computed
+        Sharpe once periods_per_year reflects the real bar frequency —
+        proving the fix, not just the helper in isolation."""
+        rng = np.random.default_rng(3)
+        n_daily = 365 * 3
+        daily_returns = rng.normal(0.001, 0.02, n_daily)
+        # Same mean/vol-per-year, resampled to 4h bars (6x more, each 1/6th
+        # the drift and 1/sqrt(6) the vol -- the standard sqrt-time scaling
+        # that preserves the real annualized Sharpe across frequencies).
+        n_4h = n_daily * 6
+        rng2 = np.random.default_rng(3)
+        returns_4h = rng2.normal(0.001 / 6, 0.02 / np.sqrt(6), n_4h)
+
+        from trading_intelligence.backtesting.backtest_engine import BacktestResult
+
+        daily_equity = pd.Series(
+            10000.0 * np.cumprod(1 + daily_returns),
+            index=pd.date_range("2024-01-01", periods=n_daily, freq="1D"),
+        )
+        result_daily = BacktestResult(
+            trades=[], equity_curve=daily_equity,
+            initial_equity=Decimal("10000"), final_equity=Decimal(str(daily_equity.iloc[-1])),
+        )
+        result_daily.compute_metrics()
+
+        equity_4h = pd.Series(
+            10000.0 * np.cumprod(1 + returns_4h),
+            index=pd.date_range("2024-01-01", periods=n_4h, freq="4h"),
+        )
+        result_4h = BacktestResult(
+            trades=[], equity_curve=equity_4h,
+            initial_equity=Decimal("10000"), final_equity=Decimal(str(equity_4h.iloc[-1])),
+        )
+        result_4h.compute_metrics()
+
+        # Both express the same real annualized edge -- the fixed formula
+        # must put them in the same ballpark. The OLD (buggy) hardcoded
+        # sqrt(365) formula would put the 4h Sharpe at roughly 1/sqrt(6)
+        # (~41%) of the correct value instead.
+        assert result_4h.sharpe_ratio == pytest.approx(result_daily.sharpe_ratio, rel=0.5)
