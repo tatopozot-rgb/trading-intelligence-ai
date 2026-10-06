@@ -4,14 +4,17 @@ Per docs/DEPLOYMENT_RUNBOOK.md: before unattended LIVE operation, a real
 notification channel is required here — these tests prove the wiring is
 correct so swapping LoggingAlertSink for a real one is a safe, isolated change.
 """
+import json
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
+from unittest.mock import patch
 
 from trading_intelligence.monitoring.alerts import (
     CompositeAlertSink,
     LoggingAlertSink,
     NullAlertSink,
+    WebhookAlertSink,
 )
 from trading_intelligence.persistence.audit_log import AuditLog
 from trading_intelligence.risk.engine import RiskEngine
@@ -174,3 +177,59 @@ class TestNullAlertSink:
     def test_never_raises_and_records_nothing(self):
         sink = NullAlertSink()
         sink.send("CRITICAL", "ANYTHING", {"k": "v"})  # should not raise
+
+
+class TestWebhookAlertSink:
+    def test_rejects_unknown_payload_format(self):
+        try:
+            WebhookAlertSink("https://example.com/hook", payload_format="bogus")
+            assert False, "expected ValueError"
+        except ValueError:
+            pass
+
+    def test_posts_generic_json_payload(self):
+        sink = WebhookAlertSink("https://example.com/hook")
+        with patch("trading_intelligence.monitoring.alerts.urllib.request.urlopen") as mock_urlopen:
+            sink.send("CRITICAL", "KILL_SWITCH_ACTIVATED", {"reason": "test"})
+            assert mock_urlopen.called
+            request = mock_urlopen.call_args[0][0]
+            assert request.full_url == "https://example.com/hook"
+            assert request.get_header("Content-type") == "application/json"
+            body = json.loads(request.data.decode("utf-8"))
+            assert body == {
+                "severity": "CRITICAL",
+                "event": "KILL_SWITCH_ACTIVATED",
+                "details": {"reason": "test"},
+            }
+
+    def test_posts_slack_format_payload(self):
+        sink = WebhookAlertSink("https://hooks.slack.com/services/x", payload_format="slack")
+        with patch("trading_intelligence.monitoring.alerts.urllib.request.urlopen") as mock_urlopen:
+            sink.send("WARNING", "DAILY_LOSS_LIMIT_REACHED", {"pct": 2.0})
+            body = json.loads(mock_urlopen.call_args[0][0].data.decode("utf-8"))
+            assert body == {"text": "[WARNING] DAILY_LOSS_LIMIT_REACHED: {'pct': 2.0}"}
+
+    def test_uses_configured_timeout(self):
+        sink = WebhookAlertSink("https://example.com/hook", timeout_seconds=1.5)
+        with patch("trading_intelligence.monitoring.alerts.urllib.request.urlopen") as mock_urlopen:
+            sink.send("WARNING", "EVENT", {})
+            assert mock_urlopen.call_args.kwargs["timeout"] == 1.5
+
+    def test_delivery_failure_is_swallowed_not_raised(self):
+        sink = WebhookAlertSink("https://example.com/hook")
+        with patch(
+            "trading_intelligence.monitoring.alerts.urllib.request.urlopen",
+            side_effect=OSError("connection refused"),
+        ):
+            sink.send("CRITICAL", "EVENT", {})  # should not raise
+
+    def test_works_inside_composite_sink_on_failure(self):
+        recorder = RecordingAlertSink()
+        webhook = WebhookAlertSink("https://example.com/hook")
+        composite = CompositeAlertSink([webhook, recorder])
+        with patch(
+            "trading_intelligence.monitoring.alerts.urllib.request.urlopen",
+            side_effect=OSError("down"),
+        ):
+            composite.send("CRITICAL", "EVENT", {"a": 1})
+        assert recorder.alerts == [("CRITICAL", "EVENT", {"a": 1})]

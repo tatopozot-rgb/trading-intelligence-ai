@@ -82,9 +82,19 @@ looks wrong, it is investigated from the log, not altered.
 - **Alerting**: `trading_intelligence/monitoring/alerts.py` gives `RiskEngine`
   a pluggable `AlertSink` (kill switch, drawdown halt/pause, daily-loss
   limit all fire through it). Default `LoggingAlertSink` only writes to
-  logs — no real notification channel (Slack/email/SMS) is wired in yet.
-  Swap in a real sink (and the real system's `risk_engine.py`, once
-  reconciled, should get the same mechanism) before unattended LIVE operation.
+  logs. `WebhookAlertSink` now exists (stdlib only, no new dependency) and
+  posts JSON to any configured URL — Slack/Discord incoming webhook or a
+  generic endpoint (`payload_format="slack"` or `"generic"`). It takes no
+  hardcoded URL or credential: the owner supplies a webhook URL (e.g. via
+  an environment variable at startup) when wiring it in, which is itself
+  a `WAITING_FOR_USER`-eligible step only in the sense that *obtaining*
+  the URL needs the owner, not building or testing the sink. Wrap it in
+  `CompositeAlertSink` alongside `LoggingAlertSink` so a dead webhook never
+  drops the log line too. The real system's `risk_engine.py`, once
+  reconciled, should get the same mechanism before unattended LIVE operation.
+  Note: in this cloud container, outbound HTTPS goes through a proxy
+  allowlist — a webhook host not on that allowlist will fail every send
+  (logged, not raised); this is an environment constraint, not a sink bug.
 - `DryRunAdapter` and `ShadowRunner` exist in `trading_intelligence/` only;
   the real system's own `broker_adapters.py`/`execution_context.py` have no
   equivalent wrapper yet.

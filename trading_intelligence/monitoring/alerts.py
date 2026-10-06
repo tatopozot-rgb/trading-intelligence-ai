@@ -10,7 +10,9 @@ operation, a real notification channel (not just logs) is required here.
 """
 from __future__ import annotations
 
+import json
 import logging
+import urllib.request
 from typing import Protocol
 
 logger = logging.getLogger(__name__)
@@ -54,3 +56,51 @@ class NullAlertSink:
 
     def send(self, severity: Severity, event: str, details: dict) -> None:
         pass
+
+
+class WebhookAlertSink:
+    """Posts a JSON payload to a configured webhook URL — a Slack or
+    Discord incoming webhook, or any generic HTTP endpoint that accepts
+    JSON. Uses only the standard library (no new dependency).
+
+    The URL is never hardcoded here; the caller supplies it (e.g. read
+    from an environment variable at startup — see
+    docs/DEPLOYMENT_RUNBOOK.md). A delivery failure is logged and
+    swallowed, never raised: a flaky notification channel must not crash
+    the caller or block the real risk decision that triggered the alert.
+    """
+
+    def __init__(
+        self,
+        webhook_url: str,
+        timeout_seconds: float = 5.0,
+        payload_format: str = "generic",
+    ):
+        if payload_format not in ("generic", "slack"):
+            raise ValueError(f"Unknown payload_format: {payload_format!r}")
+        self.webhook_url = webhook_url
+        self.timeout_seconds = timeout_seconds
+        self.payload_format = payload_format
+
+    def send(self, severity: Severity, event: str, details: dict) -> None:
+        payload = self._build_payload(severity, event, details)
+        body = json.dumps(payload).encode("utf-8")
+        request = urllib.request.Request(
+            self.webhook_url,
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=self.timeout_seconds):
+                pass
+        except Exception:
+            logger.exception(
+                "WebhookAlertSink failed to deliver %s (%s) to configured webhook",
+                event, severity,
+            )
+
+    def _build_payload(self, severity: Severity, event: str, details: dict) -> dict:
+        if self.payload_format == "slack":
+            return {"text": f"[{severity}] {event}: {details}"}
+        return {"severity": severity, "event": event, "details": details}
