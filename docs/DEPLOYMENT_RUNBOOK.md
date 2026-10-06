@@ -79,12 +79,15 @@ looks wrong, it is investigated from the log, not altered.
   `docs/STRATEGY_VALIDATION_FRAMEWORK.md` — "do not trade" remains correct
   until one does.
 - XM/MetaTrader adapter is Phase 2, not started.
-- No alerting/notification integration exists yet (Slack/email/SMS) — the
-  kill switch and daily-loss halts are logged, not pushed anywhere. Needed
-  before unattended LIVE operation.
-- `DryRunAdapter` exists in `trading_intelligence/` only; the real system's
-  own `broker_adapters.py`/`execution_context.py` have no equivalent dry-run
-  wrapper yet.
+- **Alerting**: `trading_intelligence/monitoring/alerts.py` gives `RiskEngine`
+  a pluggable `AlertSink` (kill switch, drawdown halt/pause, daily-loss
+  limit all fire through it). Default `LoggingAlertSink` only writes to
+  logs — no real notification channel (Slack/email/SMS) is wired in yet.
+  Swap in a real sink (and the real system's `risk_engine.py`, once
+  reconciled, should get the same mechanism) before unattended LIVE operation.
+- `DryRunAdapter` and `ShadowRunner` exist in `trading_intelligence/` only;
+  the real system's own `broker_adapters.py`/`execution_context.py` have no
+  equivalent wrapper yet.
 
 ## Rollback
 

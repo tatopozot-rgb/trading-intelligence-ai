@@ -13,6 +13,7 @@ from decimal import ROUND_DOWN, Decimal
 from pathlib import Path
 from typing import Optional
 
+from trading_intelligence.monitoring.alerts import AlertSink, LoggingAlertSink
 from trading_intelligence.persistence.audit_log import AuditLog
 from trading_intelligence.risk.models import RiskConfig, RiskState
 from trading_intelligence.strategy.models import RiskDecision, TradeProposal
@@ -47,10 +48,12 @@ class RiskEngine:
         config: RiskConfig,
         state_path: Path,
         audit_log: AuditLog,
+        alert_sink: Optional[AlertSink] = None,
     ):
         self.config = config
         self.state_path = Path(state_path)
         self.audit_log = audit_log
+        self.alert_sink = alert_sink or LoggingAlertSink()
         self._lock = threading.Lock()
 
         self.state = RiskState.load(self.state_path)
@@ -88,6 +91,7 @@ class RiskEngine:
         self.state.save(self.state_path)
         if active:
             logger.error("KILL SWITCH ACTIVATED: %s", reason)
+            self.alert_sink.send("CRITICAL", "KILL_SWITCH_ACTIVATED", {"reason": reason})
         else:
             logger.warning("Kill switch cleared by operator")
 
@@ -155,9 +159,11 @@ class RiskEngine:
                     True, f"Drawdown halt: {drawdown_pct:.2f}% >= {self.config.drawdown_halt_pct}%"
                 )
             self._audit_event("DRAWDOWN_HALT_TRIGGERED", drawdown_pct=float(drawdown_pct))
+            self.alert_sink.send("CRITICAL", "DRAWDOWN_HALT_TRIGGERED", {"drawdown_pct": float(drawdown_pct)})
         elif drawdown_pct >= Decimal(str(self.config.drawdown_pause_pct)):
             if not self.state.drawdown_paused:
                 self._audit_event("DRAWDOWN_PAUSE_TRIGGERED", drawdown_pct=float(drawdown_pct))
+                self.alert_sink.send("WARNING", "DRAWDOWN_PAUSE_TRIGGERED", {"drawdown_pct": float(drawdown_pct)})
             self.state.drawdown_paused = True
         else:
             self.state.drawdown_paused = False
@@ -246,6 +252,8 @@ class RiskEngine:
             if daily_pnl < 0 and abs(daily_loss_pct) >= Decimal(str(self.config.daily_loss_limit_pct)):
                 if not self.state.trading_day_halted:
                     self._audit_event("DAILY_LOSS_LIMIT_REACHED", daily_loss_pct=float(daily_loss_pct))
+                    self.alert_sink.send("WARNING", "DAILY_LOSS_LIMIT_REACHED",
+                                          {"daily_loss_pct": float(daily_loss_pct)})
                 self.state.trading_day_halted = True
                 self.state.save(self.state_path)
 

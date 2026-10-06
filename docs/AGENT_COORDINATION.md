@@ -1,6 +1,6 @@
 # Agent Coordination — Trading Intelligence AI
 
-> Last updated: 2026-10-06T01:20:00Z
+> Last updated: 2026-10-06T01:35:00Z
 
 ## Corrected project objective (2026-10-06)
 
@@ -36,7 +36,7 @@ what another agent has or hasn't done — do not rely on stale doc text alone.
 | Port DryRunAdapter pattern to the real system's broker_adapters.py/execution_context.py | Claude Code local or Trading Codex (local) | BACKLOG | broker_adapters.py, execution_context.py | Reference design in trading_intelligence/execution/dry_run.py. LIVE-readiness track. |
 | Port DryRunAdapter + ShadowRunner to real system | Claude Code local or Trading Codex (local) | BACKLOG | broker_adapters.py, execution_context.py | Both built and tested in trading_intelligence/execution/{dry_run,shadow}.py. Real system has no equivalent yet. |
 | Run ShadowRunner continuously against live Binance data | Claude Code local | BACKLOG | — | Needs real network access (this cloud container cannot reach api.binance.com) |
-| Alerting/notifications for kill-switch and daily-loss events | Unclaimed | BACKLOG | — | Currently logged only, not pushed anywhere. Needed before unattended LIVE operation. |
+| Real notification channel (Slack/email/SMS) for alerts | Unclaimed | BACKLOG | — | Pluggable AlertSink mechanism now built (trading_intelligence/monitoring/alerts.py), wired into RiskEngine. Default LoggingAlertSink only logs — a real sink is the actual remaining gap. |
 
 ## Completed Tasks
 
@@ -60,6 +60,7 @@ what another agent has or hasn't done — do not rely on stale doc text alone.
 | trading_intelligence/backtesting/report.py (CSV + self-contained HTML report) | Trading Codex (cloud) | 2026-10-06 | this branch |
 | trading_intelligence/execution/dry_run.py (DryRunAdapter — LIVE-readiness execution gate) | Trading Codex (cloud) | 2026-10-06 | this branch |
 | trading_intelligence/execution/shadow.py (ShadowRunner — strategy+risk decisions on live data) | Trading Codex (cloud) | 2026-10-06 | this branch |
+| trading_intelligence/monitoring/alerts.py + RiskEngine wiring (pluggable AlertSink) | Trading Codex (cloud) | 2026-10-06 | this branch |
 | docs/DEPLOYMENT_RUNBOOK.md (modes, startup, crash recovery, rollback) | Trading Codex (cloud) | 2026-10-06 | this branch |
 | Corrected project objective in AGENTS.md (production-ready, not PAPER-as-destination) | Trading Codex (cloud) | 2026-10-06 | this branch |
 

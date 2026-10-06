@@ -1,8 +1,8 @@
 # Checkpoint — Trading Intelligence AI
 
-> Last updated: 2026-10-06T01:20:00Z
+> Last updated: 2026-10-06T01:35:00Z
 > Agent: Trading Codex (cloud session)
-> Branch: `ccr-b66a9a9e-okj2pl` @ commit pending (ShadowRunner)
+> Branch: `ccr-b66a9a9e-okj2pl` @ commit pending (alerting)
 > PRs: #1 (specs, open), #3 (real PAPER import, open, NOT merged), #4 (MARKET lot contract, open, NOT merged), #5 (is_junction fix, open, NOT merged)
 
 ## IMPORTANT — corrected project objective (2026-10-06)
@@ -111,6 +111,13 @@ No new activity from PR #3/#4/#5 or Issue #2 since the last session (all SHAs un
 - **143/143 tests passing, ruff clean, mypy clean** (up from 135).
 - Both halves of "shadow mode" named in the corrected objective are now built in `trading_intelligence/`: `DryRunAdapter` (exchange-side order validation, never sends) and `ShadowRunner` (strategy+risk decisions on live data, never constructs an order at all). Neither exists yet in the real system — porting them is listed under Next Available Work.
 
+### 9. Alerting for critical risk events (closes a documented gap, same session, continued)
+- **`trading_intelligence/monitoring/alerts.py`** — `AlertSink` protocol, `LoggingAlertSink` (default — always available, no credentials, no new dependency), `CompositeAlertSink` (fan out to multiple sinks; one sink failing — caught and logged — never blocks the others, so an alerting bug can't silence every channel), `NullAlertSink` (for tests).
+- Wired into `RiskEngine` (`alert_sink` constructor param, defaults to `LoggingAlertSink()`): fires `CRITICAL` on kill-switch activation (manual, connectivity-loss, config-startup, and drawdown-halt all funnel through the single `_set_kill_switch` choke point) and on `DRAWDOWN_HALT_TRIGGERED`; fires `WARNING` on `DRAWDOWN_PAUSE_TRIGGERED` and `DAILY_LOSS_LIMIT_REACHED` — each exactly once per trigger, not re-fired on every subsequent call while the condition persists.
+- 14 new tests (`test_alerts.py`) proving each exact firing condition, no double-firing, and that a real notification channel (Slack/email/SMS) can be swapped in later purely by implementing `AlertSink` — `RiskEngine` itself never has to change again.
+- **157/157 tests passing, ruff clean, mypy clean** (up from 143).
+- Updated `docs/DEPLOYMENT_RUNBOOK.md`'s Known Gaps accordingly: alerting now has a real pluggable mechanism (still logging-only by default — no Slack/email/SMS wired in yet, that remains the actual gap before unattended LIVE operation).
+
 ## What's Next
 
 **For whichever agent picks this up next:**
@@ -130,7 +137,7 @@ No new activity from PR #3/#4/#5 or Issue #2 since the last session (all SHAs un
 
 ## Test Status
 
-**`trading_intelligence/` package: 143/143 tests passing**, ruff clean, mypy clean.
+**`trading_intelligence/` package: 157/157 tests passing**, ruff clean, mypy clean.
 ```
 tests/test_indicators.py       20/20 PASS
 tests/test_ma_crossover.py      7/7  PASS
@@ -142,6 +149,7 @@ tests/test_downloader.py       11/11 PASS
 tests/test_report.py           11/11 PASS
 tests/test_dry_run_adapter.py  15/15 PASS
 tests/test_shadow_runner.py     8/8  PASS
+tests/test_alerts.py           14/14 PASS
 ```
 
 **Real PAPER system (PR #3, `codex/import-paper-baseline`): 549/558 tests**,
