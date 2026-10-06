@@ -55,6 +55,23 @@
 - Lint: `ruff --select E,F,W` reports the same 4 pre-existing findings in `paper_monitor.py` as HEAD; none new.
 - `config.py` is mixed-EOL in HEAD. The diff was rebuilt from HEAD bytes so it shows only the 5 added lines.
 
+### Real-data research run: BTCUSDT 1D (Claude Code local, research only, no runtime change)
+
+- Data: Binance **production** public klines, BTCUSDT 1d, 2019-01-01 to 2026-09-30, 2830 bars. No credentials, no orders.
+  Run from a scratch worktree of `origin/ccr-b66a9a9e-okj2pl` (`trading_intelligence/`), not from this branch.
+- Strategy: `DualMACrossover` with package defaults (EMA 20/50, SMA200 trend filter, 10-bar swing-low stop).
+  Initial equity 10 000.
+- Full-period backtest: **11 trades**, win rate 45.5 %, PF 6.91, Sharpe 0.35, max DD -2.9 %, PnL +4 029.57, fees 33.93.
+- Walk-forward (anchored, defaults): **0 folds**. IS Sharpe < 0.5 in every fold, so OOS is skipped by design. Result: **NO-GO**.
+- Reading: the sample is far below the framework's 30-trade minimum, and Sharpe 0.35 is below 0.5. PF 6.91 on 11 trades is
+  NOT evidence of edge. This is not a profitability claim and not a validated strategy.
+- **Defect (registered, not fixed here; file not claimed)**: `BinanceSpotAdapter` defaults to `testnet=True`, and
+  `HistoricalDataDownloader()` builds its adapter with that default. Without an explicit `testnet=False`, the downloader
+  silently returns only testnet history (28 bars, from 2026-09) and does not raise. Owner: Trading Codex (cloud lineage).
+  Suggested fix: default `testnet=False` for public market data, and raise when the returned history is shorter than requested.
+- Next (for Trading Claude-Work to decide): whether to test shorter timeframes (more trades) or other candidates. No threshold or
+  strategy change is approved by this run.
+
 ### Branch `codex/market-lot-contract` (commit `a33f4e2`, PR #4 open -> `codex/import-paper-baseline`, not draft, not merged)
 
 - New `execution_market_filters.py` (`MARKET_FILTERS_OFFLINE_V1`): offline MARKET quantity contract, fail-closed.
