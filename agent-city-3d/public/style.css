@@ -1,0 +1,31 @@
+:root { --bg:#0b1220; --panel:#111a2e; --ink:#e5e7eb; --muted:#94a3b8; --line:#1f2a44; }
+* { box-sizing: border-box; }
+html, body { margin:0; height:100%; background:var(--bg); color:var(--ink); font:14px/1.45 system-ui, "Segoe UI", sans-serif; }
+body { display:flex; flex-direction:column; }
+header#top { display:flex; align-items:center; gap:12px; padding:8px 14px; background:var(--panel); border-bottom:1px solid var(--line); flex-wrap:wrap; }
+.titulo { font-weight:700; font-size:16px; }
+.chip { display:inline-block; padding:2px 8px; border-radius:999px; background:#1e293b; border:1px solid var(--line); font-size:12px; }
+.acciones { margin-left:auto; display:flex; gap:10px; align-items:center; }
+button { background:#1e293b; color:var(--ink); border:1px solid #334155; border-radius:6px; padding:5px 10px; cursor:pointer; }
+button:hover { background:#273449; }
+.muted { color:var(--muted); }
+#banners { display:flex; gap:8px; padding:0 14px; flex-wrap:wrap; }
+#banners .b { margin-top:8px; padding:4px 10px; border-radius:6px; background:#422006; border:1px solid #92400e; color:#fde68a; font-size:12px; }
+main { flex:1; display:grid; grid-template-columns: 1fr 340px; min-height:0; }
+#escena { position:relative; min-height:0; overflow:hidden; }
+#escena canvas { display:block; width:100%; height:100%; }
+#panel { background:var(--panel); border-left:1px solid var(--line); padding:14px; overflow:auto; }
+#panel h2 { font-size:16px; margin:0 0 8px; }
+#panel h3 { font-size:13px; margin:16px 0 6px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+#p-cuerpo dl { display:grid; grid-template-columns: 110px 1fr; gap:4px 8px; margin:0; }
+#p-cuerpo dt { color:var(--muted); }
+#p-cuerpo dd { margin:0; }
+#feed { list-style:none; padding:0; margin:0; max-height:260px; overflow:auto; font-size:12px; }
+#feed li { padding:4px 0; border-bottom:1px solid var(--line); }
+.leyenda { list-style:none; padding:0; margin:0; font-size:12px; }
+.leyenda li { display:flex; align-items:center; gap:8px; padding:2px 0; }
+.leyenda i { width:12px; height:12px; border-radius:3px; display:inline-block; }
+@media (max-width: 860px) {
+  main { grid-template-columns: 1fr; grid-template-rows: 60vh auto; }
+  #panel { border-left:none; border-top:1px solid var(--line); }
+}

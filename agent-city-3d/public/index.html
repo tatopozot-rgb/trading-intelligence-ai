@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agent City 3D</title>
+  <link rel="stylesheet" href="/public/style.css">
+  <script type="importmap">
+    { "imports": {
+        "three": "/vendor/three/build/three.module.js",
+        "three/addons/": "/vendor/three/examples/jsm/"
+    } }
+  </script>
+</head>
+<body>
+  <header id="top">
+    <div class="titulo">🏙 Agent City 3D <span id="modo" class="chip">BUILD MODE</span></div>
+    <div id="sync" class="chip">cargando…</div>
+    <div class="acciones">
+      <span id="refresco" class="muted"></span>
+      <button id="reset" type="button">Reset cámara</button>
+    </div>
+  </header>
+  <div id="banners"></div>
+  <main>
+    <div id="escena" aria-label="Ciudad 3D"></div>
+    <aside id="panel">
+      <h2 id="p-titulo">Selecciona un edificio o agente</h2>
+      <div id="p-cuerpo" class="muted">Haz clic en un edificio o en un agente para ver su estado. Todo lo que aparece aquí viene de sincronización real; lo no verificado se muestra como NOT_SYNCED.</div>
+      <h3>Feed de eventos</h3>
+      <ol id="feed"></ol>
+      <h3>Leyenda</h3>
+      <ul class="leyenda">
+        <li><i style="background:#22c55e"></i> WORKING (solo con evento reciente)</li>
+        <li><i style="background:#3b82f6"></i> REVIEW</li>
+        <li><i style="background:#f97316"></i> BLOCKED</li>
+        <li><i style="background:#9ca3af"></i> IDLE / IN_PROGRESS</li>
+        <li><i style="background:#6b7280"></i> NOT_SYNCED</li>
+        <li><i style="background:#78716c"></i> STALE</li>
+      </ul>
+      <p class="muted">Operational Reality = actividad real. Life Simulation = creatividad visual separada, no es trabajo.</p>
+    </aside>
+  </main>
+  <script type="module" src="/public/app.js"></script>
+</body>
+</html>
