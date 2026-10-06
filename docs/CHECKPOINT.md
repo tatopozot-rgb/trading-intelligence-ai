@@ -7,10 +7,11 @@ aliases: ["Checkpoint"]
 
 # Checkpoint — Trading Intelligence AI
 
-> Last updated: 2026-10-06T02:45:00Z
+> Last updated: 2026-10-06T03:05:00Z
 > Agent: Trading Codex (cloud session)
-> Branch: `ccr-b66a9a9e-okj2pl` @ commit `c66f2e3`
+> Branch: `ccr-b66a9a9e-okj2pl` @ commit `ad20161`
 > PRs: #1 (specs, open), #3 (real PAPER import, open, NOT merged), #4 (MARKET lot contract, open, NOT merged), #5 (is_junction fix, open, NOT merged), #6 (Agent City handoff, MERGED)
+> Other branches: `claude-code/finding-3-persistent-halt` (Claude Code local, Finding 2/3 implemented, reviewed, no PR yet)
 
 ## IMPORTANT — corrected project objective (2026-10-06)
 
@@ -188,26 +189,69 @@ produced new commits yet):
 - **191/191 tests passing, ruff clean, mypy clean** (up from 168 — 6 for
   `WebhookAlertSink`, 23 for `walk_forward.py`).
 
+### 12. Reviewed Claude Code local's Finding 2/3 delivery; fixed the real bug it found (same day, continued)
+
+Claude Code local delivered on `claude-code/finding-3-persistent-halt`
+(stacked on PR #4) — no PR opened yet. Reviewed both commits line-by-line:
+
+- **Finding 3** (`44eb425`): a `paper_halt` singleton table, `equity_mtm()`
+  (realized balance + unrealized P&L via the same formula the close path
+  uses), `_evaluar_halt()` as the single decision point called from
+  `_abrir_validado` (covers the Claude and `REGLAS_PAPER_V1` entry paths
+  by construction), fail-closed on missing/corrupt state or an
+  unapproved threshold, never auto-clears (`liberar_halt` requires
+  explicit confirmation **and** re-verifies the drawdown has actually
+  recovered below the threshold — not just the confirmation flag).
+  `config.DRAWDOWN_HALT_PCT = None` by design — real risk thresholds stay
+  Trading Claude-Work's call, not copied from `trading_intelligence/`'s
+  own reference defaults. `test_paper_halt.py` (220 lines) covers every
+  scenario the design note asked for, including some I hadn't thought to
+  ask for (price failure blocks entry without activating the halt; the
+  monitor's own risk-evaluation failure never blocks closing a position).
+  **No bugs found.**
+- **Finding 2** (same commit): pins the 05:00 UTC daily-loss cutoff and
+  that losses count against the local day, preserving the baseline
+  contract exactly as decided. **No bugs found.**
+- **Real-data research** (`a58437b`): ran `trading_intelligence/`'s
+  `DualMACrossover` against real BTCUSDT 1D klines (2019–2026, 2830
+  bars) via the real network access this cloud session doesn't have.
+  Result: 11 trades (below the 30-trade minimum), 0 walk-forward folds
+  (IS Sharpe < 0.5 throughout) — correctly recorded as **NO-GO**, no
+  profitability claim. This is also the first real confirmation that the
+  walk-forward harness fixed in section 11 actually runs against real
+  data, not just synthetic fixtures.
+- **Found a real bug in my own code and reported it without touching the
+  file**: `HistoricalDataDownloader`'s default adapter inherited
+  `BinanceSpotAdapter`'s `testnet=True` default, so the research run
+  above originally pulled 28 bars of testnet history instead of the
+  requested mainnet range, silently. Fixed now (`ad20161`): the
+  downloader's own default is `testnet=False` explicitly, and
+  `download_range()` gained a second defense — a large requested range
+  (≥180 expected bars) returning under 10% of that is flagged by name as
+  the testnet signature rather than silently accepted. 9 new tests.
+- **198/198 tests passing, ruff clean, mypy clean** (up from 191).
+
 ## What's Next
 
 **For whichever agent picks this up next:**
-1. **Claude Code local**: implement Finding 3 (persistent automatic halt — see `docs/FINDING_3_HALT_DESIGN.md` for the grounded shape, and the Task Board) and Finding 2's missing daily-loss-contract tests. This is now the critical path for the PR #3→#4→#5 merge chain.
-2. **Trading Claude-Work** (currently paused on its own usage limit — not a project blocker): once Claude Code local has a draft, set the real drawdown/connectivity thresholds for Finding 3 (not copied from `trading_intelligence/risk/engine.py`'s own defaults) and give final risk sign-off on both findings plus PR #4's MARKET contract.
-3. Once Findings 2/3 are resolved: merge the PR #3 → #4 → #5 chain into `ccr-b66a9a9e-okj2pl`, then decide whether `trading_intelligence/` continues as a parallel research package or becomes the validation/backtesting layer calling into the real system's modules.
-4. `trading_intelligence/` outstanding items (downloader now done): run a real-data backtest on actual BTCUSDT history via the new `HistoricalDataDownloader`, then walk-forward on Dual MA Crossover — the walk-forward harness itself is now fully tested (section 11) and ready to receive real data.
-   **This cloud container cannot reach `api.binance.com`** — confirmed via the egress proxy status (`$HTTPS_PROXY/__agentproxy/status`): `api.binance.com:443` gets an explicit policy 403 on CONNECT, not in the allowlist (pypi/npm/anthropic/etc. only). This is not a credentials issue — no API key would fix it. **Claude Code local** (real network access on the owner's PC) is the right agent to run the actual download/backtest; this cloud session can only build/test the code against mocks, which is already done.
-5. LIVE-readiness track (per the corrected objective): the real system's `broker_adapters.py`/`execution_context.py`/`exchange_context.py` have no dry-run or shadow-mode equivalent yet — `trading_intelligence/execution/dry_run.py` (`DryRunAdapter`) and `trading_intelligence/execution/shadow.py` (`ShadowRunner`) are reference designs that could be ported there once Findings 2/3 are resolved and PR #3/#4 merge.
-6. Next LIVE-readiness step for whoever picks this up: wire `ShadowRunner` to actually run continuously against live Binance public data (needs an agent with real network access — this container cannot reach `api.binance.com`); `trading_intelligence/monitoring/alerts.py` now has a real `WebhookAlertSink` (section 11) — wiring an actual webhook URL still needs the owner to supply one.
+1. **Claude Code local**: Finding 2/3 are implemented and reviewed (section 12) — open a formal PR against `codex/market-lot-contract` when ready, so Trading Claude-Work has something to approve on.
+2. **Trading Claude-Work** (currently paused on its own usage limit — not a project blocker): set the real drawdown threshold for `config.DRAWDOWN_HALT_PCT` (not copied from `trading_intelligence/risk/engine.py`'s own defaults) and give final risk sign-off on Findings 2/3 plus PR #4's MARKET contract. This is the only thing left before the PR #3→#4→#5 chain can merge.
+3. Once that sign-off lands and the chain merges: decide whether `trading_intelligence/` continues as a parallel research package or becomes the validation/backtesting layer calling into the real system's modules.
+4. `trading_intelligence/`'s walk-forward harness has now run once against real BTCUSDT data (section 12, via Claude Code local's network access) — correctly NO-GO on 11 trades. Next real-data work: try shorter timeframes or other candidates for more trades, per Claude Code local's own suggestion — that's Trading Claude-Work's call, not an engineering default.
+   **This cloud container still cannot reach `api.binance.com`** — confirmed via the egress proxy status; not a credentials issue. Claude Code local is the right agent for any further real-data runs.
+5. LIVE-readiness track (per the corrected objective): the real system's `broker_adapters.py`/`execution_context.py`/`exchange_context.py` have no dry-run or shadow-mode equivalent yet — `trading_intelligence/execution/dry_run.py` (`DryRunAdapter`) and `trading_intelligence/execution/shadow.py` (`ShadowRunner`) are reference designs that could be ported there once the chain merges.
+6. Next LIVE-readiness step for whoever picks this up: wire `ShadowRunner` to actually run continuously against live Binance public data (needs an agent with real network access); `trading_intelligence/monitoring/alerts.py` now has a real `WebhookAlertSink` (section 11) — wiring an actual webhook URL still needs the owner to supply one.
+7. **Obsidian vault package** prepared in `obsidian-vault-package/` (section 11) — still waiting on Claude Code local to place it in the owner's real vault (this cloud session has no filesystem/Computer Use access to do it directly).
 
 ## Blockers
 
-- **PR #3/#4/#5 merge chain**: waiting on Claude Code local's Finding 2/3 implementation, then Trading Claude-Work's risk/quant sign-off (see above). Not waiting on a decision anymore — that part is done. Nothing further blocks engineering work in the meantime.
+- **PR #3/#4/#5 merge chain**: Finding 2/3 implementation is done and reviewed (no bugs found) — now waiting only on Trading Claude-Work's risk/quant sign-off and a formal PR. Nothing further blocks engineering work in the meantime.
 - **Binance API keys not configured** — not required for public market data or PAPER mode; needed only for live trading authorization later (explicitly not requested yet)
 - **XM/MetaTrader credentials unknown** — Phase 2, separate adapter, not blocking current PAPER work
 
 ## Test Status
 
-**`trading_intelligence/` package: 191/191 tests passing**, ruff clean, mypy clean.
+**`trading_intelligence/` package: 198/198 tests passing**, ruff clean, mypy clean.
 ```
 tests/test_indicators.py       20/20 PASS
 tests/test_ma_crossover.py      7/7  PASS
@@ -215,7 +259,7 @@ tests/test_backtest_engine.py   7/7  PASS  (incl. 2 new deterministic gap-fill e
 tests/test_risk_engine.py      30/30 PASS
 tests/test_paper_adapter.py    12/12 PASS
 tests/test_binance_adapter.py  22/22 PASS
-tests/test_downloader.py       11/11 PASS
+tests/test_downloader.py       18/18 PASS  (11 + 7 for the testnet-default fix)
 tests/test_report.py           11/11 PASS
 tests/test_dry_run_adapter.py  15/15 PASS
 tests/test_shadow_runner.py     8/8  PASS
