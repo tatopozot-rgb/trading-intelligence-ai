@@ -877,6 +877,66 @@ independently reproduced on Linux in 14.7s (14 errors, all the same isolated
 `is_junction()` portability bug in the safety-guard tool; 20 skips, likely
 Tkinter/Windows-UI tests degrading gracefully on headless Linux).
 
+### 26. Quant/Validation: remediating the TREND_UP/BREAKOUT_UP NO-GO — real bug fixed, candidate tested, honest NO-GO (same day, continued)
+
+Spawned as a background subagent against the real gap recorded in section
+12: `default_router()`'s only wired strategy (`DualMACrossover` 1D,
+TREND_UP/BREAKOUT_UP) has a recorded NO-GO on real BTCUSDT data (11
+trades, below the 30-trade minimum). The subagent hit this session's rate
+limit mid-task; its uncommitted work was reviewed, verified, and finished
+here rather than discarded or redone from scratch.
+
+**Real bug found and fixed**: `BacktestResult.compute_metrics()` always
+annualized Sharpe with a hardcoded `sqrt(365)`, regardless of the equity
+curve's actual bar frequency — correct for 1D bars, silently wrong for
+anything sub-daily (understates Sharpe by `sqrt(bars_per_day)`). Found
+while building a sub-daily candidate to test the frequency hypothesis
+below — a real evaluation of ANY sub-daily strategy run through this
+engine before today would have been handicapped by this. Fixed: now
+infers `periods_per_year` from the equity curve's own `DatetimeIndex`
+spacing, falls back to 365 if it can't (exact prior behavior preserved
+for 1D). 4 new tests including a same-real-edge 1D-vs-4h comparison
+proving the fix numerically (old formula: 0.23: new formula: 0.57, for
+series constructed to have the identical true annualized edge).
+
+**Candidate tested**: `candidate_router_trend_4h()` — the identical
+`DualMACrossover` logic and 20/50 periods already in `default_router()`,
+sampled at 4h instead of 1D. A sampling-frequency change, not a retuning
+(periods and their ratio are byte-identical to the real strategy) — the
+framework's anti-curve-fitting rule was respected, not worked around.
+Synthetic-data-only (this cloud session has no real Binance network
+access, confirmed via 403 from the egress proxy): built
+`tests/synthetic_market.py`, a GARCH(1,1) + regime-switching-drift
+BTC-like generator, specifically because the existing simpler test
+fixtures (i.i.d. normal returns) don't carry the volatility-clustering
+and regime-structure a frequency hypothesis needs to be tested fairly
+against.
+
+**Full honest verdict in `docs/STRATEGY_CANDIDATE_TREND_4H_VALIDATION.md`.**
+Summary: the frequency hypothesis is **confirmed** on raw trade count —
+15/15 seeds clear the 30-trade minimum at 4h (125–164 trades) vs. 15/15
+seeds failing it at 1D (16–29 trades), closely matching the real 11-trade
+finding. But the full walk-forward GO/NO-GO (same harness and thresholds
+this project uses everywhere else, 5-seed sub-sample for computational
+cost) is **NO-GO in all 5 sampled seeds** — fixing the total trade count
+doesn't fix each individual OOS fold's own trade count (6–23, still below
+30), and the OOS Sharpe/significance numbers that did compute are weak to
+negative. This is reported as genuinely informative negative evidence
+(rules out "it's purely a frequency problem," narrows the real cause
+toward the edge itself or the walk-forward fold-sizing), not spun as a
+near-miss or retried with different parameters until it looked better.
+
+**Not promoted to `default_router()`.** Not recommended for a real-data
+trial as-is — the synthetic evidence argues against spending Claude Code
+local's real network access on it.
+
+```
+tests/test_backtest_engine.py::TestSharpeAnnualizationMatchesBarFrequency  4/4  PASS (new)
+tests/test_trend_following_4h_candidate.py                                7/7  PASS (new)
+Full suite (excluding the heavy 15-seed candidate file, run separately)  280/280 PASS
+ruff + mypy: clean
+```
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
