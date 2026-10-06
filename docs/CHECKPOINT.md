@@ -1,8 +1,8 @@
 # Checkpoint — Trading Intelligence AI
 
-> Last updated: 2026-10-05T22:05:00Z
+> Last updated: 2026-10-06T00:30:00Z
 > Agent: Trading Codex (cloud session)
-> Branch: `ccr-b66a9a9e-okj2pl` @ commit pending (downloader + Binance public-data fix)
+> Branch: `ccr-b66a9a9e-okj2pl` @ commit pending (gap-fill bug fix, backtest report generator)
 > PRs: #1 (specs, open), #3 (real PAPER import, open, NOT merged), #4 (MARKET lot contract, open, NOT merged), #5 (is_junction fix, open, NOT merged)
 
 ## IMPORTANT — three-agent structure (corrected nomenclature)
@@ -73,6 +73,15 @@ Posted a full cross-review on PR #3 (see GitHub). Independently reproduced on Li
 - **107/107 tests passing, ruff clean, mypy clean** on the full `trading_intelligence/` package (up from 92).
 - **Nomenclature correction** (this update): per explicit owner correction, rewrote `AGENTS.md` to define exactly three agents (Trading Claude-Work = real ChatGPT Work, Trading Codex = this agent, Claude Code local = PowerShell session on the owner's PC) and corrected all "Trading claude work" references in this file and `docs/AGENT_COORDINATION.md` to "Trading Claude-Work".
 
+### 6. 8-hour checkpoint session: found and fixed a real correctness bug, built the report generator
+No new activity from PR #3/#4/#5 or Issue #2 since the last session (all SHAs unchanged) — nothing new to review there. Used the time for independent engineering work that doesn't touch files claimed by the other two agents:
+
+- **Bug found and fixed**: `BacktestEngine._stop_fill_price()` always filled stop-outs at `stop_price * (1 - 2x slippage)`, even on a real gap-down where the bar's open itself was already below the stop. This understates losses on exactly the trades that matter most (crashes) — the kind of backtest optimism `docs/PAPER_TRADING_SIMULATION_SPEC.md`'s "Core Principle: Pessimistic Assumptions" explicitly warns against. My own `PaperAdapter` already had the correct gap-through logic (fill at the bar's open when it gapped below the stop); `BacktestEngine` didn't match it. Fixed `_stop_fill_price()` to take `bar_open` and use it when the bar gapped through.
+- Added two deterministic, exact-price tests (`TestStopFillEdgeCases` in `test_backtest_engine.py`) using a new `_FixedSignalStrategy` test double that fires one controlled signal at a chosen bar — not random synthetic data. One proves a normal stop touch on the entry bar itself fills at `stop*(1-2x slippage)`; the other proves a real gap-down fills at the bar's open, and is **off by ~25 points** from the old (wrong) formula on the test's numbers — this is the magnitude of optimism the bug was producing.
+- **`trading_intelligence/backtesting/report.py`**: CSV export (`write_csv_report` — trades.csv, equity_curve.csv) and a self-contained HTML report (`generate_html_report`/`write_html_report`) with an inline-SVG equity curve — no new dependencies (no matplotlib/plotly, consistent with the project's minimal-dependency style). The HTML report always carries an explicit disclaimer pointing to `docs/STRATEGY_VALIDATION_FRAMEWORK.md` — it must never read as a profitability claim.
+- 11 new tests (`test_report.py`): CSV round-trip, HTML structure, HTML-escaping (XSS safety on the title), empty-trades/empty-equity-curve edge cases.
+- **120/120 tests passing, ruff clean, mypy clean** (up from 107).
+
 ## What's Next
 
 **For whichever agent picks this up next:**
@@ -90,15 +99,16 @@ Posted a full cross-review on PR #3 (see GitHub). Independently reproduced on Li
 
 ## Test Status
 
-**`trading_intelligence/` package: 107/107 tests passing**, ruff clean, mypy clean.
+**`trading_intelligence/` package: 120/120 tests passing**, ruff clean, mypy clean.
 ```
 tests/test_indicators.py       20/20 PASS
 tests/test_ma_crossover.py      7/7  PASS
-tests/test_backtest_engine.py   5/5  PASS
+tests/test_backtest_engine.py   7/7  PASS  (incl. 2 new deterministic gap-fill edge cases)
 tests/test_risk_engine.py      30/30 PASS
 tests/test_paper_adapter.py    12/12 PASS
 tests/test_binance_adapter.py  22/22 PASS
 tests/test_downloader.py       11/11 PASS
+tests/test_report.py           11/11 PASS
 ```
 
 **Real PAPER system (PR #3, `codex/import-paper-baseline`): 549/558 tests**,

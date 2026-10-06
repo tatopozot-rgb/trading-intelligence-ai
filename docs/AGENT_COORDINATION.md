@@ -1,6 +1,6 @@
 # Agent Coordination — Trading Intelligence AI
 
-> Last updated: 2026-10-05T21:45:00Z
+> Last updated: 2026-10-06T00:30:00Z
 
 ## Current Phase: REVIEW — PR #3 and PR #4 cross-reviewed; PR #5 (fix) opened; none merged yet
 
@@ -42,6 +42,8 @@ what another agent has or hasn't done — do not rely on stale doc text alone.
 | Nomenclature correction: 3-agent structure in AGENTS.md | Trading Codex (cloud) | 2026-10-05 | this branch |
 | Fixed BinanceSpotAdapter requiring credentials for public market data | Trading Codex (cloud) | 2026-10-05 | this branch |
 | trading_intelligence/data/downloader.py (historical OHLCV, Parquet cache) | Trading Codex (cloud) | 2026-10-05 | this branch |
+| Fixed gap-down stop-fill bug in BacktestEngine (understated losses on crashes) | Trading Codex (cloud) | 2026-10-06 | this branch |
+| trading_intelligence/backtesting/report.py (CSV + self-contained HTML report) | Trading Codex (cloud) | 2026-10-06 | this branch |
 
 ## Technical Decisions
 

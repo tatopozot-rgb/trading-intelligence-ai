@@ -185,10 +185,12 @@ class BacktestEngine:
             # --- Evaluate open position at this bar's open ---
             if open_trade is not None:
                 open_bar_low = Decimal(str(current_bar["low"]))
+                open_bar_open = Decimal(str(current_bar["open"]))
 
-                # Stop hit? Check low vs stop (gap-through: 2× slippage)
+                # Stop hit? Check low vs stop (gap-through: fill at the worse
+                # of the bar's open or the stop itself, per PAPER_TRADING_SIMULATION_SPEC.md)
                 if open_bar_low <= open_trade.stop_price:
-                    fill_price = self._stop_fill_price(open_trade.stop_price)
+                    fill_price = self._stop_fill_price(open_trade.stop_price, open_bar_open)
                     open_trade = self._close_trade(
                         open_trade, i, bar_time, fill_price, "stop", equity
                     )
@@ -279,8 +281,20 @@ class BacktestEngine:
         # Truncate to 8 decimal places (BTC precision)
         return qty.quantize(Decimal("0.00000001"), rounding=ROUND_DOWN)
 
-    def _stop_fill_price(self, stop_price: Decimal) -> Decimal:
-        """Stop fill with 2× slippage (gap-through model)."""
+    def _stop_fill_price(self, stop_price: Decimal, bar_open: Decimal) -> Decimal:
+        """
+        Stop fill, gap-through model (matches PaperAdapter._maybe_trigger_stop):
+        - Normal touch (bar opened above the stop, low dipped through it):
+          fill at stop_price with 2x slippage.
+        - Gap-down (bar's open itself is already below the stop — the stop
+          could never have filled at anything close to stop_price): fill at
+          the bar's open with 1x slippage, since that's the worst price
+          realistically available. Using the flat stop*2x-slippage formula
+          here would understate the loss on any real gap, which is exactly
+          the kind of backtest optimism this project must not produce.
+        """
+        if bar_open < stop_price:
+            return bar_open * (1 - self.slippage_factor)
         return stop_price * (1 - 2 * self.slippage_factor)
 
     @staticmethod
