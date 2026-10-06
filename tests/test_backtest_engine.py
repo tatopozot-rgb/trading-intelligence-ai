@@ -125,6 +125,75 @@ class TestBacktestEngineSmoke:
         assert "PF" in s
 
 
+class TestEquityAccounting:
+    """
+    Real bug found by numeric verification before touching anything:
+    entry_fee used to be deducted from equity immediately at entry, AND
+    again inside BacktestTrade.pnl (added to equity once, at close) —
+    double-charging it on every single trade. The existing smoke tests
+    only checked `fees are positive` / `trades have an exit`, nothing
+    exact enough to catch a bug of this shape.
+    """
+
+    def test_final_equity_matches_a_plain_ledger_not_double_charged_fee(self):
+        """entry_fee must be subtracted from equity exactly once across
+        the whole round trip, not once immediately and again via pnl."""
+        data = _flat_ohlcv(
+            opens=[100, 100, 100, 100, 100, 100],
+            highs=[101, 101, 101, 101, 101, 111],
+            lows=[99, 99, 99, 99, 99, 99],
+            closes=[100, 100, 100, 100, 100, 110],
+        )
+        # stop_price=1 never triggers; the trade is forced closed at the
+        # last bar's close (110) via "end_of_data" when data runs out.
+        strategy = _FixedSignalStrategy(signal_at_index=3, stop_price=Decimal("1"))
+        engine = BacktestEngine(strategy, initial_equity=Decimal("10000"))
+        result = engine.run(data)
+
+        assert len(result.trades) == 1
+        trade = result.trades[0]
+        assert trade.exit_reason == "end_of_data"
+
+        entry_fill = Decimal("100") * (Decimal("1") + Decimal("0.0005"))
+        qty = engine._size_position(Decimal("10000"), entry_fill, Decimal("1"))
+        entry_fee = entry_fill * qty * Decimal("0.001")
+        exit_fill = Decimal("110")  # end_of_data uses the bar's close directly, no slippage
+        exit_fee = exit_fill * qty * Decimal("0.001")
+        gross = (exit_fill - entry_fill) * qty
+        expected_final_equity = Decimal("10000") + gross - entry_fee - exit_fee
+
+        assert trade.quantity == qty
+        assert trade.entry_fee == entry_fee
+        assert result.final_equity == expected_final_equity
+
+    def test_losing_trade_equity_also_matches_ledger(self):
+        """Same reconciliation on a losing trade, where the old bug's
+        extra fee deduction would otherwise be masked by (or confused
+        with) the trade's own loss."""
+        data = _flat_ohlcv(
+            opens=[100, 100, 100, 100, 100, 100],
+            highs=[101, 101, 101, 101, 101, 101],
+            lows=[99, 99, 99, 99, 99, 89],
+            closes=[100, 100, 100, 100, 100, 90],
+        )
+        strategy = _FixedSignalStrategy(signal_at_index=3, stop_price=Decimal("1"))
+        engine = BacktestEngine(strategy, initial_equity=Decimal("10000"))
+        result = engine.run(data)
+
+        trade = result.trades[0]
+        assert trade.exit_reason == "end_of_data"
+
+        entry_fill = Decimal("100") * (Decimal("1") + Decimal("0.0005"))
+        qty = engine._size_position(Decimal("10000"), entry_fill, Decimal("1"))
+        entry_fee = entry_fill * qty * Decimal("0.001")
+        exit_fill = Decimal("90")
+        exit_fee = exit_fill * qty * Decimal("0.001")
+        gross = (exit_fill - entry_fill) * qty
+        expected_final_equity = Decimal("10000") + gross - entry_fee - exit_fee
+
+        assert result.final_equity == expected_final_equity
+
+
 class TestStopFillEdgeCases:
     """
     Deterministic, exact-price tests for the gap-through stop model, per

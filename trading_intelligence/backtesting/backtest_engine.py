@@ -213,7 +213,13 @@ class BacktestEngine:
                     if qty <= 0:
                         continue
                     entry_fee = fill_price * qty * self.taker_fee
-                    equity -= entry_fee  # deduct fee at entry
+                    # entry_fee is NOT deducted from equity here — BacktestTrade.pnl
+                    # (added to equity once, at close) already subtracts both
+                    # entry_fee and exit_fee. Deducting it here too double-charges
+                    # it on every single trade (found via a real numeric check: a
+                    # $10k position's round trip came out short by exactly the
+                    # entry fee). entry_fee is still stored on the trade for fee
+                    # reporting (BacktestResult.compute_metrics()'s total_fees).
 
                     trade = BacktestTrade(
                         symbol=proposal.symbol,
