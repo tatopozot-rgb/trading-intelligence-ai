@@ -78,10 +78,23 @@ looks wrong, it is investigated from the log, not altered.
 ## Known Gaps Before LIVE Can Be Considered (tracked, not exhaustive)
 
 - Real system's `risk_engine.py`/`paper_store.py` (the authoritative
-  implementation) does not yet have automatic drawdown pause/halt or a
-  connectivity-watchdog kill switch — only the manual `PAUSA_ENTRADAS` file
-  switch. See PR #3 review Finding 3. `trading_intelligence/risk/engine.py`
-  has these; the two implementations are not yet reconciled.
+  implementation): automatic drawdown halt is now implemented (Claude Code
+  local, commit `44eb425`, branch `claude-code/finding-3-persistent-halt`,
+  reviewed — see `docs/CHECKPOINT.md` section 12) — `paper_store.py`'s
+  `_evaluar_halt()`/`paper_halt` table, separate from the manual
+  `PAUSA_ENTRADAS` switch. `config.DRAWDOWN_HALT_PCT` is `None` (fail-closed,
+  entries blocked) until Trading Claude-Work sets a real threshold — that
+  sign-off, plus a connectivity-watchdog kill switch (not yet built), remain
+  open. `trading_intelligence/risk/engine.py` has its own independent
+  version of both; the two implementations are still not reconciled with
+  each other.
+- `trading_intelligence/execution/binance.py`'s `BinanceSpotAdapter.cancel_order()`
+  raises `NotImplementedError` by design (clear message, not a silent
+  failure) — real cancellation needs an order-tracking persistence layer
+  (symbol per `client_order_id`) that doesn't exist yet. Not reachable from
+  `DryRunAdapter` (which never forwards cancel/submit calls to the wrapped
+  adapter) or `PaperAdapter` (which has its own cancel logic); only matters
+  once a real LIVE adapter actually needs to cancel a real order.
 - No strategy has passed full out-of-sample validation per
   `docs/STRATEGY_VALIDATION_FRAMEWORK.md` — "do not trade" remains correct
   until one does.
