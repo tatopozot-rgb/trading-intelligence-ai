@@ -106,6 +106,40 @@ function crearEtiqueta(texto, ancho = 512, alto = 96, color = "#e5e7eb", tamano 
   return sp;
 }
 
+// Etiquetas de estado legibles: qué hace el agente, con icono y texto corto.
+const ETIQUETA_ESTADO = {
+  WORKING: ["🟢", "TRABAJANDO", "#86efac"], REVIEWING: ["🔵", "REVISANDO", "#93c5fd"], BLOCKED: ["🟠", "BLOQUEADO", "#fdba74"],
+  STUDYING: ["📘", "ESTUDIANDO", "#fde68a"], TRAINING: ["📘", "ENTRENANDO", "#fde68a"], EXAMINING: ["📝", "EXAMEN", "#fde68a"],
+  SLEEPING: ["💤", "DURMIENDO", "#a5b4fc"], SEEKING_WORK: ["🔎", "BUSCANDO TRABAJO", "#fdba74"], MEETING: ["👥", "EN REUNIÓN", "#67e8f9"],
+  MENTORING: ["🧑‍🏫", "MENTORIZANDO", "#d8b4fe"], COMMUTING: ["🚲", "DE CAMINO", "#67e8f9"], RESTING: ["🌿", "DESCANSANDO", "#d9f99d"],
+  LEISURE: ["🌳", "TIEMPO LIBRE", "#bbf7d0"], ON_DUTY: ["🟢", "EN SERVICIO", "#86efac"], IDLE: ["⚪", "EN ESPERA", "#cbd5e1"],
+  NOT_SYNCED: ["❔", "SIN EVIDENCIA", "#cbd5e1"], STALE: ["⌛", "DATOS VIEJOS", "#d6d3d1"],
+};
+function etiquetaEstado(state) {
+  const base = String(state || "").replace(/^SIM_/, "");
+  return ETIQUETA_ESTADO[base] || ["•", base, "#e5e7eb"];
+}
+// Tarjeta compacta de 3 líneas: estado · nombre · tarea. Reemplaza las etiquetas gigantes de una línea.
+function crearTarjeta(a) {
+  const [icono, texto, color] = etiquetaEstado(a.state);
+  const c = document.createElement("canvas");
+  c.width = 420; c.height = 116;
+  const g = c.getContext("2d");
+  g.fillStyle = "rgba(11,18,32,0.86)";
+  g.beginPath(); g.roundRect(3, 3, c.width - 6, c.height - 6, 14); g.fill();
+  g.fillStyle = color; g.font = "bold 26px system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+  g.fillText(`${icono} ${texto}`, c.width / 2, 28);
+  g.fillStyle = a.kind === "simulated" ? "#fde68a" : "#f8fafc"; g.font = "bold 24px system-ui, sans-serif";
+  g.fillText(a.kind === "simulated" ? `${a.name} · SIM` : a.name, c.width / 2, 60);
+  const tarea = a.kind === "simulated" ? (a.reason || "") : (a.currentTask || "NOT_SYNCED");
+  g.fillStyle = "#cbd5e1"; g.font = "20px system-ui, sans-serif";
+  const corta = tarea.length > 34 ? tarea.slice(0, 33) + "…" : tarea;
+  g.fillText(corta, c.width / 2, 92);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false }));
+  sp.scale.set(3.6, 0.99, 1);
+  return sp;
+}
+
 // ---------- interiores y puertas
 function interiorDe(id) {
   const g = new THREE.Group();
@@ -218,8 +252,8 @@ function crearAvatar(key, nombre, color, esSimulado) {
   aro.rotation.x = -Math.PI / 2; aro.position.y = 0.05;
   const seleccionAro = new THREE.Mesh(new THREE.RingGeometry(0.95, 1.12, 32), new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide }));
   seleccionAro.rotation.x = -Math.PI / 2; seleccionAro.position.y = 0.07; seleccionAro.visible = false;
-  const etiqueta = crearEtiqueta(esSimulado ? `${nombre} · SIM` : nombre, 520, 74, esSimulado ? "#fde68a" : "#f8fafc", 34);
-  etiqueta.position.y = 2.75;
+  const etiqueta = crearTarjeta({ name: nombre, kind: esSimulado ? "simulated" : "real", state: "IDLE", reason: "", currentTask: null });
+  etiqueta.position.y = 2.9;
   const grupoBici = new THREE.Group();
   const ruedaM = new THREE.MeshStandardMaterial({ color: 0x111827 });
   for (const x of [-0.45, 0.45]) {
@@ -299,12 +333,15 @@ function asignarDestinos(city) {
       ag.destinoAdentro = adentro;
       ag.destinoEdificio = a.target;
     }
-    const nueva = crearEtiqueta(`${a.name} · ${a.state}`, 560, 74, a.kind === "simulated" ? "#fde68a" : "#f8fafc", 32);
-    ag.etiqueta.material.map.dispose();
-    ag.etiqueta.material.map = nueva.material.map;
-    ag.etiqueta.material.needsUpdate = true;
-    nueva.material.dispose();
-    ag.etiqueta.visible = !ag.esSimulado || ag.seleccionAro.visible;
+    const clave2 = `${a.state}|${a.currentTask || a.reason || ""}`;
+    if (ag.claveTarjeta !== clave2) {
+      const nueva = crearTarjeta(a);
+      ag.etiqueta.material.map.dispose();
+      ag.etiqueta.material.map = nueva.material.map;
+      ag.etiqueta.material.needsUpdate = true;
+      nueva.material.dispose();
+      ag.claveTarjeta = clave2;
+    }
   }
 }
 
@@ -315,7 +352,8 @@ function avanzarAgentes(dt, tiempo, camaraPos) {
     if (!ag.grupo.visible) continue;
     const distancia = camaraPos.distanceTo(ag.grupo.position);
     ag.lod = distancia > LOD_LEJOS ? 2 : distancia > LOD_MEDIO ? 1 : 0;
-    ag.etiqueta.visible = (ag.lod === 0 && (!ag.esSimulado || ag.seleccionAro.visible)) || ag.seleccionAro.visible;
+    const activo = ag.estado !== null && !["SIM_SLEEPING", "SIM_LEISURE", "SIM_RESTING", "SIM_TRAVEL", "IDLE"].includes(ag.estado);
+    ag.etiqueta.visible = ag.seleccionAro.visible || (ag.esSimulado ? distancia < 32 && activo : ag.lod < 2);
     if (ag.ruta.length >= 2) {
       let restante = ag.velocidad * dt;
       while (restante > 0 && ag.ruta.length >= 2) {
