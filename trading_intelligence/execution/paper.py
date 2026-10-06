@@ -284,7 +284,13 @@ class PaperAdapter(AbstractExchangeAdapter):
         entry_fee_share = position.entry_fee * (quantity / position.quantity)
         realized_pnl = proceeds - entry_cost - entry_fee_share
 
-        self.cash += entry_cost + realized_pnl
+        # Credit exactly what was received for this sale — the entry cost
+        # was already debited from cash in full back at _apply_buy(), so
+        # there is nothing separate to "return" here. `entry_cost +
+        # realized_pnl` looks equivalent but isn't: realized_pnl already
+        # has entry_fee_share subtracted once, so adding entry_cost back
+        # on top double-charges that fee share on every sell.
+        self.cash += proceeds
 
         position.quantity -= quantity
         position.entry_fee -= entry_fee_share

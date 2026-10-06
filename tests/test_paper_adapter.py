@@ -120,6 +120,55 @@ class TestNextBarFill:
         # Bought ~50025, sold ~51974 -> profitable trade
         assert adapter.cash > Decimal("10000")
 
+    def test_full_sell_credits_cash_by_exact_sale_proceeds(self, tmp_path):
+        """Real bug found by auditing: _apply_sell used to credit
+        `entry_cost + realized_pnl` instead of the actual sale proceeds,
+        which double-charges the entry fee's share on every sell
+        (realized_pnl already has it subtracted once). Cash must equal a
+        plain ledger: starting cash, minus the buy's full cost (price +
+        fee), plus the sell's full proceeds (price - fee) — nothing more
+        clever needed, and nothing less."""
+        adapter = _adapter(tmp_path, equity=Decimal("10000"))
+        buy = OrderRequest(symbol="BTCUSDT", side="BUY", order_type="MARKET", quantity=Decimal("0.1"))
+        adapter.submit_order(buy)
+        adapter.on_new_bar("BTCUSDT", Decimal("50000"), Decimal("50500"), Decimal("49500"),
+                            Decimal("50200"), "2026-01-01T01:00:00Z")
+
+        sell = OrderRequest(symbol="BTCUSDT", side="SELL", order_type="MARKET", quantity=Decimal("0.1"))
+        adapter.submit_order(sell)
+        adapter.on_new_bar("BTCUSDT", Decimal("52000"), Decimal("52500"), Decimal("51500"),
+                            Decimal("52200"), "2026-01-01T02:00:00Z")
+
+        buy_fill = Decimal("50000") * Decimal("1.0005")
+        buy_fee = buy_fill * Decimal("0.1") * Decimal("0.001")
+        sell_fill = Decimal("52000") * (Decimal("1") - Decimal("0.0005"))
+        sell_fee = sell_fill * Decimal("0.1") * Decimal("0.001")
+        expected_cash = Decimal("10000") - (buy_fill * Decimal("0.1") + buy_fee) + (sell_fill * Decimal("0.1") - sell_fee)
+        assert adapter.cash == expected_cash
+
+    def test_partial_sell_credits_only_that_portions_proceeds(self, tmp_path):
+        """A partial sell must credit cash by exactly that slice's sale
+        proceeds — the still-open remainder's cost basis stays spent
+        (tied up in the position) until it too is sold, same as a real
+        brokerage account."""
+        adapter = _adapter(tmp_path, equity=Decimal("10000"))
+        buy = OrderRequest(symbol="BTCUSDT", side="BUY", order_type="MARKET", quantity=Decimal("1"))
+        adapter.submit_order(buy)
+        adapter.on_new_bar("BTCUSDT", Decimal("100"), Decimal("101"), Decimal("99"),
+                            Decimal("100"), "2026-01-01T01:00:00Z")
+        cash_after_buy = adapter.cash
+
+        sell = OrderRequest(symbol="BTCUSDT", side="SELL", order_type="MARKET", quantity=Decimal("0.4"))
+        adapter.submit_order(sell)
+        adapter.on_new_bar("BTCUSDT", Decimal("110"), Decimal("111"), Decimal("109"),
+                            Decimal("110"), "2026-01-01T02:00:00Z")
+
+        sell_fill = Decimal("110") * (Decimal("1") - Decimal("0.0005"))
+        sell_fee = sell_fill * Decimal("0.4") * Decimal("0.001")
+        proceeds = sell_fill * Decimal("0.4") - sell_fee
+        assert adapter.cash == cash_after_buy + proceeds
+        assert adapter.get_position("BTCUSDT").quantity == Decimal("0.6")
+
     def test_sell_more_than_held_raises(self, tmp_path):
         adapter = _adapter(tmp_path)
         buy = OrderRequest(symbol="BTCUSDT", side="BUY", order_type="MARKET", quantity=Decimal("0.1"))
