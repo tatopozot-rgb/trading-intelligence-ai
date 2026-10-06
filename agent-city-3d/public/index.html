@@ -26,7 +26,14 @@
   <main>
     <div id="escena" aria-label="Ciudad 3D"></div>
     <aside id="panel">
-      <section class="tarjeta" id="sel">
+      <nav id="pestanas" class="pestanas">
+        <button class="tab on" data-tab="city" type="button">CITY</button>
+        <button class="tab" data-tab="agent" type="button">AGENT</button>
+        <button class="tab" data-tab="building" type="button">BUILDING</button>
+        <button class="tab" data-tab="operations" type="button">OPERATIONS</button>
+        <button class="tab" data-tab="simulation" type="button">SIMULATION</button>
+      </nav>
+      <section class="tarjeta" id="sel" data-tab="all">
         <div class="cabecera-sel">
           <h2 id="p-titulo">Ciudad</h2>
           <span id="p-badge" class="badge"></span>
@@ -35,27 +42,27 @@
         <button id="p-cerrar" type="button" class="secundario">Ver resumen de la ciudad</button>
       </section>
 
-      <details class="bloque real" open>
+      <details class="bloque real" open data-tab="real">
         <summary><span>🟢 Realidad operativa</span><small>solo fuentes reales</small></summary>
         <div id="sec-real" class="cuerpo"></div>
       </details>
 
-      <details class="bloque sim" open>
+      <details class="bloque sim" open data-tab="sim">
         <summary><span>🎮 Simulación visual</span><small>no es trabajo real</small></summary>
         <div id="sec-sim" class="cuerpo"></div>
       </details>
 
-      <details class="bloque">
+      <details class="bloque" data-tab="roles">
         <summary><span>🧩 Roles</span><small>agrupados por categoría</small></summary>
         <div id="sec-roles" class="cuerpo"></div>
       </details>
 
-      <details class="bloque">
+      <details class="bloque" data-tab="feed">
         <summary><span>📜 Eventos recientes</span><small>reales</small></summary>
         <ol id="feed" class="feed"></ol>
       </details>
 
-      <details class="bloque">
+      <details class="bloque" data-tab="legend">
         <summary><span>Leyenda</span></summary>
         <ul class="leyenda">
           <li><i style="background:#22c55e"></i> WORKING real (solo con evento reciente)</li>

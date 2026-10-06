@@ -373,17 +373,63 @@ renderer.domElement.addEventListener("click", (ev) => {
   seleccion = objeto.userData.kind === "building"
     ? { kind: "building", id: objeto.userData.id }
     : { kind: "agent", key: objeto.userData.key };
+  pestana = seleccion.kind;
+  aplicarPestana();
   resaltarSeleccion();
   pintarSeleccion();
 });
 $("p-cerrar").addEventListener("click", () => {
   seleccion = null;
+  seguir = null;
+  pestana = "city";
+  aplicarPestana();
   resaltarSeleccion();
   pintarSeleccion();
 });
 
 // ---------- paneles
 const fila = (k, v) => `<div class="fila"><span>${escapar(k)}</span><span>${escapar(v)}</span></div>`;
+
+// Pestañas: qué bloques se ven en cada una. "all" = la tarjeta de selección, siempre visible.
+let pestana = "city";
+const VISIBLES = {
+  city: ["all", "real", "sim", "roles", "feed", "legend"],
+  agent: ["all"], building: ["all"],
+  operations: ["all", "real", "roles", "feed"],
+  simulation: ["all", "sim"],
+};
+function aplicarPestana() {
+  for (const el of document.querySelectorAll("[data-tab]")) el.hidden = !(VISIBLES[pestana] || []).includes(el.dataset.tab);
+  for (const b of document.querySelectorAll(".tab")) b.classList.toggle("on", b.dataset.tab === pestana);
+}
+document.querySelectorAll(".tab").forEach((b) => b.addEventListener("click", () => {
+  pestana = b.dataset.tab;
+  if (pestana === "city") { seleccion = null; seguir = null; resaltarSeleccion(); }
+  aplicarPestana();
+  pintarSeleccion();
+}));
+
+// Seguimiento de agente y enfoque de edificio (acciones del panel y doble clic).
+let seguir = null; // clave del agente que la cámara sigue
+function enfocarEdificio(id) {
+  const b = EDIFICIO_DE[id];
+  if (!b) return;
+  const centro = mundoDe(b);
+  controles.target.copy(centro);
+  camara.position.copy(centro).add(new THREE.Vector3(12, 12, 12));
+  controles.update();
+}
+$("p-cuerpo").addEventListener("click", (ev) => {
+  const accion = ev.target?.dataset?.accion;
+  if (!accion || !seleccion) return;
+  if (accion === "seguir" && seleccion.kind === "agent") seguir = seleccion.key;
+  if (accion === "dejar") seguir = null;
+  if (accion === "enfocar" && seleccion.kind === "building") enfocarEdificio(seleccion.id);
+  pintarSeleccion();
+});
+renderer.domElement.addEventListener("dblclick", () => {
+  if (seleccion && seleccion.kind === "building") enfocarEdificio(seleccion.id);
+});
 
 function pintarSeleccion() {
   if (!ultimo) return;
@@ -403,6 +449,7 @@ function pintarSeleccion() {
     $("p-badge").textContent = esSim ? "SIMULACIÓN" : "REAL";
     $("p-cuerpo").innerHTML =
       `${fila("Distrito", esSim ? "Life Simulation" : "Operational Reality")}
+       <button class="secundario" data-accion="enfocar" type="button" style="margin:6px 0">Enfocar edificio</button>
        ${fila("Agentes reales aquí", reales.length ? reales.map((a) => a.name).join(", ") : "ninguno")}
        ${fila("Simulados aquí", String(sims.length))}
        ${esSim ? `<p class="nota-sim">${escapar(SIM_NOTE)}</p>` : ""}
@@ -419,6 +466,10 @@ function pintarSeleccion() {
     `${fila("Estado", a.state)}
      ${fila("Dónde está", NOMBRE_EDIFICIO[a.target] || a.target)}
      ${fila("Motivo", a.reason)}
+     <div style="display:flex;gap:6px;margin:6px 0">
+       <button data-accion="${seguir === a.key ? "dejar" : "seguir"}" type="button">${seguir === a.key ? "Dejar de seguir" : "Seguir agente"}</button>
+       <button data-accion="enfocar" type="button" disabled title="Enfoca el edificio donde está">Enfocar</button>
+     </div>
      ${esSim ? `<p class="nota-sim">${escapar(SIM_NOTE)}. No es evidencia de trabajo.</p>`
        : `${fila("Tarea actual", a.currentTask || "NOT_SYNCED")}
           ${fila("Último commit", a.heartbeat || "NOT_SYNCED (no es heartbeat)")}
@@ -536,9 +587,15 @@ renderer.setAnimationLoop(() => {
   anterior = ahora;
   avanzarAgentes(dt, ahora);
   animarPulsos(Date.now());
+  if (seguir && agentes[seguir] && agentes[seguir].grupo.visible) {
+    const d = agentes[seguir].grupo.position.clone().sub(controles.target);
+    controles.target.add(d);
+    camara.position.add(d);
+  }
   controles.update();
   renderer.render(scene, camara);
 });
 
+aplicarPestana();
 refrescar();
 setInterval(refrescar, REFRESCO_MS);

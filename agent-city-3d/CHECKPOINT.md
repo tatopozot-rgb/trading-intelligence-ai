@@ -20,6 +20,21 @@ checkpoint describe sólo lo que hay en esta rama.
 - HR / Performance Auditor (`lib/hr.mjs`): recomienda TRAIN/PROMOTE/REASSIGN/MENTOR/RETIRE/REPLACE con evidencia; nunca aplica.
 - Sync de Obsidian: nota `02 Agents/Sociedad de agentes.md` generada desde `state/society.json`.
 
+## Tanda autónoma (perfeccionamiento)
+- Pestañas del panel: CITY, AGENT, BUILDING, OPERATIONS, SIMULATION. "Volver a ciudad" limpia selección y seguimiento.
+- Seguir agente (la cámara acompaña) y enfocar edificio (botón o doble clic).
+- Rendimiento medido sólo en el modelo (`tests/perf.test.mjs`): derivado de ciudad 3–17 ms para 107 avatares totales
+  (peor caso: 40 residentes, 60 agentes de sociedad, 4 roles, 3 fundadores). El coste de render en GPU NO está medido.
+- Estados de vida: SIM_STUDYING, SIM_WORKING, SIM_SLEEPING, SIM_LEISURE, SIM_TRAVEL, SIM_BREAK, SIM_ON_DUTY.
+- Visual pendiente: la barra de pestañas está en el DOM servido pero no se confirmó en la captura.
+
+## Pendiente real (no hecho)
+- Instancing y LOD: no implementados. Hoy cada avatar son ~14 mallas separadas.
+- Puertas: la transición calle→puerta→interior es un desplazamiento en línea recta; no hay puertas modeladas.
+- Transporte en bicicleta/vehículos: no implementado.
+- Estados COMMUTING, SEEKING_WORK, MEETING, MENTORING: sólo como nombres previstos, sin lógica de reunión.
+- Sync de Obsidian del panel: sin cambios en esta tanda.
+
 ## Verificación
 - `node --test tests/` → 52/52 (model, life, hr, society, society-store).
 - Validación del vault (`sync_agent_city.py --validate`) → OK.
