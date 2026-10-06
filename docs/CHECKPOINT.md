@@ -7,10 +7,10 @@ aliases: ["Checkpoint"]
 
 # Checkpoint — Trading Intelligence AI
 
-> Last updated: 2026-10-06T01:50:00Z
+> Last updated: 2026-10-06T02:45:00Z
 > Agent: Trading Codex (cloud session)
-> Branch: `ccr-b66a9a9e-okj2pl` @ commit pending (crash recovery tests)
-> PRs: #1 (specs, open), #3 (real PAPER import, open, NOT merged), #4 (MARKET lot contract, open, NOT merged), #5 (is_junction fix, open, NOT merged)
+> Branch: `ccr-b66a9a9e-okj2pl` @ commit `c66f2e3`
+> PRs: #1 (specs, open), #3 (real PAPER import, open, NOT merged), #4 (MARKET lot contract, open, NOT merged), #5 (is_junction fix, open, NOT merged), #6 (Agent City handoff, MERGED)
 
 ## IMPORTANT — corrected project objective (2026-10-06)
 
@@ -130,26 +130,84 @@ No new activity from PR #3/#4/#5 or Issue #2 since the last session (all SHAs un
 - This is a different (stronger) claim than the existing happy-path save/load round-trip tests already in `test_risk_engine.py`/`test_paper_adapter.py` — those prove persistence works; these prove it survives the process dying mid-write.
 - **162/162 tests passing, ruff clean, mypy clean** (up from 157).
 
+### 11. GPT Work's review arrived; decided Finding 2/3; closed real gaps found along the way (same day, continued)
+
+GPT Work (Trading Claude-Work) posted an independent Finding 2/3 review on
+PR #3 (comment 6007551700) and opened PR #6 (an Agent City Notion handoff),
+then paused on its own usage limit. None of this blocks the project — per
+the owner's explicit instruction, continued autonomously rather than
+waiting on either GPT Work or Claude Code local (neither of whom had
+produced new commits yet):
+
+- **Decided Finding 2/3's integration path** (PR #3 comment 6007584364):
+  preserve the baseline daily-loss contract (UTC-5 cutoff) rather than
+  silently adopting the spec's defaults; assigned Finding 2's missing
+  tests and Finding 3's persistent-halt implementation to Claude Code
+  local, with real thresholds left to Trading Claude-Work. Corrected a
+  stale `WAITING_FOR_USER` label on Finding 2 in `AGENT_COORDINATION.md` —
+  it was a team decision, never an owner question.
+- **Merged PR #6** (GPT Work's handoff): docs-only (`AGENT_CITY_DATA_CONTRACT.md`,
+  a GPT Work checkpoint, a coordination addendum), no runtime/financial
+  changes, no conflicts with this branch's own edits.
+- **`docs/FINDING_3_HALT_DESIGN.md`**: read the real `paper_store.py`/
+  `risk_engine.py`/`paper_control.py`/`paper_fills.py`/`market_http.py` on
+  `codex/import-paper-baseline` (933642a) read-only via a git worktree (no
+  file there touched). Confirms GPT Work's review exactly — `risk_engine.py`
+  is only a position-sizing calculator with no kill switch at all; the real
+  gate is `paper_store._abrir_validado`, checking only the manual
+  `PAUSA_ENTRADAS` file and the daily budget; `obtener_capital_operativo()`
+  reads `saldo_actual` (realized cash), never open-position unrealized P&L.
+  Gives Claude Code local the concrete `paper_halt` table shape, an
+  `equity_mtm()` function using the existing `market_http.precio_actual`,
+  and the fail-closed/never-auto-clears requirements — not an
+  implementation or a threshold decision.
+- **Agent City V1**: published a real-data snapshot dashboard
+  (https://claude.ai/artifact/98zjB7JbToV2ernTsjdLKD) per GPT Work's PR #6
+  handoff explicitly asking Claude to assign this owner. Built from this
+  session's own GitHub/Notion reads; discloses that Notion's bulk query
+  hit a workspace usage limit while building it rather than guessing at
+  the full Task Board; links out to live sources for anything unverified.
+  A snapshot, not a live feed — regenerate it rather than treating it as
+  continuously accurate.
+- **Obsidian-ready docs**: added YAML frontmatter (type/tags/status/aliases)
+  to every doc under `docs/` and a new `docs/INDEX.md` (Obsidian MOC)
+  linking them by category. Purely additive — no existing prose, links, or
+  structure changed; `[[wikilinks]]` in the index render as harmless plain
+  text on GitHub.
+- **Found and fixed a real test-coverage gap**: `trading_intelligence/backtesting/walk_forward.py`
+  had zero tests — the module that computes go/no-go for the strategy
+  validation gate, exactly what `CLAUDE.md` requires tests for. Added 23
+  tests: pure `WalkForwardFold`/`WalkForwardReport` aggregation logic
+  against hand-built fake results (exact threshold/edge-case coverage,
+  independent of what a real backtest happens to produce), plus
+  `run_anchored_walk_forward` end-to-end against the real `BacktestEngine`
+  + `DualMACrossover` on synthetic data (proves the anchored window
+  anchors, the IS<0.5 skip-OOS branch works, `max_folds` bounds the loop,
+  and the full pipeline runs together — makes no claim about GO vs NO-GO
+  on synthetic data, which would prove nothing about real edge).
+- **191/191 tests passing, ruff clean, mypy clean** (up from 168 — 6 for
+  `WebhookAlertSink`, 23 for `walk_forward.py`).
+
 ## What's Next
 
 **For whichever agent picks this up next:**
-1. **Trading Claude-Work**: rule on PR #3 Findings 2 and 3 — risk-policy sign-off on UTC vs local day boundary for daily loss reset, and whether to add automatic drawdown/connectivity kill-switches to the real system now or explicitly defer them. Also give final semantic sign-off on PR #4's MARKET contract.
-2. **Claude Code local**: continue integrating `execution_market_filters.py` (PR #4) with `paper_fills.py`/`paper_store.py` once Trading Claude-Work's review lands — explicitly not done yet per PR #4's own checkpoint note.
+1. **Claude Code local**: implement Finding 3 (persistent automatic halt — see `docs/FINDING_3_HALT_DESIGN.md` for the grounded shape, and the Task Board) and Finding 2's missing daily-loss-contract tests. This is now the critical path for the PR #3→#4→#5 merge chain.
+2. **Trading Claude-Work** (currently paused on its own usage limit — not a project blocker): once Claude Code local has a draft, set the real drawdown/connectivity thresholds for Finding 3 (not copied from `trading_intelligence/risk/engine.py`'s own defaults) and give final risk sign-off on both findings plus PR #4's MARKET contract.
 3. Once Findings 2/3 are resolved: merge the PR #3 → #4 → #5 chain into `ccr-b66a9a9e-okj2pl`, then decide whether `trading_intelligence/` continues as a parallel research package or becomes the validation/backtesting layer calling into the real system's modules.
-4. `trading_intelligence/` outstanding items (downloader now done): run a real-data backtest on actual BTCUSDT history via the new `HistoricalDataDownloader`, then walk-forward on Dual MA Crossover.
-   **This cloud container cannot reach `api.binance.com`** — confirmed via the egress proxy status (`$HTTPS_PROXY/__agentproxy/status`): `api.binance.com:443` gets an explicit policy 403 on CONNECT, not in the allowlist (pypi/npm/anthropic/etc. only). This is not a credentials issue — no API key would fix it. **Claude Code local** (real network access on the owner's PC) is the right agent to run the actual download/backtest; this cloud session can only build/test the code against mocks, which is already done (135/135 tests, all mocked).
+4. `trading_intelligence/` outstanding items (downloader now done): run a real-data backtest on actual BTCUSDT history via the new `HistoricalDataDownloader`, then walk-forward on Dual MA Crossover — the walk-forward harness itself is now fully tested (section 11) and ready to receive real data.
+   **This cloud container cannot reach `api.binance.com`** — confirmed via the egress proxy status (`$HTTPS_PROXY/__agentproxy/status`): `api.binance.com:443` gets an explicit policy 403 on CONNECT, not in the allowlist (pypi/npm/anthropic/etc. only). This is not a credentials issue — no API key would fix it. **Claude Code local** (real network access on the owner's PC) is the right agent to run the actual download/backtest; this cloud session can only build/test the code against mocks, which is already done.
 5. LIVE-readiness track (per the corrected objective): the real system's `broker_adapters.py`/`execution_context.py`/`exchange_context.py` have no dry-run or shadow-mode equivalent yet — `trading_intelligence/execution/dry_run.py` (`DryRunAdapter`) and `trading_intelligence/execution/shadow.py` (`ShadowRunner`) are reference designs that could be ported there once Findings 2/3 are resolved and PR #3/#4 merge.
-6. Next LIVE-readiness step for whoever picks this up: wire `ShadowRunner` to actually run continuously against live Binance public data (needs an agent with real network access — this container cannot reach `api.binance.com`), and add alerting/notification (none exists yet — kill-switch and daily-loss events are only logged, not pushed anywhere).
+6. Next LIVE-readiness step for whoever picks this up: wire `ShadowRunner` to actually run continuously against live Binance public data (needs an agent with real network access — this container cannot reach `api.binance.com`); `trading_intelligence/monitoring/alerts.py` now has a real `WebhookAlertSink` (section 11) — wiring an actual webhook URL still needs the owner to supply one.
 
 ## Blockers
 
-- **PR #3/#4/#5 merge chain**: blocked on Trading Claude-Work's risk/quant sign-off on Findings 2 & 3 (see above). Nothing further blocks engineering work in the meantime.
+- **PR #3/#4/#5 merge chain**: waiting on Claude Code local's Finding 2/3 implementation, then Trading Claude-Work's risk/quant sign-off (see above). Not waiting on a decision anymore — that part is done. Nothing further blocks engineering work in the meantime.
 - **Binance API keys not configured** — not required for public market data or PAPER mode; needed only for live trading authorization later (explicitly not requested yet)
 - **XM/MetaTrader credentials unknown** — Phase 2, separate adapter, not blocking current PAPER work
 
 ## Test Status
 
-**`trading_intelligence/` package: 162/162 tests passing**, ruff clean, mypy clean.
+**`trading_intelligence/` package: 191/191 tests passing**, ruff clean, mypy clean.
 ```
 tests/test_indicators.py       20/20 PASS
 tests/test_ma_crossover.py      7/7  PASS
@@ -161,8 +219,9 @@ tests/test_downloader.py       11/11 PASS
 tests/test_report.py           11/11 PASS
 tests/test_dry_run_adapter.py  15/15 PASS
 tests/test_shadow_runner.py     8/8  PASS
-tests/test_alerts.py           14/14 PASS
+tests/test_alerts.py           20/20 PASS  (14 + 6 for WebhookAlertSink)
 tests/test_crash_recovery.py    5/5  PASS
+tests/test_walk_forward.py     23/23 PASS  (new — was 0 before section 11)
 ```
 
 **Real PAPER system (PR #3, `codex/import-paper-baseline`): 549/558 tests**,
