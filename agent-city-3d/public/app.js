@@ -631,7 +631,7 @@ function pintarSeleccion() {
      ${fila("Edificio", NOMBRE_EDIFICIO[a.target] || a.target)}
      ${fila("Destino", NOMBRE_EDIFICIO[a.target] || a.target)}
      ${fila("Siguiente acción", a.reason)}
-     ${esSim ? `${fila("Nivel", a.nivel || "—")}${fila("XP", a.xp ?? 0)}${fila("Habilidades", (a.skills || []).join(", ") || "—")}
+     ${esSim ? `${fila("Nivel", a.nivel || "—")}${a.etapaVital ? fila("Etapa vital (sim)", a.etapaVital + " · " + a.edadSim + " años") : ""}${fila("XP", a.xp ?? 0)}${fila("Habilidades", (a.skills || []).join(", ") || "—")}
        ${fila("Transporte", a.transporte || "caminar")}
        <p class="nota-sim">${escapar(SIM_NOTE)}. No es evidencia de trabajo.</p>`
        : `${fila("Tarea actual", a.currentTask || "NOT_SYNCED")}
@@ -718,7 +718,7 @@ async function refrescar() {
     const r = await fetch("/api/state", { cache: "no-store" });
     if (!r.ok) throw new Error("HTTP " + r.status);
     const datos = await r.json();
-    ultimo = deriveCity({ snapshot: datos.snapshot, society: datos.society, events: datos.events, now: new Date() });
+    ultimo = deriveCity({ snapshot: datos.snapshot, society: datos.society, events: datos.events, life: datos.life, now: new Date() });
     asignarDestinos(ultimo);
     actualizarPulsos(ultimo, Date.now());
     aplicarInteriores();

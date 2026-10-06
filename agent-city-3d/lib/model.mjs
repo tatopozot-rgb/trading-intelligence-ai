@@ -106,7 +106,7 @@ function visualDeSociedad(rec, ultimo) {
 }
 
 // Deriva la escena. Función pura: (snapshot, society, events, now) → modelo.
-export function deriveCity({ snapshot, society, events, now }) {
+export function deriveCity({ snapshot, society, events, now, life = null }) {
   const ahoraMs = now instanceof Date ? now.getTime() : Date.parse(now);
   const ev = [...(events || [])].filter((e) => e && ALL_EVENT_TYPES.includes(e.type));
   const snapAge = snapshot?.generated_at ? ahoraMs - Date.parse(snapshot.generated_at) : Infinity;
@@ -176,13 +176,16 @@ export function deriveCity({ snapshot, society, events, now }) {
   const actividad24h = ev.filter((e) => ahoraMs - Date.parse(e.observed_at || e.ts || 0) < 24 * 3600 * 1000).length;
   const demanda = abiertas + Math.ceil(actividad24h / 2);
   const hora = new Date(ahoraMs).getHours();
+  const vidaPorId = Object.fromEntries((life?.poblacion || []).map((p) => [p.id, p]));
   const vida = residentes(demanda).map((r) => {
     const a = actividadPara(r, hora);
+    const persona = vidaPorId[r.id];
     return { key: r.id, name: r.name, alias: r.tipo, color: 0xcbd5e1, target: a.destino, state: "SIM_" + a.actividad,
       reason: a.etiqueta, currentTask: null, lastResult: null, heartbeat: null, lastEvent: null,
       kind: "simulated", stage: r.stage, tipo: r.tipo, home: r.home, workplace: r.workplace,
       transporte: a.transporte, conPuesto: Boolean(r.conPuesto), skills: r.skills || [], xp: r.xp || 0,
-      nivel: r.tipo === "trainee" ? "APRENDIZ (sim)" : r.tipo === "worker" ? "TRABAJADOR (sim)" : "VECINO (sim)" };
+      nivel: r.tipo === "trainee" ? "APRENDIZ (sim)" : r.tipo === "worker" ? "TRABAJADOR (sim)" : "VECINO (sim)",
+      etapaVital: persona ? persona.etapa : null, edadSim: persona ? Math.floor(persona.edad) : null };
   });
   const simRoles = ROLES_SIMULADOS.map((r) => {
     const a = actividadRol(r, hora);
