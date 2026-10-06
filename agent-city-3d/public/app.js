@@ -172,7 +172,16 @@ for (const b of BUILDINGS) {
   const grupo = new THREE.Group();
   const alto = ALTURA[b.id] ?? 3;
   const color = COLOR_EDIFICIO[b.id] ?? 0x475569;
-  const material = new THREE.MeshStandardMaterial({ color, roughness: 0.6, transparent: true, opacity: 0.62 });
+  const MATERIAL_TIPO = {
+    residential: { roughness: 0.92, metalness: 0 },          // hormigón mate
+    house_a: { roughness: 0.85, metalness: 0 }, house_b: { roughness: 0.85, metalness: 0 },
+    house_c: { roughness: 0.85, metalness: 0 }, house_d: { roughness: 0.85, metalness: 0 },
+    hall: { roughness: 0.4, metalness: 0.25 },               // piedra pulida / bronce
+    command_center: { roughness: 0.2, metalness: 0.5 },      // vidrio tecnológico
+    trading_floor: { roughness: 0.25, metalness: 0.4 }, risk_tower: { roughness: 0.3, metalness: 0.55 },
+  };
+  const acabado = MATERIAL_TIPO[b.id] || { roughness: 0.6, metalness: 0.1 };
+  const material = new THREE.MeshStandardMaterial({ color, roughness: acabado.roughness, metalness: acabado.metalness, transparent: true, opacity: 0.62 });
   const cuerpo = new THREE.Mesh(new THREE.BoxGeometry(4.2, alto, 4.2), material);
   cuerpo.position.y = alto / 2;
   cuerpo.castShadow = true;
@@ -208,16 +217,27 @@ for (const b of BUILDINGS) {
   const interior = TIENE_INTERIOR.has(b.id) ? interiorDe(b.id) : null;
   if (interior) grupo.add(interior);
   const ventana = new THREE.MeshStandardMaterial({ color: 0xbef264, emissive: 0x3f6212, emissiveIntensity: 0.5, transparent: true, opacity: 0.8 });
+  const marco = new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.7 });
   for (let y = 1; y < alto - 0.5; y += 1.4) {
-    const w = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.42, 0.06), ventana);
-    w.position.set(0, y, 2.13);
-    grupo.add(w);
+    for (const x of [-1.05, 1.05]) { // dos ventanas por planta con marco oscuro
+      const w = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.5, 0.06), ventana);
+      w.position.set(x, y, 2.13);
+      const m = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.6, 0.04), marco);
+      m.position.set(x, y, 2.12);
+      grupo.add(m, w);
+    }
   }
+  // Placa de señalización física sobre la fachada (nombre corto, no etiqueta flotante).
+  const placa = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.32, 0.05), new THREE.MeshStandardMaterial({ color: 0x0f172a, emissive: 0x1e3a8a, emissiveIntensity: 0.35 }));
+  placa.position.set(0, alto - 0.35, 2.14);
+  grupo.add(placa);
   // Puerta: hueco oscuro en la fachada, en la misma línea que la ruta (PUERTA_Z).
   if (TIENE_INTERIOR.has(b.id)) {
     const puerta = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.8, 0.12), new THREE.MeshStandardMaterial({ color: 0x111827 }));
     puerta.position.set(0, 0.9, PUERTA_Z);
-    grupo.add(puerta);
+    const jamba = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2.0, 0.08), new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.6 }));
+    jamba.position.set(0, 0.95, PUERTA_Z - 0.04);
+    grupo.add(jamba, puerta);
   }
   const p = posicionMundo(b);
   grupo.position.set(p.x, 0, p.z);
@@ -239,6 +259,23 @@ for (const b of BUILDINGS) {
   edificios[b.id] = { grupo, cuerpo, material, anillos, interior, etiqueta };
 }
 
+// Distritos por suelo: cada zona se reconoce por su pavimento (residencial hierba, académico plaza clara,
+// operaciones y técnico asfalto gris, financiero pulido). Son parches bajo los edificios, sin lógica.
+const DISTRITOS_SUELO = [
+  { nombre: "residential", x: 27, z: 18, w: 13, d: 13, color: 0x4d7c3a },
+  { nombre: "academy", x: 27 - 0, z: 0, w: 1, d: 1, color: 0xe2e8f0 },
+  { nombre: "operations", x: 9, z: 9, w: 15, d: 13, color: 0x4b5563 },
+  { nombre: "academic", x: 22, z: 4, w: 13, d: 10, color: 0xd6d3d1 },
+  { nombre: "financial", x: 13.5, z: 22, w: 11, d: 9, color: 0x334155 },
+];
+for (const d of DISTRITOS_SUELO) {
+  if (d.w <= 1) continue;
+  const parche = new THREE.Mesh(new THREE.PlaneGeometry(d.w, d.d), new THREE.MeshStandardMaterial({ color: d.color, roughness: 0.95 }));
+  parche.rotation.x = -Math.PI / 2;
+  parche.position.set(d.x, 0.012, d.z);
+  parche.receiveShadow = true;
+  scene.add(parche);
+}
 for (const [x, z] of [[24.5, 27], [28, 22], [26, 30], [21, 24], [31, 30]]) {
   const copa = new THREE.Mesh(new THREE.ConeGeometry(1.2, 3, 8), new THREE.MeshStandardMaterial({ color: 0x15803d }));
   copa.position.set(x, 1.6, z);
