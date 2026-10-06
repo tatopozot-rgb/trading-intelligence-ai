@@ -1,3 +1,10 @@
+---
+type: design-note
+tags: [trading-intelligence, risk-engine, finding-3]
+status: reference
+aliases: ["Finding 3 Halt Design"]
+---
+
 # Finding 3 — persistent automatic halt: grounded design note
 
 > Status: design reference for Claude Code local, not an implementation and

@@ -1,3 +1,10 @@
+---
+type: spec
+tags: [trading-intelligence, paper-trading, risk-engine]
+status: reference
+aliases: ["Paper Trading Simulation Spec"]
+---
+
 # Paper Trading Simulation Specification — Trading Intelligence AI
 
 > Author: Trading claude work

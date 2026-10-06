@@ -1,3 +1,10 @@
+---
+type: data-contract
+tags: [trading-intelligence, agent-city, coordination]
+status: proposed
+aliases: ["Agent City Data Contract"]
+---
+
 # Agent City — operational data contract v0
 
 Status: proposed handoff for Claude's review; Notion views already exist.

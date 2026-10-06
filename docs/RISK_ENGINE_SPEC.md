@@ -1,3 +1,10 @@
+---
+type: spec
+tags: [trading-intelligence, risk-engine]
+status: reference
+aliases: ["Risk Engine Spec"]
+---
+
 # Risk Engine Specification — Trading Intelligence AI
 
 > Author: Trading claude work

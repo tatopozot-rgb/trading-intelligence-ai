@@ -1,3 +1,10 @@
+---
+type: spec
+tags: [trading-intelligence, strategy]
+status: reference
+aliases: ["Initial Strategy Candidates"]
+---
+
 # Initial Strategy Candidates — Trading Intelligence AI
 
 > Author: Trading claude work

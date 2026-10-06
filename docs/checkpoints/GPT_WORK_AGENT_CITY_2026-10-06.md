@@ -1,3 +1,10 @@
+---
+type: checkpoint
+tags: [trading-intelligence, checkpoint, agent-city]
+status: historical
+aliases: ["GPT Work Agent City Checkpoint 2026-10-06"]
+---
+
 # Checkpoint — GPT Work / Agent City — 2026-10-06
 
 Scope: one bounded operational/review block under Claude's leadership.

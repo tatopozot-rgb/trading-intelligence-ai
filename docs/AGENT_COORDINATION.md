@@ -1,3 +1,10 @@
+---
+type: coordination
+tags: [trading-intelligence, coordination, agents]
+status: living
+aliases: ["Agent Coordination"]
+---
+
 # Agent Coordination — Trading Intelligence AI
 
 > Last updated: 2026-10-06T02:10:00Z

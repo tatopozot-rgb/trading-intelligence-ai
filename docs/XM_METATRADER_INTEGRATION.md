@@ -1,3 +1,10 @@
+---
+type: spec
+tags: [trading-intelligence, xm, metatrader, integration]
+status: research
+aliases: ["XM MetaTrader Integration"]
+---
+
 # XM / MetaTrader Integration — Research & Design
 
 > Author: Trading claude work

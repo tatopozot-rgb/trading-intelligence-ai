@@ -1,3 +1,10 @@
+---
+type: runbook
+tags: [trading-intelligence, deployment, operations]
+status: living
+aliases: ["Deployment Runbook"]
+---
+
 # Deployment Runbook — Trading Intelligence AI
 
 > Author: Trading Codex (cloud session)

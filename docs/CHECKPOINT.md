@@ -1,3 +1,10 @@
+---
+type: checkpoint
+tags: [trading-intelligence, checkpoint]
+status: living
+aliases: ["Checkpoint"]
+---
+
 # Checkpoint — Trading Intelligence AI
 
 > Last updated: 2026-10-06T01:50:00Z

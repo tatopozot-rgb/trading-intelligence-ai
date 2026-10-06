@@ -1,3 +1,10 @@
+---
+type: spec
+tags: [trading-intelligence, binance, integration]
+status: reference
+aliases: ["Binance Integration Notes"]
+---
+
 # Binance Spot Integration Notes
 
 > Author: Trading claude work

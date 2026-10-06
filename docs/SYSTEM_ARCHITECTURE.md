@@ -1,3 +1,10 @@
+---
+type: spec
+tags: [trading-intelligence, architecture]
+status: reference
+aliases: ["System Architecture"]
+---
+
 # System Architecture — Trading Intelligence AI
 
 > Author: Trading claude work
