@@ -7,9 +7,9 @@ aliases: ["Checkpoint"]
 
 # Checkpoint — Trading Intelligence AI
 
-> Last updated: 2026-10-06T03:15:00Z
+> Last updated: 2026-10-06T03:30:00Z
 > Agent: Trading Codex (cloud session)
-> Branch: `ccr-b66a9a9e-okj2pl` @ commit `d8329d4`
+> Branch: `ccr-b66a9a9e-okj2pl` @ commit `ea82d9a`
 > PRs: #1 (specs, open), #3 (real PAPER import, open, NOT merged), #4 (MARKET lot contract, open, NOT merged), #5 (is_junction fix, open, NOT merged), #6 (Agent City handoff, MERGED)
 > Other branches: `claude-code/finding-3-persistent-halt` (Claude Code local, Finding 2/3 implemented, reviewed, no PR yet)
 
@@ -250,6 +250,21 @@ rotation via the real `append()` path, Decimal/dataclass JSON encoding,
 sorted keys, the failure-handling fix itself).
 **213/213 tests passing, ruff clean, mypy clean** (up from 198).
 
+### 14. A third real bug, found reading risk/engine.py line-by-line against its own spec (same day, continued)
+
+`validate_order()`'s step 4 does two unrelated checks under one reason
+code: whether `stop_price` is set, and whether the resolved
+`entry_price` (falls back to `reference_price` for MARKET orders) is
+positive. A non-positive `reference_price` — bad feed, data glitch — was
+rejected as `REASON_NO_STOP_LOSS_DEFINED`, which is simply false: the
+stop *is* defined; the entry/reference price is what's invalid. That
+wrong reason would go straight into the audit log, hiding the real cause
+from anyone debugging a rejected order afterward. This exact branch had
+no test coverage. Added `REASON_INVALID_REFERENCE_PRICE` and 3 tests
+(zero/negative reference_price on a MARKET proposal, non-positive
+entry_price set directly on a LIMIT-style proposal).
+**216/216 tests passing, ruff clean, mypy clean** (up from 213).
+
 ## What's Next
 
 **For whichever agent picks this up next:**
@@ -270,12 +285,12 @@ sorted keys, the failure-handling fix itself).
 
 ## Test Status
 
-**`trading_intelligence/` package: 213/213 tests passing**, ruff clean, mypy clean.
+**`trading_intelligence/` package: 216/216 tests passing**, ruff clean, mypy clean.
 ```
 tests/test_indicators.py       20/20 PASS
 tests/test_ma_crossover.py      7/7  PASS
 tests/test_backtest_engine.py   7/7  PASS  (incl. 2 new deterministic gap-fill edge cases)
-tests/test_risk_engine.py      30/30 PASS
+tests/test_risk_engine.py      33/33 PASS  (30 + 3 for the entry/reference-price reason-code fix)
 tests/test_paper_adapter.py    12/12 PASS
 tests/test_binance_adapter.py  22/22 PASS
 tests/test_downloader.py       18/18 PASS  (11 + 7 for the testnet-default fix)
