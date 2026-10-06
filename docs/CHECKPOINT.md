@@ -1,8 +1,8 @@
 # Checkpoint — Trading Intelligence AI
 
-> Last updated: 2026-10-06T01:00:00Z
+> Last updated: 2026-10-06T01:20:00Z
 > Agent: Trading Codex (cloud session)
-> Branch: `ccr-b66a9a9e-okj2pl` @ commit pending (DryRunAdapter, deployment runbook)
+> Branch: `ccr-b66a9a9e-okj2pl` @ commit pending (ShadowRunner)
 > PRs: #1 (specs, open), #3 (real PAPER import, open, NOT merged), #4 (MARKET lot contract, open, NOT merged), #5 (is_junction fix, open, NOT merged)
 
 ## IMPORTANT — corrected project objective (2026-10-06)
@@ -105,6 +105,12 @@ No new activity from PR #3/#4/#5 or Issue #2 since the last session (all SHAs un
 - Updated `AGENTS.md` with the corrected project objective at the top, so Trading Claude-Work and Claude Code local see it on their next read.
 - **135/135 tests passing, ruff clean, mypy clean** (up from 120).
 
+### 8. ShadowRunner — the other half of "implement shadow mode" (same session, continued)
+- **`trading_intelligence/execution/shadow.py`** — `ShadowRunner`: runs the real strategy and the real `RiskEngine` against REAL current market data (via `get_ohlcv`/`get_current_price` — public, no credentials), and records what the system WOULD have decided. Distinct from `PaperAdapter` (simulated fills on historical/replay data) and from `DryRunAdapter` (validates a constructed order against exchange filters) — `ShadowRunner` never constructs an `OrderRequest` or calls any order method at all. Equity is supplied by the caller via an `equity_fn` callable (no real account query), so it works identically whether backed by a real funded account later or a configured notional baseline now.
+- 8 new tests (`test_shadow_runner.py`), including an adapter that raises `AssertionError` if `submit_order`/`cancel_order`/`get_position`/`get_account_info` are ever called — proving `ShadowRunner` only ever touches public market data, and one proving `equity_fn` is actually wired through to the real `RiskEngine`'s position sizing (larger equity -> larger approved quantity).
+- **143/143 tests passing, ruff clean, mypy clean** (up from 135).
+- Both halves of "shadow mode" named in the corrected objective are now built in `trading_intelligence/`: `DryRunAdapter` (exchange-side order validation, never sends) and `ShadowRunner` (strategy+risk decisions on live data, never constructs an order at all). Neither exists yet in the real system — porting them is listed under Next Available Work.
+
 ## What's Next
 
 **For whichever agent picks this up next:**
@@ -113,7 +119,8 @@ No new activity from PR #3/#4/#5 or Issue #2 since the last session (all SHAs un
 3. Once Findings 2/3 are resolved: merge the PR #3 → #4 → #5 chain into `ccr-b66a9a9e-okj2pl`, then decide whether `trading_intelligence/` continues as a parallel research package or becomes the validation/backtesting layer calling into the real system's modules.
 4. `trading_intelligence/` outstanding items (downloader now done): run a real-data backtest on actual BTCUSDT history via the new `HistoricalDataDownloader`, then walk-forward on Dual MA Crossover.
    **This cloud container cannot reach `api.binance.com`** — confirmed via the egress proxy status (`$HTTPS_PROXY/__agentproxy/status`): `api.binance.com:443` gets an explicit policy 403 on CONNECT, not in the allowlist (pypi/npm/anthropic/etc. only). This is not a credentials issue — no API key would fix it. **Claude Code local** (real network access on the owner's PC) is the right agent to run the actual download/backtest; this cloud session can only build/test the code against mocks, which is already done (135/135 tests, all mocked).
-5. LIVE-readiness track (per the corrected objective): the real system's `broker_adapters.py`/`execution_context.py`/`exchange_context.py` have no dry-run wrapper yet — `trading_intelligence/execution/dry_run.py`'s `DryRunAdapter` is a reference design (wrap, pass through reads, intercept+log orders, never forward) that could be ported there once Findings 2/3 are resolved and PR #3/#4 merge. Shadow mode (running the risk engine + strategy against REAL current market data, still never submitting orders — distinct from PAPER's simulated fills) is not built yet; next LIVE-readiness step for whoever picks this up.
+5. LIVE-readiness track (per the corrected objective): the real system's `broker_adapters.py`/`execution_context.py`/`exchange_context.py` have no dry-run or shadow-mode equivalent yet — `trading_intelligence/execution/dry_run.py` (`DryRunAdapter`) and `trading_intelligence/execution/shadow.py` (`ShadowRunner`) are reference designs that could be ported there once Findings 2/3 are resolved and PR #3/#4 merge.
+6. Next LIVE-readiness step for whoever picks this up: wire `ShadowRunner` to actually run continuously against live Binance public data (needs an agent with real network access — this container cannot reach `api.binance.com`), and add alerting/notification (none exists yet — kill-switch and daily-loss events are only logged, not pushed anywhere).
 
 ## Blockers
 
@@ -123,7 +130,7 @@ No new activity from PR #3/#4/#5 or Issue #2 since the last session (all SHAs un
 
 ## Test Status
 
-**`trading_intelligence/` package: 135/135 tests passing**, ruff clean, mypy clean.
+**`trading_intelligence/` package: 143/143 tests passing**, ruff clean, mypy clean.
 ```
 tests/test_indicators.py       20/20 PASS
 tests/test_ma_crossover.py      7/7  PASS
@@ -134,6 +141,7 @@ tests/test_binance_adapter.py  22/22 PASS
 tests/test_downloader.py       11/11 PASS
 tests/test_report.py           11/11 PASS
 tests/test_dry_run_adapter.py  15/15 PASS
+tests/test_shadow_runner.py     8/8  PASS
 ```
 
 **Real PAPER system (PR #3, `codex/import-paper-baseline`): 549/558 tests**,
