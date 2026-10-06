@@ -1,8 +1,9 @@
-// Escena three.js de Agent City 3D. Toda decisión de estado vive en lib/model.mjs y lib/life.mjs (probados).
-// Regla visual: el badge REAL / SIMULADO se muestra siempre; WORKING sólo viene de estado real.
+// Escena three.js de Agent City 3D. Estado y vida en lib/model.mjs, lib/life.mjs y rutas en lib/paths.mjs (probados).
+// Regla visual: REAL y SIMULADO siempre etiquetados; WORKING sólo viene de estado real.
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { BUILDINGS, AGENTS, STATE_COLOR, SIM_NOTE, deriveCity, CATEGORIAS } from "/lib/model.mjs";
+import { planRuta, posicionMundo, PUERTA_Z } from "/lib/paths.mjs";
 
 const REFRESCO_MS = 30000;
 const ESPACIO = 9;
@@ -23,9 +24,14 @@ const COLOR_PULSO = { TEST_PASSED: 0x22c55e, TEST_FAILED: 0xef4444, RISK_REJECTE
   RISK_APPROVED: 0x22c55e, NO_TRADE: 0xfacc15, TRADE_OPENED: 0x38bdf8, TRADE_CLOSED: 0x38bdf8, BACKTEST_FINISHED: 0x67e8f9,
   BACKTEST_STARTED: 0x67e8f9, SYSTEM_RECOVERED: 0x86efac, GRADUATED: 0xfacc15, EXAM_PASSED: 0x22c55e, EXAM_FAILED: 0xef4444 };
 const DURACION_PULSO_S = 25;
-const VELOCIDAD = 4.5;
+const VELOCIDAD_PIE = 4.5;
+const VELOCIDAD_BICI = 9;
 const COLOR_SIM = 0xcbd5e1;
-const DENTRO_SIM = ["SIM_SLEEPING", "SIM_STUDYING", "SIM_WORKING", "SIM_ON_DUTY"];
+// Estados simulados en los que el avatar está dentro del edificio (entra por la puerta).
+const DENTRO_SIM = ["SIM_SLEEPING", "SIM_STUDYING", "SIM_WORKING", "SIM_ON_DUTY", "SIM_MEETING", "SIM_MENTORING"];
+const SENTADO_SIM = ["SIM_WORKING", "SIM_STUDYING", "SIM_MEETING", "SIM_MENTORING", "SIM_ON_DUTY"];
+const LOD_MEDIO = 45;
+const LOD_LEJOS = 85;
 
 const $ = (id) => document.getElementById(id);
 const escapar = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -81,15 +87,10 @@ for (let k = -1; k <= 4; k++) {
   }
 }
 
-const mundoDe = (b) => (b.world ? new THREE.Vector3(b.world[0], 0, b.world[1]) : new THREE.Vector3(b.pos[0] * ESPACIO, 0, b.pos[1] * ESPACIO));
-const frente = (id) => {
-  const b = EDIFICIO_DE[id] || EDIFICIO_DE.residential;
-  return mundoDe(b).add(new THREE.Vector3(0, 0, 3.2));
-};
-const dentroDe = (id) => {
-  const b = EDIFICIO_DE[id];
-  return b ? mundoDe(b).add(new THREE.Vector3(0, 0.6, 0)) : frente(id);
-};
+// Coordenadas de mundo a partir de lib/paths (misma geometría que las rutas probadas).
+const v3 = (p) => new THREE.Vector3(p.x, 0, p.z);
+const ids = (id) => EDIFICIO_DE[id] || EDIFICIO_DE.residential;
+const puntoCalle = (id) => { const p = posicionMundo(ids(id)); return new THREE.Vector3(p.x, 0, p.z + 3.6); };
 
 function crearEtiqueta(texto, ancho = 512, alto = 96, color = "#e5e7eb", tamano = 40) {
   const c = document.createElement("canvas");
@@ -105,7 +106,7 @@ function crearEtiqueta(texto, ancho = 512, alto = 96, color = "#e5e7eb", tamano 
   return sp;
 }
 
-// ---------- interiores (visibles por transparencia de las fachadas)
+// ---------- interiores y puertas
 function interiorDe(id) {
   const g = new THREE.Group();
   const piso = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.05, 3.6), new THREE.MeshStandardMaterial({ color: 0xf1f5f9 }));
@@ -153,13 +154,20 @@ for (const b of BUILDINGS) {
     w.position.set(0, y, 2.13);
     grupo.add(w);
   }
-  grupo.position.copy(mundoDe(b));
+  // Puerta: hueco oscuro en la fachada, en la misma línea que la ruta (PUERTA_Z).
+  if (TIENE_INTERIOR.has(b.id)) {
+    const puerta = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.8, 0.12), new THREE.MeshStandardMaterial({ color: 0x111827 }));
+    puerta.position.set(0, 0.9, PUERTA_Z);
+    grupo.add(puerta);
+  }
+  const p = posicionMundo(b);
+  grupo.position.set(p.x, 0, p.z);
   const etiqueta = crearEtiqueta(b.label, 600, 80, "#f8fafc", 36);
   etiqueta.position.set(0, alto + 1.4, 0);
   grupo.add(etiqueta);
   const anillos = new THREE.Group();
   grupo.add(anillos);
-  if (b.id === "residential") { // una sola nota de simulación en el barrio, no en cada casa
+  if (b.id === "residential") {
     const nota = crearEtiqueta(SIM_NOTE, 900, 60, "#fde68a", 30);
     nota.position.set(0, alto + 2.8, 0);
     nota.scale.multiplyScalar(0.7);
@@ -179,7 +187,7 @@ for (const [x, z] of [[24.5, 27], [28, 22], [26, 30], [21, 24], [31, 30]]) {
   scene.add(copa);
 }
 
-// ---------- avatares humanoides
+// ---------- avatares humanoides (con niveles de detalle)
 const agentes = {};
 const PIEL = [0xfcd9b6, 0xe0ac7e, 0xc68642, 0x8d5524];
 const PELO = [0x1f2937, 0x78350f, 0xa16207, 0x111827];
@@ -212,12 +220,32 @@ function crearAvatar(key, nombre, color, esSimulado) {
   seleccionAro.rotation.x = -Math.PI / 2; seleccionAro.position.y = 0.07; seleccionAro.visible = false;
   const etiqueta = crearEtiqueta(esSimulado ? `${nombre} · SIM` : nombre, 520, 74, esSimulado ? "#fde68a" : "#f8fafc", 34);
   etiqueta.position.y = 2.75;
-  grupo.add(torso, cabeza, cabello, brazoI, brazoD, piernaI, piernaD, aro, seleccionAro, etiqueta);
+  const grupoBici = new THREE.Group();
+  const ruedaM = new THREE.MeshStandardMaterial({ color: 0x111827 });
+  for (const x of [-0.45, 0.45]) {
+    const rueda = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.05, 6, 14), ruedaM);
+    rueda.rotation.y = Math.PI / 2; rueda.position.set(x, 0.36, 0);
+    grupoBici.add(rueda);
+  }
+  const cuadro = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.06, 0.06), new THREE.MeshStandardMaterial({ color: 0xf97316 }));
+  cuadro.position.set(0, 0.6, 0);
+  grupoBici.add(cuadro);
+  grupoBici.visible = false;
+  const elementos = [torso, cabeza, cabello, brazoI, brazoD, piernaI, piernaD, aro, seleccionAro, etiqueta, grupoBici];
+  if (key === "sim-supervisor") {
+    // Presencia visual del supervisor: portapapeles de backlog en el brazo izquierdo.
+    const tabla = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.36, 0.04), new THREE.MeshStandardMaterial({ color: 0xf8fafc }));
+    tabla.position.set(0.1, -0.52, 0.2);
+    brazoD.add(tabla);
+    elementos.push(tabla);
+  }
+  grupo.add(...elementos);
   grupo.userData = { kind: "agent", key };
   for (const m of [torso, cabeza, cabello, subI, subD, malI, malD]) m.userData = grupo.userData;
   scene.add(grupo);
-  agentes[key] = { grupo, aro, seleccionAro, etiqueta, piernaI, piernaD, brazoI, brazoD,
-    ruta: [], t: 0, destino: null, desfase: Math.random() * 6, esSimulado };
+  agentes[key] = { grupo, aro, seleccionAro, etiqueta, piernaI, piernaD, brazoI, brazoD, torso, cabeza, cabello, grupoBici,
+    ruta: [], destino: null, destinoClave: null, desfase: Math.random() * 6, esSimulado, enEdificio: null,
+    velocidad: VELOCIDAD_PIE, lod: 0, estado: null, transporte: "caminar", sentado: false, acostado: false };
   return agentes[key];
 }
 
@@ -233,7 +261,7 @@ function sincronizarAvatares(city) {
   for (const key in agentes) if (!presentes.has(key)) agentes[key].grupo.visible = false;
 }
 
-// Los simulados con actividad dentro de un edificio entran (visibles por transparencia); el resto espera en la puerta.
+// Rutas: cada cambio de destino recalcula la ruta desde la posición actual (calle → puerta → interior o salida inversa).
 function asignarDestinos(city) {
   sincronizarAvatares(city);
   const porEdificio = {};
@@ -243,64 +271,100 @@ function asignarDestinos(city) {
     if (!ag) continue;
     const grupo = porEdificio[a.target];
     const slot = grupo.indexOf(a.key);
-    const adentro = a.kind === "simulated" && DENTRO_SIM.includes(a.state);
-    const base = adentro ? dentroDe(a.target) : frente(a.target);
-    const lugar = base.clone().add(new THREE.Vector3((slot - (grupo.length - 1) / 2) * 1.5, 0, adentro ? 0 : 0.6));
+    const adentro = a.kind === "simulated" && DENTRO_SIM.includes(a.state) && EDIFICIO_DE[a.target]?.id && TIENE_INTERIOR.has(a.target);
+    const offset = (slot - (grupo.length - 1) / 2) * 1.2;
+    const clave = `${a.target}|${adentro}|${slot}|${a.state}`;
+    ag.estado = a.state;
+    ag.transporte = a.transporte || "caminar";
+    ag.velocidad = ag.transporte === "bici" ? VELOCIDAD_BICI : VELOCIDAD_PIE;
+    ag.sentado = adentro && SENTADO_SIM.includes(a.state);
+    ag.acostado = adentro && a.state === "SIM_SLEEPING";
     ag.colorEstado = STATE_COLOR[a.state] ?? 0x6b7280;
-    ag.etiqueta.visible = !a.kind || a.kind !== "simulated" || ag.seleccionAro.visible; // simulados: etiqueta sólo si están seleccionados
     ag.aro.material.color.setHex(ag.colorEstado);
-    if (ag.grupo.position.lengthSq() === 0) {
-      const nace = a.kind === "simulated" && a.home ? frente(a.home) : frente(a.target);
-      ag.grupo.position.copy(nace);
-    }
-    if (!ag.destino || !ag.destino.equals(lugar)) {
-      const desde = ag.grupo.position.clone();
-      ag.ruta = [desde, new THREE.Vector3(lugar.x, 0, desde.z), lugar];
+    ag.modelo = a;
+    if (ag.destinoClave !== clave) {
+      const b = EDIFICIO_DE[a.target];
+      const actual = ag.grupo.position.lengthSq() === 0
+        ? (a.kind === "simulated" && a.home ? puntoCalle(a.home) : puntoCalle(a.target))
+        : ag.grupo.position.clone();
+      const origen = ag.enEdificio ? EDIFICIO_DE[ag.enEdificio] : null;
+      const plan = planRuta({ desde: { x: actual.x, z: actual.z }, origen, destino: b, adentro });
+      const puntos = plan.puntos.map(v3);
+      // El último punto se desplaza por slot para que los avatares del mismo edificio no se solapen.
+      const fin = puntos[puntos.length - 1];
+      fin.x += offset;
+      ag.ruta = puntos;
       ag.t = 0;
-      ag.destino = lugar;
+      ag.destinoClave = clave;
+      ag.destinoAdentro = adentro;
+      ag.destinoEdificio = a.target;
     }
     const nueva = crearEtiqueta(`${a.name} · ${a.state}`, 560, 74, a.kind === "simulated" ? "#fde68a" : "#f8fafc", 32);
     ag.etiqueta.material.map.dispose();
     ag.etiqueta.material.map = nueva.material.map;
     ag.etiqueta.material.needsUpdate = true;
     nueva.material.dispose();
+    ag.etiqueta.visible = !ag.esSimulado || ag.seleccionAro.visible;
   }
 }
 
-// Marcha (piernas y brazos alternos) al moverse; respiración suave al estar quieto.
-function avanzarAgentes(dt, tiempo) {
+// Movimiento: pies o bicicleta según el trayecto; sentado o tumbado al trabajar o dormir dentro.
+function avanzarAgentes(dt, tiempo, camaraPos) {
   for (const key in agentes) {
     const ag = agentes[key];
     if (!ag.grupo.visible) continue;
-    if (ag.ruta.length < 2) {
-      ag.grupo.position.y = 0;
-      const r = Math.sin(tiempo / 700 + ag.desfase) * 0.05;
-      ag.piernaI.rotation.x = 0; ag.piernaD.rotation.x = 0;
-      ag.brazoI.rotation.x = r; ag.brazoD.rotation.x = -r;
-      continue;
-    }
-    let restante = VELOCIDAD * dt;
-    while (restante > 0 && ag.ruta.length >= 2) {
-      const a = ag.ruta[0], b = ag.ruta[1];
-      const tramo = a.distanceTo(b);
-      const usado = Math.min(restante, tramo - ag.t);
-      ag.t += usado;
-      restante -= usado;
-      const f = tramo === 0 ? 1 : ag.t / tramo;
-      ag.grupo.position.lerpVectors(a, b, f);
-      if (ag.t >= tramo - 1e-6) { ag.ruta.shift(); ag.t = 0; }
-    }
+    const distancia = camaraPos.distanceTo(ag.grupo.position);
+    ag.lod = distancia > LOD_LEJOS ? 2 : distancia > LOD_MEDIO ? 1 : 0;
+    ag.etiqueta.visible = (ag.lod === 0 && (!ag.esSimulado || ag.seleccionAro.visible)) || ag.seleccionAro.visible;
     if (ag.ruta.length >= 2) {
+      let restante = ag.velocidad * dt;
+      while (restante > 0 && ag.ruta.length >= 2) {
+        const a = ag.ruta[0], b = ag.ruta[1];
+        const tramo = a.distanceTo(b);
+        const hueco = tramo - (ag.t || 0);
+        const usado = Math.min(restante, hueco);
+        ag.t = (ag.t || 0) + usado;
+        restante -= usado;
+        ag.grupo.position.lerpVectors(a, b, tramo === 0 ? 1 : ag.t / tramo);
+        if (ag.t >= tramo - 1e-6) { ag.ruta.shift(); ag.t = 0; }
+      }
+      if (ag.ruta.length < 2) {
+        // Llegó: si el destino está dentro, queda dentro; si no, queda en la calle.
+        ag.enEdificio = ag.destinoAdentro ? ag.destinoEdificio : null;
+      }
+    }
+    const moviendose = ag.ruta.length >= 2;
+    ag.grupoBici.visible = moviendose && ag.transporte === "bici" && ag.lod === 0;
+    if (moviendose) {
       ag.grupo.lookAt(ag.ruta[1]);
-      const paso = Math.sin(tiempo / 110 + ag.desfase) * 0.7;
+      const paso = Math.sin(tiempo / (ag.transporte === "bici" ? 60 : 110) + ag.desfase) * 0.7;
       ag.piernaI.rotation.x = paso; ag.piernaD.rotation.x = -paso;
       ag.brazoI.rotation.x = -paso * 0.8; ag.brazoD.rotation.x = paso * 0.8;
-      ag.grupo.position.y = Math.abs(Math.sin(tiempo / 110 + ag.desfase)) * 0.06;
+      ag.grupo.position.y = ag.transporte === "bici" ? 0.3 : Math.abs(Math.sin(tiempo / 110 + ag.desfase)) * 0.06;
+      ag.grupo.rotation.x = 0;
     } else {
       ag.grupo.position.y = 0;
-      ag.piernaI.rotation.x = 0; ag.piernaD.rotation.x = 0;
-      ag.brazoI.rotation.x = 0; ag.brazoD.rotation.x = 0;
+      ag.grupo.rotation.x = 0;
+      const r = Math.sin(tiempo / 700 + ag.desfase) * 0.05;
+      if (ag.acostado) {
+        ag.grupo.rotation.x = -Math.PI / 2 + 0.05;
+        ag.grupo.position.y = 0.4;
+        ag.piernaI.rotation.x = 0; ag.piernaD.rotation.x = 0;
+        ag.brazoI.rotation.x = 0; ag.brazoD.rotation.x = 0;
+      } else if (ag.sentado) {
+        ag.piernaI.rotation.x = -1.4; ag.piernaD.rotation.x = -1.4;
+        ag.brazoI.rotation.x = -0.6 + r; ag.brazoD.rotation.x = -0.6 - r;
+      } else {
+        ag.piernaI.rotation.x = 0; ag.piernaD.rotation.x = 0;
+        ag.brazoI.rotation.x = r; ag.brazoD.rotation.x = -r;
+      }
     }
+    // LOD lejano: sin brazos, piernas ni cabello (silueta)
+    const detalle = ag.lod === 0;
+    ag.brazoI.visible = detalle; ag.brazoD.visible = detalle;
+    ag.piernaI.visible = detalle; ag.piernaD.visible = detalle;
+    ag.cabello.visible = ag.lod < 2;
+    ag.aro.visible = ag.lod < 2;
   }
 }
 
@@ -333,9 +397,10 @@ function animarPulsos(ahoraMs) {
   }
 }
 
-// ---------- selección y cortes
+// ---------- selección, cortes, seguimiento
 let seleccion = null; // { kind: "building", id } | { kind: "agent", key }
 let ultimo = null;
+let seguir = null;
 function resaltarSeleccion() {
   for (const id in edificios) {
     const sel = seleccion && seleccion.kind === "building" && seleccion.id === id;
@@ -345,7 +410,6 @@ function resaltarSeleccion() {
   for (const key in agentes) {
     const sel = Boolean(seleccion && seleccion.kind === "agent" && seleccion.key === key);
     agentes[key].seleccionAro.visible = sel;
-    if (agentes[key].esSimulado) agentes[key].etiqueta.visible = sel;
   }
 }
 let interioresVisibles = true;
@@ -357,6 +421,15 @@ $("cortes").addEventListener("click", () => {
   $("cortes").textContent = `Interiores: ${interioresVisibles ? "on" : "off"}`;
   aplicarInteriores();
 });
+
+function enfocarEdificio(id) {
+  const b = ids(id);
+  const p = posicionMundo(b);
+  const centro = new THREE.Vector3(p.x, 0, p.z);
+  controles.target.copy(centro);
+  camara.position.copy(centro).add(new THREE.Vector3(12, 12, 12));
+  controles.update();
+}
 
 const raycaster = new THREE.Raycaster();
 const puntero = new THREE.Vector2();
@@ -378,19 +451,12 @@ renderer.domElement.addEventListener("click", (ev) => {
   resaltarSeleccion();
   pintarSeleccion();
 });
-$("p-cerrar").addEventListener("click", () => {
-  seleccion = null;
-  seguir = null;
-  pestana = "city";
-  aplicarPestana();
-  resaltarSeleccion();
-  pintarSeleccion();
+renderer.domElement.addEventListener("dblclick", () => {
+  if (seleccion && seleccion.kind === "building") enfocarEdificio(seleccion.id);
 });
 
 // ---------- paneles
 const fila = (k, v) => `<div class="fila"><span>${escapar(k)}</span><span>${escapar(v)}</span></div>`;
-
-// Pestañas: qué bloques se ven en cada una. "all" = la tarjeta de selección, siempre visible.
 let pestana = "city";
 const VISIBLES = {
   city: ["all", "real", "sim", "roles", "feed", "legend"],
@@ -408,17 +474,6 @@ document.querySelectorAll(".tab").forEach((b) => b.addEventListener("click", () 
   aplicarPestana();
   pintarSeleccion();
 }));
-
-// Seguimiento de agente y enfoque de edificio (acciones del panel y doble clic).
-let seguir = null; // clave del agente que la cámara sigue
-function enfocarEdificio(id) {
-  const b = EDIFICIO_DE[id];
-  if (!b) return;
-  const centro = mundoDe(b);
-  controles.target.copy(centro);
-  camara.position.copy(centro).add(new THREE.Vector3(12, 12, 12));
-  controles.update();
-}
 $("p-cuerpo").addEventListener("click", (ev) => {
   const accion = ev.target?.dataset?.accion;
   if (!accion || !seleccion) return;
@@ -427,8 +482,9 @@ $("p-cuerpo").addEventListener("click", (ev) => {
   if (accion === "enfocar" && seleccion.kind === "building") enfocarEdificio(seleccion.id);
   pintarSeleccion();
 });
-renderer.domElement.addEventListener("dblclick", () => {
-  if (seleccion && seleccion.kind === "building") enfocarEdificio(seleccion.id);
+$("p-cerrar").addEventListener("click", () => {
+  seleccion = null; seguir = null; pestana = "city";
+  aplicarPestana(); resaltarSeleccion(); pintarSeleccion();
 });
 
 function pintarSeleccion() {
@@ -449,9 +505,9 @@ function pintarSeleccion() {
     $("p-badge").textContent = esSim ? "SIMULACIÓN" : "REAL";
     $("p-cuerpo").innerHTML =
       `${fila("Distrito", esSim ? "Life Simulation" : "Operational Reality")}
-       <button class="secundario" data-accion="enfocar" type="button" style="margin:6px 0">Enfocar edificio</button>
        ${fila("Agentes reales aquí", reales.length ? reales.map((a) => a.name).join(", ") : "ninguno")}
        ${fila("Simulados aquí", String(sims.length))}
+       <button class="secundario" data-accion="enfocar" type="button" style="margin:6px 0">Enfocar edificio</button>
        ${esSim ? `<p class="nota-sim">${escapar(SIM_NOTE)}</p>` : ""}
        <div class="grupo-titulo">Eventos reales en este edificio</div><ul class="feed" style="padding:0">${pulsos}</ul>`;
     return;
@@ -459,22 +515,27 @@ function pintarSeleccion() {
   const a = ultimo.agents.find((x) => x.key === seleccion.key);
   if (!a) return pintarResumen();
   const esSim = a.kind === "simulated";
+  const siguiendo = seguir === a.key;
   $("p-titulo").textContent = a.name;
   $("p-badge").className = `badge ${esSim ? "sim" : "real"}`;
   $("p-badge").textContent = esSim ? "SIMULADO" : "REAL";
   $("p-cuerpo").innerHTML =
-    `${fila("Estado", a.state)}
-     ${fila("Dónde está", NOMBRE_EDIFICIO[a.target] || a.target)}
-     ${fila("Motivo", a.reason)}
-     <div style="display:flex;gap:6px;margin:6px 0">
-       <button data-accion="${seguir === a.key ? "dejar" : "seguir"}" type="button">${seguir === a.key ? "Dejar de seguir" : "Seguir agente"}</button>
-       <button data-accion="enfocar" type="button" disabled title="Enfoca el edificio donde está">Enfocar</button>
-     </div>
-     ${esSim ? `<p class="nota-sim">${escapar(SIM_NOTE)}. No es evidencia de trabajo.</p>`
+    `${fila("Rol", a.alias || "—")}
+     ${fila("Estado", a.state)}
+     ${fila("Edificio", NOMBRE_EDIFICIO[a.target] || a.target)}
+     ${fila("Destino", NOMBRE_EDIFICIO[a.target] || a.target)}
+     ${fila("Siguiente acción", a.reason)}
+     ${esSim ? `${fila("Nivel", a.nivel || "—")}${fila("XP", a.xp ?? 0)}${fila("Habilidades", (a.skills || []).join(", ") || "—")}
+       ${fila("Transporte", a.transporte || "caminar")}
+       <p class="nota-sim">${escapar(SIM_NOTE)}. No es evidencia de trabajo.</p>`
        : `${fila("Tarea actual", a.currentTask || "NOT_SYNCED")}
           ${fila("Último commit", a.heartbeat || "NOT_SYNCED (no es heartbeat)")}
           ${fila("Último resultado", a.lastResult || "NOT_SYNCED")}
-          ${fila("Último evento", a.lastEvent ? a.lastEvent.type + " · " + a.lastEvent.at : "ninguno en 2 h")}`}`;
+          ${fila("Último evento", a.lastEvent ? a.lastEvent.type + " · " + a.lastEvent.at : "ninguno en 2 h")}`}
+     <div style="display:flex;gap:6px;margin:8px 0">
+       <button data-accion="${siguiendo ? "dejar" : "seguir"}" type="button">${siguiendo ? "Dejar de seguir" : "Seguir agente"}</button>
+       <button data-accion="enfocar" type="button" title="Enfoca el edificio donde está">Enfocar</button>
+     </div>`;
 }
 
 function pintarResumen() {
@@ -506,9 +567,13 @@ function pintarSimulacion() {
   for (const s of sims) porEstado[s.state] = (porEstado[s.state] || 0) + 1;
   const estados = Object.entries(porEstado).map(([k, v]) => `<span>${escapar(k)} ${v}</span>`).join("") || "<span>ninguno</span>";
   const roles = ultimo.agents.filter((a) => a.stage === "SIM_ROLE").map((s) => `<span>${escapar(s.name)}</span>`).join("") || "<span>ninguno</span>";
+  const aprendices = ultimo.agents.filter((a) => a.stage === "TRAINEE").length;
+  const trabajadores = ultimo.agents.filter((a) => a.tipo === "worker").length;
   $("sec-sim").innerHTML =
     `<p class="nota-sim">${escapar(SIM_NOTE)}. Crece sólo con demanda real: abiertas ${ultimo.demand?.abiertas ?? 0}, eventos 24 h ${ultimo.demand?.actividad24h ?? 0}.</p>
      ${fila("Población", sims.length)}
+     ${fila("Aprendices (sim)", aprendices)}
+     ${fila("Puestos ocupados (sim)", trabajadores)}
      <div class="grupo-titulo">Estados visuales</div><div class="chipline">${estados}</div>
      <div class="grupo-titulo">Roles simulados activos</div><div class="chipline">${roles}</div>`;
 }
@@ -585,7 +650,7 @@ renderer.setAnimationLoop(() => {
   const ahora = performance.now();
   const dt = Math.min(0.1, (ahora - anterior) / 1000);
   anterior = ahora;
-  avanzarAgentes(dt, ahora);
+  avanzarAgentes(dt, ahora, camara.position);
   animarPulsos(Date.now());
   if (seguir && agentes[seguir] && agentes[seguir].grupo.visible) {
     const d = agentes[seguir].grupo.position.clone().sub(controles.target);

@@ -2,7 +2,7 @@
 // Regla central: un agente sólo se mueve o aparece como "trabajando" por evidencia (evento real reciente o estado documentado).
 // WORKING requiere AGENT_WORKING o TASK_STARTED recientes; nunca se deduce de un commit ni de un estado REVIEW.
 
-import { residentes, actividadPara, ROLES_SIMULADOS, SIM_NOTE as SIM_NOTE_VIDA } from "./life.mjs";
+import { residentes, actividadPara, actividadRol, ROLES_SIMULADOS, SIM_NOTE as SIM_NOTE_VIDA } from "./life.mjs";
 
 export const MODE = "BUILD"; // OPERATIONS queda preparado, no activo
 
@@ -180,12 +180,17 @@ export function deriveCity({ snapshot, society, events, now }) {
     const a = actividadPara(r, hora);
     return { key: r.id, name: r.name, alias: r.tipo, color: 0xcbd5e1, target: a.destino, state: "SIM_" + a.actividad,
       reason: a.etiqueta, currentTask: null, lastResult: null, heartbeat: null, lastEvent: null,
-      kind: "simulated", stage: r.stage, tipo: r.tipo, home: r.home, workplace: r.workplace };
+      kind: "simulated", stage: r.stage, tipo: r.tipo, home: r.home, workplace: r.workplace,
+      transporte: a.transporte, conPuesto: Boolean(r.conPuesto), skills: r.skills || [], xp: r.xp || 0,
+      nivel: r.tipo === "trainee" ? "APRENDIZ (sim)" : r.tipo === "worker" ? "TRABAJADOR (sim)" : "VECINO (sim)" };
   });
-  const simRoles = ROLES_SIMULADOS.map((r) => ({
-    key: r.id, name: r.name, alias: "rol simulado", color: 0xfacc15, target: r.home, state: "SIM_ON_DUTY",
-    reason: "rol simulado activo (sin fuente real)", currentTask: null, lastResult: null, heartbeat: null, lastEvent: null,
-    kind: "simulated", stage: "SIM_ROLE", tipo: r.role, home: r.home, workplace: r.home }));
+  const simRoles = ROLES_SIMULADOS.map((r) => {
+    const a = actividadRol(r, hora);
+    return { key: r.id, name: r.name, alias: "rol simulado", color: 0xfacc15, target: a.destino, state: "SIM_" + a.actividad,
+      reason: `${a.etiqueta} · rol simulado, sin fuente real`, currentTask: null, lastResult: null, heartbeat: null, lastEvent: null,
+      kind: "simulated", stage: "SIM_ROLE", tipo: r.role, home: r.home, workplace: a.destino, transporte: "caminar",
+      skills: [], xp: 0, nivel: "ROL SIMULADO" };
+  });
   return { mode: MODE, syncOk, snapshotAt: snapshot?.generated_at || null, banners,
     buildings: BUILDINGS.map((b) => ({ ...b, pulses: pulses[b.id].slice(-5) })),
     agents: [...fundadores, ...sociedad, ...simRoles, ...vida],
@@ -195,7 +200,7 @@ export function deriveCity({ snapshot, society, events, now }) {
     feed: ev.slice(-30).reverse() };
 }
 
-export const STATE_COLOR = { SIM_WORKING: 0x86efac, SIM_STUDYING: 0xfcd34d, SIM_SLEEPING: 0x818cf8, SIM_TRAVEL: 0xcbd5e1, SIM_LEISURE: 0x93c5fd, SIM_BREAK: 0xd9f99d, SIM_ON_DUTY: 0xfacc15, WORKING: 0x22c55e, WALKING_TO_WORK: 0x22c55e, REVIEWING: 0x3b82f6, REVIEW: 0x3b82f6,
+export const STATE_COLOR = { SIM_SEEKING_WORK: 0xfb923c, SIM_COMMUTING: 0x67e8f9, SIM_MEETING: 0x06b6d4, SIM_MENTORING: 0xc084fc, SIM_RESTING: 0xbef264, SIM_TRAVEL: 0xcbd5e1, SIM_WORKING: 0x86efac, SIM_STUDYING: 0xfcd34d, SIM_SLEEPING: 0x818cf8, SIM_TRAVEL: 0xcbd5e1, SIM_LEISURE: 0x93c5fd, SIM_BREAK: 0xd9f99d, SIM_ON_DUTY: 0xfacc15, WORKING: 0x22c55e, WALKING_TO_WORK: 0x22c55e, REVIEWING: 0x3b82f6, REVIEW: 0x3b82f6,
   STUDYING: 0xf59e0b, TRAINING: 0xf59e0b, EXAMINING: 0xf59e0b, MEETING: 0x06b6d4, WAITING_FOR_USER: 0xeab308,
   BLOCKED: 0xf97316, IDLE: 0x9ca3af, SLEEPING: 0x6366f1, DONE: 0x16a34a, ERROR: 0xdc2626, OFFLINE: 0x374151,
   NOT_SYNCED: 0x6b7280, STALE: 0x78716c, IN_PROGRESS: 0x9ca3af, PENDING: 0x9ca3af };

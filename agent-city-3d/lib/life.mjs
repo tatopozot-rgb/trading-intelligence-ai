@@ -1,12 +1,15 @@
 // Capa de vida simulada (Life Simulation). Puro: sin red, sin escritura.
 // TODO lo que sale de aquí es simulación visual inspirada en la operación. Nunca es evidencia operativa.
-// Cada residente lleva kind="simulated" y se etiqueta así en la UI.
+// Cada residente lleva kind="simulated". La población y los puestos crecen sólo con demanda real.
 
 export const SIM_NOTE = "SIMULACIÓN — no es actividad real";
 export const POBLACION_BASE = 6;
 export const POBLACION_MAX = 40;
+export const APRENDICES_MAX = 4;
+const EDIFICIOS_TRABAJO = ["quant_lab", "qa_facility", "engineering_lab", "risk_tower", "market_intel"];
+const DISTANCIA_BICI = 2; // trayecto largo: se usa bicicleta SIM
 
-// Roles simulados activos (decorativos, coherentes con el edificio que ocupan).
+// Roles simulados activos (decorativos y coherentes con su rutina).
 export const ROLES_SIMULADOS = [
   { id: "sim-supervisor", name: "Supervisor (sim)", role: "supervisor", home: "command_center", kind: "simulated" },
   { id: "sim-recruiter", name: "Recruiter / Creator (sim)", role: "recruiter", home: "foundry", kind: "simulated" },
@@ -24,20 +27,30 @@ export function poblacionObjetivo(demanda) {
   return Math.min(POBLACION_MAX, POBLACION_BASE + Math.ceil(d * 1.5));
 }
 
-// Residentes deterministas (mismo índice → mismo residente) para que la ciudad no cambie de cara al refrescar.
+// Puestos y aprendices según demanda: sin demanda no hay aprendices ni puestos (no se inventa trabajo).
+export function reparto(demanda) {
+  const d = Math.max(0, Math.floor(demanda || 0));
+  const n = poblacionObjetivo(d);
+  const aprendices = d > 0 ? Math.min(APRENDICES_MAX, Math.ceil(d / 3)) : 0;
+  const puestos = Math.min(n - aprendices, d);
+  return { n, aprendices, puestos };
+}
+
+// Residentes deterministas (mismo índice, mismo residente) para que la ciudad no cambie al refrescar.
 export function residentes(demanda) {
-  const n = poblacionObjetivo(demanda);
+  const { n, aprendices, puestos } = reparto(demanda);
   const lista = [];
   for (let i = 0; i < n; i++) {
-    const tipo = i % 3 === 0 ? "trainee" : i % 3 === 1 ? "worker" : "resident";
+    const tipo = i < aprendices ? "trainee" : i < aprendices + puestos ? "worker" : "resident";
     lista.push({
       id: `sim-${String(i + 1).padStart(2, "0")}`,
       name: NOMBRES[i % NOMBRES.length],
       kind: "simulated",
       tipo,
       home: `house_${"abcd"[i % 4]}`,
-      workplace: tipo === "trainee" ? "academy" : tipo === "worker" ? (["quant_lab", "qa_facility", "engineering_lab", "risk_tower"][i % 4]) : null,
-      skills: tipo === "trainee" ? ["curso"] : [],
+      workplace: tipo === "worker" ? EDIFICIOS_TRABAJO[i % EDIFICIOS_TRABAJO.length] : null,
+      conPuesto: tipo === "worker",
+      skills: tipo === "trainee" ? ["curso"] : tipo === "worker" ? ["operación"] : [],
       xp: 0,
       stage: tipo === "trainee" ? "TRAINEE" : "CITIZEN",
     });
@@ -45,31 +58,64 @@ export function residentes(demanda) {
   return lista;
 }
 
-// Actividad según la hora local. Función pura: (residente, hora 0-23) → {actividad, destino, etiqueta}.
+// Actividad según la hora local. Función pura: (residente, hora 0-23) → {actividad, destino, etiqueta, transporte}.
+// Los nombres de actividad son internos; el modelo los muestra con prefijo SIM_.
 export function actividadPara(r, hora) {
-  if (hora >= 22 || hora < 6) return { actividad: "SLEEPING", destino: r.home, etiqueta: "dormir en casa" };
-  if (hora >= 6 && hora < 8) return { actividad: "TRAVEL", destino: r.home, etiqueta: "de camino al día" };
-  if (hora >= 8 && hora < 12) {
-    if (r.tipo === "trainee") return { actividad: "STUDYING", destino: "academy", etiqueta: "estudiar en la academia" };
-    if (r.tipo === "worker") return { actividad: "WORKING", destino: r.workplace, etiqueta: `trabajar en ${r.workplace} (simulado)` };
-    return { actividad: "LEISURE", destino: "park", etiqueta: "paseo por el parque" };
+  const fin = (actividad, destino, etiqueta, transporte = "caminar") => ({ actividad, destino, etiqueta, transporte });
+  if (hora >= 22 || hora < 6) return fin("SLEEPING", r.home, "dormir en casa");
+  if (hora < 8) {
+    if (r.tipo === "worker") return fin("COMMUTING", r.workplace, `camino al trabajo en ${r.workplace} (sim)`, "bici");
+    return fin("TRAVEL", r.home, "de camino al día");
   }
-  if (hora >= 12 && hora < 13) return { actividad: "BREAK", destino: "park", etiqueta: "descanso" };
-  if (hora >= 13 && hora < 17) {
-    if (r.tipo === "trainee") return { actividad: "STUDYING", destino: "university", etiqueta: "clase en la universidad" };
-    if (r.tipo === "worker") return { actividad: "WORKING", destino: r.workplace, etiqueta: `trabajar en ${r.workplace} (simulado)` };
-    return { actividad: "LEISURE", destino: "residential", etiqueta: "tiempo libre en el barrio" };
+  if (hora < 12) {
+    if (r.tipo === "trainee") return fin("STUDYING", "academy", "estudiar en la academia");
+    if (r.tipo === "worker") {
+      if (hora === 10) return fin("MEETING", "command_center", "reunión de equipo (sim)");
+      if (r.conPuesto) return fin("WORKING", r.workplace, `trabajar en ${r.workplace} (sim)`);
+      return fin("SEEKING_WORK", "command_center", "buscar trabajo en el tablón (sim)");
+    }
+    return fin("LEISURE", "park", "paseo por el parque");
   }
-  return { actividad: "LEISURE", destino: r.home, etiqueta: "tiempo en casa" };
+  if (hora < 13) return fin("RESTING", "park", "descanso (sim)");
+  if (hora < 17) {
+    if (r.tipo === "trainee") return fin("STUDYING", "university", "clase en la universidad");
+    if (r.tipo === "worker") {
+      if (r.conPuesto) return fin("WORKING", r.workplace, `trabajar en ${r.workplace} (sim)`);
+      return fin("STUDYING", "academy", "formación mientras no hay trabajo (sim)");
+    }
+    return fin("LEISURE", "residential", "tiempo libre en el barrio");
+  }
+  if (r.tipo === "worker") return fin("RESTING", r.home, "volver a casa (sim)", "bici");
+  return fin("LEISURE", r.home, "tiempo en casa");
+}
+
+// Rutina de los roles simulados (supervisor, creator, trainer, auditor). Siempre tiene destino.
+export function actividadRol(rol, hora) {
+  const fin = (actividad, destino, etiqueta) => ({ actividad, destino, etiqueta, transporte: "caminar" });
+  switch (rol.role) {
+    case "supervisor":
+      if (hora === 10) return fin("MEETING", "command_center", "reunión de coordinación (sim)");
+      if (hora >= 13 && hora < 17) return fin("ON_DUTY", "foundry", "revisar capacidad en la Foundry (sim)");
+      return fin("ON_DUTY", "command_center", "supervisar backlog (sim)");
+    case "trainer":
+      if (hora >= 9 && hora < 17) return fin("MENTORING", "academy", "mentoría de aprendices (sim)");
+      return fin("RESTING", "academy", "fuera de turno (sim)");
+    case "recruiter":
+      return fin("ON_DUTY", "foundry", "crear propuestas de trainees (sim)");
+    default:
+      return fin("ON_DUTY", "hall", "auditoría de graduaciones (sim)");
+  }
 }
 
 // Ocioso útil: nunca se queda quieto. Sin tarea real, la simulación lo manda a casa, academia o parque.
 export function standbyPara(r) {
-  if (r.tipo === "trainee") return { actividad: "STUDYING", destino: "academy", etiqueta: "estudio libre (standby)" };
-  return { actividad: "LEISURE", destino: "park", etiqueta: "standby visual" };
+  if (r.tipo === "trainee") return { actividad: "STUDYING", destino: "academy", etiqueta: "estudio libre (standby)", transporte: "caminar" };
+  return { actividad: "LEISURE", destino: "park", etiqueta: "standby visual", transporte: "caminar" };
 }
 
-// Progreso de un trainee simulado. Graduación sólo con examen aprobado (simulado, con puntuación reproducible).
+export { DISTANCIA_BICI };
+
+// Progreso de un trainee simulado. Graduación sólo con examen aprobado (simulado, puntuación reproducible).
 export function progresarTrainee(r, horasEstudio) {
   const xp = r.xp + Math.max(0, horasEstudio) * 10;
   if (xp < 100) return { ...r, xp, stage: "TRAINEE", examen: null };
@@ -78,7 +124,3 @@ export function progresarTrainee(r, horasEstudio) {
   return { ...r, xp, stage: aprobado ? "GRADUATED_SIM" : "TRAINEE",
     examen: { curriculum: "curso simulado", score: puntuacion, min_score: 80, passed: aprobado, simulated: true } };
 }
-
-// Mapa de edificio → punto de entrada visual (la vida simulada entra por el interior).
-export const INTERIOR_OK = ["house_a", "house_b", "house_c", "house_d", "academy", "university", "quant_lab",
-  "qa_facility", "engineering_lab", "risk_tower", "park", "residential", "command_center", "foundry", "hall"];

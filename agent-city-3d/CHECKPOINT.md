@@ -35,6 +35,25 @@ checkpoint describe sólo lo que hay en esta rama.
 - Estados COMMUTING, SEEKING_WORK, MEETING, MENTORING: sólo como nombres previstos, sin lógica de reunión.
 - Sync de Obsidian del panel: sin cambios en esta tanda.
 
+## Tanda de vida y movimiento (ef4a4f9 → siguiente)
+- Lógica de vida real-simulada (`lib/life.mjs`): aprendices y puestos sólo existen con demanda real.
+  Estados: SEEKING_WORK (busca en el tablón), COMMUTING (en bicicleta SIM), WORKING, STUDYING,
+  MEETING (10:00 en Command Center), MENTORING (trainer SIM en academia), RESTING, SLEEPING, LEISURE.
+- Rutas por calle → puerta → interior y salida inversa (`lib/paths.mjs`, 6 tests, sin teletransporte).
+- Puertas visibles en fachadas de los edificios con interior.
+- Bicicleta SIM en trayectos al trabajo y de vuelta; a pie el resto.
+- Supervisor con portapapeles y rutina (reunión 10:00, Foundry por la tarde, Command Center).
+- Sentado al trabajar o estudiar dentro; tumbado al dormir dentro.
+- LOD por distancia a la cámara: lejos se quitan brazos, piernas y cabello; etiquetas sólo cerca.
+- Ficha de agente: rol, estado, edificio, destino, siguiente acción, nivel, XP, habilidades, transporte.
+
+## Límites de esta tanda (honestidad)
+- Instancing NO implementado: cada avatar sigue siendo mallas separadas. Sólo LOD.
+- Rendimiento medido sólo en el modelo (ms de derivado). El coste de GPU no está medido.
+- Las puertas son bloques; la animación de cruzar la puerta es un desplazamiento lineal.
+- Sin entrada a interiores con cámara de enfoque automática dentro del edificio.
+- Trainees simulados: sólo aparecen con demanda real; no hay ceremonia de graduación visual.
+
 ## Verificación
 - `node --test tests/` → 52/52 (model, life, hr, society, society-store).
 - Validación del vault (`sync_agent_city.py --validate`) → OK.
