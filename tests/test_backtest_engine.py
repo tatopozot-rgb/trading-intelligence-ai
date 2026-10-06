@@ -1,9 +1,10 @@
 """Smoke test for BacktestEngine — confirms the engine runs end-to-end."""
-from decimal import Decimal
+from decimal import ROUND_DOWN, Decimal
 from typing import Optional
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from trading_intelligence.backtesting.backtest_engine import BacktestEngine
 from trading_intelligence.strategy.base import AbstractStrategy
@@ -260,3 +261,88 @@ class TestStopFillEdgeCases:
         # stop*(1-2x slippage) estimate — that's the whole point of the fix.
         naive_estimate = Decimal("95") * (Decimal("1") - 2 * Decimal("0.0005"))
         assert trade.exit_price < naive_estimate - Decimal("20")
+
+
+class TestPositionSizingNeverExceedsCash:
+    """
+    Real bug found by GPT Work's independent cross-review (PR #7): the
+    fixed-fractional formula has no cap against available cash. A tight
+    stop makes effective_stop tiny, so risk_amount / (entry * effective_stop)
+    can demand far more capital than the account has. Verified numerically
+    before fixing: equity=1000, entry=100, stop=99.99 sized a position
+    costing $4766 — spot, long-only, no margin, should be impossible.
+    """
+
+    def test_tight_stop_does_not_size_a_position_beyond_available_cash(self):
+        strategy = _FixedSignalStrategy(signal_at_index=0, stop_price=Decimal("1"))
+        engine = BacktestEngine(strategy, initial_equity=Decimal("1000"))
+        qty = engine._size_position(Decimal("1000"), Decimal("100"), Decimal("99.99"))
+        cost_plus_fee = Decimal("100") * qty * (1 + engine.taker_fee)
+        assert cost_plus_fee <= Decimal("1000")
+
+    def test_normal_stop_sizing_is_unaffected_by_the_cash_cap(self):
+        """A realistic stop (not pathologically tight) should size exactly as
+        before — the cap must not clip ordinary risk-based sizing."""
+        strategy = _FixedSignalStrategy(signal_at_index=0, stop_price=Decimal("1"))
+        engine = BacktestEngine(strategy, initial_equity=Decimal("10000"))
+        qty = engine._size_position(Decimal("10000"), Decimal("100"), Decimal("95"))
+        risk_amount = Decimal("10000") * Decimal("1.0") / Decimal("100")
+        effective_stop = Decimal("0.05") + 2 * engine.taker_fee
+        expected = (risk_amount / (Decimal("100") * effective_stop)).quantize(
+            Decimal("0.00000001"), rounding=ROUND_DOWN
+        )
+        assert qty == expected
+
+
+class TestExitFeeHonorsConfiguredRate:
+    """
+    Real bug found by GPT Work's cross-review: _close_trade was a
+    @staticmethod reading the module-level TAKER_FEE default directly,
+    ignoring self.taker_fee entirely. A caller configuring a custom fee
+    rate got it honored on entry (computed inline in run()) but silently
+    overridden back to the default on every exit.
+    """
+
+    def test_custom_taker_fee_is_honored_on_exit_not_just_entry(self):
+        data = _flat_ohlcv(
+            opens=[100, 100, 100, 100, 100, 100],
+            highs=[101, 101, 101, 101, 101, 111],
+            lows=[99, 99, 99, 99, 99, 99],
+            closes=[100, 100, 100, 100, 100, 110],
+        )
+        custom_fee = Decimal("0.0005")  # half the default 0.001
+        strategy = _FixedSignalStrategy(signal_at_index=3, stop_price=Decimal("1"))
+        engine = BacktestEngine(strategy, initial_equity=Decimal("10000"), taker_fee=custom_fee)
+        result = engine.run(data)
+
+        trade = result.trades[0]
+        assert trade.exit_reason == "end_of_data"
+        expected_exit_fee = trade.exit_price * trade.quantity * custom_fee
+        assert trade.exit_fee == expected_exit_fee
+        # The bug's exact symptom: exit_fee silently doubled (default/custom = 2x).
+        assert trade.exit_fee != trade.exit_price * trade.quantity * Decimal("0.001")
+
+
+class TestEquityCurveIncludesFinalForcedClose:
+    """
+    Real bug found by GPT Work's cross-review: when a backtest ends with
+    a position still open, the forced end_of_data close updates
+    final_equity but the equity_curve's own last point was never updated
+    to match — appended only inside the per-bar loop, before the
+    post-loop forced close runs. Any metric derived from the curve
+    (Sharpe, max drawdown) silently excluded the last trade's result.
+    """
+
+    def test_curves_last_point_matches_final_equity_after_a_forced_close(self):
+        data = _flat_ohlcv(
+            opens=[100, 100, 100, 100, 100, 100],
+            highs=[101, 101, 101, 101, 101, 111],
+            lows=[99, 99, 99, 99, 99, 99],
+            closes=[100, 100, 100, 100, 100, 110],
+        )
+        strategy = _FixedSignalStrategy(signal_at_index=3, stop_price=Decimal("1"))
+        engine = BacktestEngine(strategy, initial_equity=Decimal("1000"))
+        result = engine.run(data)
+
+        assert result.trades[0].exit_reason == "end_of_data"
+        assert float(result.final_equity) == pytest.approx(result.equity_curve.iloc[-1])

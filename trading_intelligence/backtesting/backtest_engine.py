@@ -291,6 +291,14 @@ class BacktestEngine:
             )
             equity += open_trade.pnl
             trades[-1] = open_trade
+            # The per-bar loop already appended this same timestamp with the
+            # PRE-close equity (the forced close happens after the loop ends) —
+            # append the settled value too; the dict comprehension below keeps
+            # the last entry for a repeated key, so this correctly overrides it.
+            # Without this, final_equity and the curve's own last point disagree,
+            # and Sharpe/drawdown (computed from the curve) silently miss the
+            # very last trade whenever a backtest ends with a position still open.
+            equity_history.append((data.index[-1], float(equity)))
 
         equity_curve = pd.Series(
             {t: v for t, v in equity_history}, dtype=float, name="equity"
@@ -313,6 +321,13 @@ class BacktestEngine:
         if effective_stop <= 0:
             return Decimal("0")
         qty = risk_amount / (entry_price * effective_stop)
+        # Spot, long-only: never size a position costing more than available
+        # cash. A tight stop makes effective_stop tiny, and the risk-based
+        # formula above can then demand far more capital than the account
+        # has — verified: equity=1000, entry=100, stop=99.99 sized a $4766
+        # position before this cap existed. There is no margin/leverage here.
+        max_affordable_qty = equity / (entry_price * (1 + self.taker_fee))
+        qty = min(qty, max_affordable_qty)
         # Truncate to 8 decimal places (BTC precision)
         return qty.quantize(Decimal("0.00000001"), rounding=ROUND_DOWN)
 
@@ -332,8 +347,8 @@ class BacktestEngine:
             return bar_open * (1 - self.slippage_factor)
         return stop_price * (1 - 2 * self.slippage_factor)
 
-    @staticmethod
     def _close_trade(
+        self,
         trade: BacktestTrade,
         exit_bar: int,
         exit_time: pd.Timestamp,
@@ -341,7 +356,11 @@ class BacktestEngine:
         reason: str,
         equity: Decimal,
     ) -> BacktestTrade:
-        fee = fill_price * trade.quantity * TAKER_FEE
+        # self.taker_fee, not the module-level TAKER_FEE default: a caller who
+        # configures a custom fee rate must have it honored on both legs. This
+        # was a @staticmethod using the hardcoded default unconditionally,
+        # silently ignoring any configured taker_fee on every exit.
+        fee = fill_price * trade.quantity * self.taker_fee
         trade.exit_bar = exit_bar
         trade.exit_time = exit_time
         trade.exit_price = fill_price

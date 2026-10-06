@@ -126,3 +126,57 @@ class TestRecommendConfidenceAdjustments:
         notes = recommend_confidence_adjustments(summary)
         assert any("no concern raised" in n for n in notes)
         assert not any("underperforming" in n for n in notes)
+
+
+class TestTaggingMatchesWhatTheRouterActuallySaw:
+    """
+    Real bug found by GPT Work's cross-review (PR #7): entry_bar is the
+    FILL bar (BacktestEngine fills one bar after the signal), not the
+    SIGNAL bar the router used to decide. The original slice
+    (data.iloc[:entry_bar + 1]) included the fill bar's full OHLC — data
+    that didn't exist yet when the router actually made its decision.
+    """
+
+    def test_tag_reflects_the_regime_at_the_signal_bar_not_one_bar_later(self):
+        from trading_intelligence.backtesting.backtest_engine import BacktestEngine
+        from trading_intelligence.regime.detector import detect_regime
+        from trading_intelligence.strategy.base import AbstractStrategy
+        from trading_intelligence.strategy.models import TradeProposal
+        from trading_intelligence.strategy.router import StrategyRouter
+
+        class _FiresOnce(AbstractStrategy):
+            def __init__(self):
+                super().__init__(strategy_id="t", symbol="X", timeframe="1d", params={})
+                self.fired = False
+
+            def on_bar(self, data):
+                if self.fired or len(data) < 60:
+                    return None
+                self.fired = True
+                return TradeProposal(
+                    strategy_id="t", symbol="X", side="BUY", entry_type="MARKET",
+                    stop_price=Decimal("1"), timeframe="1d", rationale="t",
+                    signal_strength=1.0, timestamp=str(data.index[-1]),
+                )
+
+            def on_exit_signal(self, data, entry_price):
+                return False
+
+        rng = np.random.default_rng(3)
+        close = 100 + np.arange(200) * 0.3 + rng.normal(0, 0.2, 200)
+        data = _ohlcv(close)
+
+        strat = _FiresOnce()
+        router = StrategyRouter()
+        for regime in Regime:
+            router.register(regime, strat, min_confidence=0.0)
+        engine = BacktestEngine(router=router, initial_equity=Decimal("10000"))
+        result = engine.run(data)
+
+        assert len(result.trades) == 1
+        trade = result.trades[0]
+        signal_bar = trade.entry_bar - 1
+        expected_regime_at_signal = detect_regime(data.iloc[: signal_bar + 1]).regime
+
+        tagged = tag_trades_with_regime(result.trades, data)
+        assert tagged[0].regime_at_entry.regime == expected_regime_at_signal

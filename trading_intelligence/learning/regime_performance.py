@@ -39,12 +39,18 @@ class TaggedTrade:
 def tag_trades_with_regime(
     trades: Sequence[BacktestTrade], data: pd.DataFrame, **detect_kwargs
 ) -> list[TaggedTrade]:
-    """Classify the regime at each trade's entry bar, using only data up to
-    and including that bar — the same bar the strategy itself saw when it
-    proposed the trade, never later information."""
+    """Classify the regime that actually caused each trade: the one the
+    router saw at the SIGNAL bar, not the FILL bar. BacktestEngine fills
+    one bar after the signal (`trade.entry_bar` is the fill bar, i+1) —
+    slicing through `entry_bar` itself (as an earlier version of this
+    function did) includes the fill bar's full OHLC, data that didn't
+    exist yet at the instant the router made its decision (only that
+    bar's open did, which is the fill price). Slicing through
+    `entry_bar - 1` instead matches exactly what the router actually saw.
+    """
     tagged = []
     for trade in trades:
-        window = data.iloc[: trade.entry_bar + 1]
+        window = data.iloc[: trade.entry_bar]
         snapshot = detect_regime(window, **detect_kwargs)
         tagged.append(TaggedTrade(trade=trade, regime_at_entry=snapshot))
     return tagged

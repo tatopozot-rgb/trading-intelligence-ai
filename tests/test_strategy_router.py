@@ -109,3 +109,27 @@ class TestDefaultRouter:
             decision = router.route(_snapshot(regime, confidence=1.0))
             assert decision.is_no_trade, f"{regime} should be NO_TRADE but got a strategy"
             assert decision.reason == NO_STRATEGY_FOR_REGIME
+
+
+class TestNonFiniteConfidenceFailsClosed:
+    """
+    Real bug found by GPT Work's cross-review: NaN fails every comparison
+    in Python, so `NaN < min_confidence` is False and route() fell through
+    to ROUTED on a malformed snapshot. inf would also always pass. Neither
+    should occur from this project's own detector, but untrusted input
+    must still fail closed, not silently route.
+    """
+
+    def test_nan_confidence_never_routes(self):
+        router = StrategyRouter()
+        router.register(Regime.TREND_UP, _DummyStrategy(), min_confidence=0.0)
+        decision = router.route(_snapshot(Regime.TREND_UP, confidence=float("nan")))
+        assert decision.is_no_trade
+        assert decision.reason == CONFIDENCE_BELOW_THRESHOLD
+
+    def test_infinite_confidence_never_routes(self):
+        router = StrategyRouter()
+        router.register(Regime.TREND_UP, _DummyStrategy(), min_confidence=0.0)
+        decision = router.route(_snapshot(Regime.TREND_UP, confidence=float("inf")))
+        assert decision.is_no_trade
+        assert decision.reason == CONFIDENCE_BELOW_THRESHOLD

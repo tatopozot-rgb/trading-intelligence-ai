@@ -14,6 +14,7 @@ to fake confidence it doesn't have.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Optional
 
@@ -57,7 +58,14 @@ class StrategyRouter:
         if entry is None:
             return RouterDecision(None, NO_STRATEGY_FOR_REGIME, snapshot.regime, snapshot.confidence)
         strategy, min_confidence = entry
-        if snapshot.confidence < min_confidence:
+        # NaN fails every comparison (including `<`), so `NaN < min_confidence`
+        # is False and a malformed snapshot would otherwise fall through to
+        # ROUTED; `inf` would also always pass. Neither should ever occur from
+        # this project's own detector (bounded to [0, 1] by construction), but
+        # a malformed snapshot from anywhere else must not silently route —
+        # fail closed, the same way an invalid risk threshold does elsewhere
+        # in this project, rather than trusting untrusted input.
+        if not math.isfinite(snapshot.confidence) or snapshot.confidence < min_confidence:
             return RouterDecision(None, CONFIDENCE_BELOW_THRESHOLD, snapshot.regime, snapshot.confidence)
         return RouterDecision(strategy, ROUTED, snapshot.regime, snapshot.confidence)
 
