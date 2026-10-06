@@ -7,9 +7,9 @@ aliases: ["Checkpoint"]
 
 # Checkpoint — Trading Intelligence AI
 
-> Last updated: 2026-10-06T03:05:00Z
+> Last updated: 2026-10-06T03:15:00Z
 > Agent: Trading Codex (cloud session)
-> Branch: `ccr-b66a9a9e-okj2pl` @ commit `ad20161`
+> Branch: `ccr-b66a9a9e-okj2pl` @ commit `d8329d4`
 > PRs: #1 (specs, open), #3 (real PAPER import, open, NOT merged), #4 (MARKET lot contract, open, NOT merged), #5 (is_junction fix, open, NOT merged), #6 (Agent City handoff, MERGED)
 > Other branches: `claude-code/finding-3-persistent-halt` (Claude Code local, Finding 2/3 implemented, reviewed, no PR yet)
 
@@ -231,6 +231,25 @@ Claude Code local delivered on `claude-code/finding-3-persistent-halt`
   the testnet signature rather than silently accepted. 9 new tests.
 - **198/198 tests passing, ruff clean, mypy clean** (up from 191).
 
+### 13. Another real gap found the same way: AuditLog didn't match its own docstring (same day, continued)
+
+Same audit pattern that caught `walk_forward.py`: `AuditLog` had no
+dedicated test file at all — only incidental coverage via
+`test_risk_engine.py`'s one audit-logging test, which exercises
+`RiskEngine`'s call site, not `AuditLog`'s own contract. Its `append()`
+docstring claimed failures are "re-raised as RuntimeError after being
+written to stderr-equivalent" — the code never did either. A raw
+`OSError` (disk full, permissions, directory removed) would propagate
+unconverted and unlogged, and since `RiskEngine` calls
+`audit_log.append()` at both its call sites with no `try`/`except`, that
+would have crashed order validation outright with no record that the
+audit write even failed. Fixed to match the documented contract exactly:
+log at CRITICAL first, then raise `RuntimeError` with the original
+`OSError` chained — never silently lost. 15 new tests (round-trip, daily
+rotation via the real `append()` path, Decimal/dataclass JSON encoding,
+sorted keys, the failure-handling fix itself).
+**213/213 tests passing, ruff clean, mypy clean** (up from 198).
+
 ## What's Next
 
 **For whichever agent picks this up next:**
@@ -251,7 +270,7 @@ Claude Code local delivered on `claude-code/finding-3-persistent-halt`
 
 ## Test Status
 
-**`trading_intelligence/` package: 198/198 tests passing**, ruff clean, mypy clean.
+**`trading_intelligence/` package: 213/213 tests passing**, ruff clean, mypy clean.
 ```
 tests/test_indicators.py       20/20 PASS
 tests/test_ma_crossover.py      7/7  PASS
@@ -266,6 +285,7 @@ tests/test_shadow_runner.py     8/8  PASS
 tests/test_alerts.py           20/20 PASS  (14 + 6 for WebhookAlertSink)
 tests/test_crash_recovery.py    5/5  PASS
 tests/test_walk_forward.py     23/23 PASS  (new — was 0 before section 11)
+tests/test_audit_log.py        15/15 PASS  (new — was 0 before section 13)
 ```
 
 **Real PAPER system (PR #3, `codex/import-paper-baseline`): 549/558 tests**,
