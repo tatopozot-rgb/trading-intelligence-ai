@@ -2,6 +2,8 @@
 // Regla central: un agente sólo se mueve o aparece como "trabajando" por evidencia (evento real reciente o estado documentado).
 // WORKING requiere AGENT_WORKING o TASK_STARTED recientes; nunca se deduce de un commit ni de un estado REVIEW.
 
+import { residentes, actividadPara, ROLES_SIMULADOS, SIM_NOTE as SIM_NOTE_VIDA } from "./life.mjs";
+
 export const MODE = "BUILD"; // OPERATIONS queda preparado, no activo
 
 // Edificios: (x, z) en la cuadrícula de calles. district separa Operational Reality de Life Simulation.
@@ -23,8 +25,22 @@ export const BUILDINGS = [
   // Life Simulation: creativo, separado. Nunca fuente de estado operativo.
   { id: "residential", label: "🏘 Residential District", pos: [3, 2], district: "simulation" },
   { id: "park", label: "🌳 Parque", pos: [3, 3], district: "simulation" },
+  // Casas del barrio residencial (simulación). world = posición exacta dentro de la celda residencial.
+  { id: "house_a", label: "🏠 Casa A", pos: [3, 2], world: [25, 16], district: "simulation" },
+  { id: "house_b", label: "🏠 Casa B", pos: [3, 2], world: [29, 16], district: "simulation" },
+  { id: "house_c", label: "🏠 Casa C", pos: [3, 2], world: [25, 20], district: "simulation" },
+  { id: "house_d", label: "🏠 Casa D", pos: [3, 2], world: [29, 20], district: "simulation" },
 ];
-export const SIM_NOTE = "SIMULACIÓN — no es actividad real";
+export const SIM_NOTE = SIM_NOTE_VIDA;
+
+// Categorías de roles previstos (agrupación de la UI). Coincide por nombre con society-store.
+export const ROLE_CATEGORY = {
+  "Operations Supervisor": "liderazgo", "Mission Control Agent": "liderazgo", "Agent Creator": "expansión",
+  "Market Watch Agent": "operaciones", "Execution Agent": "operaciones", "Portfolio Agent": "operaciones",
+  "Quant Research Agent": "research", "Knowledge Agent": "research", "Risk Agent": "riesgo",
+  "QA / Red Team Agent": "QA", "Infra / Recovery Agent": "ingeniería", "Trainer": "formación",
+};
+export const CATEGORIAS = ["liderazgo", "ingeniería", "research", "operaciones", "QA", "riesgo", "formación", "expansión"];
 
 // Fundadores: identidades reales. Un alias = misma entidad; no se duplican.
 export const AGENTS = [
@@ -153,16 +169,33 @@ export function deriveCity({ snapshot, society, events, now }) {
   const graduados = recientes.filter((e) => e.type === "GRADUATED");
   if (graduados.length) banners.push(`🎓 Graduación reciente: ${graduados.map((g) => g.subject).join(", ")}`);
 
-  const planeados = (society?.planned_roles || []).map((r) => ({ name: r.name, state: r.status }));
+  const planeados = (society?.planned_roles || []).map((r) => ({ name: r.name, state: r.status, categoria: ROLE_CATEGORY[r.name] || "expansión" }));
+
+  // Vida simulada: demanda = tareas abiertas (snapshot) + actividad real de 24 h. Sólo decide tamaño de población.
+  const abiertas = (snapshot?.tasks || []).filter((t) => ["IN_PROGRESS", "PENDING", "BLOCKED", "WAITING_FOR_USER"].includes(t.status)).length;
+  const actividad24h = ev.filter((e) => ahoraMs - Date.parse(e.observed_at || e.ts || 0) < 24 * 3600 * 1000).length;
+  const demanda = abiertas + Math.ceil(actividad24h / 2);
+  const hora = new Date(ahoraMs).getHours();
+  const vida = residentes(demanda).map((r) => {
+    const a = actividadPara(r, hora);
+    return { key: r.id, name: r.name, alias: r.tipo, color: 0xcbd5e1, target: a.destino, state: "SIM_" + a.actividad,
+      reason: a.etiqueta, currentTask: null, lastResult: null, heartbeat: null, lastEvent: null,
+      kind: "simulated", stage: r.stage, tipo: r.tipo, home: r.home, workplace: r.workplace };
+  });
+  const simRoles = ROLES_SIMULADOS.map((r) => ({
+    key: r.id, name: r.name, alias: "rol simulado", color: 0xfacc15, target: r.home, state: "SIM_ON_DUTY",
+    reason: "rol simulado activo (sin fuente real)", currentTask: null, lastResult: null, heartbeat: null, lastEvent: null,
+    kind: "simulated", stage: "SIM_ROLE", tipo: r.role, home: r.home, workplace: r.home }));
   return { mode: MODE, syncOk, snapshotAt: snapshot?.generated_at || null, banners,
     buildings: BUILDINGS.map((b) => ({ ...b, pulses: pulses[b.id].slice(-5) })),
-    agents: [...fundadores, ...sociedad],
+    agents: [...fundadores, ...sociedad, ...simRoles, ...vida],
     planned: planeados,
-    simulation: { note: SIM_NOTE, residents: [] }, // sin residentes simulados: no hay mecánica todavía
+    demand: { abiertas, actividad24h, total: demanda },
+    simulation: { note: SIM_NOTE, residents: vida.map((v) => v.key), population: vida.length, roles: simRoles.length },
     feed: ev.slice(-30).reverse() };
 }
 
-export const STATE_COLOR = { WORKING: 0x22c55e, WALKING_TO_WORK: 0x22c55e, REVIEWING: 0x3b82f6, REVIEW: 0x3b82f6,
+export const STATE_COLOR = { SIM_WORKING: 0x86efac, SIM_STUDYING: 0xfcd34d, SIM_SLEEPING: 0x818cf8, SIM_TRAVEL: 0xcbd5e1, SIM_LEISURE: 0x93c5fd, SIM_BREAK: 0xd9f99d, SIM_ON_DUTY: 0xfacc15, WORKING: 0x22c55e, WALKING_TO_WORK: 0x22c55e, REVIEWING: 0x3b82f6, REVIEW: 0x3b82f6,
   STUDYING: 0xf59e0b, TRAINING: 0xf59e0b, EXAMINING: 0xf59e0b, MEETING: 0x06b6d4, WAITING_FOR_USER: 0xeab308,
   BLOCKED: 0xf97316, IDLE: 0x9ca3af, SLEEPING: 0x6366f1, DONE: 0x16a34a, ERROR: 0xdc2626, OFFLINE: 0x374151,
   NOT_SYNCED: 0x6b7280, STALE: 0x78716c, IN_PROGRESS: 0x9ca3af, PENDING: 0x9ca3af };

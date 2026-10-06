@@ -1,24 +1,38 @@
-// Escena three.js de Agent City 3D. Toda decisión de estado vive en lib/model.mjs (probado).
+// Escena three.js de Agent City 3D. Toda decisión de estado vive en lib/model.mjs y lib/life.mjs (probados).
+// Regla visual: el badge REAL / SIMULADO se muestra siempre; WORKING sólo viene de estado real.
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { BUILDINGS, AGENTS, STATE_COLOR, SIM_NOTE, deriveCity } from "/lib/model.mjs";
+import { BUILDINGS, AGENTS, STATE_COLOR, SIM_NOTE, deriveCity, CATEGORIAS } from "/lib/model.mjs";
 
-const REFRESCO_MS = 30000; // conservador: 30 s, sólo lectura local
-const ESPACIO = 9;         // separación de la cuadrícula de calles
+const REFRESCO_MS = 30000;
+const ESPACIO = 9;
 const CENTRO = new THREE.Vector3(13.5, 0, 13.5);
 const COLOR_EDIFICIO = {
   foundry: 0x57534e, university: 0x0f766e, hall: 0xb45309, park: 0x65a30d,
+  house_a: 0xfde68a, house_b: 0xfca5a5, house_c: 0xbfdbfe, house_d: 0xd9f99d,
   command_center: 0x1e3a8a, engineering_lab: 0x1d4ed8, local_ops: 0x047857, gpt_ops: 0x6d28d9,
   risk_tower: 0x991b1b, quant_lab: 0x0e7490, qa_facility: 0x4d7c0f, market_intel: 0x0369a1,
-  trading_floor: 0x854d0e, knowledge_center: 0x334155, academy: 0xf9a8d4, residential: 0xfde68a,
+  trading_floor: 0x854d0e, knowledge_center: 0x334155, academy: 0xf9a8d4, residential: 0xfef3c7,
 };
-const ALTURA = { foundry: 4.8, university: 6, hall: 5.5, park: 0.6, command_center: 7, risk_tower: 9, trading_floor: 6, knowledge_center: 5, quant_lab: 5.5,
+const ALTURA = { house_a: 3.2, house_b: 3.2, house_c: 3.2, house_d: 3.2, foundry: 4.8, university: 6, hall: 5.5,
+  park: 0.4, command_center: 7, risk_tower: 9, trading_floor: 6, knowledge_center: 5, quant_lab: 5.5,
   engineering_lab: 5, gpt_ops: 4.5, local_ops: 4, qa_facility: 4.5, market_intel: 5, academy: 4, residential: 2.5 };
+const TIENE_INTERIOR = new Set(["house_a", "house_b", "house_c", "house_d", "academy", "university", "quant_lab", "qa_facility",
+  "engineering_lab", "risk_tower", "command_center", "gpt_ops", "local_ops", "trading_floor", "knowledge_center", "foundry", "hall"]);
 const COLOR_PULSO = { TEST_PASSED: 0x22c55e, TEST_FAILED: 0xef4444, RISK_REJECTED: 0xef4444, KILL_SWITCH_TRIGGERED: 0xdc2626,
   RISK_APPROVED: 0x22c55e, NO_TRADE: 0xfacc15, TRADE_OPENED: 0x38bdf8, TRADE_CLOSED: 0x38bdf8, BACKTEST_FINISHED: 0x67e8f9,
   BACKTEST_STARTED: 0x67e8f9, SYSTEM_RECOVERED: 0x86efac, GRADUATED: 0xfacc15, EXAM_PASSED: 0x22c55e, EXAM_FAILED: 0xef4444 };
+const DURACION_PULSO_S = 25;
+const VELOCIDAD = 4.5;
+const COLOR_SIM = 0xcbd5e1;
+const DENTRO_SIM = ["SIM_SLEEPING", "SIM_STUDYING", "SIM_WORKING", "SIM_ON_DUTY"];
 
 const $ = (id) => document.getElementById(id);
+const escapar = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const NOMBRE_EDIFICIO = Object.fromEntries(BUILDINGS.map((b) => [b.id, b.label]));
+const EDIFICIO_DE = Object.fromEntries(BUILDINGS.map((b) => [b.id, b]));
+
+// ---------- escena base
 const escena = $("escena");
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -28,58 +42,62 @@ escena.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0b1220);
-scene.fog = new THREE.Fog(0x0b1220, 80, 170);
+scene.fog = new THREE.Fog(0x0b1220, 90, 180);
 const camara = new THREE.PerspectiveCamera(42, 1, 0.1, 400);
-const CAMARA_INICIAL = new THREE.Vector3(CENTRO.x + 34, 30, CENTRO.z + 34);
+const CAMARA_INICIAL = new THREE.Vector3(CENTRO.x + 30, 27, CENTRO.z + 30);
 camara.position.copy(CAMARA_INICIAL);
 const controles = new OrbitControls(camara, renderer.domElement);
 controles.target.copy(CENTRO);
 controles.enableDamping = true;
-controles.minDistance = 14;
+controles.minDistance = 12;
 controles.maxDistance = 110;
 controles.maxPolarAngle = Math.PI / 2.05;
 controles.update();
 
-scene.add(new THREE.HemisphereLight(0xbfd7ff, 0x1f2937, 0.9));
+scene.add(new THREE.HemisphereLight(0xbfd7ff, 0x1f2937, 0.95));
 const sol = new THREE.DirectionalLight(0xffffff, 1.1);
 sol.position.set(30, 50, 20);
 sol.castShadow = true;
 sol.shadow.mapSize.set(2048, 2048);
-Object.assign(sol.shadow.camera, { left: -45, right: 45, top: 45, bottom: -45, far: 160 });
+Object.assign(sol.shadow.camera, { left: -50, right: 50, top: 50, bottom: -50, far: 160 });
 scene.add(sol);
 
-// Terreno y calles
-const suelo = new THREE.Mesh(new THREE.PlaneGeometry(160, 160), new THREE.MeshStandardMaterial({ color: 0x3f6b3a }));
+const suelo = new THREE.Mesh(new THREE.PlaneGeometry(170, 170), new THREE.MeshStandardMaterial({ color: 0x3f6b3a }));
 suelo.rotation.x = -Math.PI / 2;
 suelo.receiveShadow = true;
 scene.add(suelo);
 const materialCalle = new THREE.MeshStandardMaterial({ color: 0x374151 });
+const materialAcera = new THREE.MeshStandardMaterial({ color: 0x9ca3af });
 for (let k = -1; k <= 4; k++) {
   const x = k * ESPACIO + ESPACIO / 2;
-  const calleZ = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.05, 40), materialCalle);
-  calleZ.position.set(x, 0.03, CENTRO.z);
-  calleZ.receiveShadow = true;
-  scene.add(calleZ);
-  const calleX = new THREE.Mesh(new THREE.BoxGeometry(40, 0.05, 1.8), materialCalle);
-  calleX.position.set(CENTRO.x, 0.03, x);
-  calleX.receiveShadow = true;
-  scene.add(calleX);
+  for (const [ancho, largo, px, pz] of [[2.2, 44, x, CENTRO.z], [44, 2.2, CENTRO.x, x]]) {
+    const acera = new THREE.Mesh(new THREE.BoxGeometry(ancho + 0.6, 0.04, largo), materialAcera);
+    acera.position.set(px, 0.02, pz);
+    scene.add(acera);
+    const calle = new THREE.Mesh(new THREE.BoxGeometry(ancho, 0.05, largo), materialCalle);
+    calle.position.set(px, 0.035, pz);
+    calle.receiveShadow = true;
+    scene.add(calle);
+  }
 }
 
-// Posición mundo de un edificio (en la cuadrícula) y su punto frontal para los agentes.
-const mundoDe = (pos) => new THREE.Vector3(pos[0] * ESPACIO, 0, pos[1] * ESPACIO);
+const mundoDe = (b) => (b.world ? new THREE.Vector3(b.world[0], 0, b.world[1]) : new THREE.Vector3(b.pos[0] * ESPACIO, 0, b.pos[1] * ESPACIO));
 const frente = (id) => {
-  const b = BUILDINGS.find((x) => x.id === id);
-  return mundoDe(b.pos).add(new THREE.Vector3(0, 0, 3.2));
+  const b = EDIFICIO_DE[id] || EDIFICIO_DE.residential;
+  return mundoDe(b).add(new THREE.Vector3(0, 0, 3.2));
+};
+const dentroDe = (id) => {
+  const b = EDIFICIO_DE[id];
+  return b ? mundoDe(b).add(new THREE.Vector3(0, 0.6, 0)) : frente(id);
 };
 
-function crearEtiqueta(texto, ancho = 512, alto = 96, color = "#e5e7eb") {
+function crearEtiqueta(texto, ancho = 512, alto = 96, color = "#e5e7eb", tamano = 40) {
   const c = document.createElement("canvas");
   c.width = ancho; c.height = alto;
   const g = c.getContext("2d");
-  g.fillStyle = "rgba(11,18,32,0.78)";
+  g.fillStyle = "rgba(11,18,32,0.82)";
   g.beginPath(); g.roundRect(4, 4, ancho - 8, alto - 8, 16); g.fill();
-  g.fillStyle = color; g.font = "bold 40px system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+  g.fillStyle = color; g.font = `bold ${tamano}px system-ui, sans-serif`; g.textAlign = "center"; g.textBaseline = "middle";
   g.fillText(texto, ancho / 2, alto / 2);
   const tex = new THREE.CanvasTexture(c);
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false }));
@@ -87,120 +105,161 @@ function crearEtiqueta(texto, ancho = 512, alto = 96, color = "#e5e7eb") {
   return sp;
 }
 
-// Edificios
+// ---------- interiores (visibles por transparencia de las fachadas)
+function interiorDe(id) {
+  const g = new THREE.Group();
+  const piso = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.05, 3.6), new THREE.MeshStandardMaterial({ color: 0xf1f5f9 }));
+  piso.position.y = 0.06;
+  g.add(piso);
+  const madera = new THREE.MeshStandardMaterial({ color: 0x78350f });
+  const pantalla = new THREE.MeshStandardMaterial({ color: 0x1e293b, emissive: 0x0ea5e9, emissiveIntensity: 0.5 });
+  if (id.startsWith("house")) {
+    const cama = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.4, 1.0), new THREE.MeshStandardMaterial({ color: 0x60a5fa }));
+    cama.position.set(-0.9, 0.3, -0.9);
+    const sofa = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.4, 0.6), new THREE.MeshStandardMaterial({ color: 0xf97316 }));
+    sofa.position.set(0.8, 0.3, 0.9);
+    g.add(cama, sofa);
+  } else {
+    for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.12, 0.6), madera);
+      m.position.set(x * 0.9, 0.7, z * 0.9);
+      const p = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.4, 0.05), pantalla);
+      p.position.set(x * 0.9, 1.0, z * 0.9 - 0.25);
+      g.add(m, p);
+    }
+  }
+  return g;
+}
+
+// ---------- edificios
 const edificios = {};
 for (const b of BUILDINGS) {
   const grupo = new THREE.Group();
-  const alto = ALTURA[b.id];
-  const cuerpo = new THREE.Mesh(new THREE.BoxGeometry(4.2, alto, 4.2),
-    new THREE.MeshStandardMaterial({ color: COLOR_EDIFICIO[b.id], roughness: 0.6 }));
+  const alto = ALTURA[b.id] ?? 3;
+  const color = COLOR_EDIFICIO[b.id] ?? 0x475569;
+  const material = new THREE.MeshStandardMaterial({ color, roughness: 0.6, transparent: true, opacity: 0.62 });
+  const cuerpo = new THREE.Mesh(new THREE.BoxGeometry(4.2, alto, 4.2), material);
   cuerpo.position.y = alto / 2;
-  cuerpo.castShadow = true; cuerpo.receiveShadow = true;
-  const techo = new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.4, 4.6), new THREE.MeshStandardMaterial({ color: 0x0f172a }));
-  techo.position.y = alto + 0.2;
+  cuerpo.castShadow = true;
+  const techo = new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.35, 4.6), new THREE.MeshStandardMaterial({ color: 0x0f172a }));
+  techo.position.y = alto + 0.18;
   techo.castShadow = true;
   grupo.add(cuerpo, techo);
-  // Ventanas simples (decorativas) en la cara frontal
-  const vent = new THREE.MeshStandardMaterial({ color: 0xbef264, emissive: 0x3f6212, emissiveIntensity: 0.6 });
+  const interior = TIENE_INTERIOR.has(b.id) ? interiorDe(b.id) : null;
+  if (interior) grupo.add(interior);
+  const ventana = new THREE.MeshStandardMaterial({ color: 0xbef264, emissive: 0x3f6212, emissiveIntensity: 0.5, transparent: true, opacity: 0.8 });
   for (let y = 1; y < alto - 0.5; y += 1.4) {
-    const w = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.45, 0.06), vent);
+    const w = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.42, 0.06), ventana);
     w.position.set(0, y, 2.13);
     grupo.add(w);
   }
-  grupo.position.copy(mundoDe(b.pos));
-  const etiqueta = crearEtiqueta(b.label, 640, 96);
-  etiqueta.position.set(0, alto + 1.8, 0);
+  grupo.position.copy(mundoDe(b));
+  const etiqueta = crearEtiqueta(b.label, 600, 80, "#f8fafc", 36);
+  etiqueta.position.set(0, alto + 1.4, 0);
   grupo.add(etiqueta);
   const anillos = new THREE.Group();
   grupo.add(anillos);
+  if (b.id === "residential") { // una sola nota de simulación en el barrio, no en cada casa
+    const nota = crearEtiqueta(SIM_NOTE, 900, 60, "#fde68a", 30);
+    nota.position.set(0, alto + 2.8, 0);
+    nota.scale.multiplyScalar(0.7);
+    grupo.add(nota);
+  }
   grupo.userData = { kind: "building", id: b.id };
   cuerpo.userData = grupo.userData;
   techo.userData = grupo.userData;
-  if (b.district === "simulation") {
-    const nota = crearEtiqueta(SIM_NOTE, 1000, 72, "#fbcfe8");
-    nota.position.set(0, alto + 3.2, 0);
-    nota.scale.multiplyScalar(0.8);
-    grupo.add(nota);
-  }
   scene.add(grupo);
-  edificios[b.id] = { grupo, cuerpo, anillos, anillosActivos: [] };
+  edificios[b.id] = { grupo, cuerpo, material, anillos, interior };
 }
 
-// Árboles decorativos del distrito de simulación (no representan agentes ni actividad).
-for (const [x, z] of [[24.5, 27], [28, 22], [26, 30], [21, 24]]) {
-  const copa = new THREE.Mesh(new THREE.ConeGeometry(1.3, 3, 8), new THREE.MeshStandardMaterial({ color: 0x15803d }));
+for (const [x, z] of [[24.5, 27], [28, 22], [26, 30], [21, 24], [31, 30]]) {
+  const copa = new THREE.Mesh(new THREE.ConeGeometry(1.2, 3, 8), new THREE.MeshStandardMaterial({ color: 0x15803d }));
   copa.position.set(x, 1.6, z);
   copa.castShadow = true;
   scene.add(copa);
 }
 
-// Agentes low-poly: se crean por clave cuando aparecen en el modelo (fundadores o sociedad).
+// ---------- avatares humanoides
 const agentes = {};
-const COLOR_SOCIEDAD = 0x64748b;
-function crearAvatar(key, nombre, color) {
+const PIEL = [0xfcd9b6, 0xe0ac7e, 0xc68642, 0x8d5524];
+const PELO = [0x1f2937, 0x78350f, 0xa16207, 0x111827];
+function crearAvatar(key, nombre, color, esSimulado) {
   const grupo = new THREE.Group();
-  const cuerpo = new THREE.Mesh(new THREE.CapsuleGeometry(0.42, 0.7, 4, 8),
-    new THREE.MeshStandardMaterial({ color, roughness: 0.5 }));
-  cuerpo.position.y = 0.95; cuerpo.castShadow = true;
-  const cabeza = new THREE.Mesh(new THREE.SphereGeometry(0.3, 10, 8), new THREE.MeshStandardMaterial({ color: 0xfcd9b6 }));
-  cabeza.position.y = 1.9;
+  const ropa = new THREE.MeshStandardMaterial({ color, roughness: 0.55, transparent: esSimulado, opacity: esSimulado ? 0.85 : 1 });
+  const piel = new THREE.MeshStandardMaterial({ color: PIEL[key.length % PIEL.length] });
+  const pelo = new THREE.MeshStandardMaterial({ color: PELO[key.charCodeAt(0) % PELO.length] });
+  const pantalon = new THREE.MeshStandardMaterial({ color: 0x1e293b });
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.7, 0.36), ropa);
+  torso.position.y = 1.35;
+  torso.castShadow = true;
+  const cabeza = new THREE.Mesh(new THREE.SphereGeometry(0.27, 12, 10), piel);
+  cabeza.position.y = 2.0;
+  const cabello = new THREE.Mesh(new THREE.SphereGeometry(0.29, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), pelo);
+  cabello.position.y = 2.05;
+  const brazoI = new THREE.Group(); brazoI.position.set(-0.42, 1.6, 0);
+  const brazoD = new THREE.Group(); brazoD.position.set(0.42, 1.6, 0);
+  const malI = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.62, 0.18), ropa); malI.position.y = -0.31;
+  const malD = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.62, 0.18), ropa); malD.position.y = -0.31;
+  brazoI.add(malI); brazoD.add(malD);
+  const piernaI = new THREE.Group(); piernaI.position.set(-0.16, 1.0, 0);
+  const piernaD = new THREE.Group(); piernaD.position.set(0.16, 1.0, 0);
+  const subI = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.85, 0.22), pantalon); subI.position.y = -0.42;
+  const subD = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.85, 0.22), pantalon); subD.position.y = -0.42;
+  piernaI.add(subI); piernaD.add(subD);
   const aro = new THREE.Mesh(new THREE.RingGeometry(0.55, 0.7, 24), new THREE.MeshBasicMaterial({ color: 0x6b7280, side: THREE.DoubleSide }));
   aro.rotation.x = -Math.PI / 2; aro.position.y = 0.05;
-  const etiqueta = crearEtiqueta(nombre, 560, 80, "#f8fafc");
-  etiqueta.position.y = 2.7;
-  grupo.add(cuerpo, cabeza, aro, etiqueta);
+  const seleccionAro = new THREE.Mesh(new THREE.RingGeometry(0.95, 1.12, 32), new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide }));
+  seleccionAro.rotation.x = -Math.PI / 2; seleccionAro.position.y = 0.07; seleccionAro.visible = false;
+  const etiqueta = crearEtiqueta(esSimulado ? `${nombre} · SIM` : nombre, 520, 74, esSimulado ? "#fde68a" : "#f8fafc", 34);
+  etiqueta.position.y = 2.75;
+  grupo.add(torso, cabeza, cabello, brazoI, brazoD, piernaI, piernaD, aro, seleccionAro, etiqueta);
   grupo.userData = { kind: "agent", key };
-  cuerpo.userData = grupo.userData; cabeza.userData = grupo.userData; aro.userData = grupo.userData;
+  for (const m of [torso, cabeza, cabello, subI, subD, malI, malD]) m.userData = grupo.userData;
   scene.add(grupo);
-  agentes[key] = { grupo, aro, cuerpo, etiqueta, ruta: [], origen: null, t: 0, destino: null, desfase: Math.random() * 6 };
+  agentes[key] = { grupo, aro, seleccionAro, etiqueta, piernaI, piernaD, brazoI, brazoD,
+    ruta: [], t: 0, destino: null, desfase: Math.random() * 6, esSimulado };
   return agentes[key];
 }
-// Sincroniza avatares con el modelo: crea los nuevos, oculta los que ya no aparecen.
+
 function sincronizarAvatares(city) {
   const presentes = new Set(city.agents.map((a) => a.key));
   for (const a of city.agents) {
     if (!agentes[a.key]) {
       const f = AGENTS.find((x) => x.key === a.key);
-      crearAvatar(a.key, a.name, f ? f.color : COLOR_SOCIEDAD);
+      crearAvatar(a.key, a.name, f ? f.color : (a.kind === "simulated" ? COLOR_SIM : 0x64748b), a.kind === "simulated");
     }
     agentes[a.key].grupo.visible = true;
   }
   for (const key in agentes) if (!presentes.has(key)) agentes[key].grupo.visible = false;
 }
 
-// Ruta por calles: del frente del origen, a la altura de la calle del destino, luego al frente del destino.
-function rutaHasta(origen, id) {
-  const destino = frente(id);
-  const desde = origen.clone();
-  const mitad = new THREE.Vector3(destino.x, 0, desde.z);
-  return [desde, mitad, destino];
-}
-
-// Recalcula destinos cuando cambia el modelo. Sólo mueve si el destino cambió.
+// Los simulados con actividad dentro de un edificio entran (visibles por transparencia); el resto espera en la puerta.
 function asignarDestinos(city) {
   sincronizarAvatares(city);
   const porEdificio = {};
-  for (const a of city.agents) {
-    (porEdificio[a.target] ||= []).push(a.key);
-  }
+  for (const a of city.agents) (porEdificio[a.target] ||= []).push(a.key);
   for (const a of city.agents) {
     const ag = agentes[a.key];
-    const slot = porEdificio[a.target].indexOf(a.key);
-    const lugar = frente(a.target).add(new THREE.Vector3((slot - (porEdificio[a.target].length - 1) / 2) * 1.6, 0, 0.6));
+    if (!ag) continue;
+    const grupo = porEdificio[a.target];
+    const slot = grupo.indexOf(a.key);
+    const adentro = a.kind === "simulated" && DENTRO_SIM.includes(a.state);
+    const base = adentro ? dentroDe(a.target) : frente(a.target);
+    const lugar = base.clone().add(new THREE.Vector3((slot - (grupo.length - 1) / 2) * 1.5, 0, adentro ? 0 : 0.6));
     ag.colorEstado = STATE_COLOR[a.state] ?? 0x6b7280;
-    ag.grupo.userData.kind = "agent";
+    ag.etiqueta.visible = !a.kind || a.kind !== "simulated" || ag.seleccionAro.visible; // simulados: etiqueta sólo si están seleccionados
     ag.aro.material.color.setHex(ag.colorEstado);
-    ag.estado = a.state;
-    if (!ag.destino || !ag.destino.equals(lugar)) {
-      const origen = ag.grupo.position.clone();
-      const base = origen.lengthSq() === 0 ? frente(a.target) : origen;
-      ag.ruta = rutaHasta(base, a.target).slice(0, 2).concat([lugar]);
-      ag.origen = base;
-      ag.destino = lugar;
-      ag.t = 0;
+    if (ag.grupo.position.lengthSq() === 0) {
+      const nace = a.kind === "simulated" && a.home ? frente(a.home) : frente(a.target);
+      ag.grupo.position.copy(nace);
     }
-    const nueva = crearEtiqueta(`${a.name} · ${a.state}`, 560, 80, "#f8fafc");
-    if (a.kind === "society") ag.etiqueta.userData.sociedad = true;
+    if (!ag.destino || !ag.destino.equals(lugar)) {
+      const desde = ag.grupo.position.clone();
+      ag.ruta = [desde, new THREE.Vector3(lugar.x, 0, desde.z), lugar];
+      ag.t = 0;
+      ag.destino = lugar;
+    }
+    const nueva = crearEtiqueta(`${a.name} · ${a.state}`, 560, 74, a.kind === "simulated" ? "#fde68a" : "#f8fafc", 32);
     ag.etiqueta.material.map.dispose();
     ag.etiqueta.material.map = nueva.material.map;
     ag.etiqueta.material.needsUpdate = true;
@@ -208,13 +267,16 @@ function asignarDestinos(city) {
   }
 }
 
-// Animación de caminar: interpola tramos de la ruta a velocidad constante.
-const VELOCIDAD = 4.5;
-function avanzarAgentes(dt) {
+// Marcha (piernas y brazos alternos) al moverse; respiración suave al estar quieto.
+function avanzarAgentes(dt, tiempo) {
   for (const key in agentes) {
     const ag = agentes[key];
+    if (!ag.grupo.visible) continue;
     if (ag.ruta.length < 2) {
-      ag.grupo.position.y = Math.sin(performance.now() / 700 + ag.desfase) * 0.05; // ocioso: respiración suave
+      ag.grupo.position.y = 0;
+      const r = Math.sin(tiempo / 700 + ag.desfase) * 0.05;
+      ag.piernaI.rotation.x = 0; ag.piernaD.rotation.x = 0;
+      ag.brazoI.rotation.x = r; ag.brazoD.rotation.x = -r;
       continue;
     }
     let restante = VELOCIDAD * dt;
@@ -226,18 +288,24 @@ function avanzarAgentes(dt) {
       restante -= usado;
       const f = tramo === 0 ? 1 : ag.t / tramo;
       ag.grupo.position.lerpVectors(a, b, f);
-      ag.grupo.position.y = Math.abs(Math.sin(performance.now() / 120)) * 0.12; // paso
       if (ag.t >= tramo - 1e-6) { ag.ruta.shift(); ag.t = 0; }
     }
-    if (ag.ruta.length < 2) ag.grupo.position.y = 0;
-    else ag.grupo.lookAt(ag.ruta[1]);
+    if (ag.ruta.length >= 2) {
+      ag.grupo.lookAt(ag.ruta[1]);
+      const paso = Math.sin(tiempo / 110 + ag.desfase) * 0.7;
+      ag.piernaI.rotation.x = paso; ag.piernaD.rotation.x = -paso;
+      ag.brazoI.rotation.x = -paso * 0.8; ag.brazoD.rotation.x = paso * 0.8;
+      ag.grupo.position.y = Math.abs(Math.sin(tiempo / 110 + ag.desfase)) * 0.06;
+    } else {
+      ag.grupo.position.y = 0;
+      ag.piernaI.rotation.x = 0; ag.piernaD.rotation.x = 0;
+      ag.brazoI.rotation.x = 0; ag.brazoD.rotation.x = 0;
+    }
   }
 }
 
-// Pulsos de eventos sobre edificios: anillos que se expanden y se desvanecen.
-const DURACION_PULSO_S = 25;
+// ---------- pulsos de eventos reales
 const geometriaAnillo = new THREE.RingGeometry(2.6, 3.0, 40);
-// Se llama al refrescar el modelo: crea un anillo por evento reciente (no por fotograma).
 function actualizarPulsos(city, ahoraMs) {
   for (const b of city.buildings) {
     const e = edificios[b.id];
@@ -246,8 +314,7 @@ function actualizarPulsos(city, ahoraMs) {
     for (const p of b.pulses) {
       const nacimiento = Date.parse(p.at);
       if (!(ahoraMs - nacimiento >= 0 && ahoraMs - nacimiento < DURACION_PULSO_S * 1000)) continue;
-      const anillo = new THREE.Mesh(geometriaAnillo,
-        new THREE.MeshBasicMaterial({ color: COLOR_PULSO[p.type] ?? 0xffffff, transparent: true, opacity: 1, side: THREE.DoubleSide }));
+      const anillo = new THREE.Mesh(geometriaAnillo, new THREE.MeshBasicMaterial({ color: COLOR_PULSO[p.type] ?? 0xffffff, transparent: true, opacity: 1, side: THREE.DoubleSide }));
       anillo.rotation.x = -Math.PI / 2;
       anillo.position.y = 0.12;
       anillo.userData.nacimiento = nacimiento;
@@ -255,7 +322,6 @@ function actualizarPulsos(city, ahoraMs) {
     }
   }
 }
-// Animación por fotograma: sólo escala y opacidad de anillos existentes.
 function animarPulsos(ahoraMs) {
   for (const id in edificios) {
     for (const anillo of [...edificios[id].anillos.children]) {
@@ -267,76 +333,184 @@ function animarPulsos(ahoraMs) {
   }
 }
 
-// Selección por clic
+// ---------- selección y cortes
+let seleccion = null; // { kind: "building", id } | { kind: "agent", key }
+let ultimo = null;
+function resaltarSeleccion() {
+  for (const id in edificios) {
+    const sel = seleccion && seleccion.kind === "building" && seleccion.id === id;
+    edificios[id].material.emissive = new THREE.Color(sel ? 0x334155 : 0x000000);
+    edificios[id].material.opacity = sel ? 0.8 : 0.62;
+  }
+  for (const key in agentes) {
+    const sel = Boolean(seleccion && seleccion.kind === "agent" && seleccion.key === key);
+    agentes[key].seleccionAro.visible = sel;
+    if (agentes[key].esSimulado) agentes[key].etiqueta.visible = sel;
+  }
+}
+let interioresVisibles = true;
+function aplicarInteriores() {
+  for (const id in edificios) if (edificios[id].interior) edificios[id].interior.visible = interioresVisibles;
+}
+$("cortes").addEventListener("click", () => {
+  interioresVisibles = !interioresVisibles;
+  $("cortes").textContent = `Interiores: ${interioresVisibles ? "on" : "off"}`;
+  aplicarInteriores();
+});
+
 const raycaster = new THREE.Raycaster();
 const puntero = new THREE.Vector2();
-let seleccion = null;
 renderer.domElement.addEventListener("click", (ev) => {
   const r = renderer.domElement.getBoundingClientRect();
   puntero.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
   raycaster.setFromCamera(puntero, camara);
   const objetos = [];
-  scene.traverse((o) => { if (o.userData && o.userData.kind) objetos.push(o); });
+  scene.traverse((o) => { if (o.visible && o.userData && o.userData.kind) objetos.push(o); });
   const hit = raycaster.intersectObjects(objetos, true)[0];
   let objeto = hit ? hit.object : null;
   while (objeto && !(objeto.userData && objeto.userData.kind)) objeto = objeto.parent;
-  if (objeto) { seleccion = objeto.userData; mostrarSeleccion(); }
+  if (!objeto) return;
+  seleccion = objeto.userData.kind === "building"
+    ? { kind: "building", id: objeto.userData.id }
+    : { kind: "agent", key: objeto.userData.key };
+  resaltarSeleccion();
+  pintarSeleccion();
+});
+$("p-cerrar").addEventListener("click", () => {
+  seleccion = null;
+  resaltarSeleccion();
+  pintarSeleccion();
 });
 
-let ultimo = null;
-function mostrarSeleccion() {
+// ---------- paneles
+const fila = (k, v) => `<div class="fila"><span>${escapar(k)}</span><span>${escapar(v)}</span></div>`;
+
+function pintarSeleccion() {
   if (!ultimo) return;
-  if (!seleccion) return;
+  if (!seleccion) return pintarResumen();
   if (seleccion.kind === "building") {
-    const b = BUILDINGS.find((x) => x.id === seleccion.id);
+    const b = EDIFICIO_DE[seleccion.id];
+    if (!b) return pintarResumen();
     const bloque = ultimo.buildings.find((x) => x.id === seleccion.id);
-    const pulsos = (bloque?.pulses || []).map((p) => `<li>${p.type} — ${p.subject || ""} ${p.detail || ""}</li>`).join("") || "<li class='muted'>sin eventos recientes</li>";
+    const esSim = b.district === "simulation";
+    const dentro = ultimo.agents.filter((a) => a.target === seleccion.id);
+    const reales = dentro.filter((a) => a.kind !== "simulated");
+    const sims = dentro.filter((a) => a.kind === "simulated");
+    const pulsos = (bloque?.pulses || []).map((p) => `<li><b>${escapar(p.type)}</b> ${escapar(p.subject)} ${escapar(p.detail)}</li>`).join("")
+      || "<li class='muted'>sin eventos reales recientes</li>";
     $("p-titulo").textContent = b.label;
-    $("p-cuerpo").innerHTML = `<dl><dt>Distrito</dt><dd>${b.district === "simulation" ? "Life Simulation — " + SIM_NOTE : "Operational Reality"}</dd></dl>
-      <h3>Eventos recientes aquí</h3><ul>${pulsos}</ul>`;
-  } else {
-    const a = ultimo.agents.find((x) => x.key === seleccion.key);
-    $("p-titulo").textContent = `${a.name} (${a.alias})`;
-    $("p-cuerpo").innerHTML = `<dl>
-      <dt>Estado</dt><dd>${a.state}</dd>
-      <dt>Motivo</dt><dd>${a.reason}</dd>
-      <dt>Tarea actual</dt><dd>${a.currentTask || "NOT_SYNCED"}</dd>
-      <dt>Último commit</dt><dd>${a.heartbeat || "NOT_SYNCED (no es heartbeat en vivo)"}</dd>
-      <dt>Último resultado</dt><dd>${a.lastResult || "NOT_SYNCED"}</dd>
-      <dt>Último evento</dt><dd>${a.lastEvent ? a.lastEvent.type + " · " + a.lastEvent.at : "ninguno en 2 h"}</dd>
-    </dl>`;
+    $("p-badge").className = `badge ${esSim ? "sim" : "real"}`;
+    $("p-badge").textContent = esSim ? "SIMULACIÓN" : "REAL";
+    $("p-cuerpo").innerHTML =
+      `${fila("Distrito", esSim ? "Life Simulation" : "Operational Reality")}
+       ${fila("Agentes reales aquí", reales.length ? reales.map((a) => a.name).join(", ") : "ninguno")}
+       ${fila("Simulados aquí", String(sims.length))}
+       ${esSim ? `<p class="nota-sim">${escapar(SIM_NOTE)}</p>` : ""}
+       <div class="grupo-titulo">Eventos reales en este edificio</div><ul class="feed" style="padding:0">${pulsos}</ul>`;
+    return;
   }
+  const a = ultimo.agents.find((x) => x.key === seleccion.key);
+  if (!a) return pintarResumen();
+  const esSim = a.kind === "simulated";
+  $("p-titulo").textContent = a.name;
+  $("p-badge").className = `badge ${esSim ? "sim" : "real"}`;
+  $("p-badge").textContent = esSim ? "SIMULADO" : "REAL";
+  $("p-cuerpo").innerHTML =
+    `${fila("Estado", a.state)}
+     ${fila("Dónde está", NOMBRE_EDIFICIO[a.target] || a.target)}
+     ${fila("Motivo", a.reason)}
+     ${esSim ? `<p class="nota-sim">${escapar(SIM_NOTE)}. No es evidencia de trabajo.</p>`
+       : `${fila("Tarea actual", a.currentTask || "NOT_SYNCED")}
+          ${fila("Último commit", a.heartbeat || "NOT_SYNCED (no es heartbeat)")}
+          ${fila("Último resultado", a.lastResult || "NOT_SYNCED")}
+          ${fila("Último evento", a.lastEvent ? a.lastEvent.type + " · " + a.lastEvent.at : "ninguno en 2 h")}`}`;
 }
 
-function pintarFeed(city) {
-  $("feed").innerHTML = city.feed.map((e) => `<li><b>${e.type}</b> <span class="muted">${e.observed_at || e.ts || ""}</span><br>${e.subject || ""} ${e.detail || ""}</li>`).join("") || "<li class='muted'>sin eventos</li>";
+function pintarResumen() {
+  $("p-titulo").textContent = "Ciudad";
+  $("p-badge").className = "badge mix";
+  $("p-badge").textContent = "RESUMEN";
+  const reales = ultimo.agents.filter((a) => a.kind !== "simulated");
+  const sims = ultimo.agents.filter((a) => a.kind === "simulated");
+  $("p-cuerpo").innerHTML =
+    `${fila("Modo", ultimo.mode)}
+     ${fila("Sincronización", ultimo.syncOk ? "OK" : "no verificada")}
+     ${fila("Agentes reales", reales.length)}
+     ${fila("Población simulada", sims.length)}
+     ${fila("Demanda real", `${ultimo.demand?.abiertas ?? 0} abiertas · ${ultimo.demand?.actividad24h ?? 0} eventos 24 h`)}`;
 }
 
-function pintarBanners(city) {
-  $("banners").innerHTML = city.banners.map((b) => `<div class="b">${b}</div>`).join("");
-  $("modo").textContent = `${city.mode} MODE`;
-  $("sync").textContent = city.syncOk ? `sync OK · ${city.snapshotAt}` : "sync no verificada";
+function pintarRealidad() {
+  const reales = ultimo.agents.filter((a) => a.kind !== "simulated");
+  $("sec-real").innerHTML =
+    `${fila("Sincronización", ultimo.syncOk ? "OK" : "no verificada")}
+     ${fila("Agentes reales", reales.length)}
+     ${reales.map((a) => fila(a.name, a.state)).join("")}
+     <p class="muted" style="font-size:11px;margin:6px 0 0">Estados sólo de sync, eventos reales y documentos. Sin evidencia = NOT_SYNCED.</p>`;
 }
 
-let fallo = null;
+function pintarSimulacion() {
+  const sims = ultimo.agents.filter((a) => a.kind === "simulated" && a.stage !== "SIM_ROLE");
+  const porEstado = {};
+  for (const s of sims) porEstado[s.state] = (porEstado[s.state] || 0) + 1;
+  const estados = Object.entries(porEstado).map(([k, v]) => `<span>${escapar(k)} ${v}</span>`).join("") || "<span>ninguno</span>";
+  const roles = ultimo.agents.filter((a) => a.stage === "SIM_ROLE").map((s) => `<span>${escapar(s.name)}</span>`).join("") || "<span>ninguno</span>";
+  $("sec-sim").innerHTML =
+    `<p class="nota-sim">${escapar(SIM_NOTE)}. Crece sólo con demanda real: abiertas ${ultimo.demand?.abiertas ?? 0}, eventos 24 h ${ultimo.demand?.actividad24h ?? 0}.</p>
+     ${fila("Población", sims.length)}
+     <div class="grupo-titulo">Estados visuales</div><div class="chipline">${estados}</div>
+     <div class="grupo-titulo">Roles simulados activos</div><div class="chipline">${roles}</div>`;
+}
+
+function pintarRoles() {
+  const conectados = ultimo.agents.filter((a) => a.kind !== "simulated" && a.stage === "CORE")
+    .map((a) => `<span>${escapar(a.name)} (${escapar(a.alias)})</span>`).join("") || "<span>ninguno</span>";
+  const simulados = ultimo.agents.filter((a) => a.stage === "SIM_ROLE").map((a) => `<span>${escapar(a.name)}</span>`).join("") || "<span>ninguno</span>";
+  const planeados = ultimo.planned || [];
+  const grupos = CATEGORIAS.map((c) => {
+    const lista = planeados.filter((p) => p.categoria === c);
+    if (!lista.length) return "";
+    return `<div class="grupo-titulo">${escapar(c)}</div>` + lista.map((p) => fila(p.name, p.state)).join("");
+  }).join("");
+  $("sec-roles").innerHTML =
+    `<div class="grupo-titulo">Conectados a fuente real</div><div class="chipline">${conectados}</div>
+     <div class="grupo-titulo">Simulados activos (sin fuente real)</div><div class="chipline">${simulados}</div>
+     <div class="grupo-titulo">Planificados (inactivos)</div>${grupos || "<p class='muted'>ninguno</p>"}`;
+}
+
+function pintarFeed() {
+  $("feed").innerHTML = ultimo.feed.map((e) =>
+    `<li><b>${escapar(e.type)}</b> <span class="badge real" style="font-size:9px">REAL</span><br>${escapar(e.subject)} ${escapar(e.detail)}<br><time>${escapar(e.observed_at || e.ts || "")}</time></li>`
+  ).join("") || "<li class='muted'>sin eventos</li>";
+}
+
+function pintarBanners() {
+  $("banners").innerHTML = ultimo.banners.map((b) => `<div class="b">${escapar(b)}</div>`).join("");
+  $("modo").textContent = `${ultimo.mode} MODE`;
+  $("sync").textContent = ultimo.syncOk ? `sync OK · ${ultimo.snapshotAt}` : "sync no verificada";
+}
+
+// ---------- refresco (conservador: 30 s, sólo lectura)
 async function refrescar() {
   try {
     const r = await fetch("/api/state", { cache: "no-store" });
     if (!r.ok) throw new Error("HTTP " + r.status);
     const datos = await r.json();
     ultimo = deriveCity({ snapshot: datos.snapshot, society: datos.society, events: datos.events, now: new Date() });
-    fallo = null;
     asignarDestinos(ultimo);
     actualizarPulsos(ultimo, Date.now());
-    pintarFeed(ultimo);
-    pintarBanners(ultimo);
-    $("planned").innerHTML = (ultimo.planned || []).map((r) => `<li>${r.name} — ${r.state}</li>`).join("") || "<li>ninguno</li>";
+    aplicarInteriores();
+    pintarBanners();
+    pintarRealidad();
+    pintarSimulacion();
+    pintarRoles();
+    pintarFeed();
+    pintarSeleccion();
+    resaltarSeleccion();
     $("refresco").textContent = `actualizado ${new Date().toLocaleTimeString()}`;
-    mostrarSeleccion();
   } catch (e) {
-    fallo = e.message;
     $("sync").textContent = "servidor no responde";
-    $("banners").innerHTML = `<div class="b">SIN DATOS: ${fallo}. Se conserva la última vista.</div>`;
+    $("banners").innerHTML = `<div class="b">SIN DATOS: ${escapar(e.message)}. Se conserva la última vista.</div>`;
   }
 }
 
@@ -360,7 +534,7 @@ renderer.setAnimationLoop(() => {
   const ahora = performance.now();
   const dt = Math.min(0.1, (ahora - anterior) / 1000);
   anterior = ahora;
-  avanzarAgentes(dt);
+  avanzarAgentes(dt, ahora);
   animarPulsos(Date.now());
   controles.update();
   renderer.render(scene, camara);
