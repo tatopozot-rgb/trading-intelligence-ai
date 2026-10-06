@@ -16,6 +16,7 @@ from trading_intelligence.risk.engine import (
     REASON_DAILY_TRADE_LIMIT_REACHED,
     REASON_DRAWDOWN_PAUSE_ACTIVE,
     REASON_EXPOSURE_LIMIT_EXCEEDED,
+    REASON_INVALID_REFERENCE_PRICE,
     REASON_KILL_SWITCH_ACTIVE,
     REASON_MAX_POSITION_SIZE_EXCEEDED,
     REASON_MAX_POSITIONS_REACHED,
@@ -169,6 +170,35 @@ class TestStopLossValidation:
         decision = engine.validate_order(proposal, equity=Decimal("10000"), reference_price=Decimal("50000"))
         assert not decision.approved
         assert decision.reason == REASON_NO_STOP_LOSS_DEFINED
+
+    def test_zero_reference_price_rejected_with_invalid_reference_price_not_no_stop_loss(self, tmp_path):
+        """A MARKET proposal (entry_price=None) falls back to reference_price.
+        A non-positive reference_price (bad feed, data glitch) must be
+        rejected under its own reason, not mislabeled as a missing stop —
+        the stop IS defined here; the entry/reference price is what's
+        invalid. This also guards the division in stop_distance_pct just
+        below, which would ZeroDivisionError on entry_price == 0."""
+        engine = _engine(tmp_path)
+        proposal = _proposal(entry_price=None)
+        decision = engine.validate_order(proposal, equity=Decimal("10000"), reference_price=Decimal("0"))
+        assert not decision.approved
+        assert decision.reason == REASON_INVALID_REFERENCE_PRICE
+
+    def test_negative_reference_price_rejected_with_invalid_reference_price(self, tmp_path):
+        engine = _engine(tmp_path)
+        proposal = _proposal(entry_price=None)
+        decision = engine.validate_order(proposal, equity=Decimal("10000"), reference_price=Decimal("-100"))
+        assert not decision.approved
+        assert decision.reason == REASON_INVALID_REFERENCE_PRICE
+
+    def test_non_positive_entry_price_on_the_proposal_itself_rejected(self, tmp_path):
+        """A LIMIT-style proposal carrying its own non-positive entry_price
+        (not falling back to reference_price) must be caught the same way."""
+        engine = _engine(tmp_path)
+        proposal = _proposal(entry_price=Decimal("0"))
+        decision = engine.validate_order(proposal, equity=Decimal("10000"), reference_price=Decimal("50000"))
+        assert not decision.approved
+        assert decision.reason == REASON_INVALID_REFERENCE_PRICE
 
     def test_stop_too_tight_rejected(self, tmp_path):
         engine = _engine(tmp_path, min_stop_distance_pct=0.5)

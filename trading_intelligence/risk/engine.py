@@ -26,6 +26,7 @@ REASON_KILL_SWITCH_ACTIVE = "KILL_SWITCH_ACTIVE"
 REASON_DAILY_LOSS_LIMIT_REACHED = "DAILY_LOSS_LIMIT_REACHED"
 REASON_DRAWDOWN_PAUSE_ACTIVE = "DRAWDOWN_PAUSE_ACTIVE"
 REASON_NO_STOP_LOSS_DEFINED = "NO_STOP_LOSS_DEFINED"
+REASON_INVALID_REFERENCE_PRICE = "INVALID_REFERENCE_PRICE"
 REASON_STOP_TOO_TIGHT = "STOP_TOO_TIGHT"
 REASON_POSITION_SIZE_ZERO = "POSITION_SIZE_ZERO"
 REASON_MAX_POSITIONS_REACHED = "MAX_POSITIONS_REACHED"
@@ -279,7 +280,7 @@ class RiskEngine:
 
             entry_price = proposal.entry_price if proposal.entry_price is not None else reference_price
             if entry_price <= 0:
-                return self._reject(proposal, REASON_NO_STOP_LOSS_DEFINED, equity, daily_pnl,
+                return self._reject(proposal, REASON_INVALID_REFERENCE_PRICE, equity, daily_pnl,
                                      daily_loss_pct, drawdown_pct)
 
             stop_distance_pct = abs(entry_price - proposal.stop_price) / entry_price * 100
