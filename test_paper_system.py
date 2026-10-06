@@ -26,6 +26,10 @@ class PaperTests(unittest.TestCase):
         self.root = Path(self.tmp.name)
         self.patches = [patch.object(config, 'BASE_DATOS', self.root/'test.db'),
             patch.object(config, 'DIRECTORIO', self.root),
+            # Fixture explícito: la política real de halt sigue sin aprobar (None = bloqueo).
+            patch.object(config, 'DRAWDOWN_HALT_PCT', 50.0),
+            # Sin red: el equity no realizado usa precio inyectado (entrada simulada).
+            patch.object(store, '_precio_para_equity', side_effect=lambda simbolo: 100.0),
             patch.object(monitor, 'BASE_DATOS', self.root/'test.db'),
             patch.object(bridge, 'DIRECTORIO', self.root),
             patch.object(bridge, 'RUTA_JSON', self.root/'request.json'),

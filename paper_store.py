@@ -34,6 +34,7 @@ def conectar():
 
 def inicializar():
     with conectar() as con:
+        halt_nuevo = con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='paper_halt'").fetchone() is None
         con.executescript('''
         CREATE TABLE IF NOT EXISTS paper_account (
           id INTEGER PRIMARY KEY, capital_inicial REAL NOT NULL,
@@ -55,6 +56,11 @@ def inicializar():
           id INTEGER PRIMARY KEY, fecha TEXT NOT NULL, monto REAL NOT NULL, nota TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS paper_days (
           dia TEXT PRIMARY KEY, capital_base REAL NOT NULL);
+        CREATE TABLE IF NOT EXISTS paper_halt (
+          id INTEGER PRIMARY KEY CHECK (id = 1),
+          activo INTEGER NOT NULL CHECK (activo IN (0, 1)),
+          razon TEXT NOT NULL, pico_equity REAL, equity_activacion REAL,
+          fecha_actualizacion TEXT NOT NULL);
         ''')
         con.execute('BEGIN IMMEDIATE')
         columnas = {r['name'] for r in con.execute('PRAGMA table_info(paper_trades)')}
@@ -66,6 +72,11 @@ def inicializar():
         fecha = ahora().isoformat()
         con.execute('INSERT OR IGNORE INTO paper_account VALUES (1,?,?,?,?,?)',
                     (config.CAPITAL_USD, config.CAPITAL_USD, 0, fecha, fecha))
+        # Fila inicial sólo al crear la tabla: si luego desaparece, es corrupción y se bloquea (fail-closed).
+        if halt_nuevo:
+            con.execute('INSERT OR IGNORE INTO paper_halt(id,activo,razon,fecha_actualizacion) VALUES (1,0,?,?)',
+                        ('', fecha))
+            evento(con, 'HALT_INICIALIZADO', {'activo': 0})
 
 
 def evento(con, tipo, datos):
@@ -260,6 +271,12 @@ def _abrir_validado(con, fila, plan, respuesta, precio_actual, automatico,
         raise ValueError('Precio fuera del rango del plan.')
     if (config.DIRECTORIO / 'PAUSA_ENTRADAS').exists():
         raise ValueError('Nuevas entradas pausadas.')
+    bloqueado, nuevo, motivo = _evaluar_halt(con)
+    if bloqueado:
+        if nuevo:
+            # Retorno normal: la activación se confirma aunque la entrada quede rechazada.
+            return {'registrada': False, 'motivo': motivo}
+        raise ValueError(motivo)
     saldo = con.execute('SELECT saldo_actual FROM paper_account WHERE id=1').fetchone()[0]
     estado = resumen(con)
     dia, base = asegurar_dia(con, ahora(), saldo)
@@ -392,6 +409,108 @@ def preparar_cierre(con, fila):
                                  comision_pct=fila['comision_pct_apertura'], precio=fila['entrada'],
                                  ahora_ms=int(fecha.timestamp()*1000))
     return plan, evidencia
+
+
+def _precio_para_equity(simbolo):
+    """Cotización pública; se resuelve en cada llamada para permitir inyección en pruebas."""
+    from market_http import precio_actual
+    return precio_actual(simbolo)
+
+
+def equity_mtm(con, precio_fn=None):
+    """Saldo realizado más resultado no realizado, con el mismo cálculo que usaría el cierre.
+    Un precio ausente o inválido eleva error: nunca se sustituye por saldo_actual."""
+    precio_fn = precio_fn or _precio_para_equity
+    saldo = con.execute('SELECT saldo_actual FROM paper_account WHERE id=1').fetchone()[0]
+    abiertas = con.execute("SELECT simbolo,entrada,tamano_posicion,comision_pct_apertura "
+                           "FROM paper_trades WHERE estado='ABIERTA'").fetchall()
+    no_realizados = []
+    for fila in abiertas:
+        try:
+            precio = precio_fn(fila['simbolo'])
+        except Exception as error:
+            raise ValueError('Precio no disponible para calcular equity; entradas bloqueadas.') from error
+        no_realizados.append(calcular_resultado_cierre(fila['entrada'], fila['tamano_posicion'],
+                                                       precio, fila['comision_pct_apertura'])['resultado_usd'])
+    equity = saldo + math.fsum(no_realizados)
+    if not math.isfinite(equity):
+        raise ValueError('Equity no finito.')
+    return equity
+
+
+def _umbral_valido(umbral):
+    return (isinstance(umbral, (int, float)) and not isinstance(umbral, bool)
+            and math.isfinite(umbral) and umbral > 0)
+
+
+def _drawdown_pct(equity, pico):
+    return (pico-equity)/pico*100 if pico > 0 else 0.0
+
+
+def _evaluar_halt(con, precio_fn=None):
+    """Único punto de decisión del halt; escribe pico y activación en la transacción del llamante.
+    Devuelve (bloqueado, nuevo, motivo). Fail-closed: estado ausente/corrupto o umbral no aprobado lanza error.
+    Nunca se desactiva aquí: la salida es sólo liberar_halt con confirmación humana."""
+    fila = con.execute('SELECT activo,razon,pico_equity FROM paper_halt WHERE id=1').fetchone()
+    if fila is None or fila['activo'] not in (0, 1):
+        raise ValueError('Estado de halt ausente o corrupto; entradas bloqueadas.')
+    if fila['activo'] == 1:
+        return True, False, 'Halt de riesgo activo: ' + fila['razon']
+    umbral = config.DRAWDOWN_HALT_PCT
+    if not _umbral_valido(umbral):
+        raise ValueError('Umbral de halt por drawdown no aprobado; entradas bloqueadas.')
+    equity = equity_mtm(con, precio_fn)
+    pico = equity if fila['pico_equity'] is None else max(equity, fila['pico_equity'])
+    dd = _drawdown_pct(equity, pico)
+    fecha = ahora().isoformat()
+    con.execute('UPDATE paper_halt SET pico_equity=?,fecha_actualizacion=? WHERE id=1', (pico, fecha))
+    if dd < umbral:
+        return False, False, ''
+    razon = f'DRAWDOWN_HALT {dd:.4f}% desde pico {pico:.4f} (umbral {umbral}%)'
+    con.execute('UPDATE paper_halt SET activo=1,razon=?,equity_activacion=?,fecha_actualizacion=? WHERE id=1',
+                (razon, equity, fecha))
+    evento(con, 'HALT_ACTIVADO', {'razon': razon, 'equity': equity, 'pico': pico,
+                                  'drawdown_pct': dd, 'umbral_pct': umbral})
+    return True, True, razon
+
+
+def evaluar_riesgo(precio_fn=None):
+    """Evaluación independiente de aperturas: fija el pico con MTM aunque no haya intento de entrada."""
+    validar_paper()
+    inicializar()
+    with conectar() as con:
+        con.execute('BEGIN IMMEDIATE')
+        bloqueado, nuevo, motivo = _evaluar_halt(con, precio_fn)
+    return {'bloqueado': bloqueado, 'nuevo': nuevo, 'motivo': motivo}
+
+
+def liberar_halt(*, confirmado=False, precio_fn=None):
+    """Única salida del halt: exige confirmación explícita y drawdown actual por debajo del umbral."""
+    validar_paper()
+    if confirmado is not True:
+        raise ValueError('Se requiere confirmación explícita para liberar el halt de riesgo.')
+    inicializar()
+    with conectar() as con:
+        con.execute('BEGIN IMMEDIATE')
+        fila = con.execute('SELECT activo,pico_equity FROM paper_halt WHERE id=1').fetchone()
+        if fila is None or fila['activo'] not in (0, 1):
+            raise ValueError('Estado de halt ausente o corrupto; no liberar sin revisión.')
+        if fila['activo'] == 0:
+            return {'liberado': False, 'motivo': 'Sin halt activo.'}
+        umbral = config.DRAWDOWN_HALT_PCT
+        if not _umbral_valido(umbral):
+            raise ValueError('Umbral de halt por drawdown no aprobado; no liberar.')
+        equity = equity_mtm(con, precio_fn)
+        pico = equity if fila['pico_equity'] is None else max(equity, fila['pico_equity'])
+        dd = _drawdown_pct(equity, pico)
+        if dd >= umbral:
+            raise ValueError('Drawdown sigue por encima del umbral; halt no liberable.')
+        fecha = ahora().isoformat()
+        con.execute("UPDATE paper_halt SET activo=0,razon='',pico_equity=?,fecha_actualizacion=? WHERE id=1",
+                    (pico, fecha))
+        evento(con, 'HALT_LIBERADO', {'equity': equity, 'pico': pico,
+                                      'drawdown_pct': dd, 'umbral_pct': umbral})
+        return {'liberado': True, 'equity': equity, 'pico': pico, 'drawdown_pct': dd}
 
 
 def cerrar(identidad, precio, motivo, *, evidencia_fill=None):

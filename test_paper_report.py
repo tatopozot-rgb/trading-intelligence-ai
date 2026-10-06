@@ -15,7 +15,9 @@ class InformeTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.ruta = Path(self.tmp.name)/'paper.db'
-        self.patches = [patch.object(config,'BASE_DATOS',self.ruta),patch.object(config,'DIRECTORIO',Path(self.tmp.name))]
+        self.patches = [patch.object(config,'BASE_DATOS',self.ruta),patch.object(config,'DIRECTORIO',Path(self.tmp.name)),
+            patch.object(config,'DRAWDOWN_HALT_PCT',50.0),
+            patch.object(store,'_precio_para_equity',side_effect=lambda simbolo: 100.0)]
         for p in self.patches:
             p.start()
         store.inicializar()

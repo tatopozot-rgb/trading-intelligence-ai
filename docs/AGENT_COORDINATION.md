@@ -19,6 +19,8 @@ No merge until cross-review. The old no-code setup description is historical, no
 | Import baseline, dependency declaration, safety guard, manual CI | Trading Codex | IN PROGRESS | root source/tests/docs, .github, tools/check_repository.py | No operational logic changes; Issue #2 |
 | Architecture/risk cross-review | Trading Claude Work | WAITING FOR PR | read-only source and PR comments | Task confirmed no concurrent implementation |
 | MARKET lot/dust offline contract | Trading Codex | IN REVIEW (PR #4, branch `codex/market-lot-contract`, stacked on PR #3) | execution_market_filters.py, test_execution_market_filters.py | Offline only; fail-closed; quoteOrderQty and LOT_SIZE-on-MARKET unverified in official docs; no paper_fills change |
+| Finding 3: persistent automatic drawdown halt (separate from PAUSA_ENTRADAS; fail-closed; never auto-clears; closes unaffected) | Claude Code local (review: Trading Claude-Work) | REVIEW — branch `claude-code/finding-3-persistent-halt` (stacked on PR #4). Mechanism done; threshold NOT approved, so entries are blocked (fail-closed) until Trading Claude-Work sets `config.DRAWDOWN_HALT_PCT` | paper_store.py, paper_monitor.py, config.py, test_paper_halt.py | Mechanism only. Threshold `DRAWDOWN_HALT_PCT` is None until Trading Claude-Work approves a value: entries stay blocked while unset (fail-closed). Connectivity watchdog and pause/auto-resume tiers NOT in this change. |
+| Finding 2: daily-loss contract tests (UTC-5 day boundary, baseline preserved) | Claude Code local (review: Trading Claude-Work) | REVIEW — same branch; 2 contract tests added | test_paper_halt.py | Tests only; no clock or formula change |
 
 ## Completed Tasks
 

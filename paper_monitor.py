@@ -61,6 +61,14 @@ def cerrar_operacion(operacion_id, entrada, precio_salida, tamano_posicion, moti
 
 def revisar_operaciones():
     resumen_revision = {'revisadas':0,'cerradas':0,'errores':0,'ultimo_error':None}
+    # Aislado: un fallo de evaluación de riesgo nunca debe impedir cerrar posiciones.
+    try:
+        from paper_store import evaluar_riesgo
+        estado_riesgo = evaluar_riesgo()
+        if estado_riesgo['nuevo']:
+            logging.getLogger(__name__).error('Halt de riesgo activado: %s', estado_riesgo['motivo'])
+    except Exception as error:
+        logging.getLogger(__name__).warning('Evaluación de riesgo no concluyente; entradas bloqueadas: %s', error)
     operaciones = (
         obtener_operaciones_abiertas()
     )

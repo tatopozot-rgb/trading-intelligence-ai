@@ -1,6 +1,6 @@
 # Checkpoint — Trading Intelligence AI
 
-> Last updated: 2026-10-05 — import in progress (no final PAPER acceptance)
+> Last updated: 2026-10-05 — Finding 3 halt implemented on claude-code/finding-3-persistent-halt (pending review)
 > Agent: Trading Codex
 
 ## Live status (autonomous session, 2026-10-05)
@@ -17,6 +17,43 @@
   in the research package under `tests/` (pytest, separate deps), not in the root suite. Not summed with 558.
 - Working copy for this session: `C:\Users\tatop\trading-intelligence-work\repo` (git clone, not the `.codex` snapshot).
   Original `C:\Users\tatop\trading-ai` was only read and executed, never modified.
+
+### Branch `claude-code/finding-3-persistent-halt` (stacked on PR #4 `codex/market-lot-contract`, Claude Code local)
+
+- **Finding 3 mechanism implemented**: persistent automatic drawdown halt, separate from `PAUSA_ENTRADAS`.
+  - `paper_store.py`: new `paper_halt` singleton row (activo, razon, pico_equity, equity_activacion).
+    `equity_mtm()` = realized balance + unrealized P&L using the same formula as `calcular_resultado_cierre`.
+    `_evaluar_halt()` is the single decision point, called from `_abrir_validado` (covers both Claude and
+    `REGLAS_PAPER_V1` entry paths). Activation is committed even though the entry is rejected (returns
+    `registrada: False`); an already-active halt raises.
+  - `paper_monitor.revisar_operaciones()` also calls `evaluar_riesgo()` every cycle, isolated in try/except,
+    so the peak is captured from MTM even with no entry attempts. Closing positions is never gated.
+  - `liberar_halt(confirmado=True)` is the only exit; refused while drawdown is still at or above the threshold.
+    Nothing auto-clears on restart or price recovery.
+  - Fail-closed: missing/corrupt halt row, unapproved threshold, or any price failure blocks new entries.
+    A price failure does NOT activate the halt (it is not evidence of drawdown).
+  - Events `HALT_ACTIVADO`, `HALT_LIBERADO`, `HALT_INICIALIZADO` in `paper_events`.
+- **Threshold is NOT approved**: `config.DRAWDOWN_HALT_PCT = None`. While unset, the PAPER runner opens no new
+  entries (by design). Trading Claude-Work must supply the value. Spec placeholders (8%/15%) are not used.
+- **Decisions taken for Trading Claude-Work to ratify or change**:
+  1. Peak = all-time high-water mark of equity (most conservative). The spec's 30-day rolling lookback is not implemented.
+     Consequence: one bad quote that spikes MTM ratchets the peak permanently; recovery then requires a human decision.
+  2. Only the persistent halt is implemented. Drawdown pause with auto-resume (spec tier 1) and the connectivity
+     watchdog (spec 60 s) are NOT implemented.
+  3. Liberation does not reset the peak.
+- **Known limitations**: open positions are valued at the public ticker price, also for depth-model (`modelo_fill_paper`)
+  positions, not at the executable book. The valuation runs inside the BEGIN IMMEDIATE transaction, so slow HTTP can hold
+  the SQLite write lock (timeout 10 s). `paper_report` and `ControlPaper` do not yet expose the halt state or a clear action.
+- **Finding 2 tests**: `DailyLossContractTests` pins the baseline UTC-5 day boundary (04:59 UTC vs 05:00 UTC) and checks
+  that losses before the cutoff count against the previous local day's budget. Contract preserved; no clock change.
+- **Test fixtures**: legacy PAPER test setups now inject `DRAWDOWN_HALT_PCT=50.0` and a deterministic
+  `_precio_para_equity` (100.0). Without the injection, tests hit the real Binance ticker; one run produced a
+  ~34 000 "price" and a nonsense peak. This is why the fixtures change.
+- Full root suite: **621 passed, 1 failed** (622 collected; baseline 605 + 1 failed, plus 16 new). The failure is
+  `test_paper_control::test_launcher_venv_real_con_sonda...`, pre-existing and environmental: it copies `pyvenv.cfg`
+  from the system Python prefix, which is not a venv. Not caused by this change.
+- Lint: `ruff --select E,F,W` reports the same 4 pre-existing findings in `paper_monitor.py` as HEAD; none new.
+- `config.py` is mixed-EOL in HEAD. The diff was rebuilt from HEAD bytes so it shows only the 5 added lines.
 
 ### Branch `codex/market-lot-contract` (commit `a33f4e2`, PR #4 open -> `codex/import-paper-baseline`, not draft, not merged)
 

@@ -22,6 +22,10 @@ class InboxTests(unittest.TestCase):
             parche = patch.object(config,nombre,valor)
             parche.start()
             self.addCleanup(parche.stop)
+        for parche in (patch.object(config,'DRAWDOWN_HALT_PCT',50.0),
+                       patch.object(store,'_precio_para_equity',side_effect=lambda simbolo: 100.0)):
+            parche.start()
+            self.addCleanup(parche.stop)
         store.inicializar()
         plan = {'modo':'PAPER','decision':'PAPER CANDIDATE','simbolo':'BTCUSDT',
                 'comision_paper_pct':.1,'entrada':100.,'stop_precio':98.,

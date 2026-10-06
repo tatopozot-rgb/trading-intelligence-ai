@@ -28,6 +28,8 @@ class DepthTests(unittest.TestCase):
                   patch.object(config, 'DIRECTORIO', self.root),
                   patch.object(monitor, 'BASE_DATOS', self.root/'test.db'),
                   patch.object(store, 'ahora', return_value=self.t),
+                  patch.object(config, 'DRAWDOWN_HALT_PCT', 50.0),
+                  patch.object(store, '_precio_para_equity', side_effect=lambda simbolo: 100.0),
                   patch('requests.sessions.Session.request', side_effect=AssertionError('Red prohibida'))):
             p.start(); self.addCleanup(p.stop)
         store.inicializar()

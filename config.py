@@ -17,6 +17,11 @@ CONFIANZA_MINIMA_CLAUDE = 70
 
 MINUTOS_MAXIMOS_RESPUESTA_CLAUDE = 15
 
+# Halt persistente por drawdown desde el pico de equity (Finding 3).
+# None = politica NO aprobada: mientras sea None no se abren entradas (fail-closed).
+# Valor pendiente de Trading Claude-Work; no copiar valores de docs/ ni de trading_intelligence/.
+DRAWDOWN_HALT_PCT = None
+
 # Rutas independientes de la carpeta desde la que se lance Python.
 from pathlib import Path
 DIRECTORIO = Path(__file__).resolve().parent
