@@ -7,9 +7,9 @@ aliases: ["Checkpoint"]
 
 # Checkpoint — Trading Intelligence AI
 
-> Last updated: 2026-10-06T08:30:00Z
+> Last updated: 2026-10-06T09:15:00Z
 > Agent: Trading Codex (cloud session)
-> Branch: `ccr-b66a9a9e-okj2pl` @ commit `bb95332`
+> Branch: `ccr-b66a9a9e-okj2pl` @ commit `d5dafe8`
 > PRs: #1 (specs, open), #3 (real PAPER import, open, NOT merged), #4 (MARKET lot contract, open, NOT merged), #5 (is_junction fix, open, NOT merged), #6 (Agent City handoff, MERGED)
 > Other branches: `claude-code/finding-3-persistent-halt` (Claude Code local, Finding 2/3 implemented, reviewed, no PR yet)
 
@@ -513,10 +513,96 @@ this cloud session has no network path to live market data and doesn't
 own these files; handed to Claude Code local, same pattern as
 `docs/FINDING_3_HALT_DESIGN.md`.
 
+### 20. Owner directive "UNBLOCK TRADING OPERATIONS... empresa automatizada de trading" — built the Regime Engine + Strategy Router; triaged the rest (same day, continued)
+
+A second, much larger owner directive arrived mid-turn, re-framing the
+project as an automated trading company (full pipeline: observe → regime
+→ strategy → signal → risk → size → execute → manage → exit → P&L →
+learn), asking explicitly to check what already exists before building
+more, to move toward LIVE within hard limits, and to run a small agent
+company (Foundry/HR/Academy/Operations Supervisor) alongside Agent City's
+continued growth.
+
+**Did the gap check first, as asked, instead of assuming.** Grepped both
+`trading_intelligence/` and the real system's root modules for every
+named pipeline stage. Confirmed market data, risk engine, position
+sizing, execution/order management, kill switch, the (now-fixed)
+connectivity watchdog, audit logging, fees, slippage, and position
+reconciliation all already exist in one codebase or the other. Confirmed
+three real gaps: **no regime detection anywhere**, **no strategy
+router** (the system has always run exactly one fixed strategy,
+regardless of market conditions — precisely what the directive calls
+out as wrong), and **no real event bus** (only an audit-log-style
+`evento()` table, not pub/sub). Also confirmed `historical_delay.py`'s
+own docstring already admits latency isn't calibrated.
+
+**Built the most architecturally significant gap, not just designed
+it**: `trading_intelligence/regime/detector.py` classifies TREND_UP/
+DOWN, RANGE, BREAKOUT_UP/DOWN, or the honest `NO_EDGE` default, from
+OHLCV alone, using a new `adx()` indicator (added to `indicators.py`,
+verified trend-ADX > range-ADX on synthetic data before relying on it),
+ATR-based volatility percentile, and a Donchian breakout check.
+**Caught a real design flaw in my own first draft before any test saw
+it**: a level-triggered breakout check re-fires "breakout" on every
+single bar of an already-established trend, since each new high is
+trivially above the prior rolling window — fixed to be edge-triggered
+(the previous bar must not already have cleared its own prior level).
+Explicitly does not claim LIQUIDITY_STRESS, ABNORMAL_SPREAD, or
+EVENT_DRIVEN — this package has no order-book, spread, or calendar data,
+and faking a proxy for any of them from OHLCV alone would be exactly the
+kind of invented confidence `docs/PAPER_TRADING_SIMULATION_SPEC.md`'s
+"Pessimistic Assumptions" principle exists to prevent.
+
+`trading_intelligence/strategy/router.py` routes a regime to the
+strategy built for it, or explicitly to no trade. `default_router()`
+registers `DualMACrossover` for `TREND_UP` only — the one regime this
+project actually has a validated strategy for — rather than claiming
+coverage it doesn't have for the other four regimes.
+
+Three test-construction bugs caught and fixed before trusting the
+suite (same "verify, don't assume" discipline as every finding this
+session): a monotonic-uptrend fixture that triggered breakout forever
+(the real bug above, caught via the test, not invented for it); a
+sideways fixture whose ADX landed just above the range threshold by
+coincidence; and an "ambiguous ADX band" fixture whose actual ADX didn't
+land in the intended band at all — found by computing the real ADX
+values for each candidate fixture before trusting any of them.
+25 new tests, 245/245 total, ruff + mypy clean.
+
+**Triaged the rest rather than attempting all of it at once** (full
+reasoning in `docs/AGENT_COORDINATION.md`'s new "Automated trading
+company directive" section):
+- LIVE Binance/XM connection prep (login/session/API/balances/positions/
+  execution/reconciliation) handed to Claude Code local as a scoped
+  task — real network, real accounts, not something this cloud session
+  touches, and explicitly no credentials requested, entered, or stored
+  by any agent anywhere.
+- The hard real-money limits the directive itself requires before any
+  LIVE entry (`LIVE_CAPITAL_USD`, `MAX_RISK_PER_TRADE`, `MAX_DAILY_LOSS`,
+  `MAX_DRAWDOWN`, `MAX_OPEN_POSITIONS`, `ALLOWED_INSTRUMENTS`,
+  `MAX_LEVERAGE`) are flagged as **genuinely WAITING_FOR_USER** — unlike
+  the PAPER drawdown thresholds (which already existed in
+  `docs/RISK_ENGINE_SPEC.md` and were being *applied*, not invented),
+  there is no existing source for how much real capital the owner wants
+  exposed. Inventing one would itself be the unauthorized risk decision
+  this project's safety posture exists to prevent.
+- Declined to stand up decorative agent-company roles (Foundry/HR/
+  Academy/Operations Supervisor) for a project with three real
+  executors and no queue of work those roles would actually clear — the
+  directive's own rule ("no crear agentes decorativos," optimize useful
+  output per token/cost/time/error) argues against it. Notion's
+  AGENTS/Task Board rows, GitHub review, and this checkpoint already do
+  that job.
+- Agent City's continued life-sim growth stays Claude Code local's
+  domain (local filesystem/Computer Use); this session reviews what
+  lands there (section 19's `lib/model.mjs` finding) rather than
+  building it.
+
 ## What's Next
 
 **For whichever agent picks this up next:**
-1. **Claude Code local**: (a) fix the `ultimo_ok IS NULL` watchdog grace-period bypass on `claude-code/finding-3-persistent-halt` — exact verified diff and repro in section 19 and `docs/AGENT_COORDINATION.md`'s Active Tasks table; (b) implement SHADOW mode and confirm the continuous-runner wiring per `docs/SHADOW_MODE_AND_CONTINUOUS_RUNNER_DESIGN.md` (owner's items 7-8); (c) open a formal PR against `codex/market-lot-contract` for the finding-3 branch, now that Finding 2/3 are signed off (section 17) and the drawdown policy is implemented (commit `1533690`, pending the watchdog fix above).
+1. **Claude Code local**: (a) fix the `ultimo_ok IS NULL` watchdog grace-period bypass on `claude-code/finding-3-persistent-halt` — exact verified diff and repro in section 19 and `docs/AGENT_COORDINATION.md`'s Active Tasks table; (b) implement SHADOW mode and confirm the continuous-runner wiring per `docs/SHADOW_MODE_AND_CONTINUOUS_RUNNER_DESIGN.md` (owner's items 7-8); (c) open a formal PR against `codex/market-lot-contract` for the finding-3 branch, now that Finding 2/3 are signed off (section 17) and the drawdown policy is implemented (commit `1533690`, pending the watchdog fix above); (d) start the Binance/XM LIVE connection-prep adapter skeletons per section 20 — code structure and tests only, no credentials ever requested or stored.
+1b. **Owner**: the hard LIVE risk limits in section 20 (`LIVE_CAPITAL_USD`, `MAX_RISK_PER_TRADE`, `MAX_DAILY_LOSS`, `MAX_DRAWDOWN`, `MAX_OPEN_POSITIONS`, `ALLOWED_INSTRUMENTS`, `MAX_LEVERAGE`) and actual account credentials are genuinely waiting on you — no agent will invent or ratify these the way the PAPER thresholds were ratified from the existing spec, since there is no equivalent spec for real-money numbers.
 2. **Trading Claude-Work** (currently paused on its own usage limit — not a project blocker): the risk/quant sign-off this item used to wait on (drawdown threshold, Findings 2/3, PR #4's MARKET contract) was given by Claude under explicit owner authorization (section 17) — nothing here is still waiting on this agent specifically. Welcome to review/countersign `docs/RISK_POLICY_DECISIONS_2026-10-06.md` when back online; the project does not wait on that review to proceed.
 3. Once the chain merges (pending only item 1(a)/(c) above): decide whether `trading_intelligence/` continues as a parallel research package or becomes the validation/backtesting layer calling into the real system's modules.
 4. `trading_intelligence/`'s walk-forward harness has now run once against real BTCUSDT data (section 12, via Claude Code local's network access) — correctly NO-GO on 11 trades. Next real-data work: try shorter timeframes or other candidates for more trades, per Claude Code local's own suggestion — that's Trading Claude-Work's call, not an engineering default.

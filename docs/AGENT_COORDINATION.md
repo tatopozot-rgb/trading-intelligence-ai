@@ -7,7 +7,50 @@ aliases: ["Agent Coordination"]
 
 # Agent Coordination — Trading Intelligence AI
 
-> Last updated: 2026-10-06T08:30:00Z
+> Last updated: 2026-10-06T09:15:00Z
+
+## "Automated trading company" directive (2026-10-06) — triage and stance
+
+Owner directive: execution is the product, LIVE is the eventual goal
+(within hard limits, PAPER/SHADOW as validation not destination), the
+system should route by detected market regime instead of running one
+fixed strategy, and the project should run as a small agent company.
+Triage, so this doesn't become another markdown-only architecture doc:
+
+- **Built, not just designed**: Regime Engine + Strategy Router
+  (`trading_intelligence/regime/`, `trading_intelligence/strategy/router.py`)
+  — confirmed via a real gap check that neither existed anywhere, in
+  either codebase, before today. See Active Tasks / Completed Tasks.
+- **LIVE connection prep (Binance/XM)**: handed to Claude Code local as a
+  concrete, scoped task (Active Tasks) — real network access and
+  real-money account connections are not something this cloud session
+  can or should do. No credentials are to be requested, entered, or
+  stored by any agent; that step is the owner's alone.
+- **Hard LIVE risk limits** (`LIVE_CAPITAL_USD`, `MAX_RISK_PER_TRADE`,
+  `MAX_DAILY_LOSS`, `MAX_DRAWDOWN`, `MAX_OPEN_POSITIONS`,
+  `ALLOWED_INSTRUMENTS`, `MAX_LEVERAGE`): **genuinely WAITING_FOR_USER**,
+  not something this agent will ratify the way the PAPER drawdown
+  thresholds were. Those PAPER numbers existed in the project's own
+  `docs/RISK_ENGINE_SPEC.md` already — ratifying them was applying a
+  decision the project had already made in writing. There is no
+  equivalent source for how many real dollars the owner wants exposed;
+  inventing one would be exactly the "decisión de riesgo no autorizada"
+  this project's own safety posture exists to prevent. Per `CLAUDE.md`,
+  fail-closed (no LIVE entries) until the owner sets these explicitly.
+- **"Empresa de agentes" (Foundry/HR/Academy/Operations Supervisor)**:
+  not building decorative bureaucracy for a project with three real
+  agents. The directive's own rule — "no crear agentes decorativos,"
+  optimize for useful output per token/cost/time/error — argues against
+  standing up named role-play infrastructure with no throughput behind
+  it. What already does this job: Notion's AGENTS/Task Board rows track
+  who's doing what; GitHub review is the actual QA/Red Team function;
+  this document and `docs/CHECKPOINT.md` are the actual knowledge
+  layer. If and when a fourth real executor exists, formalize roles
+  then — not before.
+- **Agent City life-sim expansion**: Claude Code local's domain (local
+  filesystem, Computer Use, Obsidian, the 3D app) — this cloud session
+  reviews what gets pushed (see the `lib/model.mjs` finding) but does
+  not build the city itself.
 
 ## Corrected project objective (2026-10-06)
 
@@ -40,6 +83,8 @@ what another agent has or hasn't done — do not rely on stale doc text alone.
 | **NEW — blocking the merge:** Fix watchdog `ultimo_ok IS NULL` grace-period bypass | **Claude Code local** | TO DO, **verified fix ready to apply** | paper_store.py (`inicializar()`, `liberar_halt()`) | Found and verified by Trading Codex (cloud) reviewing commit `1533690` (checkpoint section 19). A fresh/migrated `paper_halt` row has `ultimo_ok IS NULL`; the watchdog treats `NULL` as an infinite gap, which always exceeds 60s — so a single transient price-feed failure on a position that predates this migration (or any restart where `ultimo_ok` is unset) triggers an immediate *persistent* halt instead of the intended 60s grace window. Reproduced mechanically in an isolated worktree test; confirmed none of the 26 existing tests cover the `NULL` state (all manually set `ultimo_ok` to a controlled past value first). **Fix verified working, diff ready**: backfill any `NULL` `ultimo_ok` to "now" on every `inicializar()` call (idempotent, touches only `NULL` rows); set it at initial row creation too; have `liberar_halt()` refresh it on its own successful valuation. Reran `test_paper_halt.py` (26/26 pass) and the full root suite (176 tests; only the pre-existing tkinter-on-headless-Linux gap, unrelated) against the fix. Not pushed — same category of live risk-file change that hit this session's sandbox block earlier. Full diff in `docs/CHECKPOINT.md` section 19. |
 | **NEW:** Port SHADOW mode to the real runtime; confirm continuous-runner control/confirmation | Claude Code local | TO DO, **design ready** | paper_rules.py, paper_store.py, system_runner.py | Owner directive items 7-8. Full grounded design (read the real files read-only first) in `docs/SHADOW_MODE_AND_CONTINUOUS_RUNNER_DESIGN.md`: exact SHADOW injection point (`paper_rules.procesar_candidatos`'s call to `store.ejecutar_reglas` is the one state-mutating step), a proposed `ejecutar_reglas_shadow` sibling, explicit rule against SHADOW polluting `paper_equity_hist`, and a `--sombra-paper` runner flag. Also confirms `system_runner.py --continuo` already satisfies item 8's control/confirmation requirements (single-instance lock, startup reconciliation check, file-based stop/resume, protected shutdown, health snapshots) — SHADOW should reuse it, not get a separate runner. Also confirmed (worth recording): `broker_adapters.py` has no code path that can send a live order at all — NO_LIVE is architecturally true, not just policy. Cloud session has no network to Binance and doesn't own these files; cannot implement or test this itself. |
 | ~~Push missing `agent-city-3d/lib/model.mjs`~~ | Claude Code local | **DONE** — commit `7913bb0` on `claude-code/agent-city-3d-mvp` | agent-city-3d/lib/model.mjs | Confirmed present on the branch after the follow-up push; not independently re-verified by Trading Codex that `node --test` now passes (owner reports 12/12 passing with Chrome-headless validation). |
+| **NEW:** Binance/XM LIVE connection prep — adapter skeletons only, no credentials | Claude Code local | TO DO | broker_adapters.py, new XM/MT5 adapter module | Real network access and real-money account connections are Claude Code local's domain, not this cloud session's. Scope: build/extend the adapter shape for login/session/balances/market-data/positions/execution/reconciliation/trading-permissions as code structure and tests (mockable, no live calls required to test) — do NOT request, enter, prompt for, or store any credential, API key, password, 2FA code, passkey, or OAuth token anywhere (not in code, config, GitHub, Notion, Obsidian, or logs). The moment actual account connection is needed, that step is WAITING_FOR_USER by name, per the owner's own directive — not something any agent attempts around. Withdrawals must be impossible to enable from this code path, full stop. |
+| **WAITING_FOR_USER — not an engineering decision:** Hard LIVE risk limits | Owner | BLOCKED on the owner, correctly | config.py (future) | `LIVE_CAPITAL_USD`, `MAX_RISK_PER_TRADE`, `MAX_DAILY_LOSS`, `MAX_DRAWDOWN`, `MAX_OPEN_POSITIONS`, `ALLOWED_INSTRUMENTS`, `MAX_LEVERAGE` have no existing spec value to ratify (unlike the PAPER drawdown thresholds, which already existed in `docs/RISK_ENGINE_SPEC.md`) — these are real-money numbers only the owner can set. Fail-closed (no LIVE entries) until set explicitly. See "Automated trading company directive" note above. |
 | Fix HistoricalDataDownloader silently defaulting to testnet | Trading Codex (cloud) | DONE | trading_intelligence/data/downloader.py | Real bug Claude Code local found via its own BTCUSDT research run (commit `a58437b`) — reported it rather than touching a file it didn't own. Fixed in `ad20161`: explicit `testnet=False` default + a sanity check in `download_range()`. 198/198 tests, ruff+mypy clean. |
 | Place the prepared Obsidian vault package (Agent City + 00-99 taxonomy) | Claude Code local | TO DO | `obsidian-vault-package/` (staging, repo) → owner's real vault (outside repo) | This cloud session has no Computer Use/local filesystem/Obsidian connector (verified via tool search, not assumed) — full content prepared instead of returning manual steps. See `obsidian-vault-package/README.md` for exact placement steps (find the real vault via `%APPDATA%\Obsidian\obsidian.json`, create the taxonomy, copy 9 files, report back, delete staging folder). Parallel, non-blocking work. |
 | PR #5 (is_junction Linux fix) | Trading Codex (cloud) | REVIEW | tools/check_repository.py | Opened by this agent, stacked on PR #4, awaiting merge |
@@ -80,6 +125,7 @@ what another agent has or hasn't done — do not rely on stale doc text alone.
 | Grounded Finding 3 design note (read real paper_store.py/risk_engine.py read-only) | Trading Codex (cloud) | 2026-10-06 | this branch (`docs/FINDING_3_HALT_DESIGN.md`) |
 | Merged PR #6 (Agent City Notion handoff, docs-only, no conflicts) | Trading Codex (cloud) | 2026-10-06 | #6 |
 | Agent City web MVP (V1) — real-data snapshot dashboard | Trading Codex (cloud) | 2026-10-06 | https://claude.ai/artifact/98zjB7JbToV2ernTsjdLKD — static snapshot, not live-polling; discloses the Notion query-limit gap instead of guessing at Task Board totals; relink/regenerate periodically, don't treat as a live feed |
+| Regime Engine (`trading_intelligence/regime/detector.py`) + Strategy Router (`trading_intelligence/strategy/router.py`) | Trading Codex (cloud) | 2026-10-06 | this branch — 25 new tests, 245/245 total, ruff+mypy clean. Confirmed via a real gap check this didn't exist anywhere before; `default_router()` honestly covers only TREND_UP (the one strategy this project actually has validated) |
 
 ## Technical Decisions
 
