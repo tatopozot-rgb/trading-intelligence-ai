@@ -17,10 +17,11 @@ CONFIANZA_MINIMA_CLAUDE = 70
 
 MINUTOS_MAXIMOS_RESPUESTA_CLAUDE = 15
 
-# Halt persistente por drawdown desde el pico de equity (Finding 3).
-# None = politica NO aprobada: mientras sea None no se abren entradas (fail-closed).
-# Valor pendiente de Trading Claude-Work; no copiar valores de docs/ ni de trading_intelligence/.
-DRAWDOWN_HALT_PCT = None
+# Riesgo por drawdown desde el pico de equity en ventana rodante de 30 dias
+# (ratificado en docs/RISK_POLICY_DECISIONS_2026-10-06.md, fuente docs/RISK_ENGINE_SPEC.md).
+# Pausa al 8 % con reanudacion automatica; halt persistente al 15 % (solo liberar_halt).
+DRAWDOWN_PAUSE_PCT = 8.0
+DRAWDOWN_HALT_PCT = 15.0
 
 # Rutas independientes de la carpeta desde la que se lance Python.
 from pathlib import Path

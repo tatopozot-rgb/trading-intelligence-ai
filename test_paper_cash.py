@@ -18,7 +18,7 @@ class PaperCashTests(unittest.TestCase):
         self.root = Path(temporal.name)
         for p in (patch.object(config, 'BASE_DATOS', self.root/'test.db'),
                   patch.object(config, 'DIRECTORIO', self.root),
-                  patch.object(config, 'DRAWDOWN_HALT_PCT', 50.0),
+                  patch.object(config, 'DRAWDOWN_HALT_PCT', 50.0), patch.object(config, 'DRAWDOWN_PAUSE_PCT', None),
                   patch.object(store, '_precio_para_equity', side_effect=lambda simbolo: 100.0),
                   patch('socket.create_connection', side_effect=AssertionError('Red prohibida'))):
             p.start()

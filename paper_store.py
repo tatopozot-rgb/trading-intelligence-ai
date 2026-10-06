@@ -61,7 +61,12 @@ def inicializar():
           activo INTEGER NOT NULL CHECK (activo IN (0, 1)),
           razon TEXT NOT NULL, pico_equity REAL, equity_activacion REAL,
           fecha_actualizacion TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS paper_equity_hist (
+          id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT NOT NULL, equity REAL NOT NULL);
         ''')
+        columnas_halt = {r['name'] for r in con.execute('PRAGMA table_info(paper_halt)')}
+        if 'ultimo_ok' not in columnas_halt:
+            con.execute('ALTER TABLE paper_halt ADD COLUMN ultimo_ok TEXT')
         con.execute('BEGIN IMMEDIATE')
         columnas = {r['name'] for r in con.execute('PRAGMA table_info(paper_trades)')}
         if 'comision_pct_apertura' not in columnas:
@@ -447,11 +452,43 @@ def _drawdown_pct(equity, pico):
     return (pico-equity)/pico*100 if pico > 0 else 0.0
 
 
+DIAS_VENTANA_PICO = 30   # pico = máximo de equity en los últimos 30 días (RISK_ENGINE_SPEC drawdown_lookback_days)
+SEG_WATCHDOG = 60        # fallo de valoración con posiciones abiertas durante más de 60 s -> halt persistente
+
+
+def _pico_rodante(con, equity, instante, registrar):
+    """Pico de equity en la ventana rodante. Con registrar=True guarda la muestra y poda lo caducado."""
+    limite = (instante - timedelta(days=DIAS_VENTANA_PICO)).isoformat()
+    if registrar:
+        con.execute('INSERT INTO paper_equity_hist(fecha,equity) VALUES (?,?)', (instante.isoformat(), equity))
+        con.execute('DELETE FROM paper_equity_hist WHERE fecha < ?', (limite,))
+    pico = con.execute('SELECT MAX(equity) FROM paper_equity_hist WHERE fecha >= ?', (limite,)).fetchone()[0]
+    return equity if pico is None else max(equity, pico)
+
+
+def _watchdog(con, fila, instante, error):
+    """Sin valoración válida con posiciones abiertas: halt persistente sólo si el hueco supera 60 s."""
+    if fila['ultimo_ok'] is None:
+        hueco = float('inf')
+    else:
+        hueco = (instante - datetime.fromisoformat(fila['ultimo_ok'])).total_seconds()
+    if hueco <= SEG_WATCHDOG:
+        raise error
+    razon = f'CONNECTIVITY_WATCHDOG: sin valoración válida desde hace {hueco:.0f} s (límite {SEG_WATCHDOG} s)'
+    fecha = instante.isoformat()
+    con.execute('UPDATE paper_halt SET activo=1,razon=?,fecha_actualizacion=? WHERE id=1', (razon, fecha))
+    evento(con, 'HALT_ACTIVADO', {'razon': razon, 'hueco_s': None if hueco == float('inf') else hueco})
+    return True, True, razon
+
+
 def _evaluar_halt(con, precio_fn=None):
-    """Único punto de decisión del halt; escribe pico y activación en la transacción del llamante.
-    Devuelve (bloqueado, nuevo, motivo). Fail-closed: estado ausente/corrupto o umbral no aprobado lanza error.
-    Nunca se desactiva aquí: la salida es sólo liberar_halt con confirmación humana."""
-    fila = con.execute('SELECT activo,razon,pico_equity FROM paper_halt WHERE id=1').fetchone()
+    """Único punto de decisión de riesgo. Escribe muestra, pico y activación en la transacción del llamante.
+    Devuelve (bloqueado, nuevo, motivo).
+    - Halt persistente (DRAWDOWN_HALT_PCT): sólo se activa aquí y sólo se libera con liberar_halt.
+    - Pausa (DRAWDOWN_PAUSE_PCT): bloquea entradas mientras dure; NO es persistente, se recalcula y se reanuda sola.
+    - Watchdog: fallo de valoración con posiciones abiertas > 60 s activa el halt persistente.
+    Fail-closed: estado ausente/corrupto o umbral no aprobado lanza error. Cierres nunca se bloquean aquí."""
+    fila = con.execute('SELECT activo,razon,ultimo_ok FROM paper_halt WHERE id=1').fetchone()
     if fila is None or fila['activo'] not in (0, 1):
         raise ValueError('Estado de halt ausente o corrupto; entradas bloqueadas.')
     if fila['activo'] == 1:
@@ -459,19 +496,29 @@ def _evaluar_halt(con, precio_fn=None):
     umbral = config.DRAWDOWN_HALT_PCT
     if not _umbral_valido(umbral):
         raise ValueError('Umbral de halt por drawdown no aprobado; entradas bloqueadas.')
-    equity = equity_mtm(con, precio_fn)
-    pico = equity if fila['pico_equity'] is None else max(equity, fila['pico_equity'])
+    pausa = config.DRAWDOWN_PAUSE_PCT
+    if pausa is not None and not (_umbral_valido(pausa) and pausa < umbral):
+        raise ValueError('Umbral de pausa inválido; entradas bloqueadas.')
+    instante = ahora()
+    try:
+        equity = equity_mtm(con, precio_fn)
+    except ValueError as error:
+        return _watchdog(con, fila, instante, error)
+    fecha = instante.isoformat()
+    con.execute('UPDATE paper_halt SET ultimo_ok=? WHERE id=1', (fecha,))
+    pico = _pico_rodante(con, equity, instante, registrar=True)
     dd = _drawdown_pct(equity, pico)
-    fecha = ahora().isoformat()
     con.execute('UPDATE paper_halt SET pico_equity=?,fecha_actualizacion=? WHERE id=1', (pico, fecha))
-    if dd < umbral:
-        return False, False, ''
-    razon = f'DRAWDOWN_HALT {dd:.4f}% desde pico {pico:.4f} (umbral {umbral}%)'
-    con.execute('UPDATE paper_halt SET activo=1,razon=?,equity_activacion=?,fecha_actualizacion=? WHERE id=1',
-                (razon, equity, fecha))
-    evento(con, 'HALT_ACTIVADO', {'razon': razon, 'equity': equity, 'pico': pico,
-                                  'drawdown_pct': dd, 'umbral_pct': umbral})
-    return True, True, razon
+    if dd >= umbral:
+        razon = f'DRAWDOWN_HALT {dd:.4f}% desde pico {pico:.4f} en {DIAS_VENTANA_PICO} d (umbral {umbral}%)'
+        con.execute('UPDATE paper_halt SET activo=1,razon=?,equity_activacion=?,fecha_actualizacion=? WHERE id=1',
+                    (razon, equity, fecha))
+        evento(con, 'HALT_ACTIVADO', {'razon': razon, 'equity': equity, 'pico': pico,
+                                      'drawdown_pct': dd, 'umbral_pct': umbral})
+        return True, True, razon
+    if pausa is not None and dd >= pausa:
+        return True, False, f'PAUSA_DRAWDOWN {dd:.4f}% (pausa {pausa}%): entradas pausadas, se reanudan solas; cierres permitidos'
+    return False, False, ''
 
 
 def evaluar_riesgo(precio_fn=None):
@@ -500,8 +547,8 @@ def liberar_halt(*, confirmado=False, precio_fn=None):
         umbral = config.DRAWDOWN_HALT_PCT
         if not _umbral_valido(umbral):
             raise ValueError('Umbral de halt por drawdown no aprobado; no liberar.')
-        equity = equity_mtm(con, precio_fn)
-        pico = equity if fila['pico_equity'] is None else max(equity, fila['pico_equity'])
+        equity = equity_mtm(con, precio_fn)  # sin valoración válida no se libera nunca
+        pico = _pico_rodante(con, equity, ahora(), registrar=False)
         dd = _drawdown_pct(equity, pico)
         if dd >= umbral:
             raise ValueError('Drawdown sigue por encima del umbral; halt no liberable.')

@@ -1,5 +1,5 @@
 """Finding 3 (halt persistente por drawdown) y Finding 2 (contrato diario UTC-5). Sin red: precios inyectados."""
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import logging
 import unittest
 from unittest.mock import patch
@@ -16,6 +16,7 @@ def _instante(*args):
 
 class _Base(unittest.TestCase):
     umbral = 5.0
+    pausa = 2.0
     reloj = None
     respuesta = legado.PaperTests.respuesta
     abrir = legado.PaperTests.abrir
@@ -27,6 +28,7 @@ class _Base(unittest.TestCase):
         parches = [
             patch.object(store, '_precio_para_equity', side_effect=lambda s: self.mercado(s)),
             patch.object(config, 'DRAWDOWN_HALT_PCT', self.umbral),
+            patch.object(config, 'DRAWDOWN_PAUSE_PCT', self.pausa),
         ]
         if self.reloj is not None:
             parches.append(patch.object(store, 'ahora', side_effect=lambda: self.reloj))
@@ -178,6 +180,7 @@ class HaltTests(_Base):
 class DailyLossContractTests(_Base):
     """Finding 2: el día de pérdidas es el día local UTC-5 (corte 05:00 UTC), igual que la base diaria."""
     umbral = 50.0
+    pausa = None  # aislar el límite diario de la pausa 8 %
 
     def setUp(self):
         self.reloj = _instante(2026, 10, 4, 15, 0)
@@ -257,6 +260,74 @@ class HaltExposureTests(_Base):
             halt = control.ControlPaper(directorio=self.root).estado_halt()
         self.assertFalse(halt['disponible'])
         self.assertNotIn('activo', halt)
+
+
+class PausaVentanaWatchdogTests(_Base):
+    """Ratificación ad2f86c: pausa 8 % con auto-resume, ventana rodante 30 d, watchdog 60 s."""
+    umbral = 15.0
+    pausa = 8.0
+
+    def test_pausa_bloquea_entradas_sin_persistir_y_no_bloquea_cierres(self):
+        trade = self.abrir()
+        self.mercado = lambda simbolo: 80.0  # ~8.07 % desde el pico
+        with self.assertRaisesRegex(ValueError, 'PAUSA_DRAWDOWN'):
+            self.abrir(self.respuesta({**self.plan, 'simbolo': 'ETHUSDT'}))
+        self.assertEqual(self.estado_halt()['activo'], 0)  # la pausa no es el halt persistente
+        self.assertTrue(store.cerrar(trade['id'], 80, 'CERRADA_STOP')['cerrada'])
+
+    def test_pausa_se_reanuda_sola_al_recuperarse_el_drawdown(self):
+        self.abrir()
+        self.mercado = lambda simbolo: 80.0
+        with self.assertRaisesRegex(ValueError, 'PAUSA_DRAWDOWN'):
+            self.abrir(self.respuesta({**self.plan, 'simbolo': 'ETHUSDT'}))
+        self.mercado = lambda simbolo: 100.0
+        r = self.abrir(self.respuesta({**self.plan, 'simbolo': 'ETHUSDT'}))
+        self.assertTrue(r['registrada'])
+        self.assertEqual(self.estado_halt()['activo'], 0)
+
+    def test_ventana_rodante_descarta_pico_antiguo(self):
+        # Un máximo de 200 hace 40 días queda fuera de la ventana de 30 días: no debe provocar halt.
+        viejo = (store.ahora() - timedelta(days=40)).isoformat()
+        with store.conectar() as con:
+            con.execute('INSERT INTO paper_equity_hist(fecha,equity) VALUES (?,?)', (viejo, 200.0))
+        self.abrir()
+        estado = store.evaluar_riesgo()
+        self.assertFalse(estado['nuevo'])
+        self.assertEqual(self.estado_halt()['activo'], 0)
+        self.assertAlmostEqual(self.estado_halt()['pico_equity'], 100.0, places=2)
+
+    def test_watchdog_activa_halt_tras_mas_de_60_segundos_sin_valoracion(self):
+        self.abrir()
+        with store.conectar() as con:
+            con.execute('UPDATE paper_halt SET ultimo_ok=?', ((store.ahora() - timedelta(seconds=120)).isoformat(),))
+        self.mercado = self._sin_red
+        r = self.abrir(self.respuesta({**self.plan, 'simbolo': 'ETHUSDT'}))
+        self.assertFalse(r['registrada'])
+        self.assertIn('CONNECTIVITY_WATCHDOG', r['motivo'])
+        self.assertEqual(self.estado_halt()['activo'], 1)
+
+    def test_watchdog_no_activa_dentro_de_60_segundos(self):
+        self.abrir()
+        with store.conectar() as con:
+            con.execute('UPDATE paper_halt SET ultimo_ok=?', ((store.ahora() - timedelta(seconds=20)).isoformat(),))
+        self.mercado = self._sin_red
+        with self.assertRaisesRegex(ValueError, 'Precio no disponible'):
+            self.abrir(self.respuesta({**self.plan, 'simbolo': 'ETHUSDT'}))
+        self.assertEqual(self.estado_halt()['activo'], 0)
+
+    def test_no_se_libera_un_halt_watchdog_sin_valoracion_valida(self):
+        self.abrir()
+        with store.conectar() as con:
+            con.execute('UPDATE paper_halt SET ultimo_ok=?', ((store.ahora() - timedelta(seconds=120)).isoformat(),))
+        self.mercado = self._sin_red
+        self.abrir(self.respuesta({**self.plan, 'simbolo': 'ETHUSDT'}))
+        with self.assertRaisesRegex(ValueError, 'Precio no disponible'):
+            store.liberar_halt(confirmado=True)
+        self.assertEqual(self.estado_halt()['activo'], 1)
+
+    @staticmethod
+    def _sin_red(simbolo):
+        raise OSError('sin red')
 
 
 if __name__ == '__main__':

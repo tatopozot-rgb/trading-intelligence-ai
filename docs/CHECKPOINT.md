@@ -55,6 +55,18 @@
 - Lint: `ruff --select E,F,W` reports the same 4 pre-existing findings in `paper_monitor.py` as HEAD; none new.
 - `config.py` is mixed-EOL in HEAD. The diff was rebuilt from HEAD bytes so it shows only the 5 added lines.
 
+### Ratified risk policy implemented (ad2f86c on ccr), branch claude-code/finding-3-persistent-halt
+
+- **Halt threshold applied**: `DRAWDOWN_HALT_PCT = 15.0` (persistent, only `liberar_halt`).
+- **30-day rolling peak**: equity history in `paper_equity_hist`; peak = max over the window (not all-time).
+- **Pause tier 8 %**: `DRAWDOWN_PAUSE_PCT = 8.0`. Blocks new entries, never closes; not persistent, recomputed from history, auto-resumes below 8 %.
+- **Connectivity watchdog 60 s**: open positions + failed valuation for more than 60 s (or never valued) activates the persistent halt (`CONNECTIVITY_WATCHDOG`). A short gap only blocks the entry. Liberation requires a valid valuation.
+- **Tests**: `test_paper_halt.py` 26/26. Full root suite 629 passed; 3 failed = the known `pyvenv.cfg` environment failure plus `test_paper_ui_controls`, which passes in isolation (pre-existing intermittent).
+- Legacy fixtures disable the pause tier explicitly (`DRAWDOWN_PAUSE_PCT=None`), documented in each file.
+- Watchdog caveat: it only runs when a valuation is attempted (the monitor every 60 s). A dead monitor would not trigger it.
+- Not yet done: paper_report / ControlPaper display for the pause tier.
+- CAPITAL_USD = 100.0 unchanged. USAR_DINERO_REAL = False. LIVE not enabled. No credentials used.
+
 ### Handoff — Claude Code local, branch `claude-code/finding-3-persistent-halt`
 
 - **Persistent halt: IMPLEMENTED** (commit 44eb425). Threshold `config.DRAWDOWN_HALT_PCT = None` is NOT approved: while unset,

@@ -22,7 +22,7 @@ class InboxTests(unittest.TestCase):
             parche = patch.object(config,nombre,valor)
             parche.start()
             self.addCleanup(parche.stop)
-        for parche in (patch.object(config,'DRAWDOWN_HALT_PCT',50.0),
+        for parche in (patch.object(config,'DRAWDOWN_HALT_PCT',50.0), patch.object(config, 'DRAWDOWN_PAUSE_PCT', None),
                        patch.object(store,'_precio_para_equity',side_effect=lambda simbolo: 100.0)):
             parche.start()
             self.addCleanup(parche.stop)
