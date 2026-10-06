@@ -216,5 +216,48 @@ class DailyLossContractTests(_Base):
         self.assertAlmostEqual(base, 97.363, places=2)
 
 
+class HaltExposureTests(_Base):
+    """Estado del halt visible en paper_report (solo lectura) y ControlPaper, sin cambiar la decisión."""
+
+    def breach(self):
+        self.abrir()
+        self.mercado = lambda simbolo: 80.0
+        store.evaluar_riesgo()
+
+    def test_informe_muestra_halt_inactivo_y_activo(self):
+        from paper_report import informe
+        self.abrir()
+        self.assertFalse(informe()['halt']['activo'])
+        self.mercado = lambda simbolo: 80.0
+        store.evaluar_riesgo()
+        reporte = informe()
+        self.assertTrue(reporte['halt']['activo'])
+        self.assertIn('DRAWDOWN_HALT', reporte['halt']['razon'])
+        self.assertEqual(reporte['estado'], 'OK')  # el halt no es discrepancia contable
+
+    def test_informe_marca_fila_de_halt_ausente(self):
+        from paper_report import informe
+        self.abrir()
+        with store.conectar() as con:
+            con.execute('DELETE FROM paper_halt')
+        reporte = informe()
+        self.assertIsNone(reporte['halt'])
+        self.assertIn('HALT_AUSENTE_O_CORRUPTO', [p['codigo'] for p in reporte['problemas']])
+
+    def test_controlpaper_observar_incluye_halt(self):
+        import paper_control as control
+        self.breach()
+        estado = control.ControlPaper(directorio=self.root).observar()
+        self.assertTrue(estado['halt_riesgo']['disponible'])
+        self.assertTrue(estado['halt_riesgo']['activo'])
+
+    def test_controlpaper_no_presenta_halt_como_sano_si_falla_lectura(self):
+        import paper_control as control
+        with patch('paper_report.informe', side_effect=OSError('disco')):
+            halt = control.ControlPaper(directorio=self.root).estado_halt()
+        self.assertFalse(halt['disponible'])
+        self.assertNotIn('activo', halt)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -33,6 +33,8 @@ class DoctorTests(unittest.TestCase):
                 CREATE TABLE paper_flows (id INTEGER, monto REAL);
                 CREATE TABLE paper_requests (id INTEGER);
                 CREATE TABLE paper_events (id INTEGER, tipo TEXT, datos TEXT);
+                CREATE TABLE paper_halt (id INTEGER, activo INTEGER, razon TEXT, pico_equity REAL, equity_activacion REAL);
+                INSERT INTO paper_halt VALUES (1,0,'',NULL,NULL);
             ''')
         self.runner = dict(modo='PAPER', estado='ACTIVO', fecha=self.fecha(1000),
             salud={n:dict(estado='OK', ciclos=1, errores_total=0) for n in ('scanner', 'monitor', 'bandeja')},

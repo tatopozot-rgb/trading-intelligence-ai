@@ -55,6 +55,38 @@
 - Lint: `ruff --select E,F,W` reports the same 4 pre-existing findings in `paper_monitor.py` as HEAD; none new.
 - `config.py` is mixed-EOL in HEAD. The diff was rebuilt from HEAD bytes so it shows only the 5 added lines.
 
+### Handoff — Claude Code local, branch `claude-code/finding-3-persistent-halt`
+
+- **Persistent halt: IMPLEMENTED** (commit 44eb425). Threshold `config.DRAWDOWN_HALT_PCT = None` is NOT approved: while unset,
+  no new PAPER entries open (fail-closed). Closes are never gated.
+- **Exposure added**: `paper_report.informe()` returns `halt` (activo, razon, pico_equity, equity_activacion) read-only, and flags
+  `HALT_AUSENTE_O_CORRUPTO` if the row is missing. `ControlPaper.observar()` returns `halt_riesgo` via `estado_halt()`, which
+  reports `disponible: False` on any read failure and never presents a failed read as healthy. The clear action (`liberar_halt`)
+  is intentionally NOT exposed in ControlPaper; it stays a code-only, confirmed call.
+- **Tests**: full root suite 624 passed, 1 pre-existing environmental failure (`test_paper_control::test_launcher_venv_real_con_sonda`,
+  `pyvenv.cfg` absent from the system Python prefix; not caused by this work). `test_paper_ui_controls` is intermittently flaky
+  in full runs and also fails on HEAD without these changes (3 different tests seen across runs). Lint on touched files: clean.
+- **Fixture change**: `test_paper_doctor` fixtures include the `paper_halt` table with an inactive row, matching the current schema.
+- CAPITAL_USD unchanged. LIVE not enabled. No private credentials used. Binance used only for read-only public data.
+- `C:\Users\tatop\trading-ai` is NOT a git repo and was not modified. Deploying requires copying changed files there by hand.
+
+#### Tasks for TRADING CODEX (cloud lineage; not touched here)
+- `BinanceSpotAdapter` defaults to `testnet=True`. `HistoricalDataDownloader()` inherits it and can silently return incomplete
+  testnet history (observed: 28 bars from 2026-09 instead of 2830 from 2019). Fix: public market-data default to production
+  without breaking the existing public downloader, and raise when returned history is shorter than requested.
+
+#### Tasks for CLAUDE LEADER / RISK (Trading Claude-Work)
+- Drawdown pause tier with auto-resume: NOT implemented. Decide whether it is still a requirement.
+- Connectivity watchdog (60 s): NOT implemented. Decide whether it is still a requirement and its semantics.
+- Review equity valued at public ticker/depth price vs. the executable order book. Depth-model positions are valued at the ticker.
+- Set `DRAWDOWN_HALT_PCT`. Ratify all-time high-water peak (no lookback) and that liberation does not reset the peak.
+  A single bad quote ratchets the peak permanently.
+
+#### Files
+- Modified this session: `paper_report.py`, `paper_control.py`, `test_paper_halt.py`, `test_paper_doctor.py`, `docs/CHECKPOINT.md`,
+  `docs/AGENT_COORDINATION.md`.
+- Free for others: all other root files, including `paper_store.py`, `paper_fills.py`, `broker_adapters.py`, `trading_intelligence/*`.
+
 ### Real-data research run: BTCUSDT 1D (Claude Code local, research only, no runtime change)
 
 - Data: Binance **production** public klines, BTCUSDT 1d, 2019-01-01 to 2026-09-30, 2830 bars. No credentials, no orders.

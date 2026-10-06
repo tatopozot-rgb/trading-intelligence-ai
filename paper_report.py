@@ -60,6 +60,9 @@ def informe(ruta=None):
         if integridad != ['ok']:
             fallo('INTEGRIDAD_SQLITE','base')
         cuentas = con.execute('SELECT * FROM paper_account ORDER BY id').fetchall()
+        # Estado del halt persistente (solo lectura). Fila ausente = fail-closed, se reporta.
+        tabla_halt = con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='paper_halt'").fetchone()
+        filas_halt = con.execute('SELECT * FROM paper_halt WHERE id=1').fetchall() if tabla_halt else []
         trades = con.execute('SELECT * FROM paper_trades ORDER BY id').fetchall()
         flujos = con.execute('SELECT * FROM paper_flows ORDER BY id').fetchall()
         solicitudes = con.execute('SELECT * FROM paper_requests ORDER BY id').fetchall()
@@ -233,7 +236,15 @@ def informe(ruta=None):
         iguales(numero(c['pnl_acumulado'],'pnl_acumulado'),total_pnl,'PNL_NO_CONCILIA','cuenta')
         if saldo is not None and total_comprometido is not None and total_comprometido > saldo+1e-8:
             fallo('CAPITAL_ABIERTO_SUPERA_SALDO','cuenta')
+    halt = None
+    if len(filas_halt) == 1 and filas_halt[0]['activo'] in (0, 1):
+        h = filas_halt[0]
+        halt = {'activo': bool(h['activo']), 'razon': h['razon'], 'pico_equity': h['pico_equity'],
+                'equity_activacion': h['equity_activacion']}
+    else:
+        fallo('HALT_AUSENTE_O_CORRUPTO', 'paper_halt')
     return {'estado':'DISCREPANCIA' if problemas else 'OK','solo_lectura':True,
+        'halt': halt,
         'cuenta':{'saldo_actual':saldo,'saldo_esperado':saldo_esperado,'pnl_cerrado':total_pnl,
                   'flujos_netos':total_flujos,'capital_abierto':total_capital,
                   'comisiones_entrada_reservadas':total_comisiones_entrada,

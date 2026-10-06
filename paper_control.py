@@ -79,7 +79,21 @@ class ControlPaper:
                 raise
             return identidad
 
+    def estado_halt(self):
+        """Solo lectura del halt persistente; un fallo se reporta como no disponible, nunca como sano."""
+        try:
+            from paper_report import informe
+            halt = informe()['halt']
+        except Exception as error:
+            return {'disponible': False, 'motivo': str(error)[:200]}
+        if halt is None:
+            return {'disponible': False, 'motivo': 'HALT_AUSENTE_O_CORRUPTO'}
+        return {'disponible': True, **halt}
+
     def observar(self):
+        return {**self._observar_proceso(), 'halt_riesgo': self.estado_halt()}
+
+    def _observar_proceso(self):
         with self.lock:
             salida = {'sesion_id': self.sesion_id, 'estado': self.ultimo,
                       'modelo_solicitado': 'PROFUNDIDAD_VISIBLE_FOK_PAPER_V1' if self.profundidad else 'TICKER_LEGADO',

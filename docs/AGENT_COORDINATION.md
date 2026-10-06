@@ -23,6 +23,31 @@ No merge until cross-review. The old no-code setup description is historical, no
 | Finding 2: daily-loss contract tests (UTC-5 day boundary, baseline preserved) | Claude Code local (review: Trading Claude-Work) | REVIEW — same branch; 2 contract tests added | test_paper_halt.py | Tests only; no clock or formula change |
 | Real-data BTCUSDT 1D backtest + walk-forward (research only) | Claude Code local | DONE — NO-GO: 11 trades (<30 minimum), 0 walk-forward folds (IS Sharpe < 0.5). Defect registered: downloader silently uses testnet by default; owner Trading Codex, not fixed here | — | Results in docs/CHECKPOINT.md |
 
+## Handoff — Claude Code local
+
+| Task | Status | Files | Notes |
+|------|--------|-------|-------|
+| Finding 3 persistent drawdown halt | DONE (mechanism), REVIEW | paper_store.py, paper_monitor.py, config.py, test_paper_halt.py, test_paper_system.py, test_paper_cash.py, test_paper_depth.py, test_paper_report.py, test_runner_inbox.py | `DRAWDOWN_HALT_PCT=None`: entries blocked until Trading Claude-Work approves a value |
+| Finding 2 daily-loss contract tests | DONE, REVIEW | test_paper_halt.py | Baseline UTC-5 preserved |
+| Halt exposure in paper_report and ControlPaper | DONE, REVIEW | paper_report.py, paper_control.py, test_paper_doctor.py | Read-only; clear action not exposed |
+| BTCUSDT 1D research run | DONE, NO-GO | docs only | 11 trades; 0 walk-forward folds |
+
+Full root suite: 624 passed, 1 pre-existing environmental failure (test_launcher_venv / pyvenv.cfg). Flaky: test_paper_ui_controls.
+
+Tasks for TRADING CODEX:
+- `BinanceSpotAdapter` defaults to `testnet=True`; the downloader inherits it and can silently return incomplete testnet history. Fix without breaking public downloads.
+
+Tasks for CLAUDE LEADER / RISK:
+- Decide whether the pause tier with auto-resume is still required (not implemented).
+- Decide whether the 60 s connectivity watchdog is still required (not implemented).
+- Review equity valued at public ticker/depth price vs. the executable book.
+- Set `DRAWDOWN_HALT_PCT` and ratify the all-time high-water peak policy.
+
+Safety: CAPITAL_USD unchanged; LIVE not enabled; no private credentials; Binance read-only (public data).
+`C:\Users\tatop\trading-ai` is NOT a git repo and must not be modified accidentally.
+
+Free files: everything not listed above. Released by this session: paper_report.py, paper_control.py, test_paper_doctor.py.
+
 ## Completed Tasks
 
 | Task | Agent | Date | PR |
