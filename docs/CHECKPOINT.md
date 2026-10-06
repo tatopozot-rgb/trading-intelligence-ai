@@ -7,9 +7,9 @@ aliases: ["Checkpoint"]
 
 # Checkpoint — Trading Intelligence AI
 
-> Last updated: 2026-10-06T09:35:00Z
+> Last updated: 2026-10-06T10:05:00Z
 > Agent: Trading Codex (cloud session)
-> Branch: `ccr-b66a9a9e-okj2pl` @ commit `3ac99ab`
+> Branch: `ccr-b66a9a9e-okj2pl` @ commit `7fd75cc`
 > PRs: #1 (specs, open), #3 (real PAPER import, open, NOT merged), #4 (MARKET lot contract, open, NOT merged), #5 (is_junction fix, open, NOT merged), #6 (Agent City handoff, MERGED)
 > Other branches: `claude-code/finding-3-persistent-halt` (Claude Code local, Finding 2/3 implemented, reviewed, no PR yet)
 
@@ -626,6 +626,60 @@ sample size (20 closed trades) gates any claim; a test confirms that an
 open trade's `pnl=0` doesn't dilute `win_rate`/`avg_pnl` toward a false
 breakeven (counted in `trade_count`, excluded from `closed_trade_count`
 and the averages). 8 new tests, 253/253 total, ruff + mypy clean.
+
+### 22. "EXECUTION UNTIL DONE" directive — wired the regime/router pieces into a real, runnable pipeline; found and fixed a real calibration gap by actually running it (same day, continued)
+
+Owner directive repeated the "no rediseñes, no research general, no
+roadmap, no monitor/hold si existe trabajo útil" instruction with an
+explicit new line: "Usa MINA API conforme a la integración existente."
+Checked before acting on it — `grep -ril "mina"` across the whole repo
+returns zero real hits; every match is a coincidental substring
+("elimina," "termina," "determina"). No MINA integration exists to use.
+Not inventing one; flagged this plainly rather than fabricating
+something to satisfy the instruction.
+
+The real, actionable gap this directive pointed at: `trading_intelligence/`
+had the Regime Engine, Strategy Router, BacktestEngine, and Post-Trade
+Learning as separate, individually-tested pieces, but nothing had
+actually run them together. "Connect what exists" meant finishing that
+wiring, not building more siloed modules.
+
+Added an optional `router=` mode to `BacktestEngine`, strictly
+backward-compatible with the original `strategy=` mode (the latter's
+own 9 tests are untouched and still pass unmodified; a new test runs
+both modes on identical data with the same strategy registered for
+every regime and asserts byte-identical final equity and trade count —
+the router path adds zero accounting drift of its own). In router mode,
+each bar's regime is detected and routed to a strategy or explicitly to
+no trade; an open position's exit is always checked against the
+strategy that actually opened it, never whatever the router would
+route to for the bar's current regime (which has no idea that position
+exists).
+
+**Then actually ran it** — not just unit tests, a real smoke-test
+backtest on synthetic trending data — per the directive's own "CODE →
+TEST → RUN → FIX → RUN." First run: **zero trades**, despite the data
+containing real bullish MA crossovers. Didn't shrug this off as
+"NO_EDGE, working as intended" — checked directly whether the crossover
+bars coincided with the router's registered regime. They didn't: ADX
+only confirms `TREND_UP` once a trend is already underway, by which
+point the crossover event itself had already fired a few bars earlier,
+landing on `BREAKOUT_UP` or `RANGE` bars instead. This is a genuine
+strategy/regime pairing calibration gap, not a wiring bug — confirmed
+by inspecting the actual crossover bar indices against the regime
+classification at each one, not assumed.
+
+**Fixed based on that evidence**: `default_router()` now also registers
+`DualMACrossover` for `BREAKOUT_UP` (where the real signals actually
+land), not for `RANGE` (no evidence supports that pairing here, and
+adding it without evidence would be exactly the kind of unvalidated
+coverage this router exists to avoid). Reran the same smoke test: 2 real
+trades, and the full chain — market data → regime → router → risk/sizing
+→ fill → exit → P&L → post-trade learning — confirmed working end to
+end on the same run.
+
+5 new `BacktestEngine` tests, 2 router tests updated, 259/259 total,
+ruff + mypy clean.
 
 ## What's Next
 
