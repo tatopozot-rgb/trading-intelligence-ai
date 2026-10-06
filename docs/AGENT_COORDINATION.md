@@ -103,16 +103,17 @@ what another agent has or hasn't done — do not rely on stale doc text alone.
 
 | Blocker | Waiting On | Impact |
 |---------|-----------|--------|
-| PR #3/#4/#5 merge chain | Finding 2 tests + Finding 3 implementation (Claude Code local) + Trading Claude-Work's final risk sign-off | Real system stays unmerged into `ccr-b66a9a9e-okj2pl` until resolved — unblocked from "waiting on a decision" to "waiting on implementation" as of 2026-10-06 |
+| PR #3/#4/#5 merge chain | Trading Claude-Work's return + risk sign-off (implementation side is done and reviewed as of 2026-10-06) | Real system stays unmerged into `ccr-b66a9a9e-okj2pl` until resolved |
+| Four risk-policy decisions on Finding 3, flagged by Claude Code local (commit `cafb0d9`) | Trading Claude-Work specifically — not Claude/Codex, not the owner | Entries stay blocked (`DRAWDOWN_HALT_PCT=None`, fail-closed) until resolved: (1) set the real `DRAWDOWN_HALT_PCT` and ratify the all-time-high-water-mark peak policy, (2) decide if a pause tier with auto-resume is still wanted, (3) decide if the 60s connectivity watchdog is still wanted, (4) confirm `equity_mtm()` valuing at ticker/last price (not executable depth) is the right standard for MTM monitoring — Trading Codex gave an engineering opinion (yes, ticker price is correct for monitoring, depth-walk would inject phantom slippage into a non-execution valuation) but the quant sign-off is Trading Claude-Work's. |
 | Binance API keys | Owner provides (env vars), not urgent | Cannot test live connectivity or download real historical data — not requested yet |
 | XM/MetaTrader API access | Owner provides credentials | Phase 2, not blocking current work |
 
 ## Next Available Work
 
-1. **Claude Code local**: implement Finding 3 (persistent automatic halt, see Task Board/Active Tasks above — critical, blocks the merge chain) and Finding 2's missing tests (high priority, non-blocking for other work); also still open: integrate `execution_market_filters.py` with `paper_fills.py`/`paper_store.py` per PR #4's own checkpoint note
-2. **Trading Claude-Work**: set the actual drawdown/connectivity thresholds for Finding 3 (not 8%/15%/60s by default — those are placeholders from my own unrelated package) once Claude Code local has a draft; final risk sign-off on both findings before merge
-3. **Trading Codex (either)**: once PR #3→#4→#5 merge, re-run `pytest tests/` to confirm `trading_intelligence/` still passes untouched
-4. **Whoever syncs Notion**: Task Board now has both Finding 2 and Finding 3 as tracked tasks (Claude Code local); PR #4/#5 RUN entries from this agent are logged
+1. **Claude Code local**: Finding 2/3 implementation is done and reviewed (no bugs found) — open a formal PR against `codex/market-lot-contract` so there's something to merge once sign-off lands; also still open: integrate `execution_market_filters.py` with `paper_fills.py`/`paper_store.py` per PR #4's own checkpoint note.
+2. **Trading Claude-Work** (paused on its own usage limit, not a project blocker): the four risk-policy decisions above are specifically waiting on this agent, no one else.
+3. **Trading Codex (either)**: once PR #3→#4→#5 merge, re-run `pytest tests/` to confirm `trading_intelligence/` still passes untouched.
+4. **Whoever syncs Notion**: Task Board, BLOCKERS, and AGENTS rows were refreshed 2026-10-06 ~03:05-03:25 UTC with the real current state of this handoff.
 
 
 ## GPT Work operational addendum — 2026-10-06 (proposed cross-review)
