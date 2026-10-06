@@ -79,6 +79,16 @@ class TestDownloadMonth:
         assert downloader.adapter.has_credentials is False
         downloader.download_month("BTCUSDT", "1h", 2024, 1)  # should not raise
 
+    def test_default_adapter_is_not_testnet(self, tmp_path):
+        """Real bug found via a real BTCUSDT research run: with no adapter
+        injected, the downloader used to build BinanceSpotAdapter() with
+        its own default (testnet=True), silently returning sparse testnet
+        history for a mainnet research request. The downloader must
+        default to mainnet for its own adapter — testnet=True only makes
+        sense for a trading adapter, not read-only historical downloads."""
+        downloader = HistoricalDataDownloader(data_dir=tmp_path)
+        assert downloader.adapter.testnet is False
+
 
 class TestPagination:
     def test_paginates_by_close_time(self, tmp_path):
@@ -128,16 +138,20 @@ class TestDataFrameShape:
 
 class TestDownloadRange:
     def test_spans_multiple_months(self, tmp_path):
-        jan_start = int(datetime(2024, 1, 1, tzinfo=timezone.utc).timestamp() * 1000)
-        feb_start = int(datetime(2024, 2, 1, tzinfo=timezone.utc).timestamp() * 1000)
-        jan_page = [_kline(jan_start, jan_start + 3600_000 - 1)]
-        feb_page = [_kline(feb_start, feb_start + 3600_000 - 1)]
+        """A narrow window straddling the Jan/Feb boundary — kept small so
+        the real-vs-expected bar count stays under the sanity check's
+        floor (this test isn't about bar density, just month-crossing and
+        per-month caching)."""
+        jan_bar = int(datetime(2024, 1, 31, 23, 0, tzinfo=timezone.utc).timestamp() * 1000)
+        feb_bar = int(datetime(2024, 2, 1, 0, 0, tzinfo=timezone.utc).timestamp() * 1000)
+        jan_page = [_kline(jan_bar, jan_bar + 3600_000 - 1)]
+        feb_page = [_kline(feb_bar, feb_bar + 3600_000 - 1)]
         downloader, _ = _downloader(tmp_path, [jan_page, feb_page])
 
         df = downloader.download_range(
             "BTCUSDT", "1h",
-            start=datetime(2024, 1, 1, tzinfo=timezone.utc),
-            end=datetime(2024, 2, 2, tzinfo=timezone.utc),
+            start=datetime(2024, 1, 31, 23, 0, tzinfo=timezone.utc),
+            end=datetime(2024, 2, 1, 1, 0, tzinfo=timezone.utc),
         )
         assert len(df) == 2
         assert downloader.is_month_cached("BTCUSDT", "1h", 2024, 1)
@@ -151,6 +165,82 @@ class TestDownloadRange:
             end=datetime(2024, 1, 1, tzinfo=timezone.utc),  # end before start
         )
         assert len(df) == 0
+
+    def test_sparse_result_over_large_range_raises(self, tmp_path):
+        """Reproduces the real defect: a multi-year daily request that
+        comes back with almost no bars (the testnet signature) must raise,
+        not silently return garbage to a backtest."""
+        jan_start = int(datetime(2019, 1, 1, tzinfo=timezone.utc).timestamp() * 1000)
+        day_ms = 86_400_000
+        sparse_page = [_kline(jan_start + i * day_ms, jan_start + (i + 1) * day_ms - 1) for i in range(5)]
+        downloader, _ = _downloader(tmp_path, [sparse_page])
+
+        with pytest.raises(ValueError, match="testnet"):
+            downloader.download_range(
+                "BTCUSDT", "1d",
+                start=datetime(2019, 1, 1, tzinfo=timezone.utc),
+                end=datetime(2026, 9, 30, tzinfo=timezone.utc),
+            )
+
+    def test_short_recent_range_does_not_false_positive(self, tmp_path):
+        """A genuinely short, recent range (below the 180-bar sanity
+        threshold) returning all its bars must not be flagged."""
+        start = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        start_ms = int(start.timestamp() * 1000)
+        day_ms = 86_400_000
+        page = [_kline(start_ms + i * day_ms, start_ms + (i + 1) * day_ms - 1) for i in range(10)]
+        downloader, _ = _downloader(tmp_path, [page])
+
+        df = downloader.download_range("BTCUSDT", "1d", start=start, end=datetime(2024, 1, 11, tzinfo=timezone.utc))
+        assert len(df) == 10
+
+class TestBarCountSanityCheck:
+    """Unit-level tests of the sanity check itself, isolated from pagination
+    and caching — mirrors how WalkForwardFold's pure logic is tested apart
+    from the full backtest pipeline in test_walk_forward.py."""
+
+    def test_raises_on_extreme_shortfall_over_large_range(self, tmp_path):
+        downloader, _ = _downloader(tmp_path, [])
+        with pytest.raises(ValueError, match="testnet"):
+            downloader._check_bar_count_sanity(
+                "BTCUSDT", "1d",
+                datetime(2019, 1, 1, tzinfo=timezone.utc),
+                datetime(2026, 9, 30, tzinfo=timezone.utc),
+                actual_bars=28,  # the real defect's exact figure
+            )
+
+    def test_does_not_raise_on_legitimate_partial_coverage(self, tmp_path):
+        """A symbol with a genuinely shorter real listing history than the
+        requested window (here, ~26% of the naive expected count) is not
+        the testnet signature and must not be flagged."""
+        downloader, _ = _downloader(tmp_path, [])
+        downloader._check_bar_count_sanity(
+            "BTCUSDT", "1d",
+            datetime(2019, 1, 1, tzinfo=timezone.utc),
+            datetime(2026, 9, 30, tzinfo=timezone.utc),
+            actual_bars=730,  # ~26% of ~2830 expected — should not raise
+        )
+
+    def test_does_not_raise_below_the_large_range_floor(self, tmp_path):
+        """A small requested range (below the 180-expected-bar floor)
+        skips the check entirely, however few bars come back — a short
+        range legitimately returning few bars is normal, not suspicious."""
+        downloader, _ = _downloader(tmp_path, [])
+        downloader._check_bar_count_sanity(
+            "BTCUSDT", "1d",
+            datetime(2024, 1, 1, tzinfo=timezone.utc),
+            datetime(2024, 1, 11, tzinfo=timezone.utc),
+            actual_bars=1,
+        )
+
+    def test_unknown_interval_string_skips_check(self, tmp_path):
+        downloader, _ = _downloader(tmp_path, [])
+        downloader._check_bar_count_sanity(
+            "BTCUSDT", "not-a-real-interval",
+            datetime(2019, 1, 1, tzinfo=timezone.utc),
+            datetime(2026, 9, 30, tzinfo=timezone.utc),
+            actual_bars=0,
+        )
 
 
 class TestLoadMonth:

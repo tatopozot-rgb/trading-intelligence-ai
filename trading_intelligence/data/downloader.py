@@ -20,16 +20,34 @@ logger = logging.getLogger(__name__)
 
 MAX_KLINES_PER_REQUEST = 1000
 
+# Seconds per Binance kline interval string, for the sanity check in
+# download_range(). 1M is approximated as 30 days — fine for a heuristic,
+# not meant to be exact.
+_INTERVAL_SECONDS = {
+    "1m": 60, "3m": 180, "5m": 300, "15m": 900, "30m": 1800,
+    "1h": 3600, "2h": 7200, "4h": 14400, "6h": 21600, "8h": 28800, "12h": 43200,
+    "1d": 86400, "3d": 259200, "1w": 604800, "1M": 2592000,
+}
+
 
 class HistoricalDataDownloader:
     """
     Downloads and caches OHLCV data from Binance's public klines endpoint.
     Uses BinanceSpotAdapter for market data only — no credentials required.
+
+    Defaults its own adapter to testnet=False: historical downloads are
+    read-only public market data, so there's no safety reason to default to
+    testnet the way a real trading adapter would. Found via a real BTCUSDT
+    research run (Claude Code local, 2026-10-06): without this, the
+    downloader silently returned 28 bars of sparse testnet history instead
+    of the requested years of mainnet data — no error, just quietly wrong
+    data feeding a backtest. See download_range()'s sanity check for the
+    second layer of defense against this same failure mode recurring.
     """
 
     def __init__(self, data_dir: Path, adapter: Optional[BinanceSpotAdapter] = None):
         self.data_dir = Path(data_dir)
-        self.adapter = adapter or BinanceSpotAdapter()
+        self.adapter = adapter or BinanceSpotAdapter(testnet=False)
 
     def _month_path(self, symbol: str, interval: str, year: int, month: int) -> Path:
         return self.data_dir / symbol / interval / f"{year:04d}-{month:02d}.parquet"
@@ -83,7 +101,34 @@ class HistoricalDataDownloader:
             return pd.DataFrame(columns=["open", "high", "low", "close", "volume"])
         combined = pd.concat(months).sort_index()
         combined = combined[~combined.index.duplicated(keep="first")]
-        return combined[(combined.index >= start) & (combined.index <= end)]
+        combined = combined[(combined.index >= start) & (combined.index <= end)]
+        self._check_bar_count_sanity(symbol, interval, start, end, len(combined))
+        return combined
+
+    def _check_bar_count_sanity(
+        self, symbol: str, interval: str, start: datetime, end: datetime, actual_bars: int
+    ) -> None:
+        """Catches the exact failure mode found in a real research run: a
+        large requested range coming back with almost no bars, with no
+        exception anywhere — the signature of silently hitting testnet
+        (sparse, periodically-reset history) instead of mainnet. Only
+        flags ranges large enough (>=180 expected bars) that a >90%
+        shortfall can't be explained by a symbol's genuinely short real
+        listing history."""
+        interval_seconds = _INTERVAL_SECONDS.get(interval)
+        span_seconds = (end - start).total_seconds()
+        if interval_seconds is None or span_seconds <= 0:
+            return
+        expected_bars = span_seconds / interval_seconds
+        if expected_bars >= 180 and actual_bars < expected_bars * 0.1:
+            raise ValueError(
+                f"Downloaded only {actual_bars} bars for {symbol}/{interval} over "
+                f"{start.date()}..{end.date()} (~{expected_bars:.0f} expected). This matches "
+                f"the signature of BinanceSpotAdapter defaulting to testnet=True (sparse, "
+                f"periodically-reset history), not a real data gap. If you passed your own "
+                f"adapter, construct it with testnet=False, or check the BINANCE_TESTNET "
+                f"environment variable."
+            )
 
     def _fetch_range(self, symbol: str, interval: str, start: datetime, end: datetime) -> pd.DataFrame:
         """Paginates the public klines endpoint by close-time, per BINANCE_INTEGRATION_NOTES.md."""
