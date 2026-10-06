@@ -16,6 +16,10 @@ function leerSnapshot() {
   try { return JSON.parse(fs.readFileSync(path.join(STATE_DIR, "snapshot.json"), "utf8")); } catch { return null; }
 }
 
+function leerSociedad() {
+  try { return JSON.parse(fs.readFileSync(path.join(STATE_DIR, "society.json"), "utf8")); } catch { return null; }
+}
+
 function leerEventos(limite = 200) {
   try {
     const lineas = fs.readFileSync(path.join(STATE_DIR, "events.jsonl"), "utf8").split("\n").filter(Boolean);
@@ -45,7 +49,7 @@ const server = http.createServer((req, res) => {
   if (req.method !== "GET") { res.writeHead(405); return res.end(); }
   const url = new URL(req.url, `http://127.0.0.1:${PORT}`);
   if (url.pathname === "/api/state") {
-    const body = { read_at: new Date().toISOString(), state_dir: STATE_DIR, snapshot: leerSnapshot(), events: leerEventos() };
+    const body = { read_at: new Date().toISOString(), state_dir: STATE_DIR, snapshot: leerSnapshot(), society: leerSociedad(), events: leerEventos() };
     res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
     return res.end(JSON.stringify(body));
   }

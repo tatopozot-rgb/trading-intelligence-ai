@@ -7,15 +7,16 @@ const REFRESCO_MS = 30000; // conservador: 30 s, sólo lectura local
 const ESPACIO = 9;         // separación de la cuadrícula de calles
 const CENTRO = new THREE.Vector3(13.5, 0, 13.5);
 const COLOR_EDIFICIO = {
+  foundry: 0x57534e, university: 0x0f766e, hall: 0xb45309, park: 0x65a30d,
   command_center: 0x1e3a8a, engineering_lab: 0x1d4ed8, local_ops: 0x047857, gpt_ops: 0x6d28d9,
   risk_tower: 0x991b1b, quant_lab: 0x0e7490, qa_facility: 0x4d7c0f, market_intel: 0x0369a1,
   trading_floor: 0x854d0e, knowledge_center: 0x334155, academy: 0xf9a8d4, residential: 0xfde68a,
 };
-const ALTURA = { command_center: 7, risk_tower: 9, trading_floor: 6, knowledge_center: 5, quant_lab: 5.5,
+const ALTURA = { foundry: 4.8, university: 6, hall: 5.5, park: 0.6, command_center: 7, risk_tower: 9, trading_floor: 6, knowledge_center: 5, quant_lab: 5.5,
   engineering_lab: 5, gpt_ops: 4.5, local_ops: 4, qa_facility: 4.5, market_intel: 5, academy: 4, residential: 2.5 };
 const COLOR_PULSO = { TEST_PASSED: 0x22c55e, TEST_FAILED: 0xef4444, RISK_REJECTED: 0xef4444, KILL_SWITCH_TRIGGERED: 0xdc2626,
   RISK_APPROVED: 0x22c55e, NO_TRADE: 0xfacc15, TRADE_OPENED: 0x38bdf8, TRADE_CLOSED: 0x38bdf8, BACKTEST_FINISHED: 0x67e8f9,
-  BACKTEST_STARTED: 0x67e8f9, SYSTEM_RECOVERED: 0x86efac };
+  BACKTEST_STARTED: 0x67e8f9, SYSTEM_RECOVERED: 0x86efac, GRADUATED: 0xfacc15, EXAM_PASSED: 0x22c55e, EXAM_FAILED: 0xef4444 };
 
 const $ = (id) => document.getElementById(id);
 const escena = $("escena");
@@ -133,24 +134,38 @@ for (const [x, z] of [[24.5, 27], [28, 22], [26, 30], [21, 24]]) {
   scene.add(copa);
 }
 
-// Agentes low-poly
+// Agentes low-poly: se crean por clave cuando aparecen en el modelo (fundadores o sociedad).
 const agentes = {};
-for (const a of AGENTS) {
+const COLOR_SOCIEDAD = 0x64748b;
+function crearAvatar(key, nombre, color) {
   const grupo = new THREE.Group();
   const cuerpo = new THREE.Mesh(new THREE.CapsuleGeometry(0.42, 0.7, 4, 8),
-    new THREE.MeshStandardMaterial({ color: a.color, roughness: 0.5 }));
+    new THREE.MeshStandardMaterial({ color, roughness: 0.5 }));
   cuerpo.position.y = 0.95; cuerpo.castShadow = true;
   const cabeza = new THREE.Mesh(new THREE.SphereGeometry(0.3, 10, 8), new THREE.MeshStandardMaterial({ color: 0xfcd9b6 }));
   cabeza.position.y = 1.9;
   const aro = new THREE.Mesh(new THREE.RingGeometry(0.55, 0.7, 24), new THREE.MeshBasicMaterial({ color: 0x6b7280, side: THREE.DoubleSide }));
   aro.rotation.x = -Math.PI / 2; aro.position.y = 0.05;
-  const etiqueta = crearEtiqueta(a.name, 560, 80, "#f8fafc");
+  const etiqueta = crearEtiqueta(nombre, 560, 80, "#f8fafc");
   etiqueta.position.y = 2.7;
   grupo.add(cuerpo, cabeza, aro, etiqueta);
-  grupo.userData = { kind: "agent", key: a.key };
+  grupo.userData = { kind: "agent", key };
   cuerpo.userData = grupo.userData; cabeza.userData = grupo.userData; aro.userData = grupo.userData;
   scene.add(grupo);
-  agentes[a.key] = { grupo, aro, cuerpo, etiqueta, ruta: [], origen: null, t: 0, destino: null, desfase: Math.random() * 6 };
+  agentes[key] = { grupo, aro, cuerpo, etiqueta, ruta: [], origen: null, t: 0, destino: null, desfase: Math.random() * 6 };
+  return agentes[key];
+}
+// Sincroniza avatares con el modelo: crea los nuevos, oculta los que ya no aparecen.
+function sincronizarAvatares(city) {
+  const presentes = new Set(city.agents.map((a) => a.key));
+  for (const a of city.agents) {
+    if (!agentes[a.key]) {
+      const f = AGENTS.find((x) => x.key === a.key);
+      crearAvatar(a.key, a.name, f ? f.color : COLOR_SOCIEDAD);
+    }
+    agentes[a.key].grupo.visible = true;
+  }
+  for (const key in agentes) if (!presentes.has(key)) agentes[key].grupo.visible = false;
 }
 
 // Ruta por calles: del frente del origen, a la altura de la calle del destino, luego al frente del destino.
@@ -163,6 +178,7 @@ function rutaHasta(origen, id) {
 
 // Recalcula destinos cuando cambia el modelo. Sólo mueve si el destino cambió.
 function asignarDestinos(city) {
+  sincronizarAvatares(city);
   const porEdificio = {};
   for (const a of city.agents) {
     (porEdificio[a.target] ||= []).push(a.key);
@@ -172,6 +188,7 @@ function asignarDestinos(city) {
     const slot = porEdificio[a.target].indexOf(a.key);
     const lugar = frente(a.target).add(new THREE.Vector3((slot - (porEdificio[a.target].length - 1) / 2) * 1.6, 0, 0.6));
     ag.colorEstado = STATE_COLOR[a.state] ?? 0x6b7280;
+    ag.grupo.userData.kind = "agent";
     ag.aro.material.color.setHex(ag.colorEstado);
     ag.estado = a.state;
     if (!ag.destino || !ag.destino.equals(lugar)) {
@@ -183,6 +200,7 @@ function asignarDestinos(city) {
       ag.t = 0;
     }
     const nueva = crearEtiqueta(`${a.name} · ${a.state}`, 560, 80, "#f8fafc");
+    if (a.kind === "society") ag.etiqueta.userData.sociedad = true;
     ag.etiqueta.material.map.dispose();
     ag.etiqueta.material.map = nueva.material.map;
     ag.etiqueta.material.needsUpdate = true;
@@ -306,12 +324,13 @@ async function refrescar() {
     const r = await fetch("/api/state", { cache: "no-store" });
     if (!r.ok) throw new Error("HTTP " + r.status);
     const datos = await r.json();
-    ultimo = deriveCity({ snapshot: datos.snapshot, events: datos.events, now: new Date() });
+    ultimo = deriveCity({ snapshot: datos.snapshot, society: datos.society, events: datos.events, now: new Date() });
     fallo = null;
     asignarDestinos(ultimo);
     actualizarPulsos(ultimo, Date.now());
     pintarFeed(ultimo);
     pintarBanners(ultimo);
+    $("planned").innerHTML = (ultimo.planned || []).map((r) => `<li>${r.name} — ${r.state}</li>`).join("") || "<li>ninguno</li>";
     $("refresco").textContent = `actualizado ${new Date().toLocaleTimeString()}`;
     mostrarSeleccion();
   } catch (e) {

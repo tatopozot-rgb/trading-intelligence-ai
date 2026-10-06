@@ -20,7 +20,7 @@ const agente = (city, key) => city.agents.find((a) => a.key === key);
 
 test("WORKING sólo con evento AGENT_WORKING o TASK_STARTED reciente", () => {
   const sin = deriveCity({ snapshot: fresco({ codex: "REVIEW" }), events: [], now: AHORA });
-  assert.equal(agente(sin, "codex").state, "REVIEW");
+  assert.equal(agente(sin, "codex").state, "REVIEWING");
   assert.equal(agente(sin, "codex").target, "command_center");
   const con = deriveCity({ snapshot: fresco({ codex: "REVIEW" }), events: [ev("TASK_STARTED", "Trading Codex (cloud)")], now: AHORA });
   assert.equal(agente(con, "codex").state, "WORKING");
@@ -88,9 +88,10 @@ test("tres identidades reales, sin alias duplicados", () => {
   assert.equal(agentByAlias("alguien nuevo"), null);
 });
 
-test("Life Simulation separada: sólo academy y residential, sin agentes ni residentes reales", () => {
+test("Life Simulation separada: sólo residential y park; academy es operativa (exámenes reales)", () => {
   const sim = BUILDINGS.filter((b) => b.district === "simulation").map((b) => b.id).sort();
-  assert.deepEqual(sim, ["academy", "residential"]);
+  assert.deepEqual(sim, ["park", "residential"]);
+  assert.equal(BUILDINGS.find((b) => b.id === "academy").district, "operational");
   const c = deriveCity({ snapshot: fresco(), events: [], now: AHORA });
   assert.deepEqual(c.simulation.residents, []);
 });
