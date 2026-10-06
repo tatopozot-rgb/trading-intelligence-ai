@@ -7,9 +7,9 @@ aliases: ["Checkpoint"]
 
 # Checkpoint — Trading Intelligence AI
 
-> Last updated: 2026-10-06T10:20:00Z
+> Last updated: 2026-10-06T13:40:00Z
 > Agent: Trading Codex (cloud session)
-> Branch: `ccr-b66a9a9e-okj2pl` @ commit `485e116`
+> Branch: `ccr-b66a9a9e-okj2pl` @ commit `4735237`
 > PRs: #1 (specs, open), #3 (real PAPER import, open, NOT merged), #4 (MARKET lot contract, open, NOT merged), #5 (is_junction fix, open, NOT merged), #6 (Agent City handoff, MERGED)
 > Other branches: `claude-code/finding-3-persistent-halt` (Claude Code local, Finding 2/3 implemented, reviewed, no PR yet)
 
@@ -694,6 +694,83 @@ discipline `strategy_factory` always had. Ran the real `default_router()`
 through the full fold/factory machinery on synthetic data, not just unit
 tests. 3 new tests, 262/262 total, ruff + mypy clean across the whole
 package (checked, not assumed).
+
+### 24. GPT Work's independent cross-review (PR #7) — 7 real findings, all verified, 5 fixed here, 2 handed off (same day, continued)
+
+GPT Work came back online and independently cross-reviewed both the
+watchdog fix (section 19/commit `1533690`) and the Agent City push
+(`7913bb0`), then a second block reviewing the regime/router/learning
+pipeline wired in sections 22-23 (`7fd75cc`). Delivered as isolated,
+reproducible test harnesses (temp SQLite, mocked time/prices, no
+network, no real DB) in `reviews/gpt_work/`, not just prose claims.
+
+**Verified every one of the 7 findings independently before acting on
+any of them** — read the actual code, confirmed each one mechanically,
+same discipline as every other finding this session:
+
+1. **Deeper watchdog bug than my own fix covers**: `_abrir_validado`
+   (line 279) calls `_evaluar_halt`, which writes `ultimo_ok` on a
+   successful valuation — but that write shares the same transaction
+   (`with conectar() as con:`) as the rest of the function. A later,
+   unrelated rejection (e.g. the duplicate-open-symbol check at lines
+   297-298) raises `ValueError`, and Python's sqlite3 `with con:`
+   rolls back the *entire* transaction on any exception — discarding
+   the successful valuation along with the rejected order. Confirmed by
+   reading `conectar()` and `_abrir_validado()` directly. My own
+   `ultimo_ok IS NULL` fix (section 19) doesn't touch this path at all:
+   a system that successfully values the market every single call, but
+   always alongside some unrelated rejection, would never actually
+   accumulate a fresh `ultimo_ok` in the database.
+2. **Agent City, finding 1**: `lib/model.mjs`'s recency filter is
+   `ahoraMs - Date.parse(e.observed_at) < VENTANA_ACTIVA_MS` — a
+   *future* timestamp makes this negative, which is trivially less than
+   the (positive) window, so a future-dated event or snapshot passes as
+   "fresh." Same bug in both `syncOk`'s `snapAge` check and the
+   `recientes` event filter. Confirmed by reading the code directly.
+3. **Agent City, finding 2**: `let estado = syncOk ? estadoDoc : "STALE"`
+   trusts the snapshot's own raw documented state (including a literal
+   `"WORKING"` string) with no cross-check against an actual
+   `AGENT_WORKING`/`TASK_STARTED` event when nothing else matches —
+   contradicting the file's own header comment that WORKING requires
+   one of those two event types. Confirmed by reading the code directly.
+4-8. **Five real bugs in `trading_intelligence/`** (my own code, from
+   sections 22-23): `_size_position` had no cash cap (equity=1000,
+   entry=100, stop=99.99 sized a $4766 position); `_close_trade` used
+   the hardcoded `TAKER_FEE` default instead of `self.taker_fee`;
+   `equity_curve`'s last point wasn't updated after a forced
+   end-of-data close, so it could disagree with `final_equity`;
+   `tag_trades_with_regime` sliced through the fill bar instead of the
+   signal bar, including data the router hadn't seen yet; and
+   `StrategyRouter.route` fell through to `ROUTED` on `NaN`/`inf`
+   confidence (NaN fails every comparison, including `<`). All five
+   verified numerically, then **fixed** (commit `29067d2`) — 7 new
+   tests of my own, 269/269 total, ruff + mypy clean. Then ran GPT
+   Work's own independent `reviews/gpt_work/test_pipeline_review.py`
+   against the fixed code as a cross-check that doesn't depend on my
+   own tests: **6/6 pass.**
+
+Merged the review branch's artifacts (checkpoint, coordination
+addendum, the three isolated test harnesses — all additive, no
+runtime/city changes) directly via `git merge` (commit `4735237`)
+rather than through the draft PR, since I'd already completed the
+review it asked for. Closed PR #7 as superseded, with a comment
+summarizing exactly what was verified and fixed.
+
+**Findings 1-3 (the real-system ones) are handed off to Claude Code
+local** — same reasoning as every other real-system finding this
+session: these are files this cloud session doesn't own and the fixes
+need the kind of careful transactional/clock-skew-policy redesign that
+shouldn't be rushed. See the new Active Tasks rows in
+`docs/AGENT_COORDINATION.md`.
+
+**On the still-unresolved MINA question**: GPT Work independently
+confirmed the same thing I found — no MINA integration exists anywhere
+searchable, but neither of us can prove a negative with certainty
+(GitHub code search reported incomplete results). Both of us have
+declined to invent a MINA service or request/copy any keys. If the
+owner can name the actual existing module/config this refers to, that
+unblocks it in one sentence; otherwise this stays a non-finding, not a
+blocker.
 
 ## What's Next
 
