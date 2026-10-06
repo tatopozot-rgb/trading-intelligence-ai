@@ -7,9 +7,9 @@ aliases: ["Checkpoint"]
 
 # Checkpoint — Trading Intelligence AI
 
-> Last updated: 2026-10-06T04:45:00Z
+> Last updated: 2026-10-06T08:30:00Z
 > Agent: Trading Codex (cloud session)
-> Branch: `ccr-b66a9a9e-okj2pl` @ commit `5e101ad`
+> Branch: `ccr-b66a9a9e-okj2pl` @ commit `bb95332`
 > PRs: #1 (specs, open), #3 (real PAPER import, open, NOT merged), #4 (MARKET lot contract, open, NOT merged), #5 (is_junction fix, open, NOT merged), #6 (Agent City handoff, MERGED)
 > Other branches: `claude-code/finding-3-persistent-halt` (Claude Code local, Finding 2/3 implemented, reviewed, no PR yet)
 
@@ -427,21 +427,108 @@ into the commit), not a design gap — handed off as a precise, ready task
 instead (see `docs/AGENT_COORDINATION.md`'s Active Tasks table): push the
 one missing file, from whatever local copy still has it.
 
+### 19. Owner directive "UNBLOCK TRADING OPERATIONS" — reviewed Claude Code local's risk-policy implementation, found and verified a real bug, designed SHADOW + confirmed the continuous runner (same day, continued)
+
+The owner's items 1-6 (DRAWDOWN_HALT_PCT, peak policy, pause tier,
+connectivity watchdog, equity MTM, Finding 2/3 sign-off) were already
+resolved in section 17 and posted to GitHub/Notion — nothing new to
+decide there. Two things had actually changed since: Claude Code local
+pushed commit `1533690` on `claude-code/finding-3-persistent-halt`
+implementing the pause tier and connectivity watchdog (not just the
+config value), and pushed `7913bb0` on `claude-code/agent-city-3d-mvp`
+adding the `lib/model.mjs` this agent had flagged missing in section 18
+— confirmed fixed (file now present on that branch).
+
+**Reviewed `1533690` the same way as every other delivery this
+session**: read-only git worktree (removed after), line-by-line against
+`docs/RISK_ENGINE_SPEC.md` and the ratified decisions doc. The
+implementation is careful and mostly correct — rolling 30-day peak via a
+new `paper_equity_hist` table, pause tier as a non-persistent,
+auto-resuming check separate from the hard halt's `activo` flag, watchdog
+keyed off a new `ultimo_ok` timestamp column. 26 tests, all passing.
+
+**Found a real bug anyway, verified mechanically before reporting (same
+discipline as every other finding this session)**: a brand-new or freshly
+migrated `paper_halt` row has `ultimo_ok IS NULL`. The watchdog's gap
+calculation treats `NULL` as an infinite gap, which always exceeds the
+60-second threshold — so a *single* transient price-feed failure, on the
+very first risk-gate check of a position that predates this migration (or
+on a system that was just upgraded to this commit with an already-open
+position), triggers an immediate *persistent* halt requiring manual
+`liberar_halt(confirmado=True)`, instead of the intended 60-second grace
+window. Reproduced in an isolated worktree test (fresh position, a single
+injected `OSError` from the price function, `ultimo_ok` forced to `NULL`
+to simulate the migration/restart state): the existing code sets
+`paper_halt.activo = 1` on that one failure. None of the 26 existing
+tests cover this because all of them manually set `ultimo_ok` to a
+controlled past timestamp before testing the watchdog — the `NULL` state
+itself was untested.
+
+**Verified fix** (written and tested in the same disposable worktree,
+not pushed — this touches the real risk-halt file, the same category of
+change that got sandbox-blocked earlier this session, so it's handed off
+rather than pushed directly): on every `inicializar()` call, backfill any
+`NULL` `ultimo_ok` to "now" (idempotent, touches only `NULL` rows); set
+`ultimo_ok` at initial `paper_halt` row creation too; and have
+`liberar_halt()` also refresh `ultimo_ok` on its own successful
+valuation, since releasing a halt already proves connectivity works and
+that success was previously being discarded. Confirmed the fix resolves
+the repro, then reran the full `test_paper_halt.py` (26/26 still pass)
+and the broader root suite (176 tests; the only 2 errors are the
+pre-existing, already-documented `tkinter`-missing-on-headless-Linux gap,
+unrelated to this change). Exact diff and reproduction steps handed to
+Claude Code local as a Task Board item (see
+`docs/AGENT_COORDINATION.md`).
+
+**Items 7-8 of the owner's directive** (port SHADOW to the real runtime;
+prepare the PAPER/SHADOW runner for continuous execution with the
+architecture's required control/confirmation): read `system_runner.py`,
+`exchange_context.py`, `broker_adapters.py`, and `paper_rules.py`
+read-only to ground a design rather than write one blind. Two findings
+worth recording on their own:
+
+- **`system_runner.py --continuo` already has everything item 8 asks
+  for**: an OS-level single-instance lock, a real startup reconciliation
+  check (refuses to start unless `paper_report.informe()` is `OK`), a
+  file-based stop/resume signal plus a separate per-session cancellation
+  path, protected shutdown that waits for all workers to actually finish,
+  and atomic health/status snapshots on every loop tick. This is not a
+  gap — item 8 is "give SHADOW the same runner," not "build one."
+- **`broker_adapters.py`'s own docstring and every adapter's
+  `envia_ordenes=False` capability flag confirm there is no code path
+  anywhere in the real system that can send a live order.** NO_LIVE is
+  still architecturally true, not just a policy switch — worth stating
+  plainly since the owner's directive explicitly reiterated it.
+
+Wrote `docs/SHADOW_MODE_AND_CONTINUOUS_RUNNER_DESIGN.md`: the exact
+injection point for SHADOW (`paper_rules.procesar_candidatos`'s call to
+`store.ejecutar_reglas` is the one state-mutating step; everything before
+it is already side-effect-free), a proposed `ejecutar_reglas_shadow`
+sibling that reuses the real risk-engine decision path and logs rather
+than persists, an explicit rule against SHADOW writing to
+`paper_equity_hist` (to avoid corrupting PAPER's real rolling peak with
+hypothetical equity), and a `--sombra-paper` runner flag mirroring the
+existing mutually-exclusive mode flags. Not implemented or tested here —
+this cloud session has no network path to live market data and doesn't
+own these files; handed to Claude Code local, same pattern as
+`docs/FINDING_3_HALT_DESIGN.md`.
+
 ## What's Next
 
 **For whichever agent picks this up next:**
-1. **Claude Code local**: (a) apply `DRAWDOWN_HALT_PCT=15.0` to `config.py` on `claude-code/finding-3-persistent-halt` — exact change and rationale in `docs/RISK_POLICY_DECISIONS_2026-10-06.md` §1 and `docs/AGENT_COORDINATION.md`'s Active Tasks table; this cloud session's own sandbox blocked writing it directly, it is not a missing sign-off; (b) open a formal PR against `codex/market-lot-contract` for that branch, now that Finding 2/3 are signed off (section 17); (c) build the 8% pause tier and 60s connectivity watchdog per the design sketches in the same decisions doc.
+1. **Claude Code local**: (a) fix the `ultimo_ok IS NULL` watchdog grace-period bypass on `claude-code/finding-3-persistent-halt` — exact verified diff and repro in section 19 and `docs/AGENT_COORDINATION.md`'s Active Tasks table; (b) implement SHADOW mode and confirm the continuous-runner wiring per `docs/SHADOW_MODE_AND_CONTINUOUS_RUNNER_DESIGN.md` (owner's items 7-8); (c) open a formal PR against `codex/market-lot-contract` for the finding-3 branch, now that Finding 2/3 are signed off (section 17) and the drawdown policy is implemented (commit `1533690`, pending the watchdog fix above).
 2. **Trading Claude-Work** (currently paused on its own usage limit — not a project blocker): the risk/quant sign-off this item used to wait on (drawdown threshold, Findings 2/3, PR #4's MARKET contract) was given by Claude under explicit owner authorization (section 17) — nothing here is still waiting on this agent specifically. Welcome to review/countersign `docs/RISK_POLICY_DECISIONS_2026-10-06.md` when back online; the project does not wait on that review to proceed.
-3. Once the chain merges (now unblocked, pending only item 1(a) above): decide whether `trading_intelligence/` continues as a parallel research package or becomes the validation/backtesting layer calling into the real system's modules.
+3. Once the chain merges (pending only item 1(a)/(c) above): decide whether `trading_intelligence/` continues as a parallel research package or becomes the validation/backtesting layer calling into the real system's modules.
 4. `trading_intelligence/`'s walk-forward harness has now run once against real BTCUSDT data (section 12, via Claude Code local's network access) — correctly NO-GO on 11 trades. Next real-data work: try shorter timeframes or other candidates for more trades, per Claude Code local's own suggestion — that's Trading Claude-Work's call, not an engineering default.
    **This cloud container still cannot reach `api.binance.com`** — confirmed via the egress proxy status; not a credentials issue. Claude Code local is the right agent for any further real-data runs.
-5. LIVE-readiness track (per the corrected objective): the real system's `broker_adapters.py`/`execution_context.py`/`exchange_context.py` have no dry-run or shadow-mode equivalent yet — `trading_intelligence/execution/dry_run.py` (`DryRunAdapter`) and `trading_intelligence/execution/shadow.py` (`ShadowRunner`) are reference designs that could be ported there once the chain merges.
-6. Next LIVE-readiness step for whoever picks this up: wire `ShadowRunner` to actually run continuously against live Binance public data (needs an agent with real network access); `trading_intelligence/monitoring/alerts.py` now has a real `WebhookAlertSink` (section 11) — wiring an actual webhook URL still needs the owner to supply one.
+5. LIVE-readiness track (per the corrected objective): confirmed via read-only review (section 19) that `broker_adapters.py` has NO code path that can send a live order at all (every adapter's `envia_ordenes` capability flag is hard-coded `False`) — NO_LIVE remains architecturally true, not just policy. `trading_intelligence/execution/dry_run.py`/`shadow.py` remain reference designs; the real-system SHADOW port is now spec'd in `docs/SHADOW_MODE_AND_CONTINUOUS_RUNNER_DESIGN.md`, not yet implemented.
+6. `trading_intelligence/monitoring/alerts.py` has a real `WebhookAlertSink` (section 11) — wiring an actual webhook URL still needs the owner to supply one.
 7. **Obsidian vault package** prepared in `obsidian-vault-package/` (section 11) — still waiting on Claude Code local to place it in the owner's real vault (this cloud session has no filesystem/Computer Use access to do it directly).
 
 ## Blockers
 
-- **PR #3/#4/#5 merge chain**: **UNBLOCKED 2026-10-06** (section 17) — risk/quant sign-off given by Claude under owner authorization. Only remaining step before merge: apply `DRAWDOWN_HALT_PCT=15.0` to `config.py` on the Finding-3 branch (assigned to Claude Code local — this cloud session's sandbox blocked the direct write) and open a formal PR for that branch.
+- **PR #3/#4/#5 merge chain**: risk/quant sign-off given (section 17), drawdown policy implemented (commit `1533690`) — but a real bug (watchdog `ultimo_ok IS NULL` grace-period bypass, section 19, verified fix included) needs fixing on the Finding-3 branch before it merges. Also still needed: a formal PR for that branch (none exists yet).
+- **SHADOW mode on the real runtime**: designed (`docs/SHADOW_MODE_AND_CONTINUOUS_RUNNER_DESIGN.md`), not implemented. Needs Claude Code local (real network access, owns the files).
 - **Binance API keys not configured** — not required for public market data or PAPER mode; needed only for live trading authorization later (explicitly not requested yet)
 - **XM/MetaTrader credentials unknown** — Phase 2, separate adapter, not blocking current PAPER work
 
