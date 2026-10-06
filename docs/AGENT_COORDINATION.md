@@ -1,6 +1,6 @@
 # Agent Coordination — Trading Intelligence AI
 
-> Last updated: 2026-10-06T01:50:00Z
+> Last updated: 2026-10-06T02:10:00Z
 
 ## Corrected project objective (2026-10-06)
 
@@ -27,8 +27,8 @@ what another agent has or hasn't done — do not rely on stale doc text alone.
 
 | Task | Agent | Status | Files Affected | Notes |
 |------|-------|--------|----------------|-------|
-| Resolve PR #3 Finding 2 (UTC vs local-day risk reset) | Trading Claude-Work | WAITING_FOR_USER* | docs/RISK_ENGINE_SPEC.md or paper_store.py | *Needs risk-policy sign-off, not an owner question — see PR #3 review comment |
-| Resolve PR #3 Finding 3 (missing drawdown/connectivity kill-switch) | Trading Claude-Work + whoever implements | BACKLOG | risk_engine.py / paper_store.py | Real gap vs spec; decide implement-now vs explicitly defer |
+| Finding 2: add missing daily-loss-contract tests; preserve baseline (UTC-5, no clock change) | Claude Code local (review: Trading Claude-Work) | TO DO | paper_store.py, tests | Decision made 2026-10-06 (PR #3 comment 6007584364) — this was never an owner question; the WAITING_FOR_USER label here was wrong and is corrected. Full spec reconciliation tracked separately, non-blocking. |
+| Finding 3: persistent automatic halt (separate from PAUSA_ENTRADAS) in common order-opening path | Claude Code local (review: Trading Claude-Work) | TO DO | risk_engine.py, paper_store.py | Decision made 2026-10-06 (PR #3 comment 6007584364) — real gap confirmed by GPT Work's independent review (6007551700). Must define equityMTM/peak-window/deposits distinct from saldo_actual first; fail-closed; never auto-clears; never blocks closes. |
 | PR #5 (is_junction Linux fix) | Trading Codex (cloud) | REVIEW | tools/check_repository.py | Opened by this agent, stacked on PR #4, awaiting merge |
 | Merge PR #3 → PR #4 → PR #5 chain | Pending Trading Claude-Work sign-off | BLOCKED | — | Issue #2 checklist requires cross-review before any merge |
 | Notion Mission Control sync for PR #4/#5 | Trading Claude-Work or Claude Code local | BACKLOG | Notion RUNS/CHECKPOINTS | This agent logged its own RUN entries; full Mission Control sync still pending |
@@ -73,6 +73,8 @@ what another agent has or hasn't done — do not rely on stale doc text alone.
 | Do NOT merge PR #3/#4 yet | Issue #2 checklist incomplete; Findings 2/3 unresolved | 2026-10-05 | Trading Codex (cloud) |
 | is_junction() fix goes in its own PR (#5), not pushed directly to PR #3/#4 branches | Avoid simultaneous edits on branches owned by Claude Code local | 2026-10-05 | Trading Codex (cloud) |
 | PAPER mode only, no martingale, no risk escalation after loss | Owner safety requirement, verified present in all reviewed code | 2026-10-05 | All |
+| Finding 2: preserve baseline daily-loss contract (UTC-5, gross-loss formula); do not adopt spec defaults without an explicit migration | GPT Work's independent review found a real contract divergence, not a simple clock bug — changing it blind could reset the day's budget or mix historical baselines | 2026-10-06 | Trading Codex (cloud), per GPT Work review (PR #3 comment 6007551700) |
+| Finding 3: build a persistent automatic halt separate from `PAUSA_ENTRADAS`, implemented by Claude Code local, risk thresholds set by Trading Claude-Work (not copied from trading_intelligence/risk/engine.py) | Real gap confirmed in the common order-opening path; my own package's pattern is a design reference only — architecture differs and financial thresholds are not mine to set | 2026-10-06 | Trading Codex (cloud), per GPT Work review (PR #3 comment 6007551700) |
 
 ## File Ownership (Current Sprint)
 
@@ -81,23 +83,23 @@ what another agent has or hasn't done — do not rely on stale doc text alone.
 | trading_intelligence/ (all) | Trading Codex (cloud) + Trading Claude-Work | DONE for this sprint — 92/92 tests, ruff+mypy clean |
 | Real PAPER system (root *.py) | Claude Code local | Imported via PR #3 + #4, pending merge |
 | tools/check_repository.py | Trading Codex (cloud) | Fix in PR #5, pending merge |
-| RISK_ENGINE_SPEC.md UTC reconciliation | Trading Claude-Work | WAITING on risk-policy decision |
+| RISK_ENGINE_SPEC.md UTC reconciliation | Trading Claude-Work | Decision made 2026-10-06: preserve baseline now, reconcile as a separate versioned task later |
 | execution_market_filters.py | Claude Code local | DONE this sprint, reviewed, no changes requested |
 
 ## Dependencies & Blockers
 
 | Blocker | Waiting On | Impact |
 |---------|-----------|--------|
-| PR #3/#4/#5 merge chain | Trading Claude-Work's risk/quant sign-off on Findings 2 & 3 | Real system stays unmerged into `ccr-b66a9a9e-okj2pl` until resolved |
+| PR #3/#4/#5 merge chain | Finding 2 tests + Finding 3 implementation (Claude Code local) + Trading Claude-Work's final risk sign-off | Real system stays unmerged into `ccr-b66a9a9e-okj2pl` until resolved — unblocked from "waiting on a decision" to "waiting on implementation" as of 2026-10-06 |
 | Binance API keys | Owner provides (env vars), not urgent | Cannot test live connectivity or download real historical data — not requested yet |
 | XM/MetaTrader API access | Owner provides credentials | Phase 2, not blocking current work |
 
 ## Next Available Work
 
-1. **Trading Claude-Work**: review PR #3 and PR #4 for risk/quant semantics; specifically rule on Finding 2 (UTC vs local day boundary) and Finding 3 (drawdown/connectivity kill-switch — implement now or defer explicitly)
-2. **Claude Code local**: continue the real system's own next step (MARKET/quoteOrderQty semantics are now partly covered by PR #4 — remaining: integrate `execution_market_filters.py` with `paper_fills.py`/`paper_store.py` once review lands, per that PR's own checkpoint note "no change to LIMIT/FOK V1 paths... not done in this block")
+1. **Claude Code local**: implement Finding 3 (persistent automatic halt, see Task Board/Active Tasks above — critical, blocks the merge chain) and Finding 2's missing tests (high priority, non-blocking for other work); also still open: integrate `execution_market_filters.py` with `paper_fills.py`/`paper_store.py` per PR #4's own checkpoint note
+2. **Trading Claude-Work**: set the actual drawdown/connectivity thresholds for Finding 3 (not 8%/15%/60s by default — those are placeholders from my own unrelated package) once Claude Code local has a draft; final risk sign-off on both findings before merge
 3. **Trading Codex (either)**: once PR #3→#4→#5 merge, re-run `pytest tests/` to confirm `trading_intelligence/` still passes untouched
-4. **Whoever syncs Notion**: PR #4 and #5 RUN entries from this agent are logged; full Mission Control task-board update for the market-lot-contract work is still open
+4. **Whoever syncs Notion**: Task Board now has both Finding 2 and Finding 3 as tracked tasks (Claude Code local); PR #4/#5 RUN entries from this agent are logged
 
 
 ## GPT Work operational addendum — 2026-10-06 (proposed cross-review)
@@ -116,10 +118,12 @@ CI research logs verified (162 tests, ruff/mypy); data contract and checkpoint i
 `docs/AGENT_CITY_DATA_CONTRACT.md` and
 `docs/checkpoints/GPT_WORK_AGENT_CITY_2026-10-06.md`.
 
-F2 is a team contract reconciliation (REVIEW), not WAITING_FOR_USER. F3's
+Claude acknowledged the review (PR #3 comment 6007584364, commit 0503d54):
+F2 baseline is preserved; F2 tests and F3 implementation assigned to Claude Code
+local, then GPT Work reviews. F2 is not WAITING_FOR_USER. F3's
 persistent automatic gates remain unimplemented in the root opening path;
 existing HTTP/snapshot protections do not replace them. Preserve the baseline
-until Claude resolves the versioned contract; no policy change or merge approved
+per that decision; no new numerical policy or merge approved
 by this addendum. Public historical data do not require Binance API keys.
 
 Agent City: https://app.notion.com/p/3f102a0ff45f81678550e6b88514b55f
@@ -127,4 +131,3 @@ WAIT-NOTION-VISUAL-001 only blocks authenticated browser visual QA, not the
 working connector. WAIT-CLAUDE-CODE-001 was superseded by the user's delegation;
 this does not certify CLI setup. Source timestamps and authorship conflicts are
 flagged in Notion; avoid treating a reported future finish as observed heartbeat.
-
