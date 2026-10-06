@@ -13,11 +13,14 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from decimal import Decimal
+from typing import Callable, Optional
 
 import pandas as pd
 from scipy import stats
 
 from trading_intelligence.backtesting.backtest_engine import BacktestEngine, BacktestResult
+from trading_intelligence.strategy.base import AbstractStrategy
+from trading_intelligence.strategy.router import StrategyRouter
 
 logger = logging.getLogger(__name__)
 
@@ -150,21 +153,33 @@ class WalkForwardReport:
 
 
 def run_anchored_walk_forward(
-    strategy_factory,          # callable(params) -> AbstractStrategy
-    params: dict,
-    data: pd.DataFrame,
+    strategy_factory: Optional[Callable[[dict], AbstractStrategy]] = None,
+    params: Optional[dict] = None,
+    data: Optional[pd.DataFrame] = None,
     initial_equity: Decimal = Decimal("10000"),
     is_pct: float = 0.6,       # IS window as fraction of total data
     oos_pct: float = 0.2,      # OOS window
     step_pct: float = 0.1,     # step size for rolling folds
     max_folds: int = 5,
+    router_factory: Optional[Callable[[dict], StrategyRouter]] = None,  # callable(params) -> StrategyRouter
 ) -> WalkForwardReport:
     """
     Anchored walk-forward: IS always starts from the beginning.
     IS expands, OOS slides forward.
 
     is_pct, oos_pct, step_pct are fractions of total data length.
+
+    Exactly one of `strategy_factory` (validates one fixed strategy, the
+    original mode every existing caller uses) or `router_factory`
+    (validates a regime-aware StrategyRouter configuration — the real
+    use case now that BacktestEngine supports router= mode) must be given.
+    Both are called fresh per fold, per side (IS/OOS), same as
+    strategy_factory always was — no state leaks between folds.
     """
+    if params is None or data is None:
+        raise ValueError("params and data are required")
+    if (strategy_factory is None) == (router_factory is None):
+        raise ValueError("Pass exactly one of `strategy_factory` or `router_factory`, not both or neither.")
     n = len(data)
     is_size = int(n * is_pct)
     oos_size = int(n * oos_pct)
@@ -179,11 +194,13 @@ def run_anchored_walk_forward(
         is_data = data.iloc[:oos_start_idx]
         oos_data = data.iloc[oos_start_idx:oos_end_idx]
 
-        is_strategy = strategy_factory(params)
-        oos_strategy = strategy_factory(params)
-
-        is_engine = BacktestEngine(is_strategy, initial_equity=initial_equity)
-        oos_engine = BacktestEngine(oos_strategy, initial_equity=initial_equity)
+        if router_factory is not None:
+            is_engine = BacktestEngine(router=router_factory(params), initial_equity=initial_equity)
+            oos_engine = BacktestEngine(router=router_factory(params), initial_equity=initial_equity)
+        else:
+            assert strategy_factory is not None  # guaranteed by the exactly-one check above
+            is_engine = BacktestEngine(strategy_factory(params), initial_equity=initial_equity)
+            oos_engine = BacktestEngine(strategy_factory(params), initial_equity=initial_equity)
 
         is_result = is_engine.run(is_data)
         is_result.compute_metrics()

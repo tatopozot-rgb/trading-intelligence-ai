@@ -28,6 +28,7 @@ from trading_intelligence.backtesting.walk_forward import (
     run_anchored_walk_forward,
 )
 from trading_intelligence.strategy.base import AbstractStrategy
+from trading_intelligence.strategy.router import StrategyRouter
 
 # --- Fakes for pure-logic tests: compute_metrics() is a no-op here, so the
 # preset total_trades/sharpe_ratio/profit_factor are exactly what the fold
@@ -347,3 +348,57 @@ class TestRunAnchoredWalkForwardIntegration:
         )
         assert report.folds == []
         assert len(calls) == 2 * 2
+
+
+class TestRunAnchoredWalkForwardRouterMode:
+    """router_factory mode — validating a regime-aware StrategyRouter
+    configuration through the same gate, instead of one fixed strategy."""
+
+    def test_requires_exactly_one_of_strategy_factory_or_router_factory(self):
+        import pytest
+
+        data = _make_trending_ohlcv(n=300)
+        with pytest.raises(ValueError, match="exactly one"):
+            run_anchored_walk_forward(params={}, data=data)
+        with pytest.raises(ValueError, match="exactly one"):
+            run_anchored_walk_forward(
+                strategy_factory=lambda p: _NeverSignalsStrategy(),
+                router_factory=lambda p: StrategyRouter(),
+                params={}, data=data,
+            )
+
+    def test_router_factory_called_fresh_for_every_is_and_oos_engine(self):
+        calls = []
+
+        def router_factory(params):
+            calls.append(params)
+            return StrategyRouter()  # empty: always NO_TRADE, same role as _NeverSignalsStrategy
+
+        data = _make_trending_ohlcv(n=300)
+        run_anchored_walk_forward(
+            router_factory=router_factory, params={"x": 1}, data=data, max_folds=3,
+        )
+        assert len(calls) >= 2
+        assert all(c == {"x": 1} for c in calls)
+
+    def test_end_to_end_report_with_default_router_is_well_formed(self):
+        """Full pipeline through the actual gate: market data -> regime ->
+        router -> risk/sizing -> fills -> exit -> P&L -> go/no-go — using
+        the real default_router(), not a fake, so this proves the
+        regime-aware configuration survives walk-forward's own fold/factory
+        machinery, same as the fixed-strategy end-to-end test above."""
+        from trading_intelligence.strategy.router import default_router
+
+        data = _make_trending_ohlcv(n=600, seed=11)
+        report = run_anchored_walk_forward(
+            router_factory=lambda params: default_router(),
+            params={"strategy_id": "regime_router_e2e_test"},
+            data=data, is_pct=0.5, oos_pct=0.2, step_pct=0.15, max_folds=3,
+        )
+        assert isinstance(report, WalkForwardReport)
+        go, reason = report.go_no_go()
+        assert isinstance(go, bool)
+        assert isinstance(reason, str) and reason
+        assert "regime_router_e2e_test" in report.summary()
+        for fold in report.folds:
+            assert fold.oos_start > fold.is_end
