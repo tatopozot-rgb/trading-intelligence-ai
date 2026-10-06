@@ -42,3 +42,21 @@ node --test <city-checkout-directory>/agent-city-3d/tests/model.test.mjs
 ```
 
 The harness patches config paths before initialization and injects prices/time. No production DB is opened. The source snapshots used here stay local and are not part of the PR; tracked upstream files are not rewritten.
+
+## Block2 — pipeline cross-review, source2170d8e / implementation7fd75cc
+
+Claim issue2 comment6017161302. Python3.12.14/pandas3.0.1, synthetic fixtures only:6test methods,1PASS/5FAIL (6failing assertions because NaN and inf are distinct subtests),0.031s. `test_pipeline_review.py` does not download data or run an operational session.
+
+1. **Spot capital violated:** equity1000,entry100,stop99.99 yields cost+entry-fee4766.666665761. `_size_position` uses risk fraction without cash cap; BacktestEngine never invokes the actual RiskEngine. Sizing-only is not evidence of the full veto pipeline.
+2. **Learning lookahead:** decision at bar1, fill at bar2. `tag_trades_with_regime` passes data through bar2 close (`entry_bar+1`), which the strategy/router did not have at decision time. Preserve signal-time regime provenance instead of inferring it from fill-time bars.
+3. **Configured exit fee ignored:** `_close_trade` uses constant `TAKER_FEE` instead of the engine's configured `taker_fee`; configured0.0005 gives actual0.10891089 instead of0.054455445 in the fixture.
+4. **Final curve omits settlement:** end_of_data close yields final_equity1009.5980391485 but equity_curve[-1]1000. Derived return/drawdown metrics are inconsistent.
+5. **Invalid confidence routes:** `StrategyRouter.route` accepts NaN and inf and returns ROUTED rather than rejecting or NO_TRADE. Unregistered NO_EDGE does correctly remain NO_TRADE.
+
+Owner corrections: Claude Leader/cloud (research package). GPT Work provides independent tests/operations; it has not altered their modules. DONE:6acceptance methods and original research suite pass; no claim that this alone validates Windows live execution, strategy edge, liquidity, account permission or calibration.
+
+```powershell
+python reviews/gpt_work/test_pipeline_review.py <research-checkout-directory>
+```
+
+PR7 is DRAFT intentionally: reproducible failure evidence, not implementation approval. Research CI independently read at dea892f:253passed4.10s,ruffOK,mypy34filesOK. This green baseline missed the new acceptance cases and must not be used to override them.
