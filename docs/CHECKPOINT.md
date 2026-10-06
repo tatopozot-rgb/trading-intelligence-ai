@@ -7,9 +7,9 @@ aliases: ["Checkpoint"]
 
 # Checkpoint — Trading Intelligence AI
 
-> Last updated: 2026-10-06T13:40:00Z
+> Last updated: 2026-10-06T13:52:00Z
 > Agent: Trading Codex (cloud session)
-> Branch: `ccr-b66a9a9e-okj2pl` @ commit `4735237`
+> Branch: `ccr-b66a9a9e-okj2pl` @ commit `d899d49`
 > PRs: #1 (specs, open), #3 (real PAPER import, open, NOT merged), #4 (MARKET lot contract, open, NOT merged), #5 (is_junction fix, open, NOT merged), #6 (Agent City handoff, MERGED)
 > Other branches: `claude-code/finding-3-persistent-halt` (Claude Code local, Finding 2/3 implemented, reviewed, no PR yet)
 
@@ -771,6 +771,66 @@ declined to invent a MINA service or request/copy any keys. If the
 owner can name the actual existing module/config this refers to, that
 unblocks it in one sentence; otherwise this stays a non-finding, not a
 blocker.
+
+### 25. Fixed 4 more real bugs (Binance readiness, GPT Work's review) and activated a 4th real agent (same day, continued)
+
+GPT Work's review continued past PR #7's close with a new, offline
+"exchange readiness" block (no real client, blocked sockets, synthetic
+credentials) against `trading_intelligence/execution/binance.py` and
+`dry_run.py` — files this session owns. Verified all 4 by reading the
+code directly, then fixed (commit `d899d49`):
+
+1. `_verify_permissions` checked `'SPOT' in permissions` but never the
+   account-wide `canTrade` flag — an account can have
+   `permissions=['SPOT']` and `canTrade=False` simultaneously.
+2. `get_position()` checked only `balance['free']`, ignoring `locked` —
+   `free=0`/`locked=0.5` (e.g. BTC tied up in an open SELL order)
+   reported as no position at all.
+3. `submit_order()` checked `has_credentials` but never `self._connected`
+   — credentials being present isn't the same as `connect()` having
+   actually run and passed; it could reach `create_order` with no
+   verified session.
+4. `meets_min_notional()` only ran inside the `LIMIT` branch (it needs a
+   price, which MARKET orders don't have) — silently skipping the check
+   entirely even when the exchange's own filter flags it as applying to
+   MARKET orders too. Added `market_notional_check_required()` to expose
+   that flag and made `DryRunAdapter` fail closed (reject) rather than
+   silently pass an unverifiable case.
+
+7 new tests, 276/276 total, ruff + mypy clean.
+
+**Owner directive: activate the multi-agent company — more than 3
+agents, real backlog only, no decorative roles.** Pulled the actual
+current Notion Task Board (not from memory) before assigning anything.
+Honest accounting against the named roles (Market Watch, Quant, Risk,
+Execution, Portfolio, QA/Red Team, Infra/Recovery, Knowledge, Mission
+Control, Supervisor):
+
+- **Already real, already active, just not labeled with these names**:
+  Supervisor = this agent (Claude Líder); QA/Red Team + Mission Control
+  = GPT Work (proven this session via PR #7's independent review);
+  Execution/Risk (real-system side) + Infra/Recovery + Knowledge
+  (Obsidian/Agent City) = Claude Code local, which now has **7** queued
+  tasks (the two watchdog fixes, SHADOW mode, Binance/XM adapter
+  skeletons, two Agent City `model.mjs` fixes, and three new
+  `sync_agent_city.py` bugs GPT Work just found — see the Active Tasks
+  table).
+- **Genuinely no assignable backlog right now, reported honestly rather
+  than invented**: Portfolio (one strategy covering one regime — nothing
+  to allocate across yet); Market Watch (needs live Binance network,
+  which no cloud session in this project has — only Claude Code local's
+  real PC does, and it's already at capacity).
+- **One real, unclaimed, parallelizable gap found and activated**:
+  `StrategyRouter.default_router()` covers exactly `TREND_UP` and
+  `BREAKOUT_UP` (both via `DualMACrossover`) — every other regime is
+  honestly `NO_TRADE` for lack of a validated strategy. Spawned a new
+  Claude Code Remote session (`session_013NRgckXg3s5ATkCcrUe6KN`,
+  tagged `trading-intelligence-quant-strategy`), role **Quant/Strategy**,
+  same repo and branch, full self-contained brief (read-first docs,
+  exact DONE criteria, the same walk-forward GO/NO-GO honesty standard
+  as every other finding this session, and the shared-branch
+  coordination convention). Task: build and validate ONE mean-reversion
+  strategy for `Regime.RANGE`. Registered in Notion's AGENTS table.
 
 ## What's Next
 

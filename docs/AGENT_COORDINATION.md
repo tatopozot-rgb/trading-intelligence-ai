@@ -7,7 +7,7 @@ aliases: ["Agent Coordination"]
 
 # Agent Coordination — Trading Intelligence AI
 
-> Last updated: 2026-10-06T13:40:00Z
+> Last updated: 2026-10-06T13:52:00Z
 
 ## "Automated trading company" directive (2026-10-06) — triage and stance
 
@@ -64,11 +64,25 @@ not stop at "PAPER works." Only one human gate remains before real money:
 
 ## Current Phase: REVIEW — PR #3 and PR #4 cross-reviewed; PR #5 (fix) opened; none merged yet
 
-Three agents are active on this project (see `AGENTS.md` for the permanent
-definition — do not reintroduce a fourth "plain chat" agent in any document):
-- **Trading Claude-Work** (real ChatGPT Work): cross-review, architecture, risk, quant, Notion Mission Control.
-- **Trading Codex** (this agent, cloud container, no local-PC access): engineering, GitHub, CI, this review.
-- **Claude Code local** (PowerShell on the owner's PC, `C:\Users\tatop\trading-ai`): did the real import (PR #3), the MARKET lot/dust contract (PR #4), Finding 2/3 implementation, and is now building Agent City 3D (branch `claude-code/agent-city-3d-mvp`) — currently broken, see Active Tasks.
+Four real agents are active on this project as of 2026-10-06 (see `AGENTS.md`
+for the permanent definition of the original three — do not reintroduce a
+"plain chat" agent in any document; the fourth below is a real, spawned
+Claude Code Remote session, not a decorative role):
+- **Trading Claude-Work / GPT Work** (real ChatGPT Work): cross-review, architecture, risk, quant, Notion Mission Control. Proved this role concretely this session via PR #7's independent review (12 real bugs found across the watchdog, Agent City, and the research pipeline — all independently verified before any were acted on).
+- **Trading Codex** (this agent, cloud container, no local-PC access): engineering, GitHub, CI, risk-policy decisions under owner authorization, project leadership/coordination.
+- **Claude Code local** (PowerShell on the owner's PC, `C:\Users\tatop\trading-ai`): real import (PR #3), MARKET lot/dust contract (PR #4), Finding 2/3, Agent City 3D, the only agent with real Binance network access. Currently has 7 queued items — see Active Tasks.
+- **Quant/Strategy** (new Claude Code Remote cloud session, `session_013NRgckXg3s5ATkCcrUe6KN`, spawned 2026-10-06T13:48Z): building and validating a mean-reversion strategy for `Regime.RANGE`, the one real gap in `StrategyRouter.default_router()`'s coverage. Spawned in response to the owner's explicit "activate more real agents" directive, against a real, verified, previously-unclaimed backlog item — not a decorative role. Tracked in Notion's AGENTS database.
+
+**Named roles the owner asked about that are NOT separately staffed, with
+the honest reason** (per the owner's own "no inventes trabajo, no crees
+agentes decorativos" rule): *Supervisor* = Trading Codex's own function;
+*QA/Red Team* + *Mission Control* = GPT Work's function, already proven
+active; *Execution*/*Risk* (real-system side) + *Infra/Recovery* +
+*Knowledge* (Obsidian/Agent City) = Claude Code local's function, already
+at 7 queued tasks; *Portfolio* = no real backlog yet (one strategy covering
+one regime — nothing to allocate across); *Market Watch* = needs live
+Binance network access, which only Claude Code local's real PC has among
+all active agents, and it's already at capacity.
 
 GitHub is the shared source of truth. Check PR/issue state before assuming
 what another agent has or hasn't done — do not rely on stale doc text alone.
@@ -89,7 +103,8 @@ what another agent has or hasn't done — do not rely on stale doc text alone.
 | **NEW:** Binance/XM LIVE connection prep — adapter skeletons only, no credentials | Claude Code local | TO DO | broker_adapters.py, new XM/MT5 adapter module | Real network access and real-money account connections are Claude Code local's domain, not this cloud session's. Scope: build/extend the adapter shape for login/session/balances/market-data/positions/execution/reconciliation/trading-permissions as code structure and tests (mockable, no live calls required to test) — do NOT request, enter, prompt for, or store any credential, API key, password, 2FA code, passkey, or OAuth token anywhere (not in code, config, GitHub, Notion, Obsidian, or logs). The moment actual account connection is needed, that step is WAITING_FOR_USER by name, per the owner's own directive — not something any agent attempts around. Withdrawals must be impossible to enable from this code path, full stop. **DONE when:** adapter skeletons exist with mockable tests covering login/session/balances/market-data/positions/execution/reconciliation shape, no credential-handling code path exists anywhere in them, and the task hands off cleanly to a WAITING_FOR_USER checkpoint for actual account connection — not partway into it. |
 | **WAITING_FOR_USER — not an engineering decision:** Hard LIVE risk limits | Owner | BLOCKED on the owner, correctly | config.py (future) | `LIVE_CAPITAL_USD`, `MAX_RISK_PER_TRADE`, `MAX_DAILY_LOSS`, `MAX_DRAWDOWN`, `MAX_OPEN_POSITIONS`, `ALLOWED_INSTRUMENTS`, `MAX_LEVERAGE` have no existing spec value to ratify (unlike the PAPER drawdown thresholds, which already existed in `docs/RISK_ENGINE_SPEC.md`) — these are real-money numbers only the owner can set. Fail-closed (no LIVE entries) until set explicitly. See "Automated trading company directive" note above. |
 | Fix HistoricalDataDownloader silently defaulting to testnet | Trading Codex (cloud) | DONE | trading_intelligence/data/downloader.py | Real bug Claude Code local found via its own BTCUSDT research run (commit `a58437b`) — reported it rather than touching a file it didn't own. Fixed in `ad20161`: explicit `testnet=False` default + a sanity check in `download_range()`. 198/198 tests, ruff+mypy clean. |
-| Place the prepared Obsidian vault package (Agent City + 00-99 taxonomy) | Claude Code local | TO DO | `obsidian-vault-package/` (staging, repo) → owner's real vault (outside repo) | This cloud session has no Computer Use/local filesystem/Obsidian connector (verified via tool search, not assumed) — full content prepared instead of returning manual steps. See `obsidian-vault-package/README.md` for exact placement steps (find the real vault via `%APPDATA%\Obsidian\obsidian.json`, create the taxonomy, copy 9 files, report back, delete staging folder). Parallel, non-blocking work. |
+| ~~Place the prepared Obsidian vault package~~ | Claude Code local | **DONE** (confirmed via GitHub issue #2 comment 6017450133: notes/canvas are at `C:\Users\tatop\TATO`, checkpoint generated, SHA `2170d8e`) | `obsidian-vault-package/` → owner's real vault | Not independently re-verified by Trading Codex (no filesystem access); taking Claude Code local's own confirmed report at face value, same as any other agent's completed-task claim. Do not re-ask for this. |
+| **NEW — found by GPT Work's independent review of `sync_agent_city.py`, not yet independently verified by Trading Codex (no access to that file from this cloud session):** 3 bugs in the Notion→Agent City sync script | Claude Code local | TO DO | `C:\Users\tatop\agent-city-sync\sync_agent_city.py` | Per GitHub issue #2 comment 6017450133 (4 isolated tests on pure functions only, 1 PASS/3 FAIL, sync daemon itself never run): (1) the Completed Tasks table has no `Status` column, so it reads as `NOT_SYNCED` instead of `DONE`; (2) the literal string `"DONE"` isn't normalized, same `NOT_SYNCED` misreport; (3) `last_result` picks the FIRST historical result (e.g. an old "92/92" test count) instead of the most recent evidence (e.g. "262/262"). **DONE when:** the 4 isolated tests pass (GPT Work says it will publish the pure-function harness in a follow-up PR) and the fix doesn't touch any Obsidian-generated note directly (source/parser fix only). |
 | PR #5 (is_junction Linux fix) | Trading Codex (cloud) | REVIEW | tools/check_repository.py | Opened by this agent, stacked on PR #4, awaiting merge |
 | Merge PR #3 → PR #4 → {PR #5, finding-3-persistent-halt} → `ccr-b66a9a9e-okj2pl` | Trading Codex (cloud) — sign-off given 2026-10-06 | **UNBLOCKED, ready to execute** | — | Safe order confirmed via `git merge-base` (PR #5 and the Finding-3 branch are disjoint-file siblings off PR #4's tip) in `docs/RISK_POLICY_DECISIONS_2026-10-06.md` §8. Apply `DRAWDOWN_HALT_PCT=15.0` to the Finding-3 branch (task above) before merging it. |
 | Notion Mission Control sync for PR #4/#5 | Trading Claude-Work or Claude Code local | BACKLOG | Notion RUNS/CHECKPOINTS | This agent logged its own RUN entries; full Mission Control sync still pending |
@@ -97,6 +112,7 @@ what another agent has or hasn't done — do not rely on stale doc text alone.
 | Port DryRunAdapter pattern to the real system's broker_adapters.py/execution_context.py | Claude Code local or Trading Codex (local) | BACKLOG | broker_adapters.py, execution_context.py | Reference design in trading_intelligence/execution/dry_run.py. LIVE-readiness track. |
 | Port DryRunAdapter + ShadowRunner to real system | Claude Code local or Trading Codex (local) | BACKLOG | broker_adapters.py, execution_context.py | Both built and tested in trading_intelligence/execution/{dry_run,shadow}.py. Real system has no equivalent yet. |
 | Run ShadowRunner continuously against live Binance data | Claude Code local | BACKLOG | — | Needs real network access (this cloud container cannot reach api.binance.com) |
+| **NEW:** Build and validate a mean-reversion strategy for `Regime.RANGE` | **Quant/Strategy** (new cloud session, `session_013NRgckXg3s5ATkCcrUe6KN`) | WORKING | `trading_intelligence/strategy/strategies/` (new file), `trading_intelligence/backtesting/walk_forward.py` (uses existing `router_factory=`) | `default_router()` only covers `TREND_UP`/`BREAKOUT_UP` (both via `DualMACrossover`) — every other regime is honest `NO_TRADE` for lack of a validated strategy. Spawned in response to the owner's "activate more real agents" directive, against this real, previously-unclaimed gap. Full brief in the session's own prompt (read-first docs, exact DONE criteria matching this project's existing quality bar, the shared-branch coordination convention). A NO-GO walk-forward result is an explicitly acceptable, honest outcome — not a failure to retry until it looks good. **DONE when:** it reports here itself with a GO/NO-GO result, new tests passing, full suite/ruff/mypy still clean. |
 
 ## Completed Tasks
 
@@ -133,6 +149,7 @@ what another agent has or hasn't done — do not rely on stale doc text alone.
 | Wired Regime Engine + Strategy Router into `BacktestEngine` (optional `router=` mode, backward-compatible) — a real, runnable end-to-end pipeline | Trading Codex (cloud) | 2026-10-06 | this branch — 5 new tests, 259/259 total, ruff+mypy clean. Ran it on real synthetic data (not just unit tests), found `default_router()`'s original TREND_UP-only coverage produced zero trades despite real signals existing, diagnosed why (ADX trend confirmation lags the crossover event), and fixed it by adding BREAKOUT_UP coverage — grounded in the actual crossover-bar evidence, not guessed. See `docs/CHECKPOINT.md` section 22 |
 | Extended walk-forward validation to regime-aware `StrategyRouter` configs (`router_factory=`) | Trading Codex (cloud) | 2026-10-06 | this branch — 3 new tests, 262/262 total, ruff+mypy clean. See `docs/CHECKPOINT.md` section 23 |
 | Fixed 5 real bugs found by GPT Work's independent cross-review (PR #7): position-sizing cash cap, `_close_trade` honoring configured fee, missing final equity-curve settlement, `tag_trades_with_regime` fill-bar lookahead, `StrategyRouter` NaN/inf confidence | Trading Codex (cloud) | 2026-10-06 | this branch, commit `29067d2` — 7 new tests, 269/269 total, ruff+mypy clean; cross-checked against GPT Work's own independent `reviews/gpt_work/test_pipeline_review.py` (6/6 pass). See `docs/CHECKPOINT.md` section 24 |
+| Fixed 4 real Binance-readiness bugs found by GPT Work's independent review: `canTrade` never checked, `locked` balance ignored, session-verified flag never checked before `submit_order`, MARKET-order minNotional silently skipped | Trading Codex (cloud) | 2026-10-06 | this branch, commit `d899d49` — 7 new tests, 276/276 total, ruff+mypy clean. See `docs/CHECKPOINT.md` section 25 |
 
 ## Technical Decisions
 
