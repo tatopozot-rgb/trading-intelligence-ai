@@ -1709,9 +1709,15 @@ can never fire); it was left untouched rather than writing to `main` again.
 - stop: disable the workflow in the Actions tab, or delete the file.
 
 Verified locally before pushing: the run + report steps execute, and with no network the
-report turns red and names the exact error. Not yet verified: that GitHub's US-hosted
-runners can reach `data-api.binance.vision` (Binance restricts some services in the US;
-the public-data host is meant to be reachable). The first run answers it.
+report turns red and names the exact error.
+
+**First real run, verified** (run #1, `37694162053`, on `2f13295`, 2026-10-07 22:08 UTC,
+green in 25 s): GitHub's runners DO reach `data-api.binance.vision`. Real 4h klines for all
+five symbols passed the data checks; `last_processed` = `2026-10-07T16:00:00+00:00` (the
+last CLOSED 4h bar at 22:08; the 20:00 bar was still forming and correctly skipped);
+equity 10000, cash 10000, no positions, no fetch error, no stale symbol, no gap, kill
+switch off, books agree. No trade on this bar, as expected (section 30). From here the
+cron continues from the cached state every 4 hours.
 
 Risk config is the spec default (no override), so expect mostly NO_TRADE / RISK_REJECTED
 (section 30, question 5 is the owner's). Actions pinned by tag for cache/artifact (v4) and
