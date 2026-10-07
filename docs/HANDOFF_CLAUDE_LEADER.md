@@ -1,6 +1,6 @@
 # Handoff: Claude Leader / Trading Codex (cloud) — read THIS instead of the chat
 
-Written 2026-10-07 for a fresh session or a model switch; updated after section 38.
+Written 2026-10-07 for a fresh session or a model switch; updated after section 39.
 It is self-contained: you do not need the previous conversation. Verify any number
 below against the repo before repeating it (`git log --oneline -5` on `ccr-b66a9a9e-okj2pl`).
 
@@ -94,6 +94,10 @@ Agent City bugs; PR #3 conflict + merge chain #3 -> #4 -> #5.
 the owner directs: items above, or new findings from GPT Work / CI.
 
 ## 6. Scheduled things running
+
+- **PAPER automator:** `.github/workflows/paper-loop.yml` on `main` (owner-authorized), every 4h + on
+  demand; runs PaperLoop from this branch on public Binance data; state in the Actions cache;
+  red run = needs attention. See CHECKPOINT section 39. The only file ever written to `main`.
 
 - Routine "Trading claude work — 8h checkpoint" (`trig_015pfHXkGieqnfgyNViPcwP1`): its
   prompt asks to read CHECKPOINT + AGENT_COORDINATION, `git log`, issues/PRs, review new

@@ -1684,6 +1684,35 @@ network); the cloud container is blocked from Binance.
 527/527 tests passing (excluding the 7-test 4h battery run separately), ruff + mypy clean (38 files)
 ```
 
+### 39. The PAPER automator runs on GitHub Actions (owner-authorized on `main`) (2026-10-07)
+
+The owner wanted the system operating, with errors and changes visible from the
+automator. Two blockers: the cloud container cannot reach Binance (environment network
+policy, proxy 403) and the owner's PC blocks pandas' compiled libraries (Windows Smart
+App Control: "Una directiva de Control de aplicaciones bloqueó este archivo"). The owner
+explicitly authorized a file on `main` ("autorizo main"), so the loop now runs on
+GitHub's own servers.
+
+**`.github/workflows/paper-loop.yml` on `main`** (`4e96b09`, the only change to `main`):
+- every 4 hours at :07 UTC (a few minutes after each 4h bar closes; GitHub may delay
+  scheduled runs) and on demand (`workflow_dispatch`);
+- checks out THIS branch (`ccr-b66a9a9e-okj2pl`) and runs one PaperLoop poll on
+  BTC/ETH/SOL/BNB/XRP 4h from `data-api.binance.vision` (public data, no key, no account,
+  no order endpoint). Each poll catches up every bar closed since the last run;
+- state carried between runs in the Actions cache (no commits, nothing written to git);
+- each run writes a summary and turns RED on a fetch error, stale data, a data gap, the
+  kill switch or books that disagree; the full state is an artifact for 30 days;
+- stop: disable the workflow in the Actions tab, or delete the file.
+
+Verified locally before pushing: the run + report steps execute, and with no network the
+report turns red and names the exact error. Not yet verified: that GitHub's US-hosted
+runners can reach `data-api.binance.vision` (Binance restricts some services in the US;
+the public-data host is meant to be reachable). The first run answers it.
+
+Risk config is the spec default (no override), so expect mostly NO_TRADE / RISK_REJECTED
+(section 30, question 5 is the owner's). Actions pinned by tag for cache/artifact (v4) and
+by SHA for checkout/setup-python, matching the existing CI.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
