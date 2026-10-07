@@ -27,11 +27,15 @@ export const BUILDINGS = [
   // Life Simulation: creativo, separado. Nunca fuente de estado operativo.
   { id: "residential", label: "🏘 Residential District", pos: [3, 2], district: "simulation" },
   { id: "park", label: "🌳 Parque", pos: [3, 3], district: "simulation" },
-  // Casas del barrio residencial (simulación). world = posición exacta dentro de la celda residencial.
-  { id: "house_a", label: "🏠 Casa A", pos: [3, 2], world: [25, 16], district: "simulation" },
-  { id: "house_b", label: "🏠 Casa B", pos: [3, 2], world: [29, 16], district: "simulation" },
-  { id: "house_c", label: "🏠 Casa C", pos: [3, 2], world: [25, 20], district: "simulation" },
-  { id: "house_d", label: "🏠 Casa D", pos: [3, 2], world: [29, 20], district: "simulation" },
+  // Casas del barrio residencial (simulación), al este de la cuadrícula operativa (x>=33, fuera de
+  // la columna i=3 en x=27 donde están residential/hall/academy/park). Separación de 6-8 unidades
+  // en cada eje: ni las paredes ni los puntos de ruta (puerta/calle, hasta 3.6 desde el centro) caen
+  // dentro de otro edificio (verificado con script geométrico; antes, a 4 unidades de "residential",
+  // las 4 casas y ese edificio se solapaban entre sí en sus cuatro esquinas).
+  { id: "house_a", label: "🏠 Casa A", pos: [3, 2], world: [33, 14], district: "simulation" },
+  { id: "house_b", label: "🏠 Casa B", pos: [3, 2], world: [39, 14], district: "simulation" },
+  { id: "house_c", label: "🏠 Casa C", pos: [3, 2], world: [33, 22], district: "simulation" },
+  { id: "house_d", label: "🏠 Casa D", pos: [3, 2], world: [39, 22], district: "simulation" },
 ];
 export const SIM_NOTE = SIM_NOTE_VIDA;
 
