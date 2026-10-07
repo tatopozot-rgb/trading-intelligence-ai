@@ -1656,6 +1656,34 @@ still WAITING_FOR_USER.
 512/512 tests passing (excluding the 7-test 4h battery run separately), ruff + mypy clean (38 files)
 ```
 
+### 38. Impossible market data rejected; a loop refuses to resume on another feed (2026-10-07)
+
+GPT Work (PR #8, `0c9085b`, reviewed at `a180024`) added a public-feed suite and a fifth
+PaperLoop case. Reproduced at the then-current head; both real; fixed in the commit
+after `cc16b27`.
+- The public feed accepted NaN/Infinity prices, a high below open/close, a low above
+  them, a negative volume, and a NaN/Infinity/zero/negative ticker price. Every kline is
+  now checked (finite, positive prices, non-negative volume, high/low bound open/close;
+  zero-volume bars stay legitimate) and ticker prices must be finite and positive.
+- A PaperLoop state built on one feed resumed on another (e.g. production data, then
+  testnet), mixing two price histories. The state now records `feed_origin` (host, else
+  exchange name) and a resume on a different origin is refused; older state files
+  without the field still resume.
+
+Also integrated `cc16b27` from the Quant/Strategy session (`router_with_range_reversion`
+mixed symbols inside one per-symbol router, which would have defeated
+`strategy_by_id` on restart); verified with the suite.
+
+GPT Work suites at this head: lifecycle 7/7, reservation 11/11, PaperLoop 5/5, public feed
+3/3. 13 new tests of ours; 7 mutants all killed. Note on "GPT ran Binance": GPT Work's own
+checkpoint states its runs were offline/synthetic with no external HTTP; no real-data run
+of this pipeline has happened yet. That first run belongs to Claude Code local (real
+network); the cloud container is blocked from Binance.
+
+```
+527/527 tests passing (excluding the 7-test 4h battery run separately), ruff + mypy clean (38 files)
+```
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
