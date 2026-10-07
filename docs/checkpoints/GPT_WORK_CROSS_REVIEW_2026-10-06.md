@@ -1,6 +1,31 @@
 # GPT Work cross-review — 2026-10-06
 
+## CURRENT — continuation 2026-10-07 19:28Z
+
+Claude cloud's current research head `dd540b37d8a8d066b8932562bdc7acc679cd6ad5` includes a new PAPER-only `PaperLoop` and fixes the earlier risk-clock failure. Source-pinned local snapshot `operations/e2e-review/snapshot-dd540b3` matches GitHub blobs for the four changed paper/runner/risk modules; `paper_loop.py` matches blob `22b3736a2cccf9479336b3929589856c49f337b9`. No Binance credentials, exchange orders, persistent service, or live run were used.
+
+- **DONE:** lifecycle acceptance **7/7 PASS** (clock case now closed); reservation acceptance **8/11 PASS, 3 FAIL**, each missing fill-time hard cap at actual1933.6586537688075 > fixture cap1930. Source owner notified in PR8 comments6045056113/6045158141. Three PaperLoop safety failures independently reviewed and reproduced with a separate offline harness; positive contiguous-catch-up control passes. PaperLoop suite **1 PASS / 3 FAIL** on dd540b3. Cloud's `470 tests` claim is in its checkpoint; GitHub CI run37673400659 was still in progress at check time, so no independent full-suite count yet.
+- **ACTIVE:** draft PR8 cross-review, not source implementation. New `reviews/gpt_work/test_paper_loop_review.py` ready to publish. Claude Leader/cloud owns `trading_intelligence/**`; Claude Code Local owns first real-data PAPER run and root F3/SHADOW. GPT Work has not started the loop or touched those owners' code.
+- **BLOCKED:** (1) `PaperLoop.tick` checks only the first pending timestamp after a gap; an internal missing bar is skipped without halt and may conceal a crossed STOP. (2) A successful fetch returning the same old bars refreshes the connectivity watchdog indefinitely; no freshness/coverage alarm, and one frozen symbol stalls the portfolio. This is stale market data, not necessarily a network outage; handle without asserting the exchange must emit zero-trade candles. (3) `PaperAdapter.on_new_bar` persists a BUY before `_on_entry_filled` persists its STOP; a synthetic process exit in that window leaves an open position without STOP after restart. `reconcile()` blocks new entries but does not protect or close the existing position. Plus the three already reported fill-time hard caps. The proposed 25% fill-risk overshoot remains WAITING_FOR_USER, not approved or changed.
+- **NEXT:** publish the four-case PaperLoop review harness and this checkpoint in the *existing* PR8, report three reproducible failures to Claude Leader/cloud, then rerun only changed scopes on its corrected SHA. Local real-data PAPER run should wait for safety triage; no LIVE/E2E sign-off. Root F3 is separate Local work; do not duplicate it.
+- **BRANCH/COMMITS:** PR8 `work/readiness-atomicity-followup` head `26bba984a46fb21e24b540c67d5b42186ed9f6ef` before this publication. Research reviewed `dd540b3`. No new branch/thread/automation or policy values.
+- **HANDOFFS:** PR8 comments6045056113 and6045158141 for fill-time caps and revalidation. Existing Notion checkpoint/recovery/risk pages updated in place; add PaperLoop evidence there, not a new project. Claude Leader decides implementation/integration; Local owns actual PC/network execution.
+
+Reproduce (offline, temporary data, sockets blocked):
+
+```powershell
+python -B reviews/gpt_work/test_runner_lifecycle_review.py <research-checkout-at-dd540b3>
+python -B reviews/gpt_work/test_reservation_review.py <research-checkout-at-dd540b3>
+python -B reviews/gpt_work/test_paper_loop_review.py <research-checkout-at-dd540b3>
+```
+
+---
+
 ## CURRENT — continuation 2026-10-07 16:29Z
+
+**19:20Z revalidation:** Research head advanced to `dd540b37d8a8d066b8932562bdc7acc679cd6ad5` (Claude clock fix `b6b9da6`, opt-in market exposure and new PaperLoop included). Four changed runner/risk/paper blobs were verified and isolated at `operations/e2e-review/snapshot-dd540b3`. Both main and independent reviewer reran affected acceptance: **lifecycle 7/7 PASS** (pre-fill clock defect closed); **reservation 8/11 PASS, 3 FAIL** (small-gap aggregate exposure, correlated exposure and daily turnover hard caps remain at actual fill1933.6586537688075 > fixture limit1930). Source owner was notified once in PR8 comment6045158141. This supersedes the four-failure status below. CI run37673400659 for dd540b was **in progress** at check time; no full-suite claim. Claude formally recorded the 25% tolerance as WAITING_FOR_USER in section34 without changing it. New PaperLoop is cloud-owned; independent GPT Work cross-review is underway; Local owns first real-data PAPER run and root F3. **NEXT:** cloud corrects three fill-time hard-cap breaches; GPT Work reruns reservation11 against corrected SHA and reviews PaperLoop; no live activation, no duplicated Local run. Own PR8 head `26bba984a46fb21e24b540c67d5b42186ed9f6ef` before this checkpoint-only update.
+
+---
 
 Claude Leader/cloud replied on PR8 comment 6032331855 and changed research default to `9385237851185137864a2214c94113408417392c` (mechanical fixes `1e052cd`, subsequent stateful fuzzer/fix `b02dfec`, checkpoint `9385237`). This supersedes the 05:52Z section below for current results. Source is isolated in `operations/e2e-review/snapshot-9385237-reservation`; `paper.py`, `paper_runner.py`, `risk/engine.py`, and `risk/models.py` blobs were checked against this SHA. No owner source code or root runtime was edited by GPT Work.
 
