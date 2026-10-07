@@ -4,7 +4,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { BUILDINGS, AGENTS, STATE_COLOR, SIM_NOTE, deriveCity, CATEGORIAS } from "/lib/model.mjs";
 import { horaVisual } from "/lib/life.mjs";
-import { ALTURA_PLANTA, plantasDe } from "/lib/espacio.mjs";
+import { ALTURA_PLANTA, plantasDe, ESTACIONES_BASE, CAMAS_BASE } from "/lib/espacio.mjs";
 import { planRuta, posicionMundo, PUERTA_Z } from "/lib/paths.mjs";
 
 const REFRESCO_MS = 8000; // más frecuente: la rutina SIM usa reloj acelerado y debe notarse en poco tiempo real
@@ -178,9 +178,9 @@ function interiorDe(b) {
   if (b.id.startsWith("house")) {
     sofa.position.set(0, 0.3, 0);
     g.add(sofa);
-    for (const pos of [[-0.66, -0.66], [0.66, -0.66], [-0.66, 0.66], [0.66, 0.66]]) g.add(piezaCasa(pos));
+    for (const pos of CAMAS_BASE) g.add(piezaCasa(pos));
   } else {
-    for (const pos of [[-0.6, -0.6], [0.6, -0.6], [-0.6, 0.6], [0.6, 0.6]]) g.add(piezaEscritorio(pos));
+    for (const pos of ESTACIONES_BASE) g.add(piezaEscritorio(pos));
   }
   const plantas = plantasDe(b.id);
   if (plantas > 1) {
@@ -191,7 +191,7 @@ function interiorDe(b) {
     const escalera = new THREE.Mesh(new THREE.BoxGeometry(0.9, ALTURA_PLANTA, 1.6), new THREE.MeshStandardMaterial({ color: 0x57534e, transparent: true, opacity: 0.55 }));
     escalera.position.set(-1.3, ALTURA_PLANTA / 2, 0);
     g.add(losa, barandas, escalera);
-    for (const pos of [[-0.6, -0.6], [0.6, -0.6], [-0.6, 0.6], [0.6, 0.6]]) {
+    for (const pos of ESTACIONES_BASE) {
       const pieza = piezaEscritorio(pos);
       pieza.position.y = ALTURA_PLANTA;
       g.add(pieza);
@@ -413,7 +413,7 @@ function crearAvatar(key, nombre, color, esSimulado) {
   agentes[key] = { grupo, aro, seleccionAro, etiqueta, piernaI, piernaD, brazoI, brazoD, torso, cabeza, cabello, grupoBici,
     ruta: [], destino: null, destinoClave: null, desfase: Math.random() * 6, esSimulado, enEdificio: null,
     velocidad: VELOCIDAD_PIE, escalaBase: 0.92 + ((h >> 3) % 5) * 0.035, escalaVital: 1, velocidadVital: 1,
-    lod: 0, estado: null, transporte: "caminar", sentado: false, acostado: false };
+    lod: 0, estado: null, transporte: "caminar", sentado: false, acostado: false, pisoBase: 0 };
   return agentes[key];
 }
 
@@ -515,6 +515,7 @@ function avanzarAgentes(dt, tiempo, camaraPos) {
       if (ag.ruta.length < 2) {
         // Llegó: si el destino está dentro, queda dentro; si no, queda en la calle.
         ag.enEdificio = ag.destinoAdentro ? ag.destinoEdificio : null;
+        ag.pisoBase = ag.grupo.position.y; // altura exacta de llegada (incluye el piso, si subió)
       }
     }
     const moviendose = ag.ruta.length >= 2;
@@ -525,21 +526,26 @@ function avanzarAgentes(dt, tiempo, camaraPos) {
       const paso = Math.sin(tiempo / (ag.transporte === "bici" ? 60 : 110) + ag.desfase) * 0.7;
       ag.piernaI.rotation.x = paso; ag.piernaD.rotation.x = -paso;
       ag.brazoI.rotation.x = -paso * 0.8; ag.brazoD.rotation.x = paso * 0.8;
-      ag.grupo.position.y = ag.transporte === "bici" ? 0.3 : Math.abs(Math.sin(tiempo / 110 + ag.desfase)) * 0.06;
+      // La altura ya la fijó el tramo interpolado arriba (incluye subir/bajar de planta): sólo se le
+      // suma un balanceo pequeño, nunca se sustituye por un valor fijo.
+      const baseTramo = ag.grupo.position.y;
+      ag.grupo.position.y = baseTramo + (ag.transporte === "bici" ? 0.25 : Math.abs(Math.sin(tiempo / 110 + ag.desfase)) * 0.06);
       ag.grupo.rotation.x = 0;
     } else {
-      ag.grupo.position.y = 0;
       ag.grupo.rotation.x = 0;
       const r = Math.sin(tiempo / 700 + ag.desfase) * 0.05;
       if (ag.acostado) {
+        ag.grupo.position.y = ag.pisoBase + 0.4;
         ag.grupo.rotation.x = -Math.PI / 2 + 0.05;
         ag.grupo.position.y = 0.4;
         ag.piernaI.rotation.x = 0; ag.piernaD.rotation.x = 0;
         ag.brazoI.rotation.x = 0; ag.brazoD.rotation.x = 0;
       } else if (ag.sentado) {
+        ag.grupo.position.y = ag.pisoBase;
         ag.piernaI.rotation.x = -1.4; ag.piernaD.rotation.x = -1.4;
         ag.brazoI.rotation.x = -0.6 + r; ag.brazoD.rotation.x = -0.6 - r;
       } else {
+        ag.grupo.position.y = ag.pisoBase;
         ag.piernaI.rotation.x = 0; ag.piernaD.rotation.x = 0;
         ag.brazoI.rotation.x = r; ag.brazoD.rotation.x = -r;
       }

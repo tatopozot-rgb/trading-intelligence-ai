@@ -9,8 +9,10 @@ export function plantasDe(idEdificio) {
   return EDIFICIOS_DOS_PLANTAS.has(idEdificio) ? 2 : 1;
 }
 
-// Estaciones de trabajo (escritorio/pupitre) por planta: 4 puestos fijos, repartidos entre las plantas.
-const ESTACIONES_BASE = [[-0.95, -0.95], [0.95, -0.95], [-0.95, 0.95], [0.95, 0.95]];
+// Estaciones de trabajo (escritorio/pupitre) por planta: 2 puestos fijos por planta (no una sala
+// vacía de 4 para 3 personas). Con sólo 2 por planta, el 3er compañero ya sube al piso de arriba.
+// Exportadas para que la escena dibuje el mueble en el mismo punto exacto que decide la asignación.
+export const ESTACIONES_BASE = [[-0.6, -0.6], [0.6, 0.6]];
 export function estacionesDe(idEdificio) {
   const plantas = plantasDe(idEdificio);
   const lista = [];
@@ -26,7 +28,7 @@ export function estacionPara(idEdificio, indiceEnEdificio) {
 }
 
 // Camas por casa: 4 posiciones fijas; cada habitante de la casa recibe la suya por índice estable.
-const CAMAS_BASE = [[-1.05, -1.05], [1.05, -1.05], [-1.05, 1.05], [1.05, 1.05]];
+export const CAMAS_BASE = [[-1.05, -1.05], [1.05, -1.05], [-1.05, 1.05], [1.05, 1.05]];
 export function camaPara(indiceEnCasa) {
   return CAMAS_BASE[indiceEnCasa % CAMAS_BASE.length];
 }

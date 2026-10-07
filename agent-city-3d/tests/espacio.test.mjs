@@ -14,7 +14,7 @@ test("plantas: sólo los edificios altos tienen dos plantas; el resto, una", () 
 
 test("estaciones de un edificio de dos plantas usan ambas plantas, no sólo la 0", () => {
   const est = E.estacionesDe("risk_tower");
-  assert.equal(est.length, 8);
+  assert.equal(est.length, 4); // 2 puestos por planta x 2 plantas
   assert.ok(est.some((e) => e.planta === 0) && est.some((e) => e.planta === 1));
 });
 
@@ -30,13 +30,24 @@ test("compañeros de casa no comparten cama mientras haya camas libres", () => {
   assert.equal(new Set(camas).size, E.CAPACIDAD_CASA, "cada uno debería tener una cama distinta");
 });
 
-test("compañeros de trabajo se reparten entre estaciones y plantas, no se apilan en una sola", () => {
-  const r = Array.from({ length: 8 }, (_, i) => persona(`w${i}`, "house_a", "risk_tower"));
+test("con 3 compañeros en un edificio de 2 plantas, el tercero ya sube al piso de arriba", () => {
+  const r = Array.from({ length: 3 }, (_, i) => persona(`w${i}`, "house_a", "risk_tower"));
   const asign = E.asignarEspacios(r);
-  const plantas = new Set(r.map((p) => asign[p.id].estacion.planta));
-  const puestos = new Set(r.map((p) => JSON.stringify(asign[p.id].estacion)));
-  assert.deepEqual([...plantas].sort(), [0, 1]);
-  assert.equal(puestos.size, 8);
+  assert.equal(asign["w0"].estacion.planta, 0);
+  assert.equal(asign["w1"].estacion.planta, 0);
+  assert.equal(asign["w2"].estacion.planta, 1); // el 3ro ya no cabe en planta baja (2 puestos)
+});
+
+test("hasta llenar la capacidad (4), nadie comparte escritorio; con más gente, se reparte por turno", () => {
+  const r4 = Array.from({ length: 4 }, (_, i) => persona(`f${i}`, "house_a", "risk_tower"));
+  const asign4 = E.asignarEspacios(r4);
+  const puestos4 = new Set(r4.map((p) => JSON.stringify(asign4[p.id].estacion)));
+  assert.equal(puestos4.size, 4);
+  const r6 = Array.from({ length: 6 }, (_, i) => persona(`g${i}`, "house_a", "risk_tower"));
+  const asign6 = E.asignarEspacios(r6);
+  const plantas6 = new Set(r6.map((p) => asign6[p.id].estacion.planta));
+  assert.deepEqual([...plantas6].sort(), [0, 1]);
+  for (const p of r6) assert.ok(asign6[p.id].estacion); // nadie se queda sin estación, aunque se repita
 });
 
 test("quien no trabaja no recibe estación", () => {
