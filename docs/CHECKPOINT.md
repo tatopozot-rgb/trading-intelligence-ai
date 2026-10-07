@@ -1188,6 +1188,108 @@ binding across restarts.
 329/329 tests passing (up from 314, excluding the 7-test 4h battery run separately), ruff + mypy clean (36 files)
 ```
 
+### 30. "Winning is surviving, not just BTC": survival hardening, a correlated multi-asset stress bench, and the policy questions it surfaced (2026-10-07)
+
+Owner direction: don't anchor on BTC or any one thing; the market is the job;
+winning is surviving. So the question for this checkpoint was not "does a
+strategy make money" (still unproven: sections 12, 26, 28 are all NO-GO) but
+"if the strategy is wrong, bad, or reckless, does capital survive?"
+
+**Real gaps found by reading the code against that question (all fixed, commit
+`cd8e512`, each with a test):**
+- Drawdown and the daily loss limit were evaluated only inside `validate_order()`,
+  i.e. only when a NEW signal arrived. A position bleeding through a crash with no
+  fresh signals never tripped the halt. New `RiskEngine.observe_equity()`, called
+  on every bar by the runner. Making that safe also fixed two latent problems:
+  `equity_history` grew by one entry per call, and the halt alert/audit fired on
+  every call while halted (now once, on the transition).
+- An entry is approved on one bar and fills on the next, and the RiskEngine only
+  counted a position at fill. Two symbols approved on the same bar both saw
+  "nothing open" and together exceeded `max_open_positions` and the exposure caps
+  (reproduced with a failing test before fixing). New
+  `reserve_position`/`confirm_reservation`/`release_reservation`.
+- The three router factories hardcoded `"BTCUSDT"`; a proposal could be
+  risk-checked under one symbol and ordered on another. Routers now take a symbol;
+  `PaperTradingRunner` accepts a router-per-symbol factory, rejects a proposal whose
+  symbol differs from its data (fail closed), and has `process_bars` /
+  `run_portfolio_replay`, which mark every symbol before reporting equity once per
+  timestamp.
+
+**The bench** (`tests/survival_stress.py`, `python -m tests.survival_stress`; fast
+cases in `tests/test_survival_stress.py`): the full pipeline over a universe of
+CORRELATED synthetic assets (one market factor + idiosyncratic noise, so they fall
+together as crypto does; independent seeds would hide that), with gap shocks and
+bear legs, checking every invariant on every bar. 5 scenarios x 3 seeds x 4 assets
+x 900 days. **Held on all 60 runs, in every variant below: no negative cash, books
+reconcile every bar, max positions respected, no entry after the kill switch trips,
+single-bar loss never above what was actually held.**
+
+Two honest corrections to my own work while building it: the first version drove it
+with the default router, which barely trades, so the crash scenarios had zero
+exposure and "no violations" proved nothing (it now uses a deliberately reckless
+always-long strategy that re-enters after every stop-out, and the tests assert the
+scenario held real exposure); and my first loss-bound invariant ignored entries
+that fill during the bar (a bench bug, not a system fault).
+
+**What the reckless strategy exposed** (the risk machinery is sound; the policy has
+holes). 15 runs per row, same data:
+
+| variant | mean final | worst final | mean max DD | worst DD | worst 1-bar loss | peak exposure | halt tripped |
+|---|---|---|---|---|---|---|---|
+| current defaults | 0.984 | 0.688 | 34.7% | 51.0% | 21.1% | 54.8% | 13/15 |
+| + trailing stop 10% | 1.221 | 0.823 | 23.0% | 36.6% | 12.9% | 33.6% | 0/15 |
+| + 365-day drawdown peak | 0.985 | 0.835 | 31.3% | 44.9% | 19.8% | 54.8% | 10/15 |
+| both | 1.155 | 0.887 | 14.0% | 21.7% | 10.3% | 30.1% | 0/15 |
+
+Read the drawdown and exposure columns, not "final": the generator has strong
+positive-drift regimes, so gains are flattered. (Halt counts fall in the last three
+rows because the pause tier engages earlier and blocks entries; the account is
+protected before the halt is needed.) The findings:
+1. **Exposure caps drift.** `max_total_exposure_pct` (20%) is measured at ENTRY
+   notional, so an appreciating position grows far past it: peak real exposure was
+   30-55% of equity. Combined with an initial stop fixed at the entry price, a winner
+   ends up large with a stop far below the market. One bar lost 21% of equity.
+2. **A 30-day rolling drawdown peak lets a slow bleed through.** In `bear_grind`
+   (seeds 2, 3) equity fell 41% and 51% and the halt never tripped: no 30-day window
+   ever lost 15%. This is the "30-day rolling peak, not all-time" choice ratified in
+   `docs/RISK_POLICY_DECISIONS_2026-10-06.md` for the root system; the evidence
+   argues for revisiting it.
+3. **The halt cannot cap a drawdown.** It blocks new entries; per the spec
+   (`RISK_ENGINE_SPEC.md`, Kill Switch) positions are never auto-closed.
+
+**Built, opt-in, defaults unchanged:** `PaperTradingRunner(trailing_stop_pct=...)`
+ratchets each protective STOP up to that fraction below the highest close since entry
+(never down, never looser than the proposal's own stop; new STOP submitted before the
+old is cancelled so the position is never unprotected; recoverable after a restart).
+It is the single biggest improvement in the table. `RiskConfig.drawdown_lookback_days`
+already exists and was used as-is for the 365-day variant.
+
+**Not mine to decide: policy questions for the owner / risk review** (none implemented):
+- Enable a trailing stop (or equivalent profit protection) for any paper/live run?
+  Evidence above. It changes exit behavior, so it stays off until someone owns that.
+- Measure exposure at market value rather than entry notional? Closes the cap drift
+  for NEW entries; does not shrink positions already open.
+- A longer-horizon drawdown guard (365-day or all-time peak, probably a higher
+  threshold than 15%) alongside the 30-day one? Evidence: slow bleeds evade 30 days.
+- Should the halt reduce or close exposure, or stay entry-only as specified?
+- **Position-size cap: reject or clamp?** With the spec defaults (1% risk per trade,
+  5% position cap), fixed-fractional sizing exceeds the cap for any stop tighter than
+  ~20% and the engine REJECTS, so with its own defaults the system effectively never
+  trades. The spec says "hard caps applied after sizing", which reads as clamp, but
+  clamping approves trades that are rejected today (more exposure), so it is a
+  policy change. The bench uses an explicit 10% cap with a 10% stop to be able to trade.
+
+**Not done / limits:** synthetic data only; measures whether the risk machinery
+holds, not whether any strategy has edge. Fees are the PaperAdapter's, slippage is
+fixed 5 bps (no liquidity stress, no halted markets). Long-only spot: no shorting,
+no leverage, no funding. The root system (`paper_store.py`, Claude Code local) has
+its own risk code that this does not exercise; findings 2 and 3 apply to its
+30-day peak by the same logic and should be checked there.
+
+```
+365/365 tests passing (excluding the 7-test 4h battery run separately), ruff + mypy clean (36 files)
+```
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
