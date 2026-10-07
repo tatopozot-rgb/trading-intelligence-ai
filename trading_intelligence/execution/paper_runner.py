@@ -13,11 +13,22 @@ Invariants this runner enforces (each has a test):
   * An entry order is submitted ONLY from an approved RiskDecision, sized by the
     RiskEngine. There is no other path to an entry.
   * A RiskEngine exception means no order (fail closed), never a bypass.
-  * Every filled entry is registered with the RiskEngine and gets a protective
+  * An approved entry is RESERVED in the RiskEngine immediately (so same-bar
+    approvals on other symbols see it against every limit), confirmed when it
+    fills and released if it never does. Every filled entry gets a protective
     STOP; every close is registered back and cancels the sibling STOP.
   * New entries are blocked whenever the RiskEngine's and the PaperAdapter's
     books disagree, or an open position has no protective STOP. Closing
     existing positions is never blocked.
+  * Equity is reported to the RiskEngine on EVERY bar, after every symbol is
+    marked, so drawdown and daily-loss halts do not depend on a new signal.
+    If that observation fails, new entries are blocked.
+  * A proposal whose symbol differs from the symbol of the data it was
+    generated from is rejected (fail closed): the risk checks and the order
+    would otherwise apply to different instruments.
+  * Multi-asset: `router` may be a callable building one router per symbol;
+    all symbols share one account and one RiskEngine, so its exposure,
+    position-count and drawdown limits are portfolio-wide.
 
 Paper only: this wraps PaperAdapter and cannot reach an exchange.
 """
@@ -27,7 +38,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Optional
+from typing import Callable, Mapping, Optional, Union
 
 import pandas as pd
 
@@ -92,12 +103,13 @@ class _OpenTrade:
 class PaperTradingRunner:
     def __init__(
         self,
-        router: StrategyRouter,
+        router: Union[StrategyRouter, Callable[[str], StrategyRouter]],
         risk_engine: RiskEngine,
         paper: PaperAdapter,
         regime_kwargs: Optional[dict] = None,
     ):
-        self.router = router
+        self._router_source = router
+        self._routers: dict[str, StrategyRouter] = {}
         self.risk_engine = risk_engine
         self.paper = paper
         self.regime_kwargs = regime_kwargs or {}
@@ -115,9 +127,41 @@ class PaperTradingRunner:
         """Feed one newly completed bar (the LAST row of `data`; earlier rows
         are history). Orders decided on this bar fill at the next bar's open,
         exactly as PaperAdapter models it."""
-        if data.empty:
-            return self._record(RunnerStep(symbol, "", "NO_DATA"))
+        return self.process_bars({symbol: data})[0]
 
+    def process_bars(self, frames: Mapping[str, pd.DataFrame]) -> list[RunnerStep]:
+        """One timestamp across several symbols. Phase 1 fills and marks every
+        symbol; phase 2 reports equity to the RiskEngine once, with every
+        position marked at this timestamp; phase 3 decides, symbol by symbol
+        in sorted order (deterministic; the shared RiskEngine caps are
+        first-come-first-served)."""
+        steps: list[RunnerStep] = []
+        ingested: dict[str, tuple[datetime, list[OrderResult]]] = {}
+        for symbol in sorted(frames):
+            data = frames[symbol]
+            if data.empty:
+                steps.append(self._record(RunnerStep(symbol, "", "NO_DATA")))
+                continue
+            ingested[symbol] = self._ingest(symbol, data)
+        if not ingested:
+            return steps
+
+        problems: list[str] = []
+        try:
+            self.risk_engine.observe_equity(
+                self.paper.get_account_info().equity, now=max(t for t, _ in ingested.values()),
+            )
+        except Exception:
+            logger.exception("RiskEngine could not observe equity — blocking new entries")
+            problems.append("RiskEngine failed to observe equity")
+        problems += self.reconcile()
+
+        for symbol in sorted(ingested):
+            bar_time, fills = ingested[symbol]
+            steps.append(self._record(self._decide(symbol, frames[symbol], bar_time, fills, problems)))
+        return steps
+
+    def _ingest(self, symbol: str, data: pd.DataFrame) -> tuple[datetime, list[OrderResult]]:
         bar_time = _bar_time(data)
         last = data.iloc[-1]
         fills = self.paper.on_new_bar(
@@ -127,10 +171,13 @@ class PaperTradingRunner:
             bar_time.isoformat(),
         )
         self._handle_fills(symbol, fills, bar_time)
+        return bar_time, fills
 
+    def _decide(
+        self, symbol: str, data: pd.DataFrame, bar_time: datetime,
+        fills: list[OrderResult], problems: list[str],
+    ) -> RunnerStep:
         step = RunnerStep(symbol, bar_time.isoformat(), "", fills=fills)
-        problems = self.reconcile()
-
         position = self.paper.get_position(symbol)
         if position is not None:
             step.action = self._maybe_exit(symbol, data, position)
@@ -138,11 +185,18 @@ class PaperTradingRunner:
             step.action = "ENTRY_PENDING"
         elif problems:
             step.action = "ENTRIES_BLOCKED"
-            step.blocked_by = problems
+            step.blocked_by = list(problems)
             logger.error("Entries blocked for %s: %s", symbol, "; ".join(problems))
         else:
             self._maybe_enter(symbol, data, bar_time, step)
-        return self._record(step)
+        return step
+
+    def _router_for(self, symbol: str) -> StrategyRouter:
+        if isinstance(self._router_source, StrategyRouter):
+            return self._router_source
+        if symbol not in self._routers:
+            self._routers[symbol] = self._router_source(symbol)
+        return self._routers[symbol]
 
     def run_replay(self, symbol: str, data: pd.DataFrame, warmup: int = 60) -> list[RunnerStep]:
         """Replays `data` bar by bar. Needs no network; with cached real
@@ -152,12 +206,36 @@ class PaperTradingRunner:
             out.append(self.process_bar(symbol, data.iloc[: i + 1]))
         return out
 
+    def run_portfolio_replay(
+        self, frames: Mapping[str, pd.DataFrame], warmup: int = 60,
+    ) -> list[RunnerStep]:
+        """Replays several symbols on their common timestamps, one shared
+        account and RiskEngine. Frames are aligned to the intersection of
+        their indexes so every step sees every symbol at the same time."""
+        common = None
+        for frame in frames.values():
+            common = frame.index if common is None else common.intersection(frame.index)
+        if common is None:
+            return []
+        aligned = {sym: frame.loc[common] for sym, frame in frames.items()}
+        out: list[RunnerStep] = []
+        for i in range(warmup, len(common)):
+            out.extend(self.process_bars({sym: f.iloc[: i + 1] for sym, f in aligned.items()}))
+        return out
+
     def reconcile(self) -> list[str]:
         """Disagreements between the RiskEngine's and the PaperAdapter's books.
         Empty list means consistent."""
         problems: list[str] = []
         paper_ids = {p.position_id: sym for sym, p in self.paper.positions.items()}
-        risk_ids = {pid: info["symbol"] for pid, info in self.risk_engine.state.open_positions.items()}
+        risk_ids = {
+            pid: info["symbol"] for pid, info in self.risk_engine.state.open_positions.items()
+            if not info.get("reserved")
+        }
+        live_entries = {p.order_id for p in self._pending_entries.values()}
+        for rid in self.risk_engine.reservation_ids():
+            if rid not in live_entries:
+                problems.append(f"RiskEngine holds a reservation ({rid}) with no pending entry")
         for pid, sym in paper_ids.items():
             if pid not in risk_ids:
                 problems.append(f"paper position {sym} ({pid}) is not registered in the RiskEngine")
@@ -176,7 +254,7 @@ class PaperTradingRunner:
     def _maybe_enter(self, symbol: str, data: pd.DataFrame, bar_time: datetime, step: RunnerStep) -> None:
         snapshot = detect_regime(data, **self.regime_kwargs)
         step.regime = snapshot.regime.value
-        decision = self.router.route(snapshot)
+        decision = self._router_for(symbol).route(snapshot)
         if decision.is_no_trade or decision.strategy is None:
             step.action = f"NO_TRADE:{decision.reason}"
             return
@@ -186,6 +264,13 @@ class PaperTradingRunner:
             step.action = "NO_SIGNAL"
             return
         step.proposal = proposal
+        if proposal.symbol != symbol:
+            logger.error(
+                "Strategy proposed %s while processing %s data — rejecting (fail closed)",
+                proposal.symbol, symbol,
+            )
+            step.action = "SYMBOL_MISMATCH_NO_ORDER"
+            return
 
         reference_price = Decimal(str(float(data["close"].iloc[-1])))
         try:
@@ -204,8 +289,12 @@ class PaperTradingRunner:
             return
 
         order = OrderRequest(symbol=symbol, side="BUY", order_type="MARKET", quantity=risk.quantity)
+        # Reserve before submitting: other symbols decided on this same bar
+        # must already see this entry against max positions and exposure.
+        self.risk_engine.reserve_position(order.client_order_id, symbol, risk.quantity * reference_price)
         result = self.paper.submit_order(order)
         if result.status != "SUBMITTED":
+            self.risk_engine.release_reservation(order.client_order_id)
             step.action = f"ORDER_NOT_ACCEPTED:{result.reject_reason}"
             return
         self._pending_entries[symbol] = _PendingEntry(order.client_order_id, proposal, decision.strategy)
@@ -243,6 +332,7 @@ class PaperTradingRunner:
                 if result.status == "FILLED":
                     self._on_entry_filled(symbol, pending, result)
                 else:
+                    self.risk_engine.release_reservation(pending.order_id)
                     logger.warning("Entry for %s rejected at fill: %s", symbol, result.reject_reason)
                 continue
             trade = self._open_trades.get(symbol)
@@ -254,8 +344,8 @@ class PaperTradingRunner:
         if position is None or result.fill_price is None:
             logger.error("Entry fill for %s but no paper position — leaving for reconcile()", symbol)
             return
-        self.risk_engine.register_position_opened(
-            position.position_id, symbol, result.fill_price * result.filled_quantity,
+        self.risk_engine.confirm_reservation(
+            pending.order_id, position.position_id, symbol, result.fill_price * result.filled_quantity,
         )
         stop = OrderRequest(
             symbol=symbol, side="SELL", order_type="STOP",
@@ -302,6 +392,16 @@ class PaperTradingRunner:
         survived keeps being managed (stop-only exits, since the originating
         strategy object is not persisted). A position with no STOP is left
         unrecorded so reconcile() blocks new entries instead of guessing."""
+        # Entries/exits that were merely pending are decisions about a bar that
+        # is now stale, and the proposal behind them is not persisted. Drop
+        # them and give back their reservations; a fresh signal will re-decide.
+        for order in list(self.paper.pending_orders):
+            if order.order_type != "STOP":
+                logger.warning("Restart: cancelling stale pending %s %s order %s",
+                               order.side, order.symbol, order.client_order_id)
+                self.paper.cancel_order(order.client_order_id)
+        for rid in self.risk_engine.reservation_ids():
+            self.risk_engine.release_reservation(rid)
         for symbol, position in self.paper.positions.items():
             stop = self._stop_order_for(symbol)
             if stop is None or stop.stop_price is None:

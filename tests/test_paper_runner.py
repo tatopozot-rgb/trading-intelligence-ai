@@ -62,8 +62,9 @@ class _Scripted(AbstractStrategy):
     """Proposes a BUY when len(data) == entry_at, signals exit at exit_at.
     Stop is a fixed percentage below the signal bar's close."""
 
-    def __init__(self, entry_at: int, exit_at: Optional[int] = None, stop_pct: float = 0.05):
-        super().__init__("scripted", SYMBOL, "1d", {})
+    def __init__(self, entry_at: int, exit_at: Optional[int] = None, stop_pct: float = 0.05,
+                 symbol: str = SYMBOL):
+        super().__init__("scripted", symbol, "1d", {})
         self.entry_at = entry_at
         self.exit_at = exit_at
         self.stop_pct = Decimal(str(stop_pct))
@@ -73,7 +74,7 @@ class _Scripted(AbstractStrategy):
             return None
         close = Decimal(str(float(data["close"].iloc[-1])))
         return TradeProposal(
-            strategy_id="scripted", symbol=SYMBOL, side="BUY", entry_type="MARKET",
+            strategy_id="scripted", symbol=self.symbol, side="BUY", entry_type="MARKET",
             stop_price=close * (1 - self.stop_pct), timeframe="1d", rationale="scripted",
             signal_strength=1.0, timestamp=datetime.now(timezone.utc).isoformat(),
         )
@@ -268,6 +269,136 @@ class TestEndToEndReplay:
             realized = sum((t.pnl for t in runner.closed_trades), Decimal("0"))
             assert abs(paper.cash - (Decimal("10000") + realized)) < Decimal("0.0000001")
         assert paper.cash >= 0
+
+
+ETH = "ETHUSDT"
+
+
+def _two_asset_runner(tmp_path: Path, **risk_overrides) -> PaperTradingRunner:
+    config = RiskConfig(**{
+        "max_position_size_pct": 100.0, "max_total_exposure_pct": 100.0,
+        "max_correlated_exposure_pct": 100.0, "max_daily_turnover_pct": 1000.0,
+        "max_trades_per_day": 1000, **risk_overrides,
+    })
+    risk = RiskEngine(config, tmp_path / "risk.json", AuditLog(tmp_path / "audit"))
+    return PaperTradingRunner(
+        lambda sym: _router_for(_Scripted(entry_at=WARMUP + 1, symbol=sym)), risk, _paper(tmp_path),
+    )
+
+
+def _frames(n: int, symbols=(SYMBOL, ETH)) -> dict[str, pd.DataFrame]:
+    return {sym: _bars(_flat(n)) for sym in symbols}
+
+
+class TestMultiAssetPortfolioLimits:
+    """Survival at portfolio level: all symbols share one account and one
+    RiskEngine, so its caps must hold across symbols, including entries that
+    are approved on the same bar but only fill (and register) on the next."""
+
+    def test_same_bar_signals_cannot_exceed_max_open_positions(self, tmp_path):
+        runner = _two_asset_runner(tmp_path, max_open_positions=1)
+        runner.run_portfolio_replay(_frames(WARMUP + 3), warmup=WARMUP)
+        assert len(runner.paper.positions) == 1, "two approvals on one bar both filled"
+        assert runner.risk_engine.open_position_count == 1
+        assert any(s.action == "RISK_REJECTED:MAX_POSITIONS_REACHED" for s in runner.steps)
+        assert runner.reconcile() == []
+
+    def test_same_bar_signals_cannot_exceed_total_exposure(self, tmp_path):
+        # One 5%-stop position sizes to ~19% of equity; a 25% cap fits one, not two.
+        runner = _two_asset_runner(tmp_path, max_total_exposure_pct=25.0, max_open_positions=10)
+        runner.run_portfolio_replay(_frames(WARMUP + 3), warmup=WARMUP)
+        assert len(runner.paper.positions) == 1
+        assert any(s.action == "RISK_REJECTED:EXPOSURE_LIMIT_EXCEEDED" for s in runner.steps)
+
+    def test_both_enter_when_the_limits_allow_it(self, tmp_path):
+        runner = _two_asset_runner(tmp_path, max_open_positions=10)
+        runner.run_portfolio_replay(_frames(WARMUP + 3), warmup=WARMUP)
+        assert set(runner.paper.positions) == {SYMBOL, ETH}
+        assert runner.risk_engine.open_position_count == 2
+        assert runner.reconcile() == []
+
+
+class TestSurvivalGuards:
+    def test_gap_loss_trips_the_halt_with_no_new_signal(self, tmp_path):
+        """Sizing assumes a stop fills near its price; a gap beats that. The
+        drawdown must be seen on the bar it happens, not at the next signal."""
+        runner, _ = _entered_runner(tmp_path)
+        crash = _bars(_flat(WARMUP + 2) + [(15.0, 16.0, 14.0, 15.0)])  # -85% gap through the stop
+        runner.process_bar(SYMBOL, crash)
+        assert runner.closed_trades[0].exit_reason == EXIT_STOP
+        assert runner.risk_engine.state.kill_switch is True
+        assert "Drawdown halt" in runner.risk_engine.state.kill_switch_reason
+
+    def test_failure_to_observe_equity_blocks_entries(self, tmp_path, monkeypatch):
+        runner = _runner(tmp_path, _Scripted(entry_at=WARMUP + 1))
+
+        def boom(*args, **kwargs):
+            raise RuntimeError("cannot observe")
+
+        monkeypatch.setattr(runner.risk_engine, "observe_equity", boom)
+        steps = runner.run_replay(SYMBOL, _bars(_flat(WARMUP + 3)), warmup=WARMUP)
+        assert all(s.action == "ENTRIES_BLOCKED" for s in steps)
+        assert "failed to observe equity" in steps[0].blocked_by[0]
+        assert runner.paper.pending_orders == []
+
+    def test_proposal_for_another_symbol_is_rejected_fail_closed(self, tmp_path):
+        runner = PaperTradingRunner(
+            _router_for(_Scripted(entry_at=WARMUP + 1, symbol=SYMBOL)), _risk(tmp_path), _paper(tmp_path),
+        )
+        steps = [runner.process_bar(ETH, _bars(_flat(n))) for n in range(WARMUP + 1, WARMUP + 3)]
+        assert any(s.action == "SYMBOL_MISMATCH_NO_ORDER" for s in steps)
+        assert runner.paper.pending_orders == [] and runner.risk_engine.open_position_count == 0
+
+    def test_router_factory_builds_one_router_per_symbol(self, tmp_path):
+        built: list[str] = []
+
+        def factory(sym: str) -> StrategyRouter:
+            built.append(sym)
+            return _router_for(_Scripted(entry_at=WARMUP + 1, symbol=sym))
+
+        runner = PaperTradingRunner(factory, _risk(tmp_path), _paper(tmp_path))
+        runner.run_portfolio_replay(_frames(WARMUP + 4), warmup=WARMUP)
+        assert sorted(built) == [SYMBOL, ETH]
+        assert set(runner.paper.positions) == {SYMBOL, ETH}
+
+    def test_portfolio_equity_is_observed_with_every_symbol_marked_at_that_timestamp(self, tmp_path):
+        runner = _two_asset_runner(tmp_path, max_open_positions=10)
+        runner.run_portfolio_replay(_frames(WARMUP + 3), warmup=WARMUP)
+        assert set(runner.paper.positions) == {SYMBOL, ETH}
+        seen: list[Decimal] = []
+        real_observe = runner.risk_engine.observe_equity
+        runner.risk_engine.observe_equity = lambda equity, now=None: (seen.append(equity), real_observe(equity, now=now))[1]  # type: ignore[method-assign]
+
+        # BTC falls to 98, ETH to 90 on the same bar (above both 5% stops' effect on ETH? stop is
+        # ~95, so ETH's stop triggers): use mild moves that trigger neither stop.
+        frames = {SYMBOL: _bars(_flat(WARMUP + 3) + [(99.0, 99.5, 98.0, 98.0)]),
+                  ETH: _bars(_flat(WARMUP + 3) + [(96.0, 97.0, 95.5, 96.0)])}
+        runner.process_bars(frames)
+        expected = runner.paper.cash + sum(
+            (p.quantity * close for p, close in ((runner.paper.positions[SYMBOL], Decimal("98")),
+                                                  (runner.paper.positions[ETH], Decimal("96")))),
+            Decimal("0"),
+        )
+        assert len(seen) == 1, "equity is reported once per timestamp, after all symbols are marked"
+        assert seen[0] == expected
+
+    def test_restart_drops_stale_pending_entries_and_releases_their_reservations(self, tmp_path):
+        runner = _runner(tmp_path, _Scripted(entry_at=WARMUP + 1))
+        runner.run_replay(SYMBOL, _bars(_flat(WARMUP + 1)), warmup=WARMUP)  # approved, reserved, not yet filled
+        assert runner.risk_engine.reservation_ids() and runner.paper.pending_orders
+
+        restarted = PaperTradingRunner(
+            _router_for(_Scripted(entry_at=10**9)), _risk(tmp_path), _paper(tmp_path),
+        )
+        assert restarted.paper.pending_orders == []
+        assert restarted.risk_engine.reservation_ids() == []
+        assert restarted.risk_engine.open_position_count == 0
+        assert restarted.reconcile() == []
+
+    def test_stale_reservation_blocks_entries(self, tmp_path):
+        runner = _runner(tmp_path, _Scripted(entry_at=WARMUP + 1))
+        runner.risk_engine.reserve_position("orphan", SYMBOL, Decimal("100"))
+        assert any("reservation" in p for p in runner.reconcile())
 
 
 @pytest.mark.parametrize("bad", [pd.DataFrame()])

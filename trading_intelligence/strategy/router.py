@@ -70,7 +70,7 @@ class StrategyRouter:
         return RouterDecision(strategy, ROUTED, snapshot.regime, snapshot.confidence)
 
 
-def default_router() -> StrategyRouter:
+def default_router(symbol: str = "BTCUSDT", timeframe: str = "1d") -> StrategyRouter:
     """The router's current real coverage: DualMACrossover, for TREND_UP and
     BREAKOUT_UP. Originally registered for TREND_UP alone; running it
     end-to-end through BacktestEngine on synthetic data produced zero trades
@@ -89,7 +89,7 @@ def default_router() -> StrategyRouter:
     from trading_intelligence.strategy.strategies.ma_crossover import DualMACrossover
 
     strategy = DualMACrossover(
-        "BTCUSDT", "1d", params={"fast_period": 20, "slow_period": 50, "trend_filter_period": 0}
+        symbol, timeframe, params={"fast_period": 20, "slow_period": 50, "trend_filter_period": 0}
     )
     router = StrategyRouter()
     router.register(Regime.TREND_UP, strategy, min_confidence=0.5)
@@ -97,7 +97,7 @@ def default_router() -> StrategyRouter:
     return router
 
 
-def candidate_router_trend_4h() -> StrategyRouter:
+def candidate_router_trend_4h(symbol: str = "BTCUSDT") -> StrategyRouter:
     """CANDIDATE, NOT the live default — see docs/CHECKPOINT.md's
     Quant/Validation section and
     docs/STRATEGY_CANDIDATE_TREND_4H_VALIDATION.md for the full Stage 0-4
@@ -140,7 +140,7 @@ def candidate_router_trend_4h() -> StrategyRouter:
     from trading_intelligence.strategy.strategies.ma_crossover import DualMACrossover
 
     strategy = DualMACrossover(
-        "BTCUSDT", "4h", params={"fast_period": 20, "slow_period": 50, "trend_filter_period": 0}
+        symbol, "4h", params={"fast_period": 20, "slow_period": 50, "trend_filter_period": 0}
     )
     router = StrategyRouter()
     router.register(Regime.TREND_UP, strategy, min_confidence=0.5)
@@ -148,7 +148,7 @@ def candidate_router_trend_4h() -> StrategyRouter:
     return router
 
 
-def router_with_range_reversion() -> StrategyRouter:
+def router_with_range_reversion(symbol: str = "BTCUSDT") -> StrategyRouter:
     """default_router()'s coverage, PLUS BollingerReversion (mean-reversion,
     see trading_intelligence/strategy/strategies/bollinger_reversion.py)
     registered for Regime.RANGE.
@@ -177,6 +177,6 @@ def router_with_range_reversion() -> StrategyRouter:
     from trading_intelligence.strategy.strategies.bollinger_reversion import BollingerReversion
 
     router = default_router()
-    strategy = BollingerReversion("BTCUSDT", "1d")
+    strategy = BollingerReversion(symbol, "1d")
     router.register(Regime.RANGE, strategy, min_confidence=0.5)
     return router

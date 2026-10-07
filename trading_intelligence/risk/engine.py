@@ -145,7 +145,16 @@ class RiskEngine:
     def _update_drawdown(self, equity: Decimal, now: datetime) -> Decimal:
         today = self._today_str(now)
         history = [(d, Decimal(v)) for d, v in self.state.equity_history]
-        history.append((today, equity))
+        # One entry per day holding that day's highest equity: the peak is the
+        # only thing this history is used for, and observe_equity() calls this
+        # on every bar, so appending per call would grow the list (and the
+        # JSON rewritten on every save) without bound within a day.
+        for i, (d, v) in enumerate(history):
+            if d == today:
+                history[i] = (d, max(v, equity))
+                break
+        else:
+            history.append((today, equity))
 
         cutoff = now.date().toordinal() - self.config.drawdown_lookback_days
         history = [(d, v) for d, v in history if date.fromisoformat(d).toordinal() >= cutoff]
@@ -162,8 +171,8 @@ class RiskEngine:
                 self._set_kill_switch(
                     True, f"Drawdown halt: {drawdown_pct:.2f}% >= {self.config.drawdown_halt_pct}%"
                 )
-            self._audit_event("DRAWDOWN_HALT_TRIGGERED", drawdown_pct=float(drawdown_pct))
-            self.alert_sink.send("CRITICAL", "DRAWDOWN_HALT_TRIGGERED", {"drawdown_pct": float(drawdown_pct)})
+                self._audit_event("DRAWDOWN_HALT_TRIGGERED", drawdown_pct=float(drawdown_pct))
+                self.alert_sink.send("CRITICAL", "DRAWDOWN_HALT_TRIGGERED", {"drawdown_pct": float(drawdown_pct)})
         elif drawdown_pct >= Decimal(str(self.config.drawdown_pause_pct)):
             if not self.state.drawdown_paused:
                 self._audit_event("DRAWDOWN_PAUSE_TRIGGERED", drawdown_pct=float(drawdown_pct))
@@ -198,6 +207,60 @@ class RiskEngine:
             self.state.daily_realized_pnl = str(Decimal(self.state.daily_realized_pnl) + realized_pnl)
             self.state.save(self.state_path)
 
+    # A position is approved on one bar and only fills (and would only register)
+    # on the next. Without a reservation, every symbol approved on the same
+    # bar sees the same "nothing open" books, so together they can exceed
+    # max_open_positions, total exposure, correlated exposure and turnover.
+    # Reserved entries count toward every one of those limits immediately.
+
+    def reserve_position(self, reservation_id: str, symbol: str, notional_value: Decimal) -> None:
+        with self._lock:
+            self.state.open_positions[reservation_id] = {
+                "symbol": symbol, "notional_value": str(notional_value), "reserved": True,
+            }
+            self.state.daily_trade_count += 1
+            self.state.daily_turnover = str(Decimal(self.state.daily_turnover) + notional_value)
+            self.state.save(self.state_path)
+
+    def confirm_reservation(
+        self, reservation_id: str, position_id: str, symbol: str, actual_notional: Decimal,
+    ) -> None:
+        """The reserved entry filled: swap the reservation for the real position
+        and true-up turnover to the actual notional. An unknown reservation is
+        treated as a fresh open so exposure is never under-counted."""
+        with self._lock:
+            reserved = self.state.open_positions.pop(reservation_id, None)
+            if reserved is None:
+                self.state.daily_trade_count += 1
+                reserved_notional = Decimal("0")
+            else:
+                reserved_notional = Decimal(reserved["notional_value"])
+            self.state.open_positions[position_id] = {
+                "symbol": symbol, "notional_value": str(actual_notional),
+            }
+            self.state.daily_turnover = str(
+                max(Decimal("0"), Decimal(self.state.daily_turnover) + actual_notional - reserved_notional)
+            )
+            self.state.save(self.state_path)
+
+    def release_reservation(self, reservation_id: str) -> bool:
+        """The reserved entry never filled: give back its slot, exposure,
+        trade count and turnover. Returns False if no such reservation."""
+        with self._lock:
+            info = self.state.open_positions.get(reservation_id)
+            if info is None or not info.get("reserved"):
+                return False
+            del self.state.open_positions[reservation_id]
+            self.state.daily_trade_count = max(0, self.state.daily_trade_count - 1)
+            self.state.daily_turnover = str(
+                max(Decimal("0"), Decimal(self.state.daily_turnover) - Decimal(info["notional_value"]))
+            )
+            self.state.save(self.state_path)
+            return True
+
+    def reservation_ids(self) -> list[str]:
+        return [pid for pid, info in self.state.open_positions.items() if info.get("reserved")]
+
     @property
     def open_position_count(self) -> int:
         return len(self.state.open_positions)
@@ -225,6 +288,47 @@ class RiskEngine:
         )
 
     # ------------------------------------------------------------------
+    # Equity observation — halts must not depend on a new signal arriving
+    # ------------------------------------------------------------------
+
+    def observe_equity(self, equity: Decimal, now: Optional[datetime] = None) -> None:
+        """
+        Mark-to-market observation. Call on every bar, whether or not a trade
+        is proposed. Drawdown and the daily loss limit were previously only
+        evaluated inside validate_order(), i.e. only when a NEW signal
+        arrived: a position bleeding through a crash with no fresh signals
+        never tripped the halt, and a drawdown that recovered before the next
+        signal was never seen at all. A tripped halt only blocks new entries
+        (it never touches open positions), so observing more often can only
+        make the system more conservative.
+        """
+        now = now or datetime.now(timezone.utc)
+        with self._lock:
+            self._refresh_risk_state(equity, now)
+
+    def _refresh_risk_state(self, equity: Decimal, now: datetime) -> tuple[Decimal, Decimal, Decimal]:
+        """Caller must hold self._lock. Returns (daily_pnl, daily_loss_pct, drawdown_pct)."""
+        self._maybe_roll_day(equity, now)
+        drawdown_pct = self._update_drawdown(equity, now)
+
+        # Daily loss limit check (uses realized + mark-to-market equity delta)
+        equity_at_day_start = Decimal(self.state.equity_at_day_start)
+        daily_pnl = equity - equity_at_day_start
+        if equity_at_day_start > 0:
+            daily_loss_pct = daily_pnl / equity_at_day_start * 100
+        else:
+            daily_loss_pct = Decimal("0")
+
+        if daily_pnl < 0 and abs(daily_loss_pct) >= Decimal(str(self.config.daily_loss_limit_pct)):
+            if not self.state.trading_day_halted:
+                self._audit_event("DAILY_LOSS_LIMIT_REACHED", daily_loss_pct=float(daily_loss_pct))
+                self.alert_sink.send("WARNING", "DAILY_LOSS_LIMIT_REACHED",
+                                      {"daily_loss_pct": float(daily_loss_pct)})
+            self.state.trading_day_halted = True
+            self.state.save(self.state_path)
+        return daily_pnl, daily_loss_pct, drawdown_pct
+
+    # ------------------------------------------------------------------
     # Core gate
     # ------------------------------------------------------------------
 
@@ -242,24 +346,7 @@ class RiskEngine:
         now = now or datetime.now(timezone.utc)
 
         with self._lock:
-            self._maybe_roll_day(equity, now)
-            drawdown_pct = self._update_drawdown(equity, now)
-
-            # Daily loss limit check (uses realized + mark-to-market equity delta)
-            equity_at_day_start = Decimal(self.state.equity_at_day_start)
-            daily_pnl = equity - equity_at_day_start
-            if equity_at_day_start > 0:
-                daily_loss_pct = daily_pnl / equity_at_day_start * 100
-            else:
-                daily_loss_pct = Decimal("0")
-
-            if daily_pnl < 0 and abs(daily_loss_pct) >= Decimal(str(self.config.daily_loss_limit_pct)):
-                if not self.state.trading_day_halted:
-                    self._audit_event("DAILY_LOSS_LIMIT_REACHED", daily_loss_pct=float(daily_loss_pct))
-                    self.alert_sink.send("WARNING", "DAILY_LOSS_LIMIT_REACHED",
-                                          {"daily_loss_pct": float(daily_loss_pct)})
-                self.state.trading_day_halted = True
-                self.state.save(self.state_path)
+            daily_pnl, daily_loss_pct, drawdown_pct = self._refresh_risk_state(equity, now)
 
             # --- Step 1: kill switch ---
             if self.state.kill_switch:

@@ -468,3 +468,143 @@ class TestDailyTurnoverLimit:
         engine = _loose_engine(tmp_path)  # max_daily_turnover_pct loosened to 1000.0
         decision = engine.validate_order(_proposal(), equity=Decimal("10000"), reference_price=Decimal("50000"))
         assert decision.approved
+
+
+class _RecordingSink:
+    def __init__(self):
+        self.alerts: list[tuple[str, str]] = []
+
+    def send(self, severity, event, details):
+        self.alerts.append((severity, event))
+
+
+class TestObserveEquity:
+    """Real gap: drawdown and the daily loss limit were only evaluated inside
+    validate_order(), i.e. only when a NEW signal arrived. A position bleeding
+    through a crash with no fresh signals never tripped the halt."""
+
+    def _engine(self, tmp_path, **kw):
+        sink = _RecordingSink()
+        config = RiskConfig(**kw)
+        engine = RiskEngine(config, tmp_path / "risk_state.json", AuditLog(tmp_path / "audit"), sink)
+        return engine, sink
+
+    def test_drawdown_halt_trips_without_any_proposal(self, tmp_path):
+        engine, _ = self._engine(tmp_path)
+        engine.observe_equity(Decimal("10000"), now=datetime(2026, 1, 1, tzinfo=timezone.utc))
+        engine.observe_equity(Decimal("8000"), now=datetime(2026, 1, 2, tzinfo=timezone.utc))
+        assert engine.state.kill_switch is True
+        assert "Drawdown halt" in engine.state.kill_switch_reason
+        decision = engine.validate_order(_proposal(), equity=Decimal("8000"),
+                                          reference_price=Decimal("50000"),
+                                          now=datetime(2026, 1, 3, tzinfo=timezone.utc))
+        assert decision.reason == REASON_KILL_SWITCH_ACTIVE
+
+    def test_transient_drawdown_that_recovers_before_the_next_signal_is_still_seen(self, tmp_path):
+        """Seen only via observation: by the time a signal arrives equity is back
+        near the peak, so validate_order alone would have approved it."""
+        engine, _ = self._engine(tmp_path)
+        engine.observe_equity(Decimal("10000"), now=datetime(2026, 1, 1, tzinfo=timezone.utc))
+        engine.observe_equity(Decimal("8400"), now=datetime(2026, 1, 2, tzinfo=timezone.utc))
+        decision = engine.validate_order(_proposal(), equity=Decimal("10000"),
+                                          reference_price=Decimal("50000"),
+                                          now=datetime(2026, 1, 3, tzinfo=timezone.utc))
+        assert not decision.approved
+        assert decision.reason == REASON_KILL_SWITCH_ACTIVE, "a halt must not self-clear on recovery"
+
+    def test_pause_tier_follows_observation_and_clears_on_recovery(self, tmp_path):
+        engine, _ = self._engine(tmp_path)
+        engine.observe_equity(Decimal("10000"), now=datetime(2026, 1, 1, tzinfo=timezone.utc))
+        engine.observe_equity(Decimal("9000"), now=datetime(2026, 1, 2, tzinfo=timezone.utc))
+        assert engine.state.drawdown_paused is True and engine.state.kill_switch is False
+        engine.observe_equity(Decimal("9999"), now=datetime(2026, 1, 3, tzinfo=timezone.utc))
+        assert engine.state.drawdown_paused is False
+
+    def test_daily_loss_limit_trips_without_any_proposal(self, tmp_path):
+        engine, _ = self._engine(tmp_path, daily_loss_limit_pct=2.0)
+        day = datetime(2026, 1, 1, 10, tzinfo=timezone.utc)
+        engine.observe_equity(Decimal("10000"), now=day)
+        engine.observe_equity(Decimal("9700"), now=datetime(2026, 1, 1, 15, tzinfo=timezone.utc))
+        assert engine.state.trading_day_halted is True
+        # ...and it resets on the next trading day, as before.
+        engine.observe_equity(Decimal("9700"), now=datetime(2026, 1, 2, 10, tzinfo=timezone.utc))
+        assert engine.state.trading_day_halted is False
+
+    def test_halt_alert_and_audit_fire_once_not_on_every_bar(self, tmp_path):
+        engine, sink = self._engine(tmp_path)
+        engine.observe_equity(Decimal("10000"), now=datetime(2026, 1, 1, tzinfo=timezone.utc))
+        for hour in range(10):
+            engine.observe_equity(Decimal("7000"), now=datetime(2026, 1, 2, hour, tzinfo=timezone.utc))
+        halts = [a for a in sink.alerts if a[1] == "DRAWDOWN_HALT_TRIGGERED"]
+        assert len(halts) == 1
+        audited = [e for e in engine.audit_log.read_all() if e["event"] == "DRAWDOWN_HALT_TRIGGERED"]
+        assert len(audited) == 1
+
+    def test_equity_history_stays_one_entry_per_day(self, tmp_path):
+        engine, _ = self._engine(tmp_path)
+        for hour in range(20):
+            engine.observe_equity(Decimal(10000 + hour), now=datetime(2026, 1, 1, hour, tzinfo=timezone.utc))
+        assert len(engine.state.equity_history) == 1
+        assert Decimal(engine.state.equity_history[0][1]) == Decimal("10019"), "keeps the day's peak"
+
+    def test_peak_is_preserved_when_equity_falls_within_the_same_day(self, tmp_path):
+        engine, _ = self._engine(tmp_path, drawdown_pause_pct=8.0, drawdown_halt_pct=15.0)
+        engine.observe_equity(Decimal("10000"), now=datetime(2026, 1, 1, 9, tzinfo=timezone.utc))
+        engine.observe_equity(Decimal("9100"), now=datetime(2026, 1, 1, 17, tzinfo=timezone.utc))
+        assert engine.state.drawdown_paused is True, "9% below the day's own peak must register"
+
+
+class TestPositionReservations:
+    """An entry is approved on one bar and fills on the next. Reservations make
+    the approval count against every limit immediately."""
+
+    def _engine(self, tmp_path, **kw):
+        return _loose_engine(tmp_path, **kw)
+
+    def test_reservation_counts_toward_open_positions_and_exposure(self, tmp_path):
+        engine = self._engine(tmp_path, max_open_positions=1)
+        engine.reserve_position("r1", "ETHUSDT", Decimal("500"))
+        assert engine.open_position_count == 1
+        assert engine.total_open_exposure == Decimal("500")
+        decision = engine.validate_order(_proposal(), equity=Decimal("10000"), reference_price=Decimal("50000"))
+        assert decision.reason == REASON_MAX_POSITIONS_REACHED
+
+    def test_reservation_counts_toward_correlated_exposure(self, tmp_path):
+        engine = self._engine(tmp_path, max_correlated_exposure_pct=1.0, max_open_positions=100)
+        engine.reserve_position("r1", "BTCUSDT", Decimal("95"))
+        decision = engine.validate_order(_proposal(symbol="BTCUSDT"), equity=Decimal("10000"),
+                                          reference_price=Decimal("50000"))
+        assert decision.reason == REASON_CORRELATED_EXPOSURE_EXCEEDED
+
+    def test_confirm_swaps_reservation_for_the_real_position_and_trues_up_turnover(self, tmp_path):
+        engine = self._engine(tmp_path)
+        engine.reserve_position("r1", "BTCUSDT", Decimal("1000"))
+        engine.confirm_reservation("r1", "pos-1", "BTCUSDT", Decimal("1100"))
+        assert engine.reservation_ids() == []
+        assert list(engine.state.open_positions) == ["pos-1"]
+        assert engine.state.open_positions["pos-1"]["notional_value"] == "1100"
+        assert Decimal(engine.state.daily_turnover) == Decimal("1100")
+        assert engine.state.daily_trade_count == 1, "confirming must not double-count the trade"
+
+    def test_release_gives_back_slot_exposure_count_and_turnover(self, tmp_path):
+        engine = self._engine(tmp_path)
+        engine.reserve_position("r1", "BTCUSDT", Decimal("1000"))
+        assert engine.release_reservation("r1") is True
+        assert engine.open_position_count == 0
+        assert engine.total_open_exposure == Decimal("0")
+        assert engine.state.daily_trade_count == 0
+        assert Decimal(engine.state.daily_turnover) == Decimal("0")
+
+    def test_release_of_unknown_or_real_position_is_a_noop(self, tmp_path):
+        engine = self._engine(tmp_path)
+        engine.register_position_opened("pos-1", "BTCUSDT", Decimal("100"))
+        assert engine.release_reservation("missing") is False
+        assert engine.release_reservation("pos-1") is False, "a real position is not a reservation"
+        assert engine.open_position_count == 1
+
+    def test_reservations_survive_restart(self, tmp_path):
+        engine = self._engine(tmp_path)
+        engine.reserve_position("r1", "BTCUSDT", Decimal("250"))
+        again = RiskEngine(engine.config, tmp_path / "risk_state.json", AuditLog(tmp_path / "audit"))
+        assert again.reservation_ids() == ["r1"]
+        assert again.open_position_count == 1
