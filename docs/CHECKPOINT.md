@@ -1290,6 +1290,73 @@ its own risk code that this does not exercise; findings 2 and 3 apply to its
 365/365 tests passing (excluding the 7-test 4h battery run separately), ruff + mypy clean (36 files)
 ```
 
+### 31. GPT Work's runner lifecycle + reservation review: 12 of 14 checks failed, all 12 were real (2026-10-07)
+
+GPT Work (PR #8, commit `55547d6`) pushed two independent suites against the
+`PaperTradingRunner` at `a0941e3`: lifecycle (6 checks) and reservations (8).
+Reproduced as reported: 1/6 and 1/8 passing. Each failure was then checked against
+the real code instead of trusted; all 12 were genuine defects, one of them in my
+own earlier fix. Fixed in `1e052cd`. Re-run against the fix: lifecycle 6/6,
+reservation 8/8, and the four earlier research suites still pass (36/36).
+
+| # | Finding | Root cause | Fix |
+|---|---------|-----------|-----|
+| 1-2 | Retrying a `client_order_id` after a restart doubles the fill (pending and filled variants) | My `caa1903` idempotency guard read `order_history`, which is **not persisted** | Persist live ids (`used_order_ids`); old state files seed from their pending orders; cancel/reject frees an id |
+| 3-4 | A duplicate or older bar fills the order that was decided only after it closed | Runner never enforced chronology | A bar not strictly newer than the last per symbol is ignored (`STALE_BAR_IGNORED`), no state change |
+| 5 | A stop crossed inside the entry's own bar is not honoured until the next bar | The protective STOP is created after the adapter already ran that bar's stop pass | `PaperAdapter.evaluate_stops()` runs the new STOP against the fill bar (the open precedes the low) |
+| 6 | An entry approved before a kill switch still fills after it | Pending entries were never re-vetted | `RiskEngine.entry_block_reason()` (kill switch, daily-loss halt, drawdown pause) checked before the fill; cancel + release |
+| 7-8 | A gap between approval and fill breaks the approved limits (+50% gap: notional 2886 vs cap 2500; loss at stop 1064 vs budget 100, i.e. ~10x) | Approval used the last close; the fill is the next open | `RiskEngine.validate_fill()`: fill above stop, within the position cap, loss-at-stop within the risk budget **plus a tolerance**; veto is audited (`FILL_VETOED`) |
+| 9 | A midnight fill is charged to the old day, then erased by the day roll | The day rolled inside `observe_equity`, after the fill was accounted | New `RiskEngine.advance_clock()` rolls the day **before** the bar's fills |
+| 10-11 | A reservation from yesterday debits (release) or under-charges (confirm) today's budget | Reservations did not record their day | Reservations carry `day` (persisted); old-day release gives nothing back to today, old-day confirm charges the whole fill to today |
+| 12 | A failing risk bookkeeping call after a fill leaves the position without its STOP | `confirm_reservation` ran before the STOP was submitted | STOP first; a failing confirm/close registration is logged and left to `reconcile()`, which blocks new entries |
+
+**Side effect worth knowing (item 9):** the day's starting equity used to be the
+equity *after* the first bar of the day. On one-bar-per-day data the daily loss
+limit therefore could never see a single-bar loss. It now starts from the last mark
+before the bar, so the limit is meaningful on daily bars. This makes the system
+more conservative; it is the one behaviour change beyond the 12 items.
+
+**New config field, owner decision welcome:** `RiskConfig.max_fill_risk_overshoot_pct`
+(default 25.0). A fill is vetoed when the loss at the approved stop would exceed the
+per-trade risk budget by more than this. 25% lets normal slippage and small
+inter-bar moves through (a 0.5% gap on a 5% stop adds ~10% risk) and stops a gap
+that multiplies the risk. It is a fail-closed choice: a tighter value skips more
+trades, a looser one accepts more gap risk. Not a spec value; not one of the owner's
+LIVE hard limits.
+
+**Validation:**
+- 59 new tests (`tests/test_paper_runner_lifecycle.py`, plus additions to
+  `test_risk_engine.py` and `test_paper_adapter.py`); full suite 424 passing,
+  ruff + mypy clean on `trading_intelligence` and `tests` (36 files).
+- 15 mutants, one per decision above (off-by-one on the stale guard, fill == stop,
+  removed halt gate, removed cap check, tolerance ignored, reservation always
+  same-day, day not rolled, bookkeeping failure aborting the step, ...): all killed.
+  The engine-level day and tolerance mutants are also killed by the engine tests
+  alone, not only by the runner tests.
+- Survival bench re-run (15 runs per variant, same table as section 30): zero
+  invariant violations in 60 runs. The aggregates barely move, which is expected:
+  these fixes close correctness holes at the fill, they do not change how a reckless
+  strategy bleeds. Mean final equity / worst final / mean max DD / worst DD: current
+  defaults 0.980 / 0.691 / 34.7% / 51.5% (was 0.984 / 0.688 / 34.7% / 51.0%);
+  +trailing 10% 1.204 / 0.796 / 23.3% / 37.0% (was 1.221 / 0.823 / 23.0% / 36.6%);
+  +365-day peak 0.985 / 0.835 / 31.3% / 44.9% (unchanged); both 1.156 / 0.893 /
+  13.1% / 21.4% (was 1.155 / 0.887 / 14.0% / 21.7%). The section 30 conclusions and
+  its five open policy questions stand unchanged.
+
+**Still not covered by any test or fix:**
+- The runner's guards (chronology, pending-entry vetoes) are in memory; after a
+  restart pending entries are cancelled anyway, so a replayed bar cannot fill one,
+  but a replayed bar *can* still trigger a persisted protective STOP, which is the
+  correct outcome.
+- A pending entry is re-vetted at the open only. A halt that begins *within* that
+  bar's own moves cannot stop a fill at the open (the open precedes them).
+- Real-data behaviour: still only synthetic bars (api.binance.com is not reachable
+  from this container).
+
+```
+424/424 tests passing (excluding the 7-test 4h battery run separately), ruff + mypy clean (36 files)
+```
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
