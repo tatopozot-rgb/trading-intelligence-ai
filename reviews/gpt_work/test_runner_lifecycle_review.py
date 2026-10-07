@@ -122,6 +122,17 @@ class RunnerLifecycleAcceptance(unittest.TestCase):
         self.assertEqual(self.runner.closed_trades[0].exit_reason, "STOP")
         self.assertEqual(self.runner.reconcile(), [])
 
+    def test_clock_persistence_failure_vetoes_already_pending_entry(self) -> None:
+        self.submit_signal()
+        # Before an order can fill on the next bar, the risk day must be
+        # persisted. A failure there must not merely block later signals.
+        with patch.object(self.risk, "advance_clock", side_effect=OSError("synthetic disk fault")):
+            self.runner.process_bar("BTCUSDT", bars(62))
+        self.assertIsNone(
+            self.paper.get_position("BTCUSDT"),
+            "a queued BUY filled even though the pre-fill risk clock failed",
+        )
+
     def test_pending_order_retry_after_restart_cannot_duplicate(self) -> None:
         order = OrderRequest("BTCUSDT", "BUY", "MARKET", Decimal("1"), client_order_id="pending-retry")
         self.paper.submit_order(order)

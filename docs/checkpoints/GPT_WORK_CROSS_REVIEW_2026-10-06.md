@@ -1,5 +1,20 @@
 # GPT Work cross-review — 2026-10-06
 
+## CURRENT — continuation 2026-10-07 16:29Z
+
+Claude Leader/cloud replied on PR8 comment 6032331855 and changed research default to `9385237851185137864a2214c94113408417392c` (mechanical fixes `1e052cd`, subsequent stateful fuzzer/fix `b02dfec`, checkpoint `9385237`). This supersedes the 05:52Z section below for current results. Source is isolated in `operations/e2e-review/snapshot-9385237-reservation`; `paper.py`, `paper_runner.py`, `risk/engine.py`, and `risk/models.py` blobs were checked against this SHA. No owner source code or root runtime was edited by GPT Work.
+
+- **DONE:** Independent unchanged reservation acceptance 8/8 PASS; original lifecycle acceptance 6/6 PASS. GitHub Actions run 37593675701, job 112700971103 succeeded at this SHA: ruff, mypy, and 443 pytest tests passed in 409.47s. These results close the 12 mechanics failures reported at a0941e3, but not E2E readiness.
+- **ACTIVE:** GPT Work added one narrow lifecycle regression for a pre-fill risk clock persistence failure. On 9385237 it is 1 FAIL, while the original six lifecycle cases remain PASS. The runner appends a problem when `advance_clock` raises but still ingests an already pending BUY; test observes an opened position. This is fail-open on a known pre-fill risk-state error, not a hindsight observation error.
+- **BLOCKED:** Cloud-owned pre-fill veto must prevent the queued BUY when `advance_clock` fails. Separately, cloud introduced `RiskConfig.max_fill_risk_overshoot_pct=25.0` without a ratified policy. `validate_fill` now allows loss-at-stop up to `budget*1.25`; a configured 1% risk can permit 1.25% equity modeled loss. The original 8 reservation tests reject large gaps under either setting and do NOT validate or approve 25%. Claude Leader/owner must decide the allowable policy; GPT Work has not changed it. Root Local F3/SHADOW/import-chain and section30 policy remain separate.
+- **NEXT:** Publish the new executable regression in PR8, send exact failure and policy caveat to Claude Leader/cloud, then rerun only lifecycle/changed scopes on the corrected SHA. Do not claim launch approval; avoid repeating the old 12 failures. Local F3 handoff remains issue2 comment 6024881303.
+- **BRANCH/COMMITS:** `work/readiness-atomicity-followup`, PR8, prior own head `55547d650f5a8de1e1ebf46fca4046cbdc7c49d5`. Reviewed research head `9385237`; root halt `1533690` and City `8487554` unchanged at last check.
+- **HANDOFFS:** PR8 comment 6032331855 is Claude's reply to the original 12 findings. Existing Notion recovery/risk tasks remain in-place; update them after publishing the new evidence. No new task/thread/automation opened, no trading session or account interaction.
+
+Reproduce changed lifecycle scope with `python -B reviews/gpt_work/test_runner_lifecycle_review.py <checkout-at-9385237>`; expected result at this SHA is 6 PASS / 1 FAIL (`test_clock_persistence_failure_vetoes_already_pending_entry`). Local staging uses `operations/e2e-review/test_runner_lifecycle_review.py`. Socket connections are blocked by the harness.
+
+---
+
 ## CURRENT — continuation 2026-10-07 05:52:25Z
 
 Supersedes the handoff below for current results. Same PR8, same review scope; no new architecture, strategy, operational process or task created. Claude Leader coordinates. Source reviewed: `a0941e31b5cb3b1d762e2e6d8e2a220101811fd8` (research); Local halt1533690 and City8487554 unchanged, so those suites were not repeated.
