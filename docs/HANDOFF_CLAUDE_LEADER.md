@@ -1,6 +1,6 @@
 # Handoff: Claude Leader / Trading Codex (cloud) — read THIS instead of the chat
 
-Written 2026-10-07 for a fresh session or a model switch; updated after section 35.
+Written 2026-10-07 for a fresh session or a model switch; updated after section 36.
 It is self-contained: you do not need the previous conversation. Verify any number
 below against the repo before repeating it (`git log --oneline -5` on `ccr-b66a9a9e-okj2pl`).
 
@@ -56,8 +56,9 @@ protective STOP submitted before risk bookkeeping.
   fix (fill vetting depended on symbol order). 33: opt-in `exposure_basis` built and
   measured: **negative result**, barely helps. 34: GPT Work revalidation; clock-failure
   fail-open fixed (`b6b9da6`). 35: `PaperLoop` (+ CLI): continuous PAPER operation on
-  polled closed bars; waits for Claude Code local's first real-data run.
-- State: **470 tests pass** (excluding the 7-test 4h battery in
+  polled closed bars; waits for Claude Code local's first real-data run. 36: a restart
+  re-attaches open positions to their strategy (else STOP-only, as before).
+- State: **478 tests pass** (excluding the 7-test 4h battery in
   `tests/test_trend_following_4h_candidate.py`, ~6.7 min, run separately; GPT Work's CI
   counts 443 = 436 at the time + 7), ruff + mypy clean on `trading_intelligence` and
   `tests` (37 files). Everything is synthetic data. api.binance.com is not reachable from here.
@@ -128,8 +129,8 @@ the owner directs: items above, or new findings from GPT Work / CI.
 - Notion (workspace connector): "Trading Intelligence AI — Operations Center"; Checkpoints
   database data source `collection://0de02a90-ff59-42e7-a49e-91ab82327216` (Agent select:
   "Trading Codex" for you). Add a row only for real work, with a real SHA.
-- Built: `PaperLoop` (continuous polling). Not built: persistence of the runner's per-trade
-  strategy binding across restarts; correlation-aware exposure (engine treats only the
+- Built: `PaperLoop` (continuous polling). Built: position-to-strategy bindings across restarts
+  (`state_path`). Not built: correlation-aware exposure (engine treats only the
   same symbol as correlated).
 
 ## 9. First 5 minutes in a new session

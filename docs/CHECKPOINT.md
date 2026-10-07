@@ -1583,6 +1583,38 @@ JSON, spec defaults otherwise.
 470/470 tests passing (excluding the 7-test 4h battery run separately), ruff + mypy clean (37 files)
 ```
 
+### 36. A restart no longer strips open positions of their strategy's exits (2026-10-07)
+
+With `PaperLoop` (section 35) restarts become routine (the owner's PC sleeps, the
+process is redeployed). Since section 29 a restart left every open position managed
+by its persisted STOP only: the strategy's own exit signal was silently lost.
+
+**Built** (`d09dd5b`). `PaperTradingRunner(state_path=...)` records
+`{symbol: {position_id, strategy_id}}` when an entry fills and clears it when the
+position closes. On restart it re-attaches the strategy only when ALL of these hold:
+the record is for the exact same `position_id`, and the router still has a strategy
+with that `strategy_id` for that symbol (`StrategyRouter.strategy_by_id`). In every
+other case (no file, unreadable file, a different position, a strategy no longer
+routed) the position keeps the previous behaviour: managed by its persisted STOP,
+which still protects it. A failure to write the file is logged and never interrupts
+fill handling. `PaperLoop.build_loop` passes `state_dir/runner.json`; without a
+`state_path` nothing changes.
+
+**Validation.** 7 runner tests + 1 router test; 6 mutants (never saved, kept after
+close, any position id accepted, rebind disabled, save failure propagating,
+unreadable file crashing the restart) all killed. The fuzzer's random restarts now go
+through this path: 0 violations in 40 new seeds (41-80; 244 restarts). 478 tests,
+ruff + mypy clean.
+
+**Limit.** The strategy object is re-created by the router, not restored: a strategy
+that keeps internal state between bars (none of the current ones does; their exit
+signals are computed from the bar history and the entry price) would restart with
+fresh state.
+
+```
+478/478 tests passing (excluding the 7-test 4h battery run separately), ruff + mypy clean (37 files)
+```
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
