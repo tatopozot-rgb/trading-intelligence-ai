@@ -273,6 +273,7 @@ def build_loop(
     paper = PaperAdapter(market_data, Decimal(paper_equity), state_dir / "paper.json")
     runner = PaperTradingRunner(
         lambda sym: default_router(sym, timeframe), risk, paper, trailing_stop_pct=trailing_stop_pct,
+        state_path=state_dir / "runner.json",
     )
     return PaperLoop(runner, market_data, symbols, timeframe, state_dir / "loop.json", stop_file=stop_file)
 

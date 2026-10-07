@@ -53,6 +53,14 @@ class StrategyRouter:
     def registered_regimes(self) -> frozenset[Regime]:
         return frozenset(self._registry)
 
+    def strategy_by_id(self, strategy_id: str, symbol: str) -> Optional[AbstractStrategy]:
+        """The registered strategy with this id trading this symbol, if any.
+        Used to re-attach an open position to its strategy after a restart."""
+        for strategy, _ in self._registry.values():
+            if strategy.strategy_id == strategy_id and strategy.symbol == symbol:
+                return strategy
+        return None
+
     def route(self, snapshot: RegimeSnapshot) -> RouterDecision:
         entry = self._registry.get(snapshot.regime)
         if entry is None:

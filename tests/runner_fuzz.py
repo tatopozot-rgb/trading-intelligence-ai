@@ -110,7 +110,8 @@ def run_fuzz(seed: int, n_bars: int = 200, symbols: Optional[list[str]] = None) 
         def build() -> PaperTradingRunner:
             risk = RiskEngine(config, root / "risk.json", AuditLog(root / "audit"))
             paper = PaperAdapter(_DataOnly(), INITIAL_EQUITY, root / "paper.json")
-            return PaperTradingRunner(reckless_router, risk, paper, trailing_stop_pct=trailing)
+            return PaperTradingRunner(reckless_router, risk, paper, trailing_stop_pct=trailing,
+                                      state_path=root / "runner.json")
 
         runner = build()
         tainted = False  # a bookkeeping failure fired: the books may legitimately disagree from now on

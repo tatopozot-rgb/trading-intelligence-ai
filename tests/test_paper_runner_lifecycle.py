@@ -4,6 +4,7 @@ approval and fill, and bookkeeping failures. Each test pins a defect that GPT
 Work's independent review (PR #8) demonstrated against the runner. The
 RiskEngine and PaperAdapter are real, never mocked.
 """
+import json
 from decimal import Decimal
 from pathlib import Path
 
@@ -22,7 +23,7 @@ from tests.test_paper_runner import (
     _runner,
     _Scripted,
 )
-from trading_intelligence.execution.paper_runner import EXIT_STOP, PaperTradingRunner
+from trading_intelligence.execution.paper_runner import EXIT_STOP, EXIT_STRATEGY, PaperTradingRunner
 from trading_intelligence.persistence.audit_log import AuditLog
 from trading_intelligence.risk.engine import RiskEngine
 from trading_intelligence.risk.models import RiskConfig
@@ -411,3 +412,72 @@ class TestMarketValueExposure:
         steps = runner.run_replay(SYMBOL, _bars(_flat(WARMUP + 3)), warmup=WARMUP)
         assert all(s.action == "ENTRIES_BLOCKED" for s in steps)
         assert "update position marks" in steps[0].blocked_by[0]
+
+
+class TestStrategyBindingAcrossRestarts:
+    """Before this, a restart left every open position managed by its persisted STOP
+    only: the strategy's own exit signal was gone. With PaperLoop restarts are routine."""
+
+    def _runner(self, tmp_path, strategy, state=True):
+        return PaperTradingRunner(
+            _router_for(strategy), _risk(tmp_path), _paper(tmp_path),
+            state_path=(tmp_path / "runner.json") if state else None,
+        )
+
+    def _enter(self, tmp_path, state=True):
+        runner = self._runner(tmp_path, _Scripted(entry_at=WARMUP + 1, exit_at=WARMUP + 4), state)
+        runner.run_replay(SYMBOL, _bars(_flat(WARMUP + 2)), warmup=WARMUP)
+        assert runner.paper.get_position(SYMBOL) is not None
+        return runner
+
+    def test_the_strategy_is_reattached_and_its_exit_still_fires(self, tmp_path):
+        self._enter(tmp_path)
+        restarted = self._runner(tmp_path, _Scripted(entry_at=10**9, exit_at=WARMUP + 4))
+        assert restarted._open_trades[SYMBOL].strategy is not None
+        restarted.run_replay(SYMBOL, _bars(_flat(WARMUP + 5)), warmup=WARMUP + 2)
+        assert [t.exit_reason for t in restarted.closed_trades] == [EXIT_STRATEGY]
+        assert restarted.reconcile() == []
+
+    def test_without_a_state_path_nothing_changes(self, tmp_path):
+        self._enter(tmp_path, state=False)
+        restarted = self._runner(tmp_path, _Scripted(entry_at=10**9, exit_at=WARMUP + 4), state=False)
+        assert restarted._open_trades[SYMBOL].strategy is None
+
+    def test_a_strategy_no_longer_routed_falls_back_to_the_stop(self, tmp_path):
+        self._enter(tmp_path)
+        other = _Scripted(entry_at=10**9)
+        other.strategy_id = "something-else"
+        restarted = self._runner(tmp_path, other)
+        assert restarted._open_trades[SYMBOL].strategy is None
+        assert restarted._stop_order_for(SYMBOL) is not None
+        assert restarted.reconcile() == []
+
+    def test_an_unreadable_bindings_file_falls_back_to_the_stop(self, tmp_path):
+        self._enter(tmp_path)
+        (tmp_path / "runner.json").write_text("{not json")
+        restarted = self._runner(tmp_path, _Scripted(entry_at=10**9, exit_at=WARMUP + 4))
+        assert restarted._open_trades[SYMBOL].strategy is None
+        assert restarted.reconcile() == []
+
+    def test_a_binding_for_another_position_is_not_reused(self, tmp_path):
+        self._enter(tmp_path)
+        data = json.loads((tmp_path / "runner.json").read_text())
+        data["bindings"][SYMBOL]["position_id"] = "an-older-position"
+        (tmp_path / "runner.json").write_text(json.dumps(data))
+        restarted = self._runner(tmp_path, _Scripted(entry_at=10**9, exit_at=WARMUP + 4))
+        assert restarted._open_trades[SYMBOL].strategy is None
+
+    def test_a_closed_position_leaves_no_binding_behind(self, tmp_path):
+        runner = self._enter(tmp_path)
+        runner.process_bar(SYMBOL, _bars(_flat(WARMUP + 2) + [(90.0, 91.0, 80.0, 85.0)]))
+        assert runner.closed_trades
+        assert json.loads((tmp_path / "runner.json").read_text())["bindings"] == {}
+
+    def test_a_failure_to_save_bindings_never_interrupts_a_fill(self, tmp_path, monkeypatch):
+        runner = self._runner(tmp_path, _Scripted(entry_at=WARMUP + 1))
+        blocker = tmp_path / "blocker"
+        blocker.write_text("a file where a directory should be")
+        monkeypatch.setattr(runner, "state_path", blocker / "runner.json")  # only this save can fail
+        runner.run_replay(SYMBOL, _bars(_flat(WARMUP + 2)), warmup=WARMUP)
+        assert runner.paper.get_position(SYMBOL) is not None
+        assert runner._stop_order_for(SYMBOL) is not None

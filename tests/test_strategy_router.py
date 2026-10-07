@@ -172,3 +172,15 @@ class TestNonFiniteConfidenceFailsClosed:
         decision = router.route(_snapshot(Regime.TREND_UP, confidence=float("inf")))
         assert decision.is_no_trade
         assert decision.reason == CONFIDENCE_BELOW_THRESHOLD
+
+
+
+def test_strategy_by_id_finds_the_registered_strategy_for_that_symbol():
+    from trading_intelligence.strategy.router import default_router
+
+    router = default_router("ETHUSDT", "4h")
+    strategies = {s for s, _ in router._registry.values()}
+    one = next(iter(strategies))
+    assert router.strategy_by_id(one.strategy_id, "ETHUSDT") is one
+    assert router.strategy_by_id(one.strategy_id, "BTCUSDT") is None, "same id on another symbol is not a match"
+    assert router.strategy_by_id("no-such-strategy", "ETHUSDT") is None

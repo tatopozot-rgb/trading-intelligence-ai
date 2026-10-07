@@ -41,10 +41,12 @@ Paper only: this wraps PaperAdapter and cannot reach an exchange.
 """
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from decimal import Decimal
+from pathlib import Path
 from typing import Callable, Mapping, Optional, Union
 
 import pandas as pd
@@ -120,6 +122,7 @@ class PaperTradingRunner:
         regime_kwargs: Optional[dict] = None,
         history_bars: int = 500,
         trailing_stop_pct: Optional[float] = None,
+        state_path: Optional[Path] = None,
     ):
         if history_bars < 2:
             raise ValueError("history_bars must be >= 2")
@@ -137,6 +140,9 @@ class PaperTradingRunner:
         self._pending_entries: dict[str, _PendingEntry] = {}
         self._open_trades: dict[str, _OpenTrade] = {}
         self._last_bar_time: dict[str, datetime] = {}
+        # Which strategy opened each open position. Optional: without it a restart
+        # leaves positions managed by their persisted STOP only.
+        self.state_path = Path(state_path) if state_path else None
         self._rebuild_after_restart()
 
     # ------------------------------------------------------------------
@@ -486,6 +492,7 @@ class PaperTradingRunner:
             stop_order_id=stop.client_order_id, stop_price=pending.proposal.stop_price,
             strategy=pending.strategy, high_water=position.avg_entry_price,
         )
+        self._save_bindings()
         try:
             self.risk_engine.confirm_reservation(
                 pending.order_id, position.position_id, symbol, result.fill_price * result.filled_quantity,
@@ -523,6 +530,7 @@ class PaperTradingRunner:
             exit_reason=reason, closed_at=bar_time.isoformat(),
         ))
         del self._open_trades[symbol]
+        self._save_bindings()
 
     # ------------------------------------------------------------------
     # Restart recovery
@@ -544,6 +552,7 @@ class PaperTradingRunner:
                 self.paper.cancel_order(order.client_order_id)
         for rid in self.risk_engine.reservation_ids():
             self.risk_engine.release_reservation(rid)
+        bindings = self._load_bindings()
         for symbol, position in self.paper.positions.items():
             stop = self._stop_order_for(symbol)
             if stop is None or stop.stop_price is None:
@@ -551,9 +560,53 @@ class PaperTradingRunner:
             self._open_trades[symbol] = _OpenTrade(
                 position_id=position.position_id, quantity=position.quantity,
                 entry_price=position.avg_entry_price, entry_fee=position.entry_fee,
-                stop_order_id=stop.client_order_id, stop_price=stop.stop_price, strategy=None,
+                stop_order_id=stop.client_order_id, stop_price=stop.stop_price,
+                strategy=self._rebind(symbol, position.position_id, bindings),
                 high_water=self._high_water_from_stop(position.avg_entry_price, stop.stop_price),
             )
+
+    def _rebind(self, symbol: str, position_id: str, bindings: dict) -> Optional[AbstractStrategy]:
+        """The strategy that opened this exact position, if it was recorded and the
+        router still has it; otherwise None (managed by its STOP only, as before)."""
+        binding = bindings.get(symbol)
+        if not binding or binding.get("position_id") != position_id:
+            return None
+        try:
+            strategy = self._router_for(symbol).strategy_by_id(binding["strategy_id"], symbol)
+        except Exception:
+            logger.exception("Restart: could not look up the strategy for %s", symbol)
+            return None
+        if strategy is None:
+            logger.warning("Restart: strategy %s for %s is no longer routed — STOP-only management",
+                           binding.get("strategy_id"), symbol)
+        return strategy
+
+    def _load_bindings(self) -> dict:
+        if self.state_path is None or not self.state_path.exists():
+            return {}
+        try:
+            data = json.loads(self.state_path.read_text())
+            return data.get("bindings", {}) if isinstance(data, dict) else {}
+        except Exception:
+            logger.exception("Restart: unreadable %s — open positions keep STOP-only management", self.state_path)
+            return {}
+
+    def _save_bindings(self) -> None:
+        if self.state_path is None:
+            return
+        bindings = {
+            symbol: {"position_id": trade.position_id, "strategy_id": trade.strategy.strategy_id}
+            for symbol, trade in self._open_trades.items() if trade.strategy is not None
+        }
+        try:
+            self.state_path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = self.state_path.with_suffix(self.state_path.suffix + ".tmp")
+            tmp.write_text(json.dumps({"bindings": bindings}, indent=2))
+            tmp.replace(self.state_path)
+        except Exception:
+            # Losing this only degrades a future restart to STOP-only exits; never
+            # let it interrupt fill handling.
+            logger.exception("Could not persist strategy bindings to %s", self.state_path)
 
     def _high_water_from_stop(self, entry_price: Decimal, stop_price: Decimal) -> Decimal:
         """The high-water mark is not persisted; with a trailing stop it is
