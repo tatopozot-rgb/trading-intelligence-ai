@@ -112,3 +112,14 @@ test("graduación simulada: pulso en la universidad y aviso separado de los bann
   assert.ok(c.simBanners.some((b) => b.includes("Ana")));
   assert.equal(c.banners.some((b) => b.includes("Ana")), false);
 });
+
+test("los residentes simulados llevan cama propia y, si trabajan, estación y planta", () => {
+  const c = deriveCity({ snapshot: fresco(), events: [], now: AHORA });
+  const sims = c.agents.filter((a) => a.kind === "simulated" && a.stage !== "SIM_ROLE");
+  assert.ok(sims.length > 0);
+  for (const s of sims) {
+    assert.ok(s.cama && typeof s.cama.x === "number");
+    if (s.tipo === "worker") assert.ok(s.estacion && typeof s.estacion.planta === "number");
+    else assert.equal(s.estacion, null);
+  }
+});

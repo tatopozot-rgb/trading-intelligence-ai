@@ -4,6 +4,7 @@
 
 import { residentes, actividadPara, actividadRol, ROLES_SIMULADOS, horaVisual, SIM_NOTE as SIM_NOTE_VIDA } from "./life.mjs";
 import { perfilEtapa, actividadJubilado } from "./lifecycle.mjs";
+import { asignarEspacios } from "./espacio.mjs";
 
 export const MODE = "BUILD"; // OPERATIONS queda preparado, no activo
 
@@ -187,8 +188,10 @@ export function deriveCity({ snapshot, society, events, now, life = null }) {
   // La edad/envejecimiento sigue el tiempo real en lifecycle.mjs; esto NO lo toca.
   const hora = horaVisual(ahoraMs);
   const vidaPorId = Object.fromEntries((life?.poblacion || []).map((p) => [p.id, p]));
+  const listaResidentes = residentes(demanda);
+  const espacios = asignarEspacios(listaResidentes); // cama y estación estables: nadie decorativo en fila
   const EDIFICIO_JUBILADO = { home: "residential", park: "park", residential: "residential" };
-  const vida = residentes(demanda).map((r) => {
+  const vida = listaResidentes.map((r) => {
     const persona = vidaPorId[r.id];
     // Un jubilado ya no sigue el horario laboral: vive su propia rutina, nunca desaparece.
     const a = persona && persona.etapa === "RETIRED"
@@ -201,7 +204,8 @@ export function deriveCity({ snapshot, society, events, now, life = null }) {
       transporte: a.transporte, conPuesto: Boolean(r.conPuesto), skills: r.skills || [], xp: r.xp || 0,
       nivel: r.tipo === "trainee" ? "APRENDIZ (sim)" : r.tipo === "worker" ? "TRABAJADOR (sim)" : "VECINO (sim)",
       etapaVital: persona ? persona.etapa : null, edadSim: persona ? Math.floor(persona.edad) : null,
-      escalaVisual: perfil.escala, velocidadVisual: perfil.velocidad };
+      escalaVisual: perfil.escala, velocidadVisual: perfil.velocidad,
+      cama: espacios[r.id].cama, estacion: espacios[r.id].estacion };
   });
   const simRoles = ROLES_SIMULADOS.map((r) => {
     const a = actividadRol(r, hora);
