@@ -307,12 +307,23 @@ def main(argv: Optional[list[str]] = None, market_data: Optional[AbstractExchang
     parser.add_argument("--trailing-stop-pct", type=float, help="opt-in trailing stop, e.g. 0.10")
     parser.add_argument("--max-ticks", type=int, help="stop after this many polls (default: run until stopped)")
     parser.add_argument("--stop-file", type=Path, help="the loop stops before its next poll if this file exists")
+    parser.add_argument("--feed", choices=["binance-public", "binance"], default="binance-public",
+                        help="binance-public: public market-data host, no account, no keys, no extra "
+                             "dependency (default); binance: python-binance client")
+    parser.add_argument("--feed-url", default=None, help="override the binance-public host (https only)")
     parser.add_argument("--allow-testnet-data", action="store_true")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     overrides = json.loads(args.risk_config.read_text()) if args.risk_config else None
-    feed = market_data or _binance_market_data(args.allow_testnet_data)
+    if market_data is not None:
+        feed = market_data
+    elif args.feed == "binance-public":
+        from trading_intelligence.data.binance_public_feed import DEFAULT_BASE_URL, BinancePublicKlines
+
+        feed = BinancePublicKlines(args.feed_url or DEFAULT_BASE_URL)
+    else:
+        feed = _binance_market_data(args.allow_testnet_data)
     loop = build_loop(
         args.symbols, args.timeframe, args.state_dir, market_data=feed, paper_equity=args.paper_equity,
         risk_overrides=overrides, trailing_stop_pct=args.trailing_stop_pct,
