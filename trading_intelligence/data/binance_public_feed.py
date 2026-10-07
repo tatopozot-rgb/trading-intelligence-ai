@@ -13,6 +13,7 @@ become an execution path by mistake.
 from __future__ import annotations
 
 import json
+import math
 import re
 import urllib.parse
 import urllib.request
@@ -26,6 +27,19 @@ from trading_intelligence.execution.base import AbstractExchangeAdapter
 DEFAULT_BASE_URL = "https://data-api.binance.vision"
 _SYMBOL = re.compile(r"^[A-Z0-9]{2,20}$")
 _INTERVALS = {"1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d", "3d", "1w", "1M"}
+
+
+def _check_kline(symbol: str, row: dict) -> None:
+    """A bar that cannot have happened is a data error, never a price to trade on.
+    Found by GPT Work (PR #8): NaN/Infinity, a high below open or close, and a
+    negative volume used to pass."""
+    o, h, low, c, v = row["open"], row["high"], row["low"], row["close"], row["volume"]
+    if not all(math.isfinite(x) for x in (o, h, low, c, v)):
+        raise ValueError(f"non-finite kline for {symbol} at {row['open_time']}")
+    if min(o, h, low, c) <= 0 or v < 0:
+        raise ValueError(f"impossible OHLCV for {symbol} at {row['open_time']}: non-positive price or negative volume")
+    if h < max(o, c, low) or low > min(o, c, h):
+        raise ValueError(f"impossible OHLC for {symbol} at {row['open_time']}: high/low do not bound open/close")
 
 
 class MarketDataOnly(RuntimeError):
@@ -80,13 +94,11 @@ class BinancePublicKlines(AbstractExchangeAdapter):
                 "open": float(k[1]), "high": float(k[2]), "low": float(k[3]),
                 "close": float(k[4]), "volume": float(k[5]),
             })
+        for row in rows:
+            _check_kline(symbol, row)
         frame = pd.DataFrame(rows, columns=["open_time", "open", "high", "low", "close", "volume"])
         frame["open_time"] = pd.to_datetime(frame["open_time"], unit="ms", utc=True)
-        frame = frame.set_index("open_time")
-        bad = frame[(frame["high"] < frame["low"]) | (frame[["open", "high", "low", "close"]] <= 0).any(axis=1)]
-        if not bad.empty:
-            raise ValueError(f"impossible OHLC for {symbol} at {bad.index[0]}")
-        return frame
+        return frame.set_index("open_time")
 
     def get_current_price(self, symbol: str) -> Decimal:
         if not _SYMBOL.match(symbol):
@@ -94,7 +106,10 @@ class BinancePublicKlines(AbstractExchangeAdapter):
         payload = self._get("/api/v3/ticker/price", {"symbol": symbol})
         if not isinstance(payload, dict) or "price" not in payload:
             raise ValueError(f"unexpected price payload for {symbol}")
-        return Decimal(str(payload["price"]))
+        price = Decimal(str(payload["price"]))
+        if not price.is_finite() or price <= 0:
+            raise ValueError(f"impossible price for {symbol}: {payload['price']!r}")
+        return price
 
     def is_connected(self) -> bool:
         try:

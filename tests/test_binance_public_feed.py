@@ -125,3 +125,31 @@ def test_paperloop_runs_end_to_end_on_the_public_feed(tmp_path, monkeypatch):
     assert saved["last_processed"] == (datetime(2026, 1, 1, tzinfo=timezone.utc) + timedelta(hours=WARMUP)).isoformat()
     assert saved["status"]["last_fetch_error"] is None
     assert saved["status"]["books_disagree"] == []
+
+
+@pytest.mark.parametrize("label,o,h,lo,c,v", [
+    ("NaN open", "NaN", "101", "99", "100", "1"),
+    ("Infinity high", "100", "Infinity", "99", "100", "1"),
+    ("high below open", "100", "99.5", "98", "99", "1"),
+    ("low above close", "100", "101", "99.5", "99", "1"),
+    ("negative volume", "100", "101", "99", "100", "-1"),
+    ("zero price", "0", "101", "99", "100", "1"),
+])
+def test_a_bar_that_cannot_have_happened_is_an_error(label, o, h, lo, c, v):
+    """GPT Work (PR #8): these used to be accepted as prices to trade on."""
+    kline = [START_MS, o, h, lo, c, v, START_MS + H_MS - 1, "0", 0, "0", "0", "0"]
+    with pytest.raises(ValueError):
+        BinancePublicKlines(fetch=FakeHttp({"/api/v3/klines": [kline]})).get_ohlcv("BTCUSDT", "1h")
+
+
+def test_zero_volume_bars_are_legitimate():
+    kline = [START_MS, "100", "100", "100", "100", "0", START_MS + H_MS - 1, "0", 0, "0", "0", "0"]
+    frame = BinancePublicKlines(fetch=FakeHttp({"/api/v3/klines": [kline]})).get_ohlcv("BTCUSDT", "1h")
+    assert frame["volume"].iloc[0] == 0.0
+
+
+@pytest.mark.parametrize("price", ["NaN", "Infinity", "0", "-1"])
+def test_an_impossible_ticker_price_is_an_error(price):
+    feed = BinancePublicKlines(fetch=FakeHttp({"/api/v3/ticker/price": {"symbol": "BTCUSDT", "price": price}}))
+    with pytest.raises(ValueError, match="impossible price"):
+        feed.get_current_price("BTCUSDT")

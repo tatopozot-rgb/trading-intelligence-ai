@@ -104,6 +104,7 @@ class PaperLoop:
         self.retry_backoff_seconds = retry_backoff_seconds
         self.last_processed: Optional[datetime] = None
         self.consecutive_fetch_errors = 0
+        self.feed_origin = _feed_origin(market_data)
         self._load_state()
 
     # ------------------------------------------------------------------
@@ -266,6 +267,14 @@ class PaperLoop:
                 f"{self.state_path} was written for {data.get('symbols')} {data.get('timeframe')}; "
                 f"refusing to resume as {self.symbols} {self.timeframe}"
             )
+        saved_origin = data.get("feed_origin")
+        if saved_origin is not None and saved_origin != self.feed_origin:
+            # Found by GPT Work (PR #8): a state built on one feed (e.g. production
+            # data) resumed on another (e.g. testnet) would mix two price histories.
+            raise ValueError(
+                f"{self.state_path} was built on feed origin {saved_origin!r}; "
+                f"refusing to resume on {self.feed_origin!r}"
+            )
         last = data.get("last_processed")
         self.last_processed = datetime.fromisoformat(last) if last else None
 
@@ -287,6 +296,7 @@ class PaperLoop:
         data = {
             "symbols": self.symbols,
             "timeframe": self.timeframe,
+            "feed_origin": self.feed_origin,
             "last_processed": self.last_processed.isoformat() if self.last_processed else None,
             "status": status,
         }
@@ -294,6 +304,21 @@ class PaperLoop:
         tmp = self.state_path.with_suffix(self.state_path.suffix + ".tmp")
         tmp.write_text(json.dumps(data, indent=2))
         tmp.replace(self.state_path)
+
+
+def _feed_origin(market_data: object) -> str:
+    """Where the bars come from: the host for URL-based feeds, else the adapter's
+    own exchange name, else its class."""
+    base_url = getattr(market_data, "base_url", None)
+    if base_url:
+        return str(base_url).rstrip("/")
+    name = getattr(market_data, "get_exchange_name", None)
+    if callable(name):
+        try:
+            return str(name())
+        except Exception:
+            pass
+    return type(market_data).__name__
 
 
 # ----------------------------------------------------------------------

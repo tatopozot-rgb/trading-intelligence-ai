@@ -408,3 +408,35 @@ class TestFetchRetries:
     def test_invalid_retry_settings_are_refused(self, tmp_path, flat_feed):
         with pytest.raises(ValueError, match="fetch_attempts"):
             _build(tmp_path, flat_feed, fetch_attempts=0)
+
+
+class TestFeedOrigin:
+    """GPT Work (PR #8): a state built on one feed must not resume on another."""
+
+    def test_the_feed_origin_is_recorded(self, tmp_path, flat_feed):
+        loop = _build(tmp_path, flat_feed, entry_at=10**9)
+        _at(flat_feed, WARMUP + 1)
+        loop.tick()
+        assert json.loads((tmp_path / "loop.json").read_text())["feed_origin"] == "fake_feed"
+
+    def test_resuming_on_a_different_feed_is_refused(self, tmp_path, flat_feed):
+        loop = _build(tmp_path, flat_feed, entry_at=10**9)
+        _at(flat_feed, WARMUP + 1)
+        loop.tick()
+
+        class OtherFeed(FakeFeed):
+            def get_exchange_name(self):
+                return "binance_spot_testnet"
+
+        with pytest.raises(ValueError, match="feed origin"):
+            _build(tmp_path, OtherFeed(flat_feed.frames), entry_at=10**9)
+
+    def test_resuming_on_the_same_feed_and_on_old_state_files_works(self, tmp_path, flat_feed):
+        loop = _build(tmp_path, flat_feed, entry_at=10**9)
+        _at(flat_feed, WARMUP + 1)
+        loop.tick()
+        _build(tmp_path, flat_feed, entry_at=10**9)  # same origin: fine
+        data = json.loads((tmp_path / "loop.json").read_text())
+        del data["feed_origin"]  # a state file written before this check existed
+        (tmp_path / "loop.json").write_text(json.dumps(data))
+        _build(tmp_path, flat_feed, entry_at=10**9)
