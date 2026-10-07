@@ -1,5 +1,33 @@
 # GPT Work cross-review — 2026-10-06
 
+## CONTINUITY — TRADING WORK 02 — 2026-10-07 02:19:55Z
+
+This section is current; dated blocks below are evidence/history. User requested closing only the active review-utility block, no new tasks or architecture. Claude Leader retains coordination. Project completion and end-to-end readiness are NOT certified.
+
+- **DONE:** bounded acceptance-review CLI, Unicode/cp1252 Windows fix, six utility tests PASS. Offline research bundle at 02:18:06Z correctly reports pipeline PASS, Binance acceptance PASS, PaperRecovery FAIL and RiskBoundaries FAIL; omitted halt/sync/city are NOT_RUN. Exit 1 is expected because owner-code findings remain open, not a utility crash. Source/harness SHA256 and timestamps are included in JSON. Child execution is bounded to at most 60 seconds per suite; no account calls, persistent services or trading sessions added.
+- **ACTIVE:** existing draft PR8 awaits owner review/integration; GPT Work hands off this chat, with no background process or continuation automation started. No additional task was opened for this closure.
+- **BLOCKED:** F3 implementation (not policy approval) remains Local-owned on last reviewed halt1533690: NULL initialization, release timestamp and health rollback on expected rejection/PAUSA. Research cloud-owned defects on b17446a: duplicate fills, pending/protective orders lost after restart, unaffordable gap fill, turnover limit unenforced and invalid BUY stop semantics. City/sync provenance fixes also remain Local-owned. No new user decision is required for these fixes. MINA integration remains unverified; use the existing route.
+- **NEXT:** in TRADING WORK 02 read this section and PR8 comments, then inspect only subsequent owner diffs. Revalidate changed scopes using the commands below; do not rerun unchanged baseline, rebuild context or duplicate Local/Quant/visual work. Local applies F3 and resolves PR3/import conflict before SHADOW integration; cloud applies PaperRecovery/Risk fixes. Close findings only against corrected source SHAs and passing acceptance.
+- **BRANCH/COMMITS:** `work/readiness-atomicity-followup`, PR8. Existing commits729bbafe40770467572b36be49d2e884eaab9440 and da2dfeafe60f5305149ebfb92329665fdacfe7a3; this containing commit adds the utility/tests/checkpoint. Last reviewed default b17446a2acfe8fffc9c0715e66a268afa6925fb1. PR7 is integrated/closed; do not resume its old branch.
+- **HANDOFFS:** Local F3 issue2 comment6024881303; cloud recovery issue2 comment6024882080; risk PR8 comment6024958091. Existing Notion checkpoint3f102a0f-f45f-81bb-86af-e2a0a3018201 and run3f102a0f-f45f-812c-8a48-c5b510db6644 are the operational records, not new tasks. Claude Leader decides integration order.
+
+**Files in this closing block:** `reviews/gpt_work/run_acceptance_review.py`, `reviews/gpt_work/test_review_runner.py`, this checkpoint. Local staging equivalents are `operations/e2e-review/` and `operations/halt-review/REVIEW_HANDOFF.md`. No owner runtime modules changed.
+
+**Validation:** utility unit tests6/6 PASS (0.016s), including Unicode roundtrip, missing files, omitted scopes, failure propagation, timeout and hashing. Actual bundle2 PASS/2 FAIL: pipeline6/6, Binance6/6; recovery1/5, risk2/5. Previously verified research CI276 passed, ruff/mypy clean at b17446a; these are separate from acceptance failures. F3 atomicity experiment7/7 is NOT an applied runtime fix. Windows failure was `UnicodeEncodeError` on report printing; child UTF-8 plus ASCII-safe JSON now preserve Unicode and emit parseable output.
+
+```powershell
+python -B reviews/gpt_work/test_review_runner.py
+python -B reviews/gpt_work/run_acceptance_review.py --research-source <research-checkout-directory>
+python -B reviews/gpt_work/run_acceptance_review.py --halt-source <halt-checkout-directory>
+# Optional changed scopes only:
+python -B reviews/gpt_work/run_acceptance_review.py --sync-source <sync-source-directory>
+python -B reviews/gpt_work/run_acceptance_review.py --city-source <city-checkout-directory>/agent-city-3d
+```
+
+Commands run trusted existing harnesses against explicitly supplied snapshots. Source fingerprints cover the declared reviewed files, not an assertion that the entire checkout is clean. PASS is suite-local; `end_to_end_certified` remains false. Do not treat this utility as an operational trading runner or an activation approval.
+
+---
+
 Claim: GitHub issue2 comment6015968160. Claude Leader coordinates; Claude Code Local owns runtime and city changes. This is executable acceptance evidence, not another architecture or a threshold change.
 
 ## Pinned sources and actual results
