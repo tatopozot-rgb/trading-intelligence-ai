@@ -27,12 +27,18 @@ export function estacionPara(idEdificio, indiceEnEdificio) {
   return estaciones[indiceEnEdificio % estaciones.length];
 }
 
-// Camas por casa: 4 posiciones fijas; cada habitante de la casa recibe la suya por índice estable.
+// Camas por casa: 4 posiciones de suelo; cada una además tiene litera (nivel 0 = abajo, 1 = arriba),
+// así que una casa aloja 8 personas con una cama real y propia cada una, no sólo 4. Con más gente que
+// literas, recién ahí se reparte por turno (ver asignarEspacios / tests).
 export const CAMAS_BASE = [[-1.05, -1.05], [1.05, -1.05], [-1.05, 1.05], [1.05, 1.05]];
+export const ALTURA_LITERA = 0.95; // separación vertical entre la cama de abajo y la de arriba
+export const NIVELES_LITERA = 2;
 export function camaPara(indiceEnCasa) {
-  return CAMAS_BASE[indiceEnCasa % CAMAS_BASE.length];
+  const nivel = Math.floor(indiceEnCasa / CAMAS_BASE.length) % NIVELES_LITERA;
+  const [x, z] = CAMAS_BASE[indiceEnCasa % CAMAS_BASE.length];
+  return [x, z, nivel];
 }
-export const CAPACIDAD_CASA = CAMAS_BASE.length;
+export const CAPACIDAD_CASA = CAMAS_BASE.length * NIVELES_LITERA;
 
 // Agrupa una lista de residentes por una clave (hogar o lugar de trabajo) y devuelve, para cada
 // residente, su índice estable dentro de ese grupo (orden por id, siempre igual para la misma lista).
@@ -56,6 +62,6 @@ export function asignarEspacios(residentes) {
   return Object.fromEntries(residentes.map((r) => {
     const cama = camaPara(indiceEnCasa.get(r.id) || 0);
     const estacion = r.workplace ? estacionPara(r.workplace, indiceEnTrabajo.get(r.id) || 0) : null;
-    return [r.id, { cama: { x: cama[0], z: cama[1], planta: 0 }, estacion }];
+    return [r.id, { cama: { x: cama[0], z: cama[1], planta: 0, nivel: cama[2] }, estacion }];
   }));
 }

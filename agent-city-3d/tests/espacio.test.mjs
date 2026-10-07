@@ -30,6 +30,19 @@ test("compañeros de casa no comparten cama mientras haya camas libres", () => {
   assert.equal(new Set(camas).size, E.CAPACIDAD_CASA, "cada uno debería tener una cama distinta");
 });
 
+test("cada casa tiene litera: 4 rincones x 2 niveles = 8 camas propias, no 4", () => {
+  assert.equal(E.CAPACIDAD_CASA, E.CAMAS_BASE.length * 2);
+  const r = Array.from({ length: 8 }, (_, i) => persona(`h${i}`, "house_z"));
+  const asign = E.asignarEspacios(r);
+  // Los primeros 4 van abajo (nivel 0), los siguientes 4 arriba (nivel 1), mismo rincón que su pareja de litera.
+  for (let i = 0; i < 4; i++) {
+    assert.equal(asign[`h${i}`].cama.nivel, 0);
+    assert.equal(asign[`h${i + 4}`].cama.nivel, 1);
+    assert.equal(asign[`h${i}`].cama.x, asign[`h${i + 4}`].cama.x);
+    assert.equal(asign[`h${i}`].cama.z, asign[`h${i + 4}`].cama.z);
+  }
+});
+
 test("con 3 compañeros en un edificio de 2 plantas, el tercero ya sube al piso de arriba", () => {
   const r = Array.from({ length: 3 }, (_, i) => persona(`w${i}`, "house_a", "risk_tower"));
   const asign = E.asignarEspacios(r);

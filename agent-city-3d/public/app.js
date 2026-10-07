@@ -4,7 +4,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { BUILDINGS, AGENTS, STATE_COLOR, SIM_NOTE, deriveCity, CATEGORIAS } from "/lib/model.mjs";
 import { horaVisual } from "/lib/life.mjs";
-import { ALTURA_PLANTA, plantasDe, ESTACIONES_BASE, CAMAS_BASE } from "/lib/espacio.mjs";
+import { ALTURA_PLANTA, plantasDe, ESTACIONES_BASE, CAMAS_BASE, ALTURA_LITERA } from "/lib/espacio.mjs";
 import { planRuta, posicionMundo, PUERTA_Z } from "/lib/paths.mjs";
 
 const REFRESCO_MS = 8000; // más frecuente: la rutina SIM usa reloj acelerado y debe notarse en poco tiempo real
@@ -144,13 +144,23 @@ function crearTarjeta(a) {
 }
 
 // ---------- interiores y puertas
+// Litera: cada posición de suelo aloja dos camas reales (abajo y arriba, separadas por ALTURA_LITERA),
+// no una sola — así una casa de 4 rincones tiene 8 camas propias en vez de forzar a compartir.
 function piezaCasa([x, z]) {
   const g = new THREE.Group();
-  const cama = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.35, 1.6), new THREE.MeshStandardMaterial({ color: 0x60a5fa }));
-  cama.position.set(x * 1.6, 0.3, z * 1.6);
-  const almohada = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.12, 0.3), new THREE.MeshStandardMaterial({ color: 0xf8fafc }));
-  almohada.position.set(x * 1.6, 0.45, z * 1.6 - 0.6);
-  g.add(cama, almohada);
+  const colorCama = (y) => new THREE.MeshStandardMaterial({ color: y > 0.5 ? 0x93c5fd : 0x60a5fa });
+  for (const nivel of [0, 1]) {
+    const y = 0.3 + nivel * ALTURA_LITERA;
+    const cama = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.3, 1.6), colorCama(nivel));
+    cama.position.set(x * 1.6, y, z * 1.6);
+    const almohada = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.1, 0.3), new THREE.MeshStandardMaterial({ color: 0xf8fafc }));
+    almohada.position.set(x * 1.6, y + 0.15, z * 1.6 - 0.6);
+    g.add(cama, almohada);
+  }
+  const poste = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, ALTURA_LITERA + 0.3, 6),
+    new THREE.MeshStandardMaterial({ color: 0x78350f }));
+  poste.position.set(x * 1.6 - 0.35, 0.3 + ALTURA_LITERA / 2, z * 1.6 + 0.7);
+  g.add(poste);
   return g;
 }
 function piezaEscritorio([x, z]) {
@@ -467,8 +477,9 @@ function asignarDestinos(city) {
       if (destinoExacto) {
         const centro = puntos[puntos.length - 1]; // llega primero al centro, en planta baja
         const planta = destinoExacto.planta || 0;
+        const alturaCama = (destinoExacto.nivel || 0) * ALTURA_LITERA; // litera de arriba, si toca
         if (planta > 0) puntos.push(new THREE.Vector3(centro.x, planta * ALTURA_PLANTA, centro.z));
-        puntos.push(new THREE.Vector3(centro.x + destinoExacto.x * 1.6, planta * ALTURA_PLANTA, centro.z + destinoExacto.z * 1.6));
+        puntos.push(new THREE.Vector3(centro.x + destinoExacto.x * 1.6, planta * ALTURA_PLANTA + alturaCama, centro.z + destinoExacto.z * 1.6));
       } else {
         // Sin cama/estación asignada (rol simulado, fundador en la calle): reparto genérico por slot.
         puntos[puntos.length - 1].x += offset;
@@ -535,9 +546,10 @@ function avanzarAgentes(dt, tiempo, camaraPos) {
       ag.grupo.rotation.x = 0;
       const r = Math.sin(tiempo / 700 + ag.desfase) * 0.05;
       if (ag.acostado) {
+        // pisoBase ya incluye planta (si subió) y litera (si le tocó la cama de arriba): no se pisa
+        // con un valor fijo, o toda litera de arriba se vería dormida a ras de suelo.
         ag.grupo.position.y = ag.pisoBase + 0.4;
         ag.grupo.rotation.x = -Math.PI / 2 + 0.05;
-        ag.grupo.position.y = 0.4;
         ag.piernaI.rotation.x = 0; ag.piernaD.rotation.x = 0;
         ag.brazoI.rotation.x = 0; ag.brazoD.rotation.x = 0;
       } else if (ag.sentado) {
