@@ -13,6 +13,11 @@ spec.loader.exec_module(module)
 
 
 class ReviewRunnerTests(unittest.TestCase):
+    def test_research_scope_includes_new_lifecycle_and_reservation_gates(self):
+        names = [spec[0] for spec in module.SCOPES["research"]]
+        self.assertEqual(names.count("test_runner_lifecycle_review.py"), 1)
+        self.assertEqual(names.count("test_reservation_review.py"), 1)
+
     def test_json_roundtrips_unicode_on_legacy_windows_console(self):
         original = {"output": "Unicode: \u03a9 \ufffd \u2192"}
         encoded = module.serialize_report(original)

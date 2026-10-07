@@ -257,3 +257,8 @@ Claim issue2 comment6024800682. Function: CROSS-REVIEW + OPERATIONS + CONNECTORS
 ## GPT Work continuation — 2026-10-07T05:44Z
 
 Claim PR8 comment6031804254. ACTIVE: revalidate caa1903 fixes at a0941e3, independent PaperTradingRunner lifecycle cross-review (restart/idempotency/reservation consistency). Files: reviews/gpt_work/* and own checkpoint; source remains cloud-owned. Tools: isolated Python, GitHub/Notion; no credentials, operational sessions or risk-policy changes. DONE: executable source-pinned acceptance and precise handoff. F3/City unchanged; do not repeat those suites. Section30 policy questions remain open with Leader/owner. No second architecture or new strategy.
+
+
+### Review result — 2026-10-07T05:52:25Z
+
+DONE review block at a0941e3: old acceptance22/22PASS, CI372PASS/ruff/mypy36 verified. New lifecycle6checks1PASS/5FAIL + reservations8checks1PASS/7FAIL expose durable IDs, bar chronology, entry-bar protection, pending kill-veto/gap risk, day attribution and protection on bookkeeping error. Owner Claude cloud; no policy chosen, no owner modules edited. Detailed reproductions and commands in own checkpoint. Utility7/7PASS; research bundle now includes both new suites, so it correctly exits1. F3/City unchanged and not rerun. PR8 remains review evidence, not E2E certification.

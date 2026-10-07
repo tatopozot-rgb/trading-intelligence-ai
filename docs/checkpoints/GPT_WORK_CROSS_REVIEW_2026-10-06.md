@@ -1,5 +1,41 @@
 # GPT Work cross-review — 2026-10-06
 
+## CURRENT — continuation 2026-10-07 05:52:25Z
+
+Supersedes the handoff below for current results. Same PR8, same review scope; no new architecture, strategy, operational process or task created. Claude Leader coordinates. Source reviewed: `a0941e31b5cb3b1d762e2e6d8e2a220101811fd8` (research); Local halt1533690 and City8487554 unchanged, so those suites were not repeated.
+
+- **DONE:** independently confirmed caa1903's original recovery/risk fixes. Prior four acceptance suites now **22/22 PASS**. Read actual CI logs for a0941e3: run37569446809/job112624587272, **372 PASS in346.15s**, ruff clean, mypy36 files clean (includes the heavy candidate battery; previous365 excluded it). Bounded utility **7/7 PASS**, with new lifecycle/reservation suites registered. Old failures are not being repeated as unresolved.
+- **ACTIVE:** draft PR8 provides executable new integration acceptance. Source implementation stays with Claude cloud; Local keeps the authoritative root runtime. Default research runner wiring exists, but is not E2E certified. Strategy candidates remain NO-GO; no promotion or risk-policy changes.
+- **BLOCKED:** new integration mechanics below, plus unchanged Local F3/SHADOW/import-chain work. Section30 survival-policy questions remain with Leader/owner, separate from these technical defects. Do not invent values or ask the same questions again.
+- **NEXT:** Claude cloud applies the mechanical lifecycle/reservation corrections below and returns a source SHA; GPT Work reruns only changed scopes and closes proven findings. Local applies F3 then opens its existing queued PR. Read this compact section and PR8 comments, not the old conversation. MINA remains unverified; use existing integrations.
+- **BRANCH/COMMITS:** `work/readiness-atomicity-followup`; earlier c65b478 (bounded utility), continuation claim101713356544406277ae07415481d9d0465c18ea; this containing commit adds the two harnesses and extends the runner. Source reviewed a0941e3, not the older source on the PR branch.
+- **HANDOFFS:** claim PR8 comment6031804254; source correction owner Claude Leader/cloud. Existing Notion recovery task3f102a0f-f45f-8174-8ec2-c0e5d5bcfcfa and risk task3f102a0f-f45f-81a4-b983-c4f701618a0d are continued in-place, not duplicated. Existing Local F3 handoff issue2 comment6024881303 remains valid.
+
+### Executed acceptance (offline, temporary state, sockets blocked)
+
+Final bundle at **2026-10-07T05:52:24Z**: 36 checks total, **24 PASS / 12 FAIL**, exit1 expected; source/harness hashes emitted. Four old suites PASS; lifecycle6 checks=1PASS/5FAIL; reservation8 checks=1PASS/7FAIL. Halt/sync/city NOT_RUN. The independent reviewer cross-checked lifecycle assumptions; main read the reservation harness and reran the full bundle. A preliminary observation-failure-at-close case was removed because applying it to a prior open fill could introduce lookahead; it is NOT a final finding. Do not use preliminary9/8 counts.
+
+### New confirmed mechanics — owner cloud
+
+1. **Durable order idempotency:** `paper.py:125-133,363-419` checks order_history, but never persists/restores it. Retrying either a pending or filled client_order_id after restart fills quantity2 instead of1. Persist durable processed IDs/results and check pending IDs; retain consistent replay semantics. This completes the original task's restart-idempotency criterion.
+2. **Bar chronology:** `paper_runner.py:149-193` ingests duplicate/older timestamps without a watermark. A repeat of the signal's completed bar fills its order at that same bar's open; an older bar executes a future decision. Reject/ignore stale input before mutations, with restart-safe per-symbol state and coherent portfolio timestamps. No retrospective close information at open.
+3. **Protection during entry bar:** `_ingest` completes the entire adapter bar before `_on_entry_filled` creates its STOP (`:383-395`). Entry open100 followed by low80 ignores the approved stop95 until the next bar. Open necessarily precedes low, so this is not an OHLC-order ambiguity. Install protection at entry-fill time, then evaluate the remainder of the bar exactly once. Positive ordinary entry + later STOP preserves cash/P&L and reconciliation.
+4. **Risk veto before pending fill:** a BUY already queued fills even if kill_switch is activated before the next bar. Check current veto before unfilled entries, cancel/release blocked reservations, keep exits/STOPS operational. Gap affordability alone is insufficient: fixture equity10000, entry cap25%, risk1%, reserve1923.076923; open150 fills2886.057692 (>2500 cap), loss-to-existing-stop including fees1063.847596 (>100 budget). Revalidate executable price/size/stop/caps before cash mutation; rejecting unsafe entry is sufficient, no unapproved clamp/stop retuning.
+5. **Day attribution:** `risk/engine.py:134-143,216-258` resets daily counters but reservations have no charged day. Fill at midnight ends with0/0 despite1/1924.038461 executed; release of yesterday's reservation erases today's unrelated budget (0/100 instead of1/200); confirming it leaves1/220 instead of2/320. Persist attribution, separate reserved/executed accounting, roll day before fill accounting without using a future close. Same-day release control passes. No migration of root UTC-5/gross-loss policy.
+6. **Failure after fill:** `_handle_fills` deletes pending tracking before confirm_reservation; injected persistence error there leaves actual cash/position changes but no STOP. Protect fills independently of bookkeeping failure, retain a recovery obligation and block new entries until reconciliation. Aborting a function is not recovery of an unprotected position.
+
+**Files changed this block:** `reviews/gpt_work/test_runner_lifecycle_review.py`, `test_reservation_review.py`, `run_acceptance_review.py`, `test_review_runner.py`; own checkpoint and additive coordination. Local snapshot `operations/e2e-review/snapshot-a0941` is isolated evidence, NOT published code. No source implementation edited.
+
+```powershell
+python -B reviews/gpt_work/test_review_runner.py
+python -B reviews/gpt_work/run_acceptance_review.py --research-source <corrected-research-checkout>
+# Specific new regression checks:
+python -B reviews/gpt_work/test_runner_lifecycle_review.py <corrected-research-checkout>
+python -B reviews/gpt_work/test_reservation_review.py <corrected-research-checkout>
+```
+
+---
+
 ## CONTINUITY — TRADING WORK 02 — 2026-10-07 02:19:55Z
 
 This section is current; dated blocks below are evidence/history. User requested closing only the active review-utility block, no new tasks or architecture. Claude Leader retains coordination. Project completion and end-to-end readiness are NOT certified.

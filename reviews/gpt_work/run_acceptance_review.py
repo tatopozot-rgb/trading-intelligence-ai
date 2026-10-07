@@ -26,6 +26,8 @@ SCOPES = {
         ("test_exchange_readiness_review.py", "acceptance", ["trading_intelligence/execution/binance.py", "trading_intelligence/execution/dry_run.py"]),
         ("test_paper_recovery_review.py", "acceptance", ["trading_intelligence/execution/paper.py"]),
         ("test_risk_boundaries_review.py", "acceptance", ["trading_intelligence/risk/engine.py", "trading_intelligence/risk/models.py"]),
+        ("test_runner_lifecycle_review.py", "acceptance", ["trading_intelligence/execution/paper_runner.py", "trading_intelligence/execution/paper.py", "trading_intelligence/risk/engine.py"]),
+        ("test_reservation_review.py", "acceptance", ["trading_intelligence/execution/paper_runner.py", "trading_intelligence/execution/paper.py", "trading_intelligence/risk/engine.py", "trading_intelligence/risk/models.py"]),
     ],
     "sync": [("test_sync_review.py", "acceptance", ["sync_agent_city.py"])],
     "city": [("agent_city_acceptance.test.mjs", "acceptance", ["lib/model.mjs", "lib/life.mjs"])],
