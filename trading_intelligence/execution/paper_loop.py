@@ -130,7 +130,7 @@ class PaperLoop:
                     risk.activate_kill_switch(f"PaperLoop data gap: {report.gap_halt}")
 
         for ts in pending:
-            window = {sym: frame.loc[:ts] for sym, frame in frames.items()}
+            window = {sym: frame[frame.index <= pd.Timestamp(ts)] for sym, frame in frames.items()}
             for step in self.runner.process_bars(window):
                 report.actions.append(f"{step.symbol}@{step.bar_time}:{step.action}")
             self.last_processed = ts
