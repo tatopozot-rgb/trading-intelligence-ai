@@ -1469,6 +1469,56 @@ in case the owner wants the stricter gate anyway.
 446/446 tests passing (excluding the 7-test 4h battery run separately), ruff + mypy clean (36 files)
 ```
 
+### 34. GPT Work revalidated section 31: 1 more real fail-open, and the 25% is still unratified (2026-10-07)
+
+GPT Work (`2557b6f` on PR #8) independently revalidated `9385237`: reservation
+suite 8/8 and the original lifecycle suite 6/6 pass, CI at that SHA green (ruff, mypy,
+443 tests; 436 + the 7-test 4h battery). They also published one new regression and
+one policy objection. Both were checked rather than assumed.
+
+**1. Real defect, fixed.** If `RiskEngine.advance_clock` raised at the start of a bar,
+the runner added a problem (blocking NEW signals) but still filled a BUY queued on
+the previous bar. That is fail-open on a known failure of the very risk state the
+fill depends on (the halt flags may be stale). My own rule since section 31 was
+"any doubt cancels the entry"; it had not been applied to this case. A forced veto
+(`RISK_CLOCK_ERROR`) now cancels the pending entry and releases its reservation;
+protective STOPs and exits are never touched. Their lifecycle suite: 7/7 (was 6/7).
+3 new tests; the fuzzer now injects this failure and asserts nothing fills in such
+a bar; the reverted fix is detected by the fuzzer alone (5 violations). The
+non-vacuity test also caught my first attempt: the new event never fired in the test
+seeds, so the invariant was exercising nothing until I weighted injection toward bars
+with a queued entry. 449 tests, ruff + mypy clean.
+
+**2. They are right that `max_fill_risk_overshoot_pct = 25.0` is not ratified.** I
+introduced it in section 31 and flagged it as "owner decision welcome", but I did not
+register it as a blocker, and their 8 reservation tests pass under any setting, so
+they validate nothing about the number. It is now a `WAITING_FOR_USER` item in
+`AGENT_COORDINATION.md`. I have NOT changed the value on my own.
+
+What the number means, so the decision can be informed. A fill is vetoed when the loss
+at the approved stop would exceed the per-trade risk budget by more than this
+percentage. With 1% risk, 25% permits a modeled loss at the stop of up to 1.25% of
+equity. In price terms (effective stop distance ~5.2% incl. fees) each 1% of tolerance
+admits roughly a 0.05% adverse gap between the approval close and the fill open:
+
+| tolerance | modeled loss at stop (1% risk) | adverse gap admitted (5% stop) |
+|---|---|---|
+| 0% | 1.00% | none; also vetoes ordinary fills (normal slippage + fees alone add ~1%) |
+| 10% | 1.10% | ~0.5% |
+| 25% (current, unratified) | 1.25% | ~1.3% |
+| 50% | 1.50% | ~2.6% |
+
+So the workable range starts at a few percent (zero is unusable) and the question for
+the owner is how much extra loss-at-stop per trade is acceptable to avoid skipping
+trades on small gaps. Tighter is the safer direction; the cost is more skipped entries.
+
+**Not mine / unchanged:** Agent City commits from Claude Code local (visual) and the
+root F3/SHADOW/import chain are out of this scope. Still synthetic-only.
+
+```
+449/449 tests passing (excluding the 7-test 4h battery run separately), ruff + mypy clean (36 files)
+```
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
