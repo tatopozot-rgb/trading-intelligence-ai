@@ -2,7 +2,7 @@
 // Regla central: un agente sólo se mueve o aparece como "trabajando" por evidencia (evento real reciente o estado documentado).
 // WORKING requiere AGENT_WORKING o TASK_STARTED recientes; nunca se deduce de un commit ni de un estado REVIEW.
 
-import { residentes, actividadPara, actividadRol, ROLES_SIMULADOS, SIM_NOTE as SIM_NOTE_VIDA } from "./life.mjs";
+import { residentes, actividadPara, actividadRol, ROLES_SIMULADOS, horaVisual, SIM_NOTE as SIM_NOTE_VIDA } from "./life.mjs";
 import { perfilEtapa, actividadJubilado } from "./lifecycle.mjs";
 
 export const MODE = "BUILD"; // OPERATIONS queda preparado, no activo
@@ -183,7 +183,9 @@ export function deriveCity({ snapshot, society, events, now, life = null }) {
   const abiertas = (snapshot?.tasks || []).filter((t) => ["IN_PROGRESS", "PENDING", "BLOCKED", "WAITING_FOR_USER"].includes(t.status)).length;
   const actividad24h = ev.filter((e) => ahoraMs - Date.parse(e.observed_at || e.ts || 0) < 24 * 3600 * 1000).length;
   const demanda = abiertas + Math.ceil(actividad24h / 2);
-  const hora = new Date(ahoraMs).getHours();
+  // Reloj visual acelerado (SIM): decide la rutina horaria para que la ciudad se vea viva en minutos reales.
+  // La edad/envejecimiento sigue el tiempo real en lifecycle.mjs; esto NO lo toca.
+  const hora = horaVisual(ahoraMs);
   const vidaPorId = Object.fromEntries((life?.poblacion || []).map((p) => [p.id, p]));
   const EDIFICIO_JUBILADO = { home: "residential", park: "park", residential: "residential" };
   const vida = residentes(demanda).map((r) => {

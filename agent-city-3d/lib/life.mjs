@@ -124,3 +124,11 @@ export function progresarTrainee(r, horasEstudio) {
   return { ...r, xp, stage: aprobado ? "GRADUATED_SIM" : "TRAINEE",
     examen: { curriculum: "curso simulado", score: puntuacion, min_score: 80, passed: aprobado, simulated: true } };
 }
+
+// Reloj visual de la simulación: acelerado a propósito para que la ciudad se vea viva en minutos reales.
+// Sólo decide la rutina horaria (trabajar/estudiar/pasear); la edad y el envejecimiento usan tiempo real (lifecycle.mjs).
+export const SEGUNDOS_POR_DIA_VISUAL = 150; // 1 día simulado visual = 150 s reales (~6.25 s por hora)
+export function horaVisual(ahoraMs) {
+  const seg = (ahoraMs / 1000) % SEGUNDOS_POR_DIA_VISUAL;
+  return Math.floor((seg / SEGUNDOS_POR_DIA_VISUAL) * 24);
+}

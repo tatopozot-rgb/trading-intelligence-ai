@@ -108,3 +108,12 @@ test("graduación simulada sólo con examen aprobado; sin XP suficiente no hay e
 test("roles simulados están marcados como simulados", () => {
   for (const r of L.ROLES_SIMULADOS) assert.equal(r.kind, "simulated");
 });
+
+test("reloj visual: cicla 0-23 cada 150 s reales, no depende de la hora real del sistema", () => {
+  assert.equal(L.horaVisual(0), 0);
+  assert.equal(L.horaVisual(75000), 12); // mitad del ciclo = mediodía simulado
+  assert.equal(L.horaVisual(150000), L.horaVisual(0)); // un ciclo completo vuelve a empezar
+  const horas = new Set();
+  for (let ms = 0; ms < L.SEGUNDOS_POR_DIA_VISUAL * 1000; ms += 1000) horas.add(L.horaVisual(ms));
+  assert.equal(horas.size, 24);
+});

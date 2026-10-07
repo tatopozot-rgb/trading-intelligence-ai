@@ -3,9 +3,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { BUILDINGS, AGENTS, STATE_COLOR, SIM_NOTE, deriveCity, CATEGORIAS } from "/lib/model.mjs";
+import { horaVisual } from "/lib/life.mjs";
 import { planRuta, posicionMundo, PUERTA_Z } from "/lib/paths.mjs";
 
-const REFRESCO_MS = 30000;
+const REFRESCO_MS = 8000; // más frecuente: la rutina SIM usa reloj acelerado y debe notarse en poco tiempo real
 const ESPACIO = 9;
 const CENTRO = new THREE.Vector3(13.5, 0, 13.5);
 const COLOR_EDIFICIO = {
@@ -795,6 +796,8 @@ function pintarBanners() {
   $("banners").innerHTML = ultimo.banners.map((b) => `<div class="b">${escapar(b)}</div>`).join("");
   $("modo").textContent = `${ultimo.mode} MODE`;
   $("sync").textContent = ultimo.syncOk ? `sync OK · ${ultimo.snapshotAt}` : "sync no verificada";
+  const h = horaVisual(Date.now());
+  $("reloj-sim").textContent = `🕒 SIM ${String(h).padStart(2, "0")}:00 (acelerado, no es la hora real)`;
 }
 
 // ---------- refresco (conservador: 30 s, sólo lectura)
@@ -858,3 +861,15 @@ renderer.setAnimationLoop(() => {
 aplicarPestana();
 refrescar();
 setInterval(refrescar, REFRESCO_MS);
+
+// Gancho de validación de solo lectura: expone posiciones/estado reales de la escena para comprobar
+// movimiento con un navegador real a lo largo de varios minutos (no se usa para presentar datos).
+window.__debugCity = () => ({
+  t: Date.now(),
+  horaSim: horaVisual(Date.now()),
+  agentes: Object.fromEntries(Object.entries(agentes).filter(([, ag]) => ag.grupo.visible).map(([k, ag]) => [k, {
+    x: Number(ag.grupo.position.x.toFixed(2)), z: Number(ag.grupo.position.z.toFixed(2)),
+    enRuta: ag.ruta.length >= 2, estado: ag.estado, sim: ag.esSimulado,
+  }])),
+});
+
