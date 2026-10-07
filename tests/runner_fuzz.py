@@ -17,7 +17,7 @@ and checks, after EVERY bar, the invariants that keep capital alive:
   * the two books reconcile -- unless a bookkeeping failure was injected, and
     while they disagree NO new entry is submitted (fail closed; they may heal later)
   * with the kill switch active at the start of a bar, no entry fills or is
-    submitted during it
+    submitted during it; likewise in a bar whose risk clock could not be advanced
   * an entry that fills respects the position cap and the per-trade risk
     budget (plus the configured tolerance) at its REAL fill price
   * a restart changes no cash, position, stop or registered position, and
@@ -48,7 +48,9 @@ from trading_intelligence.risk.engine import RiskEngine
 from trading_intelligence.risk.models import RiskConfig
 
 WARMUP = 60
-EVENTS = ("restart", "stale_replay", "kill_on", "kill_off", "inject_confirm", "inject_close", "inject_observe")
+EVENTS = (
+    "restart", "stale_replay", "kill_on", "kill_off", "inject_confirm", "inject_close", "inject_observe", "inject_clock",
+)
 
 
 @dataclass
@@ -151,7 +153,8 @@ def run_fuzz(seed: int, n_bars: int = 200, symbols: Optional[list[str]] = None) 
                 # Only inject where the call will actually happen this bar, or the event is vacuous.
                 options = ["observe"]
                 if runner._pending_entries:
-                    options += ["confirm", "confirm"]
+                    # the interesting failures only exist while an entry is queued: weight them up
+                    options = ["observe"] + ["confirm", "clock"] * 4
                 if runner.paper.positions:
                     options += ["close"]
                 injected = rng.choice(options)
@@ -171,6 +174,8 @@ def run_fuzz(seed: int, n_bars: int = 200, symbols: Optional[list[str]] = None) 
                 ctx.append(patch.object(runner.risk_engine, "confirm_reservation", side_effect=boom("confirm")))
             elif injected == "close":
                 ctx.append(patch.object(runner.risk_engine, "register_position_closed", side_effect=boom("close")))
+            elif injected == "clock":
+                ctx.append(patch.object(runner.risk_engine, "advance_clock", side_effect=boom("clock")))
             elif injected == "observe":
                 ctx.append(patch.object(runner.risk_engine, "observe_equity", side_effect=boom("observe")))
             for c in ctx:
@@ -225,6 +230,10 @@ def run_fuzz(seed: int, n_bars: int = 200, symbols: Optional[list[str]] = None) 
                 orphan = set(risk.reservation_ids()) - {p.order_id for p in runner._pending_entries.values()}
                 if orphan:
                     violation(i, f"reservations with no pending entry: {sorted(orphan)}")
+            if "clock" in fired:
+                filled_buys = [f for st in steps for f in st.fills if f.side == "BUY" and f.status == "FILLED"]
+                if filled_buys:
+                    violation(i, "an entry filled in a bar whose risk clock could not be advanced")
             if kill_at_start:
                 bought = [f for st in steps for f in st.fills if f.side == "BUY" and f.status == "FILLED"]
                 if bought or submitted:

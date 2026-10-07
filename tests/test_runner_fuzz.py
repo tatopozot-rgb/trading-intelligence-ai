@@ -44,7 +44,7 @@ def test_the_fuzzer_detects_a_runner_that_fills_entries_through_a_halt(monkeypat
     green fuzzer could just mean it checks nothing."""
     import logging
 
-    monkeypatch.setattr(paper_runner.PaperTradingRunner, "_veto_pending_entry", lambda self, symbol, open_, equity_before: [])
+    monkeypatch.setattr(paper_runner.PaperTradingRunner, "_veto_pending_entry", lambda self, *args, **kwargs: [])
     logging.disable(logging.CRITICAL)
     try:
         found = [v for seed in range(1, 4) for v in runner_fuzz.run_fuzz(seed).violations]

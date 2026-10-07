@@ -245,6 +245,40 @@ class TestTradingDayAttribution:
         assert Decimal(state.daily_turnover) == position.avg_entry_price * position.quantity
 
 
+class TestRiskClockFailureBeforeFill:
+    def test_a_failed_clock_advance_cancels_the_already_pending_entry(self, tmp_path, monkeypatch):
+        """Found by GPT Work (PR #8): blocking NEW signals was not enough; a BUY queued on the
+        previous bar still filled while the risk state it depends on was known to be broken."""
+        runner, _ = _signalled(tmp_path)
+
+        def boom(*args, **kwargs):
+            raise OSError("synthetic disk fault")
+
+        monkeypatch.setattr(runner.risk_engine, "advance_clock", boom)
+        step = runner.process_bar(SYMBOL, _bars(_flat(WARMUP + 2)))
+        assert runner.paper.get_position(SYMBOL) is None
+        assert step.notes == ["ENTRY_CANCELLED:RISK_CLOCK_ERROR"]
+        assert runner.paper.pending_orders == []
+        assert runner.risk_engine.reservation_ids() == []
+        assert runner._pending_entries == {}
+        assert runner.paper.cash == Decimal("10000")
+
+    def test_a_working_clock_still_lets_the_entry_fill(self, tmp_path):
+        runner, _ = _signalled(tmp_path)
+        runner.process_bar(SYMBOL, _bars(_flat(WARMUP + 2)))
+        assert runner.paper.get_position(SYMBOL) is not None
+
+    def test_protective_stops_are_not_cancelled_when_the_clock_fails(self, tmp_path, monkeypatch):
+        runner, _ = _entered_runner(tmp_path)
+
+        def boom(*args, **kwargs):
+            raise OSError("synthetic disk fault")
+
+        monkeypatch.setattr(runner.risk_engine, "advance_clock", boom)
+        runner.process_bar(SYMBOL, _bars(_flat(WARMUP + 2) + [(90.0, 91.0, 80.0, 85.0)]))
+        assert [t.exit_reason for t in runner.closed_trades] == [EXIT_STOP], "exits are never blocked"
+
+
 class TestBookkeepingFailures:
     def test_a_failed_risk_confirmation_never_leaves_the_fill_without_its_stop(self, tmp_path, monkeypatch):
         runner, _ = _signalled(tmp_path)
