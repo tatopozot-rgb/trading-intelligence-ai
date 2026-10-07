@@ -38,6 +38,14 @@ class RiskConfig:
     # Connectivity watchdog — auto kill switch per spec "Kill Switch" section.
     max_connectivity_gap_seconds: float = 60.0
 
+    # A MARKET entry is approved on one bar and fills at the next bar's open.
+    # The fill is vetoed if, at the actual fill price, the loss at the approved
+    # stop would exceed the per-trade risk budget by more than this percentage
+    # (normal slippage and small inter-bar moves pass; a gap that multiplies
+    # the risk does not). Not in the original spec — added when GPT Work's
+    # review showed a +50% gap turning a 1% risk into ~10%. 0 = no tolerance.
+    max_fill_risk_overshoot_pct: float = 25.0
+
     def __post_init__(self) -> None:
         self._validate()
 
@@ -59,6 +67,7 @@ class RiskConfig:
             (0 <= self.taker_fee_rate < 1, "taker_fee_rate must be in [0, 1)"),
             (0 < self.min_stop_distance_pct, "min_stop_distance_pct must be > 0"),
             (self.max_connectivity_gap_seconds > 0, "max_connectivity_gap_seconds must be > 0"),
+            (self.max_fill_risk_overshoot_pct >= 0, "max_fill_risk_overshoot_pct must be >= 0"),
         ]
         for ok, message in checks:
             if not ok:

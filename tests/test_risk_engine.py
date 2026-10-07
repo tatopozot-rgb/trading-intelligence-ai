@@ -3,7 +3,7 @@ Tests for RiskEngine — every reject reason, boundary conditions, restart
 persistence. Per AGENTS.md: risk engine tests are mandatory and the engine
 must never be mocked in these tests.
 """
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 
@@ -16,6 +16,9 @@ from trading_intelligence.risk.engine import (
     REASON_DAILY_TRADE_LIMIT_REACHED,
     REASON_DRAWDOWN_PAUSE_ACTIVE,
     REASON_EXPOSURE_LIMIT_EXCEEDED,
+    REASON_FILL_AT_OR_BELOW_STOP,
+    REASON_FILL_EXCEEDS_POSITION_CAP,
+    REASON_FILL_RISK_EXCEEDS_BUDGET,
     REASON_INVALID_REFERENCE_PRICE,
     REASON_KILL_SWITCH_ACTIVE,
     REASON_MAX_POSITION_SIZE_EXCEEDED,
@@ -608,3 +611,178 @@ class TestPositionReservations:
         again = RiskEngine(engine.config, tmp_path / "risk_state.json", AuditLog(tmp_path / "audit"))
         assert again.reservation_ids() == ["r1"]
         assert again.open_position_count == 1
+
+
+DAY1 = datetime(2026, 10, 1, 23, 55, tzinfo=timezone.utc)
+DAY2 = DAY1 + timedelta(minutes=5)  # 00:00 the next day
+EQUITY = Decimal("10000")
+
+
+class TestReservationDayBoundary:
+    """The daily counters reset at day roll. A reservation made on an earlier
+    day must neither debit (release) nor under-charge (confirm) the new day.
+    Found by GPT Work's independent review of the runner."""
+
+    def _engine(self, tmp_path):
+        return _loose_engine(tmp_path)
+
+    def _reserve_yesterday_and_today(self, engine):
+        engine.advance_clock(EQUITY, DAY1)
+        engine.reserve_position("yesterday", "BTCUSDT", Decimal("100"))
+        engine.advance_clock(EQUITY, DAY2)
+        engine.reserve_position("today", "ETHUSDT", Decimal("200"))
+        assert (engine.state.daily_trade_count, Decimal(engine.state.daily_turnover)) == (1, Decimal("200"))
+
+    def test_releasing_an_old_day_reservation_leaves_todays_budget_alone(self, tmp_path):
+        engine = self._engine(tmp_path)
+        self._reserve_yesterday_and_today(engine)
+        assert engine.release_reservation("yesterday") is True
+        assert (engine.state.daily_trade_count, Decimal(engine.state.daily_turnover)) == (1, Decimal("200"))
+        assert engine.reservation_ids() == ["today"], "its slot and exposure are still freed"
+
+    def test_confirming_an_old_day_reservation_charges_the_whole_fill_to_today(self, tmp_path):
+        engine = self._engine(tmp_path)
+        self._reserve_yesterday_and_today(engine)
+        engine.confirm_reservation("yesterday", "pos-1", "BTCUSDT", Decimal("120"))
+        assert (engine.state.daily_trade_count, Decimal(engine.state.daily_turnover)) == (2, Decimal("320"))
+
+    def test_the_day_tag_survives_a_restart(self, tmp_path):
+        engine = self._engine(tmp_path)
+        self._reserve_yesterday_and_today(engine)
+        again = RiskEngine(engine.config, tmp_path / "risk_state.json", AuditLog(tmp_path / "audit"))
+        assert again.release_reservation("yesterday") is True
+        assert (again.state.daily_trade_count, Decimal(again.state.daily_turnover)) == (1, Decimal("200"))
+
+    def test_a_reservation_persisted_without_a_day_is_treated_as_same_day(self, tmp_path):
+        engine = self._engine(tmp_path)
+        engine.advance_clock(EQUITY, DAY1)
+        engine.reserve_position("legacy", "BTCUSDT", Decimal("100"))
+        del engine.state.open_positions["legacy"]["day"]
+        assert engine.release_reservation("legacy") is True
+        assert (engine.state.daily_trade_count, Decimal(engine.state.daily_turnover)) == (0, Decimal("0"))
+
+    def test_same_day_release_still_gives_back_its_own_charge(self, tmp_path):
+        engine = self._engine(tmp_path)
+        engine.advance_clock(EQUITY, DAY1)
+        engine.reserve_position("one", "BTCUSDT", Decimal("100"))
+        engine.reserve_position("two", "ETHUSDT", Decimal("200"))
+        engine.release_reservation("one")
+        assert (engine.state.daily_trade_count, Decimal(engine.state.daily_turnover)) == (1, Decimal("200"))
+
+
+class TestAdvanceClock:
+    def test_rolls_the_day_with_the_pre_bar_equity_as_day_start(self, tmp_path):
+        engine = _loose_engine(tmp_path)
+        engine.advance_clock(EQUITY, DAY1)
+        engine.reserve_position("r1", "BTCUSDT", Decimal("100"))
+        engine.advance_clock(Decimal("9900"), DAY2)
+        assert engine.state.current_day == "2026-10-02"
+        assert engine.state.equity_at_day_start == "9900"
+        assert (engine.state.daily_trade_count, engine.state.daily_turnover) == (0, "0")
+
+    def test_is_a_noop_within_the_same_day(self, tmp_path):
+        engine = _loose_engine(tmp_path)
+        engine.advance_clock(EQUITY, DAY1)
+        engine.reserve_position("r1", "BTCUSDT", Decimal("100"))
+        engine.advance_clock(Decimal("5000"), DAY1 - timedelta(minutes=1))
+        assert engine.state.equity_at_day_start == "10000"
+        assert engine.state.daily_trade_count == 1
+
+    def test_a_one_bar_loss_trips_the_daily_limit_on_one_bar_per_day_data(self, tmp_path):
+        """With one bar per day the day used to start at the AFTER-bar equity,
+        so the daily loss limit could never see a single-bar loss."""
+        engine = _loose_engine(tmp_path, daily_loss_limit_pct=2.0)
+        engine.advance_clock(EQUITY, DAY1)
+        engine.observe_equity(EQUITY, now=DAY1)
+        engine.advance_clock(EQUITY, DAY2)  # the bar opens: day starts at the last mark
+        engine.observe_equity(Decimal("9700"), now=DAY2)  # the bar closes 3% down
+        assert engine.state.trading_day_halted is True
+        assert engine.entry_block_reason() == REASON_DAILY_LOSS_LIMIT_REACHED
+
+
+class TestEntryBlockReason:
+    def test_none_when_nothing_is_halted(self, tmp_path):
+        assert _loose_engine(tmp_path).entry_block_reason() is None
+
+    def test_kill_switch(self, tmp_path):
+        engine = _loose_engine(tmp_path)
+        engine.activate_kill_switch("test")
+        assert engine.entry_block_reason() == REASON_KILL_SWITCH_ACTIVE
+
+    def test_daily_loss_halt(self, tmp_path):
+        engine = _loose_engine(tmp_path)
+        engine.state.trading_day_halted = True
+        assert engine.entry_block_reason() == REASON_DAILY_LOSS_LIMIT_REACHED
+
+    def test_drawdown_pause(self, tmp_path):
+        engine = _loose_engine(tmp_path)
+        engine.state.drawdown_paused = True
+        assert engine.entry_block_reason() == REASON_DRAWDOWN_PAUSE_ACTIVE
+
+    def test_kill_switch_wins_over_the_other_gates(self, tmp_path):
+        engine = _loose_engine(tmp_path)
+        engine.activate_kill_switch("test")
+        engine.state.trading_day_halted = True
+        engine.state.drawdown_paused = True
+        assert engine.entry_block_reason() == REASON_KILL_SWITCH_ACTIVE
+
+
+class TestFillValidation:
+    """An entry is approved against the last close but fills at the next open.
+    validate_fill re-checks the approval against the price it really fills at."""
+
+    STOP = Decimal("95")
+    QTY = Decimal("19.23076923")  # what 1% risk sizes to for entry 100 / stop 95 incl. fees
+
+    def _engine(self, tmp_path, **kw):
+        return _engine(tmp_path, max_position_size_pct=25.0, **kw)
+
+    def test_sizing_assumption_matches_the_engine(self, tmp_path):
+        qty, _ = self._engine(tmp_path)._size_position(EQUITY, Decimal("100"), self.STOP)
+        assert qty == self.QTY
+
+    def test_fill_at_the_reference_price_passes(self, tmp_path):
+        engine = self._engine(tmp_path)
+        assert engine.validate_fill(self.QTY, self.STOP, Decimal("100"), EQUITY) is None
+
+    def test_ordinary_slippage_passes_with_the_default_tolerance(self, tmp_path):
+        engine = self._engine(tmp_path)
+        assert engine.validate_fill(self.QTY, self.STOP, Decimal("100.5"), EQUITY) is None
+
+    def test_a_gap_that_multiplies_the_risk_is_vetoed(self, tmp_path):
+        engine = self._engine(tmp_path)
+        reason = engine.validate_fill(self.QTY, self.STOP, Decimal("110"), EQUITY)
+        assert reason == REASON_FILL_RISK_EXCEEDS_BUDGET
+
+    def test_the_overshoot_tolerance_is_exact_at_its_boundary(self, tmp_path):
+        # loss at stop = qty*(fill-95) + 2*0.001*qty*fill ; budget = 100.
+        zero = self._engine(tmp_path, max_fill_risk_overshoot_pct=0.0)
+        assert zero.validate_fill(self.QTY, self.STOP, Decimal("100"), EQUITY) is None
+        assert zero.validate_fill(self.QTY, self.STOP, Decimal("100.02"), EQUITY) == REASON_FILL_RISK_EXCEEDS_BUDGET
+        loose = self._engine(tmp_path, max_fill_risk_overshoot_pct=25.0)
+        assert loose.validate_fill(self.QTY, self.STOP, Decimal("100.02"), EQUITY) is None
+        assert loose.validate_fill(self.QTY, self.STOP, Decimal("101.2"), EQUITY) is None
+        assert loose.validate_fill(self.QTY, self.STOP, Decimal("101.3"), EQUITY) == REASON_FILL_RISK_EXCEEDS_BUDGET
+
+    def test_a_fill_that_pushes_the_position_over_its_cap_is_vetoed(self, tmp_path):
+        engine = _engine(tmp_path, max_position_size_pct=5.0)  # cap 500 on 10000
+        qty, stop = Decimal("4.9"), Decimal("80")  # far stop: risk is not what trips
+        assert engine.validate_fill(qty, stop, Decimal("100"), EQUITY) is None
+        assert engine.validate_fill(qty, stop, Decimal("103"), EQUITY) == REASON_FILL_EXCEEDS_POSITION_CAP
+
+    def test_a_fill_at_or_below_the_stop_is_vetoed(self, tmp_path):
+        engine = self._engine(tmp_path)
+        assert engine.validate_fill(self.QTY, self.STOP, Decimal("95"), EQUITY) == REASON_FILL_AT_OR_BELOW_STOP
+        assert engine.validate_fill(self.QTY, self.STOP, Decimal("90"), EQUITY) == REASON_FILL_AT_OR_BELOW_STOP
+        assert engine.validate_fill(self.QTY, self.STOP, Decimal("95.01"), EQUITY) is None
+
+    def test_a_veto_is_audited_and_a_pass_is_not(self, tmp_path):
+        engine = self._engine(tmp_path)
+        engine.validate_fill(self.QTY, self.STOP, Decimal("100"), EQUITY)
+        engine.validate_fill(self.QTY, self.STOP, Decimal("110"), EQUITY)
+        vetoes = [r for r in engine.audit_log.read_all() if r.get("event") == "FILL_VETOED"]
+        assert [v["reason"] for v in vetoes] == [REASON_FILL_RISK_EXCEEDS_BUDGET]
+
+    def test_negative_overshoot_is_refused(self):
+        with pytest.raises(ValueError, match="max_fill_risk_overshoot_pct"):
+            RiskConfig(max_fill_risk_overshoot_pct=-1.0)

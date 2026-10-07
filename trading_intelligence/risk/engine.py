@@ -37,6 +37,11 @@ REASON_DAILY_TRADE_LIMIT_REACHED = "DAILY_TRADE_LIMIT_REACHED"
 REASON_EXPOSURE_LIMIT_EXCEEDED = "EXPOSURE_LIMIT_EXCEEDED"
 REASON_CORRELATED_EXPOSURE_EXCEEDED = "CORRELATED_EXPOSURE_EXCEEDED"
 REASON_MAX_POSITION_SIZE_EXCEEDED = "MAX_POSITION_SIZE_EXCEEDED"
+# Fill-time vetoes: the order was approved against a reference price, but a
+# MARKET entry fills at the NEXT bar's open, which can have gapped away.
+REASON_FILL_AT_OR_BELOW_STOP = "FILL_AT_OR_BELOW_STOP"
+REASON_FILL_EXCEEDS_POSITION_CAP = "FILL_EXCEEDS_POSITION_CAP"
+REASON_FILL_RISK_EXCEEDS_BUDGET = "FILL_RISK_EXCEEDS_BUDGET"
 
 
 class RiskEngine:
@@ -215,22 +220,33 @@ class RiskEngine:
 
     def reserve_position(self, reservation_id: str, symbol: str, notional_value: Decimal) -> None:
         with self._lock:
+            # "day" ties the reservation's trade-count/turnover charge to the
+            # day that was current when it was made. The daily counters reset
+            # at day roll, so a reservation that outlives its day must not
+            # later debit (release) or under-charge (confirm) the NEW day.
             self.state.open_positions[reservation_id] = {
                 "symbol": symbol, "notional_value": str(notional_value), "reserved": True,
+                "day": self.state.current_day,
             }
             self.state.daily_trade_count += 1
             self.state.daily_turnover = str(Decimal(self.state.daily_turnover) + notional_value)
             self.state.save(self.state_path)
+
+    def _reservation_in_current_day(self, info: dict) -> bool:
+        # Reservations persisted before "day" existed are treated as same-day.
+        return info.get("day", self.state.current_day) == self.state.current_day
 
     def confirm_reservation(
         self, reservation_id: str, position_id: str, symbol: str, actual_notional: Decimal,
     ) -> None:
         """The reserved entry filled: swap the reservation for the real position
         and true-up turnover to the actual notional. An unknown reservation is
-        treated as a fresh open so exposure is never under-counted."""
+        treated as a fresh open so exposure is never under-counted. A
+        reservation made on an EARLIER day charges the whole fill to the
+        current day (the day it executed), since its own charge was reset."""
         with self._lock:
             reserved = self.state.open_positions.pop(reservation_id, None)
-            if reserved is None:
+            if reserved is None or not self._reservation_in_current_day(reserved):
                 self.state.daily_trade_count += 1
                 reserved_notional = Decimal("0")
             else:
@@ -245,16 +261,19 @@ class RiskEngine:
 
     def release_reservation(self, reservation_id: str) -> bool:
         """The reserved entry never filled: give back its slot, exposure,
-        trade count and turnover. Returns False if no such reservation."""
+        trade count and turnover. Returns False if no such reservation. A
+        reservation from an earlier day frees its slot and exposure but gives
+        nothing back to today's counters (it never counted there)."""
         with self._lock:
             info = self.state.open_positions.get(reservation_id)
             if info is None or not info.get("reserved"):
                 return False
             del self.state.open_positions[reservation_id]
-            self.state.daily_trade_count = max(0, self.state.daily_trade_count - 1)
-            self.state.daily_turnover = str(
-                max(Decimal("0"), Decimal(self.state.daily_turnover) - Decimal(info["notional_value"]))
-            )
+            if self._reservation_in_current_day(info):
+                self.state.daily_trade_count = max(0, self.state.daily_trade_count - 1)
+                self.state.daily_turnover = str(
+                    max(Decimal("0"), Decimal(self.state.daily_turnover) - Decimal(info["notional_value"]))
+                )
             self.state.save(self.state_path)
             return True
 
@@ -290,6 +309,61 @@ class RiskEngine:
     # ------------------------------------------------------------------
     # Equity observation — halts must not depend on a new signal arriving
     # ------------------------------------------------------------------
+
+    def advance_clock(self, equity: Decimal, now: datetime) -> None:
+        """Roll the trading day to `now` BEFORE the bar's fills are accounted.
+        `equity` is the last mark before this bar, i.e. the day's true starting
+        equity. Without this the day rolled inside observe_equity(), after
+        confirm_reservation() had already charged a midnight fill to the old
+        day (the roll then erased it), and the day-start equity was taken
+        after the first bar's P&L, which blinded the daily loss limit on
+        one-bar-per-day data."""
+        with self._lock:
+            self._maybe_roll_day(equity, now)
+
+    def entry_block_reason(self) -> Optional[str]:
+        """Why a NEW entry must not execute right now (state gates 1-3 of
+        validate_order), or None. For an entry that was approved on an earlier
+        bar and has not filled yet: a halt that began in between must stop it."""
+        with self._lock:
+            if self.state.kill_switch:
+                return REASON_KILL_SWITCH_ACTIVE
+            if self.state.trading_day_halted:
+                return REASON_DAILY_LOSS_LIMIT_REACHED
+            if self.state.drawdown_paused:
+                return REASON_DRAWDOWN_PAUSE_ACTIVE
+            return None
+
+    def validate_fill(
+        self, quantity: Decimal, stop_price: Decimal, fill_price: Decimal, equity: Decimal,
+    ) -> Optional[str]:
+        """Re-check an approved MARKET entry against the price it would
+        ACTUALLY fill at. Returns a veto reason, or None to let it fill.
+        Approval used the last close; the fill is the next open, and a gap can
+        multiply the risk the engine thought it was approving. Checked: the
+        fill is still above the stop, the position stays within the single
+        position cap, and the loss at the stop stays within the per-trade risk
+        budget plus `max_fill_risk_overshoot_pct`."""
+        with self._lock:
+            if fill_price <= stop_price:
+                reason: Optional[str] = REASON_FILL_AT_OR_BELOW_STOP
+            elif quantity * fill_price > equity * Decimal(str(self.config.max_position_size_pct)) / 100:
+                reason = REASON_FILL_EXCEEDS_POSITION_CAP
+            else:
+                fee_rate = (
+                    Decimal(str(self.config.taker_fee_rate)) if self.config.include_fees_in_risk_calc
+                    else Decimal("0")
+                )
+                loss_at_stop = quantity * (fill_price - stop_price) + 2 * fee_rate * quantity * fill_price
+                budget = equity * Decimal(str(self.config.max_risk_per_trade_pct)) / 100
+                allowed = budget * (1 + Decimal(str(self.config.max_fill_risk_overshoot_pct)) / 100)
+                reason = REASON_FILL_RISK_EXCEEDS_BUDGET if loss_at_stop > allowed else None
+            if reason is not None:
+                self._audit_event(
+                    "FILL_VETOED", reason=reason, quantity=str(quantity), stop_price=str(stop_price),
+                    fill_price=str(fill_price), equity=str(equity),
+                )
+            return reason
 
     def observe_equity(self, equity: Decimal, now: Optional[datetime] = None) -> None:
         """

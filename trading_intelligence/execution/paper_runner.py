@@ -87,6 +87,7 @@ class RunnerStep:
     fills: list[OrderResult] = field(default_factory=list)
     blocked_by: list[str] = field(default_factory=list)
     equity: Optional[Decimal] = None  # account equity at this timestamp, after every symbol was marked
+    notes: list[str] = field(default_factory=list)  # e.g. ENTRY_CANCELLED:<reason> before the bar's fills
 
 
 @dataclass
@@ -94,6 +95,7 @@ class _PendingEntry:
     order_id: str
     proposal: TradeProposal
     strategy: AbstractStrategy
+    quantity: Decimal
 
 
 @dataclass
@@ -134,6 +136,7 @@ class PaperTradingRunner:
         self.steps: list[RunnerStep] = []
         self._pending_entries: dict[str, _PendingEntry] = {}
         self._open_trades: dict[str, _OpenTrade] = {}
+        self._last_bar_time: dict[str, datetime] = {}
         self._rebuild_after_restart()
 
     # ------------------------------------------------------------------
@@ -148,50 +151,104 @@ class PaperTradingRunner:
 
     def process_bars(self, frames: Mapping[str, pd.DataFrame]) -> list[RunnerStep]:
         """One timestamp across several symbols (`history_bars` of trailing
-        history are used for decisions, as a live loop would have). Phase 1 fills and marks every
-        symbol; phase 2 reports equity to the RiskEngine once, with every
-        position marked at this timestamp; phase 3 decides, symbol by symbol
-        in sorted order (deterministic; the shared RiskEngine caps are
-        first-come-first-served)."""
+        history are used for decisions, as a live loop would have). Phase 0
+        rolls the RiskEngine's trading day to this timestamp; phase 1 fills
+        and marks every symbol; phase 2 reports equity to the RiskEngine once,
+        with every position marked at this timestamp; phase 3 decides, symbol
+        by symbol in sorted order (deterministic; the shared RiskEngine caps
+        are first-come-first-served). A bar that is not strictly newer than
+        the last one processed for its symbol is ignored: replaying it would
+        fill an order that was decided only AFTER that bar closed."""
         steps: list[RunnerStep] = []
-        ingested: dict[str, tuple[datetime, list[OrderResult]]] = {}
+        fresh: dict[str, pd.DataFrame] = {}
         for symbol in sorted(frames):
             data = frames[symbol]
             if data.empty:
                 steps.append(self._record(RunnerStep(symbol, "", "NO_DATA")))
                 continue
-            ingested[symbol] = self._ingest(symbol, data)
-        if not ingested:
+            bar_time = _bar_time(data)
+            last = self._last_bar_time.get(symbol)
+            if last is not None and bar_time <= last:
+                logger.warning("Ignoring stale/duplicate %s bar %s (last processed %s)",
+                               symbol, bar_time.isoformat(), last.isoformat())
+                steps.append(self._record(RunnerStep(symbol, bar_time.isoformat(), "STALE_BAR_IGNORED")))
+                continue
+            fresh[symbol] = data
+        if not fresh:
             return steps
 
         problems: list[str] = []
+        now = max(_bar_time(d) for d in fresh.values())
+        try:
+            self.risk_engine.advance_clock(self.paper.last_known_equity(), now)
+        except Exception:
+            logger.exception("RiskEngine could not advance its clock — blocking new entries")
+            problems.append("RiskEngine failed to advance its clock")
+
+        ingested: dict[str, tuple[datetime, list[OrderResult], list[str]]] = {}
+        for symbol in sorted(fresh):
+            ingested[symbol] = self._ingest(symbol, fresh[symbol])
+            self._last_bar_time[symbol] = ingested[symbol][0]
+
         equity = self.paper.get_account_info().equity
         try:
-            self.risk_engine.observe_equity(equity, now=max(t for t, _ in ingested.values()))
+            self.risk_engine.observe_equity(equity, now=now)
         except Exception:
             logger.exception("RiskEngine could not observe equity — blocking new entries")
             problems.append("RiskEngine failed to observe equity")
         problems += self.reconcile()
 
         for symbol in sorted(ingested):
-            bar_time, fills = ingested[symbol]
-            window = frames[symbol].iloc[-self.history_bars:]
+            bar_time, fills, notes = ingested[symbol]
+            window = fresh[symbol].iloc[-self.history_bars:]
             step = self._decide(symbol, window, bar_time, fills, problems)
             step.equity = equity
+            step.notes = notes
             steps.append(self._record(step))
         return steps
 
-    def _ingest(self, symbol: str, data: pd.DataFrame) -> tuple[datetime, list[OrderResult]]:
+    def _ingest(
+        self, symbol: str, data: pd.DataFrame,
+    ) -> tuple[datetime, list[OrderResult], list[str]]:
         bar_time = _bar_time(data)
         last = data.iloc[-1]
+        open_ = Decimal(str(float(last["open"])))
+        notes = self._veto_pending_entry(symbol, open_)
         fills = self.paper.on_new_bar(
-            symbol,
-            Decimal(str(float(last["open"]))), Decimal(str(float(last["high"]))),
+            symbol, open_, Decimal(str(float(last["high"]))),
             Decimal(str(float(last["low"]))), Decimal(str(float(last["close"]))),
             bar_time.isoformat(),
         )
-        self._handle_fills(symbol, fills, bar_time)
-        return bar_time, fills
+        fills = fills + self._handle_fills(symbol, fills, bar_time)
+        return bar_time, fills, notes
+
+    def _veto_pending_entry(self, symbol: str, open_: Decimal) -> list[str]:
+        """An entry approved on an earlier bar is about to fill at this bar's
+        open. Re-check what the approval could not know: that no halt has
+        begun in between (kill switch, daily-loss halt, drawdown pause), and
+        that the real fill price still respects the approved stop, position
+        cap and risk budget. Fails closed: any doubt cancels the entry and
+        gives its reservation back."""
+        pending = self._pending_entries.get(symbol)
+        if pending is None:
+            return []
+        try:
+            reason = self.risk_engine.entry_block_reason()
+            if reason is None:
+                reason = self.risk_engine.validate_fill(
+                    pending.quantity, pending.proposal.stop_price,
+                    self.paper.market_fill_price("BUY", open_), self.paper.last_known_equity(),
+                )
+        except Exception:
+            logger.exception("RiskEngine failed re-checking the pending %s entry — cancelling", symbol)
+            reason = "RISK_ERROR"
+        if reason is None:
+            return []
+        logger.warning("Cancelling pending %s entry before its fill: %s", symbol, reason)
+        self.paper.cancel_order(pending.order_id)
+        self.risk_engine.release_reservation(pending.order_id)
+        del self._pending_entries[symbol]
+        return [f"ENTRY_CANCELLED:{reason}"]
 
     def _decide(
         self, symbol: str, data: pd.DataFrame, bar_time: datetime,
@@ -317,7 +374,7 @@ class PaperTradingRunner:
             self.risk_engine.release_reservation(order.client_order_id)
             step.action = f"ORDER_NOT_ACCEPTED:{result.reject_reason}"
             return
-        self._pending_entries[symbol] = _PendingEntry(order.client_order_id, proposal, decision.strategy)
+        self._pending_entries[symbol] = _PendingEntry(order.client_order_id, proposal, decision.strategy, risk.quantity)
         step.action = "ENTRY_SUBMITTED"
 
     # ------------------------------------------------------------------
@@ -363,8 +420,15 @@ class PaperTradingRunner:
     # Fill handling
     # ------------------------------------------------------------------
 
-    def _handle_fills(self, symbol: str, fills: list[OrderResult], bar_time: datetime) -> None:
-        for result in fills:
+    def _handle_fills(
+        self, symbol: str, fills: list[OrderResult], bar_time: datetime,
+    ) -> list[OrderResult]:
+        """Returns fills that arose WHILE handling these ones (a protective
+        STOP crossed inside the entry bar), so they appear in the step."""
+        extra: list[OrderResult] = []
+        queue = list(fills)
+        while queue:
+            result = queue.pop(0)
             if result.status not in ("FILLED", "REJECTED"):
                 continue
             pending = self._pending_entries.get(symbol)
@@ -372,6 +436,11 @@ class PaperTradingRunner:
                 del self._pending_entries[symbol]
                 if result.status == "FILLED":
                     self._on_entry_filled(symbol, pending, result)
+                    # The open precedes the low: a stop placed at the fill is
+                    # live for the rest of this very bar.
+                    late = self.paper.evaluate_stops(symbol)
+                    extra += late
+                    queue += late
                 else:
                     self.risk_engine.release_reservation(pending.order_id)
                     logger.warning("Entry for %s rejected at fill: %s", symbol, result.reject_reason)
@@ -379,15 +448,15 @@ class PaperTradingRunner:
             trade = self._open_trades.get(symbol)
             if trade is not None and result.side == "SELL" and result.status == "FILLED":
                 self._on_exit_filled(symbol, trade, result, bar_time)
+        return extra
 
     def _on_entry_filled(self, symbol: str, pending: _PendingEntry, result: OrderResult) -> None:
         position = self.paper.get_position(symbol)
         if position is None or result.fill_price is None:
             logger.error("Entry fill for %s but no paper position — leaving for reconcile()", symbol)
             return
-        self.risk_engine.confirm_reservation(
-            pending.order_id, position.position_id, symbol, result.fill_price * result.filled_quantity,
-        )
+        # Protection first. Risk bookkeeping can fail (disk, lock); the filled
+        # position must never be left without its STOP because of that.
         stop = OrderRequest(
             symbol=symbol, side="SELL", order_type="STOP",
             quantity=position.quantity, stop_price=pending.proposal.stop_price,
@@ -399,6 +468,15 @@ class PaperTradingRunner:
             stop_order_id=stop.client_order_id, stop_price=pending.proposal.stop_price,
             strategy=pending.strategy, high_water=position.avg_entry_price,
         )
+        try:
+            self.risk_engine.confirm_reservation(
+                pending.order_id, position.position_id, symbol, result.fill_price * result.filled_quantity,
+            )
+        except Exception:
+            logger.exception(
+                "RiskEngine could not confirm the %s fill — position is protected by its STOP; "
+                "reconcile() will block new entries until the books agree", symbol,
+            )
 
     def _on_exit_filled(self, symbol: str, trade: _OpenTrade, result: OrderResult, bar_time: datetime) -> None:
         if result.fill_price is None:
@@ -415,7 +493,12 @@ class PaperTradingRunner:
             result.fill_price * quantity - result.fee
             - trade.entry_price * quantity - trade.entry_fee * (quantity / trade.quantity)
         )
-        self.risk_engine.register_position_closed(trade.position_id, pnl)
+        try:
+            self.risk_engine.register_position_closed(trade.position_id, pnl)
+        except Exception:
+            logger.exception(
+                "RiskEngine could not register the %s close — reconcile() will block new entries", symbol,
+            )
         self.closed_trades.append(ClosedTrade(
             symbol=symbol, position_id=trade.position_id, quantity=quantity,
             entry_price=trade.entry_price, exit_price=result.fill_price, pnl=pnl,

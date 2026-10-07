@@ -332,3 +332,106 @@ class TestGapFillAffordability:
         assert results[0].status == "FILLED"
         assert adapter.cash < Decimal("1000")
         assert adapter.cash > Decimal("0")
+
+
+class TestIdempotencySurvivesRestart:
+    """The first idempotency fix kept its memory only in order_history, which
+    is not persisted: a retry after a restart looked new and doubled the fill
+    (GPT Work's lifecycle review)."""
+
+    @staticmethod
+    def _order(client_order_id):
+        return OrderRequest(symbol="BTCUSDT", side="BUY", order_type="MARKET",
+                            quantity=Decimal("1"), client_order_id=client_order_id)
+
+    @staticmethod
+    def _fill(adapter, when):
+        adapter.on_new_bar("BTCUSDT", Decimal("100"), Decimal("101"), Decimal("99"), Decimal("100"), when)
+
+    def test_a_retried_pending_order_is_rejected_after_restart(self, tmp_path):
+        first = _adapter(tmp_path)
+        first.submit_order(self._order("retry-pending"))
+        restored = _adapter(tmp_path)
+        assert restored.submit_order(self._order("retry-pending")).status == "REJECTED"
+        self._fill(restored, "2026-01-02T00:00:00Z")
+        assert restored.get_position("BTCUSDT").quantity == Decimal("1")
+
+    def test_a_retried_filled_order_is_rejected_after_restart(self, tmp_path):
+        first = _adapter(tmp_path)
+        first.submit_order(self._order("retry-filled"))
+        self._fill(first, "2026-01-02T00:00:00Z")
+        restored = _adapter(tmp_path)
+        assert restored.submit_order(self._order("retry-filled")).status == "REJECTED"
+        self._fill(restored, "2026-01-03T00:00:00Z")
+        assert restored.get_position("BTCUSDT").quantity == Decimal("1")
+
+    def test_a_cancelled_id_can_be_used_again_even_after_restart(self, tmp_path):
+        first = _adapter(tmp_path)
+        first.submit_order(self._order("retry-cancelled"))
+        assert first.cancel_order("retry-cancelled") is True
+        restored = _adapter(tmp_path)
+        assert restored.submit_order(self._order("retry-cancelled")).status == "SUBMITTED"
+
+    def test_a_state_file_from_before_the_fix_still_protects_its_pending_orders(self, tmp_path):
+        import json
+
+        first = _adapter(tmp_path)
+        first.submit_order(self._order("legacy-pending"))
+        path = tmp_path / "paper_state.json"
+        data = json.loads(path.read_text())
+        del data["used_order_ids"]
+        path.write_text(json.dumps(data))
+        restored = _adapter(tmp_path)
+        assert restored.submit_order(self._order("legacy-pending")).status == "REJECTED"
+
+
+class TestStopsInsideTheFillBar:
+    def _buy_at_open(self, adapter, low):
+        adapter.submit_order(OrderRequest(symbol="BTCUSDT", side="BUY", order_type="MARKET",
+                                          quantity=Decimal("1"), client_order_id="buy"))
+        adapter.on_new_bar("BTCUSDT", Decimal("100"), Decimal("101"), low, Decimal("99"), "2026-01-02T00:00:00Z")
+
+    def test_a_stop_submitted_after_the_fill_is_checked_against_that_same_bar(self, tmp_path):
+        adapter = _adapter(tmp_path)
+        self._buy_at_open(adapter, low=Decimal("90"))
+        adapter.submit_order(OrderRequest(symbol="BTCUSDT", side="SELL", order_type="STOP",
+                                          quantity=Decimal("1"), stop_price=Decimal("95"), client_order_id="stop"))
+        assert adapter.get_position("BTCUSDT") is not None
+        fills = adapter.evaluate_stops("BTCUSDT")
+        assert [f.client_order_id for f in fills] == ["stop"]
+        assert adapter.get_position("BTCUSDT") is None
+        assert fills[0].fill_price == Decimal("95") * (1 - 2 * adapter.slippage_rate)
+
+    def test_a_low_above_the_stop_does_not_trigger_it(self, tmp_path):
+        adapter = _adapter(tmp_path)
+        self._buy_at_open(adapter, low=Decimal("95.01"))
+        adapter.submit_order(OrderRequest(symbol="BTCUSDT", side="SELL", order_type="STOP",
+                                          quantity=Decimal("1"), stop_price=Decimal("95"), client_order_id="stop"))
+        assert adapter.evaluate_stops("BTCUSDT") == []
+        assert adapter.get_position("BTCUSDT") is not None
+
+    def test_without_a_current_bar_it_is_a_noop(self, tmp_path):
+        adapter = _adapter(tmp_path)
+        self._buy_at_open(adapter, low=Decimal("90"))
+        adapter.submit_order(OrderRequest(symbol="BTCUSDT", side="SELL", order_type="STOP",
+                                          quantity=Decimal("1"), stop_price=Decimal("95"), client_order_id="stop"))
+        restarted = _adapter(tmp_path)  # the bar is in memory only
+        assert restarted.evaluate_stops("BTCUSDT") == []
+        assert restarted.get_position("BTCUSDT") is not None
+
+
+class TestPriceHelpers:
+    def test_market_fill_price_applies_slippage_against_the_trader(self, tmp_path):
+        adapter = _adapter(tmp_path)
+        assert adapter.market_fill_price("BUY", Decimal("100")) == Decimal("100") * (1 + adapter.slippage_rate)
+        assert adapter.market_fill_price("SELL", Decimal("100")) == Decimal("100") * (1 - adapter.slippage_rate)
+
+    def test_last_known_equity_never_asks_the_market_data_adapter(self, tmp_path):
+        adapter = _adapter(tmp_path)  # FakeMarketDataAdapter quotes 50000 for everything
+        adapter.submit_order(OrderRequest(symbol="BTCUSDT", side="BUY", order_type="MARKET",
+                                          quantity=Decimal("1"), client_order_id="buy"))
+        adapter.on_new_bar("BTCUSDT", Decimal("100"), Decimal("101"), Decimal("99"), Decimal("100"), "t1")
+        restarted = _adapter(tmp_path)  # no marks yet: position carried at its entry price
+        position = restarted.get_position("BTCUSDT")
+        assert restarted.last_known_equity() == restarted.cash + position.avg_entry_price * position.quantity
+        assert restarted.get_account_info().equity != restarted.last_known_equity()

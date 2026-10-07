@@ -64,6 +64,11 @@ class PaperAdapter(AbstractExchangeAdapter):
         self.pending_orders: list[OrderRequest] = []
         self.order_history: list[OrderResult] = []
         self._last_price: dict[str, Decimal] = {}
+        # client_order_ids that are live (pending or filled). Persisted: the
+        # in-memory order_history is not, so a retry after a restart used to
+        # look new and doubled the fill (found by GPT Work's lifecycle review).
+        self._used_order_ids: set[str] = set()
+        self._last_bar: dict[str, _Bar] = {}  # in-memory only: the bar being processed
 
         if self.state_path and self.state_path.exists():
             self._load_state()
@@ -110,6 +115,7 @@ class PaperAdapter(AbstractExchangeAdapter):
             return result
 
         self.pending_orders.append(order)
+        self._used_order_ids.add(order.client_order_id)
         result = OrderResult(
             client_order_id=order.client_order_id,
             status="SUBMITTED",
@@ -126,17 +132,16 @@ class PaperAdapter(AbstractExchangeAdapter):
         """A client_order_id already live (pending or filled) must not be
         accepted again — the caller is expected to retry with a new id,
         not resend the same submission. Found by GPT Work's independent
-        review: re-submitting the identical order doubled the fill."""
-        return any(
-            r.client_order_id == client_order_id and r.status in ("SUBMITTED", "PENDING", "FILLED")
-            for r in self.order_history
-        )
+        review: re-submitting the identical order doubled the fill, and a
+        second review showed the guard forgot every id on restart."""
+        return client_order_id in self._used_order_ids
 
     def cancel_order(self, client_order_id: str) -> bool:
         before = len(self.pending_orders)
         self.pending_orders = [o for o in self.pending_orders if o.client_order_id != client_order_id]
         cancelled = len(self.pending_orders) < before
         if cancelled:
+            self._used_order_ids.discard(client_order_id)
             for r in self.order_history:
                 if r.client_order_id == client_order_id:
                     r.status = "CANCELLED"
@@ -156,6 +161,7 @@ class PaperAdapter(AbstractExchangeAdapter):
         new completed bar, in chronological order.
         """
         bar = _Bar(open=open_, high=high, low=low, close=close, time=bar_time)
+        self._last_bar[symbol] = bar
         filled: list[OrderResult] = []
 
         # STOP orders are handled exclusively by _maybe_trigger_stop below —
@@ -182,14 +188,29 @@ class PaperAdapter(AbstractExchangeAdapter):
         self._save_state()
         return filled
 
+    def evaluate_stops(self, symbol: str) -> list[OrderResult]:
+        """Check `symbol`'s STOP orders against the bar currently being
+        processed. A protective STOP submitted because an entry just filled
+        at this bar's open was invisible to on_new_bar()'s stop pass (it did
+        not exist yet), so a low below the stop inside the fill bar went
+        unnoticed until the next bar. The open precedes the low, so the stop
+        is genuinely live for the rest of the bar. No-op without a current bar
+        (e.g. right after a restart)."""
+        bar = self._last_bar.get(symbol)
+        position = self.positions.get(symbol)
+        if bar is None or position is None:
+            return []
+        result = self._maybe_trigger_stop(symbol, position, bar)
+        if result is None:
+            return []
+        self._save_state()
+        return [result]
+
     def _fill_order(self, order: OrderRequest, bar: _Bar) -> OrderResult:
         now = datetime.now(timezone.utc).isoformat()
 
         if order.order_type == "MARKET":
-            if order.side == "BUY":
-                fill_price = bar.open * (1 + self.slippage_rate)
-            else:
-                fill_price = bar.open * (1 - self.slippage_rate)
+            fill_price = self.market_fill_price(order.side, bar.open)
         else:  # LIMIT — STOP orders never reach this method (see on_new_bar)
             limit_fill = self._limit_fill_price(order, bar)
             if limit_fill is None:
@@ -222,6 +243,7 @@ class PaperAdapter(AbstractExchangeAdapter):
                     if r.client_order_id == order.client_order_id:
                         r.status = result.status
                         r.reject_reason = result.reject_reason
+                self._used_order_ids.discard(order.client_order_id)
                 return result
             self._apply_buy(order.symbol, quantity, fill_price, fee)
         else:
@@ -246,6 +268,10 @@ class PaperAdapter(AbstractExchangeAdapter):
                 r.fee = result.fee
                 r.filled_at = result.filled_at
         return result
+
+    def market_fill_price(self, side: str, open_: Decimal) -> Decimal:
+        """Price a MARKET order fills at on a bar opening at `open_`."""
+        return open_ * (1 + self.slippage_rate) if side == "BUY" else open_ * (1 - self.slippage_rate)
 
     def _limit_fill_price(self, order: OrderRequest, bar: _Bar) -> Optional[Decimal]:
         """Conservative limit fill per spec: fills at the worse of open/limit."""
@@ -345,6 +371,16 @@ class PaperAdapter(AbstractExchangeAdapter):
     def get_position(self, symbol: str) -> Optional[Position]:
         return self.positions.get(symbol)
 
+    def last_known_equity(self) -> Decimal:
+        """Equity at the most recent marks, never touching the market-data
+        adapter: a position not yet marked since a restart is carried at its
+        entry price. This is the equity BEFORE the bar being processed."""
+        value = sum(
+            (p.quantity * self._last_price.get(p.symbol, p.avg_entry_price) for p in self.positions.values()),
+            Decimal("0"),
+        )
+        return self.cash + value
+
     def get_account_info(self) -> AccountInfo:
         position_value = sum(
             (self.get_current_price(p.symbol) * p.quantity for p in self.positions.values()),
@@ -379,6 +415,7 @@ class PaperAdapter(AbstractExchangeAdapter):
             # persisted cash/positions — a pending entry or protective STOP
             # silently vanished on restart, leaving an open position with no
             # stop watching it.
+            "used_order_ids": sorted(self._used_order_ids),
             "pending_orders": [
                 {
                     "symbol": o.symbol, "side": o.side, "order_type": o.order_type,
@@ -417,3 +454,8 @@ class PaperAdapter(AbstractExchangeAdapter):
             )
             for o in data.get("pending_orders", [])
         ]
+        # Older state files have no "used_order_ids": the pending ids are the
+        # best that can be recovered from them.
+        self._used_order_ids = set(data.get("used_order_ids", [])) | {
+            o.client_order_id for o in self.pending_orders
+        }
