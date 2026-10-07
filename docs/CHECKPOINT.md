@@ -7,6 +7,8 @@ aliases: ["Checkpoint"]
 
 # Checkpoint — Trading Intelligence AI
 
+> **New session or model switch? Read `docs/HANDOFF_CLAUDE_LEADER.md` first** (one page: rules, state, open items, lessons). This file is the long log.
+
 > Last updated: 2026-10-06T13:52:00Z
 > Agent: Trading Codex (cloud session)
 > Branch: `ccr-b66a9a9e-okj2pl` @ commit `d899d49`
