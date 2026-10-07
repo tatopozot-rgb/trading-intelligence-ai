@@ -3,16 +3,23 @@
 
 export const ALTURA_PLANTA = 3.3; // separación vertical entre plantas, en unidades de mundo
 
-// Edificios con dos plantas: los más altos, donde "subir" tiene sentido visual.
-export const EDIFICIOS_DOS_PLANTAS = new Set(["risk_tower", "command_center", "trading_floor"]);
+// Edificios con dos plantas: los más altos (variedad visual de skyline) más los 5 edificios de
+// trabajo reales (lib/life.mjs EDIFICIOS_TRABAJO), que necesitan la 2ª planta para tener capacidad
+// real: con el tope de población (POBLACION_MAX=40 en life.mjs), el edificio de trabajo con más
+// gente recibe 8 trabajadores (verificado con residentes(1000)); 2 plantas x 4 puestos = 8 cubre
+// ese máximo exacto, así nadie comparte escritorio nunca, igual que las casas con litera.
+export const EDIFICIOS_DOS_PLANTAS = new Set([
+  "risk_tower", "command_center", "trading_floor",
+  "quant_lab", "qa_facility", "engineering_lab", "market_intel",
+]);
 export function plantasDe(idEdificio) {
   return EDIFICIOS_DOS_PLANTAS.has(idEdificio) ? 2 : 1;
 }
 
-// Estaciones de trabajo (escritorio/pupitre) por planta: 2 puestos fijos por planta (no una sala
-// vacía de 4 para 3 personas). Con sólo 2 por planta, el 3er compañero ya sube al piso de arriba.
-// Exportadas para que la escena dibuje el mueble en el mismo punto exacto que decide la asignación.
-export const ESTACIONES_BASE = [[-0.6, -0.6], [0.6, 0.6]];
+// Estaciones de trabajo (escritorio/pupitre) por planta: 4 puestos fijos por planta (ver comentario
+// de EDIFICIOS_DOS_PLANTAS para el porqué de 4 x 2 plantas = 8). Exportadas para que la escena dibuje
+// el mueble en el mismo punto exacto que decide la asignación.
+export const ESTACIONES_BASE = [[-0.6, -0.6], [0.6, -0.6], [-0.6, 0.6], [0.6, 0.6]];
 export function estacionesDe(idEdificio) {
   const plantas = plantasDe(idEdificio);
   const lista = [];

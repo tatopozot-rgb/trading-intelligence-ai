@@ -4,17 +4,23 @@ import * as E from "../lib/espacio.mjs";
 
 const persona = (id, home, workplace = null) => ({ id, home, workplace });
 
-test("plantas: sólo los edificios altos tienen dos plantas; el resto, una", () => {
+test("plantas: edificios altos y los 5 edificios de trabajo real tienen dos plantas; casas, una", () => {
   assert.equal(E.plantasDe("risk_tower"), 2);
   assert.equal(E.plantasDe("command_center"), 2);
   assert.equal(E.plantasDe("trading_floor"), 2);
-  assert.equal(E.plantasDe("quant_lab"), 1);
+  // Edificios de trabajo real (lib/life.mjs EDIFICIOS_TRABAJO): necesitan la 2ª planta para que la
+  // capacidad (8 escritorios) cubra el máximo real de trabajadores por edificio (verificado: 8).
+  assert.equal(E.plantasDe("quant_lab"), 2);
+  assert.equal(E.plantasDe("qa_facility"), 2);
+  assert.equal(E.plantasDe("engineering_lab"), 2);
+  assert.equal(E.plantasDe("market_intel"), 2);
   assert.equal(E.plantasDe("house_a"), 1);
+  assert.equal(E.plantasDe("academy"), 1); // edificio normal, sin necesidad de 2ª planta
 });
 
 test("estaciones de un edificio de dos plantas usan ambas plantas, no sólo la 0", () => {
   const est = E.estacionesDe("risk_tower");
-  assert.equal(est.length, 4); // 2 puestos por planta x 2 plantas
+  assert.equal(est.length, 8); // 4 puestos por planta x 2 plantas
   assert.ok(est.some((e) => e.planta === 0) && est.some((e) => e.planta === 1));
 });
 
@@ -43,15 +49,14 @@ test("cada casa tiene litera: 4 rincones x 2 niveles = 8 camas propias, no 4", (
   }
 });
 
-test("con 3 compañeros en un edificio de 2 plantas, el tercero ya sube al piso de arriba", () => {
-  const r = Array.from({ length: 3 }, (_, i) => persona(`w${i}`, "house_a", "risk_tower"));
+test("con 5 compañeros en un edificio de 2 plantas, el 5º ya sube al piso de arriba", () => {
+  const r = Array.from({ length: 5 }, (_, i) => persona(`w${i}`, "house_a", "risk_tower"));
   const asign = E.asignarEspacios(r);
-  assert.equal(asign["w0"].estacion.planta, 0);
-  assert.equal(asign["w1"].estacion.planta, 0);
-  assert.equal(asign["w2"].estacion.planta, 1); // el 3ro ya no cabe en planta baja (2 puestos)
+  for (const w of ["w0", "w1", "w2", "w3"]) assert.equal(asign[w].estacion.planta, 0);
+  assert.equal(asign["w4"].estacion.planta, 1); // el 5º ya no cabe en planta baja (4 puestos)
 });
 
-test("hasta llenar la capacidad (4), nadie comparte escritorio; con más gente, se reparte por turno", () => {
+test("hasta llenar la capacidad (4 por planta, 8 en total), nadie comparte escritorio; con más gente, se reparte por turno", () => {
   const r4 = Array.from({ length: 4 }, (_, i) => persona(`f${i}`, "house_a", "risk_tower"));
   const asign4 = E.asignarEspacios(r4);
   const puestos4 = new Set(r4.map((p) => JSON.stringify(asign4[p.id].estacion)));
@@ -61,6 +66,12 @@ test("hasta llenar la capacidad (4), nadie comparte escritorio; con más gente, 
   const plantas6 = new Set(r6.map((p) => asign6[p.id].estacion.planta));
   assert.deepEqual([...plantas6].sort(), [0, 1]);
   for (const p of r6) assert.ok(asign6[p.id].estacion); // nadie se queda sin estación, aunque se repita
+  // 8 es el máximo real de trabajadores en un mismo edificio al tope de población (ver life.mjs
+  // EDIFICIOS_TRABAJO + POBLACION_MAX): con 8 puestos reales, nadie debería compartir ni ahí.
+  const r8 = Array.from({ length: 8 }, (_, i) => persona(`m${i}`, "house_a", "risk_tower"));
+  const asign8 = E.asignarEspacios(r8);
+  const puestos8 = new Set(r8.map((p) => JSON.stringify(asign8[p.id].estacion)));
+  assert.equal(puestos8.size, 8, "el máximo real de trabajadores por edificio no debería compartir escritorio");
 });
 
 test("quien no trabaja no recibe estación", () => {
