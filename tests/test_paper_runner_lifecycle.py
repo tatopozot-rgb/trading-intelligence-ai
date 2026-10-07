@@ -498,3 +498,27 @@ class TestPortfolioCapsAtTheFill:
         assert runner.paper.get_position(SYMBOL) is None
         assert risk.total_open_exposure == Decimal("0")
         assert runner.reconcile() == []
+
+
+class TestCrashBetweenFillAndProtection:
+    def test_a_crash_right_after_the_fill_restarts_with_the_stop_in_place(self, tmp_path, monkeypatch):
+        """GPT Work (PR #8): the fill used to be persisted before the STOP. A process exit in
+        between restarted into a naked position."""
+        runner, _ = _signalled(tmp_path)
+        original = runner.paper.on_new_bar
+
+        def power_loss_after_fill(*args, **kwargs):
+            results = original(*args, **kwargs)
+            if any(r.side == "BUY" and r.status == "FILLED" for r in results):
+                raise SystemExit("synthetic power loss before the runner saw the fill")
+            return results
+
+        monkeypatch.setattr(runner.paper, "on_new_bar", power_loss_after_fill)
+        with pytest.raises(SystemExit):
+            runner.process_bar(SYMBOL, _bars(_flat(WARMUP + 2)))
+
+        restarted = PaperTradingRunner(_router_for(_Scripted(entry_at=10**9)), _risk(tmp_path), _paper(tmp_path))
+        assert restarted.paper.get_position(SYMBOL) is not None
+        stop = restarted._stop_order_for(SYMBOL)
+        assert stop is not None, "the fill and its protective STOP are persisted together"
+        assert stop.stop_price == Decimal("95.0")
