@@ -95,9 +95,10 @@ the owner directs: items above, or new findings from GPT Work / CI.
 
 ## 6. Scheduled things running
 
-- **PAPER automator:** `.github/workflows/paper-loop.yml` on `main` (owner-authorized), every 4h + on
-  demand; runs PaperLoop from this branch on public Binance data; state in the Actions cache;
-  red run = needs attention. See CHECKPOINT section 39. The only file ever written to `main`.
+- **PAPER automator:** `.github/workflows/paper-loop.yml` on THIS branch (the repo's default
+  branch; GitHub only schedules workflows from there), every 4h + on demand; runs PaperLoop
+  on public Binance data; state in the Actions cache; red run = needs attention. See
+  CHECKPOINT section 39. An inert copy sits on `main` (`4e96b09`, owner-authorized, never fires).
 
 - Routine "Trading claude work — 8h checkpoint" (`trig_015pfHXkGieqnfgyNViPcwP1`): its
   prompt asks to read CHECKPOINT + AGENT_COORDINATION, `git log`, issues/PRs, review new

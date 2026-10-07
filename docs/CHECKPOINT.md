@@ -1684,7 +1684,7 @@ network); the cloud container is blocked from Binance.
 527/527 tests passing (excluding the 7-test 4h battery run separately), ruff + mypy clean (38 files)
 ```
 
-### 39. The PAPER automator runs on GitHub Actions (owner-authorized on `main`) (2026-10-07)
+### 39. The PAPER automator runs on GitHub Actions (2026-10-07)
 
 The owner wanted the system operating, with errors and changes visible from the
 automator. Two blockers: the cloud container cannot reach Binance (environment network
@@ -1693,10 +1693,14 @@ App Control: "Una directiva de Control de aplicaciones bloqueó este archivo"). 
 explicitly authorized a file on `main` ("autorizo main"), so the loop now runs on
 GitHub's own servers.
 
-**`.github/workflows/paper-loop.yml` on `main`** (`4e96b09`, the only change to `main`):
+**`.github/workflows/paper-loop.yml` on THIS branch.** Correction: it was first put on
+`main` (`4e96b09`), where GitHub never registered it (dispatch returned 404). The repo's
+DEFAULT branch is `ccr-b66a9a9e-okj2pl`, not `main`, and GitHub only runs `schedule` /
+`workflow_dispatch` workflows from the default branch. The copy on `main` is inert (it
+can never fire); it was left untouched rather than writing to `main` again.
 - every 4 hours at :07 UTC (a few minutes after each 4h bar closes; GitHub may delay
   scheduled runs) and on demand (`workflow_dispatch`);
-- checks out THIS branch (`ccr-b66a9a9e-okj2pl`) and runs one PaperLoop poll on
+- checks out the commit that triggered it (this branch's head) and runs one PaperLoop poll on
   BTC/ETH/SOL/BNB/XRP 4h from `data-api.binance.vision` (public data, no key, no account,
   no order endpoint). Each poll catches up every bar closed since the last run;
 - state carried between runs in the Actions cache (no commits, nothing written to git);
