@@ -46,6 +46,15 @@ class RiskConfig:
     # review showed a +50% gap turning a 1% risk into ~10%. 0 = no tolerance.
     max_fill_risk_overshoot_pct: float = 25.0
 
+    # How open positions count toward the total / correlated exposure caps.
+    # "entry" (default, the spec's behaviour): the notional at entry, forever.
+    # "entry_or_market": the HIGHER of entry notional and current market value, so
+    # a position that has run up counts for what it is now worth while one that
+    # has fallen is never discounted below what was committed. Opt-in: the
+    # survival bench showed real exposure drifting to 30-55% against a 20% cap
+    # under "entry"; whether to change the policy is the owner's call.
+    exposure_basis: str = "entry"
+
     def __post_init__(self) -> None:
         self._validate()
 
@@ -68,6 +77,8 @@ class RiskConfig:
             (0 < self.min_stop_distance_pct, "min_stop_distance_pct must be > 0"),
             (self.max_connectivity_gap_seconds > 0, "max_connectivity_gap_seconds must be > 0"),
             (self.max_fill_risk_overshoot_pct >= 0, "max_fill_risk_overshoot_pct must be >= 0"),
+            (self.exposure_basis in ("entry", "entry_or_market"),
+             "exposure_basis must be 'entry' or 'entry_or_market'"),
         ]
         for ok, message in checks:
             if not ok:

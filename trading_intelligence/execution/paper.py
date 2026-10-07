@@ -381,6 +381,14 @@ class PaperAdapter(AbstractExchangeAdapter):
         )
         return self.cash + value
 
+    def position_values(self) -> dict[str, Decimal]:
+        """Market value of each open position by position_id, at the latest
+        marks (entry price if never marked)."""
+        return {
+            p.position_id: p.quantity * self._last_price.get(p.symbol, p.avg_entry_price)
+            for p in self.positions.values()
+        }
+
     def get_account_info(self) -> AccountInfo:
         position_value = sum(
             (self.get_current_price(p.symbol) * p.quantity for p in self.positions.values()),

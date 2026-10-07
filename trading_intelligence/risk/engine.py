@@ -284,12 +284,16 @@ class RiskEngine:
     def open_position_count(self) -> int:
         return len(self.state.open_positions)
 
+    def _exposure_value(self, info: dict) -> Decimal:
+        """What one open position counts for toward the exposure caps."""
+        notional = Decimal(info["notional_value"])
+        if self.config.exposure_basis == "entry_or_market" and not info.get("reserved") and "mark_value" in info:
+            return max(notional, Decimal(info["mark_value"]))
+        return notional
+
     @property
     def total_open_exposure(self) -> Decimal:
-        return sum(
-            (Decimal(p["notional_value"]) for p in self.state.open_positions.values()),
-            Decimal("0"),
-        )
+        return sum((self._exposure_value(p) for p in self.state.open_positions.values()), Decimal("0"))
 
     def _correlated_exposure(self, symbol: str) -> Decimal:
         """
@@ -298,13 +302,27 @@ class RiskEngine:
         enhancement — not yet implemented pending real market data.
         """
         return sum(
-            (
-                Decimal(p["notional_value"])
-                for p in self.state.open_positions.values()
-                if p["symbol"] == symbol
-            ),
+            (self._exposure_value(p) for p in self.state.open_positions.values() if p["symbol"] == symbol),
             Decimal("0"),
         )
+
+    def update_marks(self, values: dict[str, Decimal]) -> None:
+        """Latest market value per REGISTERED position id. Only used when
+        exposure_basis is "entry_or_market"; otherwise a no-op, so the default
+        state is byte-for-byte what it always was."""
+        if self.config.exposure_basis != "entry_or_market":
+            return
+        with self._lock:
+            changed = False
+            for position_id, value in values.items():
+                info = self.state.open_positions.get(position_id)
+                if info is None or info.get("reserved"):
+                    continue
+                if info.get("mark_value") != str(value):
+                    info["mark_value"] = str(value)
+                    changed = True
+            if changed:
+                self.state.save(self.state_path)
 
     # ------------------------------------------------------------------
     # Equity observation — halts must not depend on a new signal arriving

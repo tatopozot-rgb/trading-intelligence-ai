@@ -23,7 +23,9 @@ from tests.test_paper_runner import (
     _Scripted,
 )
 from trading_intelligence.execution.paper_runner import EXIT_STOP, PaperTradingRunner
+from trading_intelligence.persistence.audit_log import AuditLog
 from trading_intelligence.risk.engine import RiskEngine
+from trading_intelligence.risk.models import RiskConfig
 
 
 def _signalled(tmp_path: Path, **kw) -> tuple[PaperTradingRunner, pd.DataFrame]:
@@ -338,3 +340,40 @@ class TestOneEquityPerTimestamp:
         assert len(seen) == 2
         assert seen[0] == seen[1], f"the second symbol was vetted against a different equity: {seen}"
         assert len(runner.paper.positions) == 2, "fixture must actually fill both entries"
+
+
+class TestMarketValueExposure:
+    def _runner(self, tmp_path, basis):
+        risk = RiskEngine(
+            RiskConfig(max_position_size_pct=100.0, max_total_exposure_pct=100.0, max_correlated_exposure_pct=100.0,
+                       max_daily_turnover_pct=1000.0, max_trades_per_day=1000, exposure_basis=basis),
+            tmp_path / "risk.json", AuditLog(tmp_path / "audit"),
+        )
+        return PaperTradingRunner(_router_for(_Scripted(entry_at=WARMUP + 1)), risk, _paper(tmp_path))
+
+    def test_a_winning_position_is_reported_to_the_risk_engine_at_market_value(self, tmp_path):
+        runner = self._runner(tmp_path, "entry_or_market")
+        prices = _flat(WARMUP + 1) + _flat(1) + [(120.0, 121.0, 119.0, 120.0)]
+        runner.run_replay(SYMBOL, _bars(prices), warmup=WARMUP)
+        position = runner.paper.get_position(SYMBOL)
+        assert position is not None
+        assert runner.risk_engine.total_open_exposure == position.quantity * Decimal("120.0")
+        assert runner.risk_engine.total_open_exposure > position.quantity * position.avg_entry_price
+
+    def test_the_default_keeps_counting_the_entry_notional(self, tmp_path):
+        runner = self._runner(tmp_path, "entry")
+        prices = _flat(WARMUP + 1) + _flat(1) + [(120.0, 121.0, 119.0, 120.0)]
+        runner.run_replay(SYMBOL, _bars(prices), warmup=WARMUP)
+        position = runner.paper.get_position(SYMBOL)
+        assert runner.risk_engine.total_open_exposure == position.quantity * position.avg_entry_price
+
+    def test_a_failure_to_update_marks_blocks_entries(self, tmp_path, monkeypatch):
+        runner = self._runner(tmp_path, "entry_or_market")
+
+        def boom(*args, **kwargs):
+            raise RuntimeError("cannot mark")
+
+        monkeypatch.setattr(runner.risk_engine, "update_marks", boom)
+        steps = runner.run_replay(SYMBOL, _bars(_flat(WARMUP + 3)), warmup=WARMUP)
+        assert all(s.action == "ENTRIES_BLOCKED" for s in steps)
+        assert "update position marks" in steps[0].blocked_by[0]

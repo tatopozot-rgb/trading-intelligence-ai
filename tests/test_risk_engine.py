@@ -786,3 +786,73 @@ class TestFillValidation:
     def test_negative_overshoot_is_refused(self):
         with pytest.raises(ValueError, match="max_fill_risk_overshoot_pct"):
             RiskConfig(max_fill_risk_overshoot_pct=-1.0)
+
+
+class TestExposureBasis:
+    """Default "entry" counts a position at its entry notional forever, so a
+    position that ran up drifts far past the exposure cap unnoticed (survival
+    bench: 30-55% real exposure against a 20% cap). "entry_or_market" is the opt-in
+    that counts the higher of entry notional and current market value."""
+
+    def _engine(self, tmp_path, basis, **kw):
+        return _engine(
+            tmp_path, exposure_basis=basis, max_total_exposure_pct=1.0, max_open_positions=100,
+            max_correlated_exposure_pct=100.0, max_position_size_pct=100.0, max_daily_turnover_pct=1000.0,
+            max_risk_per_trade_pct=0.01, **kw,
+        )
+
+    def _validate(self, engine):
+        # Sizes to a ~45 position against a cap of 1% of 10000 = 100.
+        return engine.validate_order(
+            _proposal(symbol="BTCUSDT", entry_price=Decimal("50000"), stop_price=Decimal("49000")),
+            equity=Decimal("10000"), reference_price=Decimal("50000"),
+        )
+
+    def test_the_default_ignores_marks_and_leaves_state_untouched(self, tmp_path):
+        engine = self._engine(tmp_path, "entry")
+        engine.register_position_opened("p1", "ETHUSDT", Decimal("50"))
+        engine.update_marks({"p1": Decimal("500")})
+        assert engine.total_open_exposure == Decimal("50")
+        assert "mark_value" not in engine.state.open_positions["p1"]
+        assert self._validate(engine).approved
+
+    def test_a_winner_counts_at_market_value_and_can_close_the_gate(self, tmp_path):
+        engine = self._engine(tmp_path, "entry_or_market")
+        engine.register_position_opened("p1", "ETHUSDT", Decimal("50"))
+        assert self._validate(engine).approved, "50 at entry + ~45 new fits under 100"
+        engine.update_marks({"p1": Decimal("80")})
+        assert engine.total_open_exposure == Decimal("80")
+        assert self._validate(engine).reason == REASON_EXPOSURE_LIMIT_EXCEEDED
+
+    def test_a_loser_is_never_counted_below_what_was_committed(self, tmp_path):
+        engine = self._engine(tmp_path, "entry_or_market")
+        engine.register_position_opened("p1", "ETHUSDT", Decimal("50"))
+        engine.update_marks({"p1": Decimal("10")})
+        assert engine.total_open_exposure == Decimal("50")
+
+    def test_a_reservation_is_not_marked_and_unknown_ids_are_ignored(self, tmp_path):
+        engine = self._engine(tmp_path, "entry_or_market")
+        engine.reserve_position("r1", "ETHUSDT", Decimal("50"))
+        engine.update_marks({"r1": Decimal("500"), "ghost": Decimal("1")})
+        assert engine.total_open_exposure == Decimal("50")
+        assert "mark_value" not in engine.state.open_positions["r1"]
+
+    def test_correlated_exposure_uses_the_same_basis(self, tmp_path):
+        engine = _engine(tmp_path, exposure_basis="entry_or_market", max_correlated_exposure_pct=1.0,
+                         max_total_exposure_pct=100.0, max_open_positions=100, max_position_size_pct=100.0,
+                         max_daily_turnover_pct=1000.0, max_risk_per_trade_pct=0.01)
+        engine.register_position_opened("p1", "BTCUSDT", Decimal("50"))
+        assert self._validate(engine).approved
+        engine.update_marks({"p1": Decimal("80")})
+        assert self._validate(engine).reason == REASON_CORRELATED_EXPOSURE_EXCEEDED
+
+    def test_marks_survive_a_restart(self, tmp_path):
+        engine = self._engine(tmp_path, "entry_or_market")
+        engine.register_position_opened("p1", "ETHUSDT", Decimal("50"))
+        engine.update_marks({"p1": Decimal("80")})
+        again = RiskEngine(engine.config, tmp_path / "risk_state.json", AuditLog(tmp_path / "audit"))
+        assert again.total_open_exposure == Decimal("80")
+
+    def test_an_unknown_basis_is_refused(self):
+        with pytest.raises(ValueError, match="exposure_basis"):
+            RiskConfig(exposure_basis="market")

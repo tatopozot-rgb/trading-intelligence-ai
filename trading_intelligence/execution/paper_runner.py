@@ -197,6 +197,11 @@ class PaperTradingRunner:
 
         equity = self.paper.get_account_info().equity
         try:
+            self.risk_engine.update_marks(self.paper.position_values())
+        except Exception:
+            logger.exception("RiskEngine could not update position marks — blocking new entries")
+            problems.append("RiskEngine failed to update position marks")
+        try:
             self.risk_engine.observe_equity(equity, now=now)
         except Exception:
             logger.exception("RiskEngine could not observe equity — blocking new entries")
