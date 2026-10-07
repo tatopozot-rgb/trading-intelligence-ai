@@ -27,7 +27,8 @@ export function guardarVida(dir, datos) {
 // Abre la vida: aplica la progresión offline desde el último cierre y guarda el nuevo instante.
 export function abrirVida(dir, ahoraTs = Date.now()) {
   const previo = cargarVida(dir);
-  const { poblacion, diasSim, motivo } = LC.aplicarOffline(previo.poblacion, { ultimoTs: previo.ultimoTs, ahoraTs });
+  const { poblacion: avanzada, diasSim, motivo } = LC.aplicarOffline(previo.poblacion, { ultimoTs: previo.ultimoTs, ahoraTs });
+  const poblacion = LC.marcarGraduaciones(previo.poblacion, avanzada, new Date(ahoraTs).toISOString());
   const nuevo = { version: 1, ultimoTs: ahoraTs, poblacion };
   guardarVida(dir, nuevo);
   return { ...nuevo, diasSim, motivo };

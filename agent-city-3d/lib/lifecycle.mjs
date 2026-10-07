@@ -106,3 +106,10 @@ export function actividadJubilado(hora) {
   if (hora < 20) return { actividad: "LEISURE", destino: "residential", etiqueta: "paseo por el barrio" };
   return { actividad: "LEISURE", destino: "home", etiqueta: "tarde en casa" };
 }
+
+// Marca el instante de graduación (sólo transición false→true) para mostrar un evento visual SIM.
+// No decide nada por sí sola: la recibe ya calculada aplicarOffline y la usa life-store al guardar.
+export function marcarGraduaciones(antes, despues, ahoraIso) {
+  const yaGraduado = new Set(antes.filter((p) => p.estudios?.graduado).map((p) => p.id));
+  return despues.map((p) => (p.estudios?.graduado && !yaGraduado.has(p.id) ? { ...p, graduadoEn: ahoraIso } : p));
+}

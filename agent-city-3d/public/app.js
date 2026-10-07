@@ -22,7 +22,8 @@ const TIENE_INTERIOR = new Set(["house_a", "house_b", "house_c", "house_d", "aca
   "engineering_lab", "risk_tower", "command_center", "gpt_ops", "local_ops", "trading_floor", "knowledge_center", "foundry", "hall"]);
 const COLOR_PULSO = { TEST_PASSED: 0x22c55e, TEST_FAILED: 0xef4444, RISK_REJECTED: 0xef4444, KILL_SWITCH_TRIGGERED: 0xdc2626,
   RISK_APPROVED: 0x22c55e, NO_TRADE: 0xfacc15, TRADE_OPENED: 0x38bdf8, TRADE_CLOSED: 0x38bdf8, BACKTEST_FINISHED: 0x67e8f9,
-  BACKTEST_STARTED: 0x67e8f9, SYSTEM_RECOVERED: 0x86efac, GRADUATED: 0xfacc15, EXAM_PASSED: 0x22c55e, EXAM_FAILED: 0xef4444 };
+  BACKTEST_STARTED: 0x67e8f9, SYSTEM_RECOVERED: 0x86efac, GRADUATED: 0xfacc15, EXAM_PASSED: 0x22c55e, EXAM_FAILED: 0xef4444,
+  GRADUATED_SIM: 0xfbbf24 };
 const DURACION_PULSO_S = 25;
 const VELOCIDAD_PIE = 4.5;
 const VELOCIDAD_BICI = 9;
@@ -734,6 +735,7 @@ function pintarSimulacion() {
   const trabajadores = ultimo.agents.filter((a) => a.tipo === "worker").length;
   $("sec-sim").innerHTML =
     `<p class="nota-sim">${escapar(SIM_NOTE)}. Crece sólo con demanda real: abiertas ${ultimo.demand?.abiertas ?? 0}, eventos 24 h ${ultimo.demand?.actividad24h ?? 0}.</p>
+     ${(ultimo.simBanners || []).map((b) => `<p class="nota-sim">${escapar(b)}</p>`).join("")}
      ${fila("Población", sims.length)}
      ${fila("Aprendices (sim)", aprendices)}
      ${fila("Puestos ocupados (sim)", trabajadores)}

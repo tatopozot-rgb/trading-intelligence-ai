@@ -163,6 +163,13 @@ export function deriveCity({ snapshot, society, events, now, life = null }) {
       kind: "society", stage: rec.stage });
   }
 
+  // Graduación simulada: pulso propio en la universidad y aviso separado del banner real.
+  const VENTANA_GRADUACION_MS = 2 * 3600 * 1000;
+  const graduacionesRecientes = (life?.poblacion || []).filter((p) => p.graduadoEn && ahoraMs - Date.parse(p.graduadoEn) < VENTANA_GRADUACION_MS);
+  for (const p of graduacionesRecientes) {
+    (pulses["university"] ||= []).push({ type: "GRADUATED_SIM", subject: p.nombre, detail: "graduación simulada", at: p.graduadoEn });
+  }
+  const simBanners = graduacionesRecientes.map((p) => `🎓 Graduación simulada: ${p.nombre} (${SIM_NOTE})`);
   const banners = [];
   if (!syncOk) banners.push(snapshot ? "SYNC STALE — última observación" : "SIN DATOS: sincronización no disponible");
   if (recientes.some((e) => e.type === "NO_TRADE")) banners.push("CAPITAL PRESERVED — NO_TRADE");
@@ -206,6 +213,7 @@ export function deriveCity({ snapshot, society, events, now, life = null }) {
     agents: [...fundadores, ...sociedad, ...simRoles, ...vida],
     planned: planeados,
     demand: { abiertas, actividad24h, total: demanda },
+    simBanners,
     simulation: { note: SIM_NOTE, residents: vida.map((v) => v.key), population: vida.length, roles: simRoles.length },
     feed: ev.slice(-30).reverse() };
 }

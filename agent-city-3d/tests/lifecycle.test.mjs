@@ -125,3 +125,11 @@ test("rutina de jubilado: nunca trabaja, siempre tiene destino, usa el parque a 
   assert.equal(C.actividadJubilado(13).destino, "park");
   assert.equal(C.actividadJubilado(2).actividad, "SLEEPING");
 });
+
+test("marcarGraduaciones sólo estampa la transición false→true, no las ya graduadas", () => {
+  const antes = [{ id: "a", estudios: { graduado: false } }, { id: "b", estudios: { graduado: true } }];
+  const despues = [{ id: "a", estudios: { graduado: true } }, { id: "b", estudios: { graduado: true } }];
+  const r = C.marcarGraduaciones(antes, despues, "2026-10-07T09:00:00Z");
+  assert.equal(r.find((p) => p.id === "a").graduadoEn, "2026-10-07T09:00:00Z");
+  assert.equal(r.find((p) => p.id === "b").graduadoEn, undefined);
+});

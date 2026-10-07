@@ -103,3 +103,12 @@ test("todos los eventos mínimos requeridos existen en el modelo", () => {
     assert.ok(ALL_EVENT_TYPES.includes(t), t);
   }
 });
+
+test("graduación simulada: pulso en la universidad y aviso separado de los banners reales", () => {
+  const life = { poblacion: [{ id: "sim-01", nombre: "Ana", graduadoEn: new Date(AHORA.getTime() - 5 * 60000).toISOString() }] };
+  const c = deriveCity({ snapshot: fresco(), events: [], life, now: AHORA });
+  const u = c.buildings.find((b) => b.id === "university");
+  assert.ok(u.pulses.some((p) => p.type === "GRADUATED_SIM"));
+  assert.ok(c.simBanners.some((b) => b.includes("Ana")));
+  assert.equal(c.banners.some((b) => b.includes("Ana")), false);
+});
