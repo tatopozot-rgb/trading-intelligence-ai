@@ -1521,6 +1521,68 @@ root F3/SHADOW/import chain are out of this scope. Still synthetic-only.
 449/449 tests passing (excluding the 7-test 4h battery run separately), ruff + mypy clean (36 files)
 ```
 
+### 35. PaperLoop: the research pipeline can now run continuously in PAPER on real bars (2026-10-07)
+
+The owner asked to keep going after switching the session model. Nothing new from
+GPT Work, Local or `davcevar1`. The one gap in cloud scope with no pending policy
+decision was the one the handoff listed as "not built": a polling loop around the
+runner. Until now the research pipeline could only run as a replay; it could not
+operate end-to-end on live data, which was the owner's stated goal ("from agents
+created to a system operating end-to-end").
+
+**What was built** (`trading_intelligence/execution/paper_loop.py`, commits `ffcffa9`,
+`cadcbc8`, `e5119b1`). `PaperLoop` polls `get_ohlcv` and feeds closed bars to a
+`PaperTradingRunner`. PAPER only: it refuses anything but a `PaperAdapter`, and the
+market-data adapter is only ever asked for klines. Guarantees, each with a test:
+- only CLOSED bars (an exchange returns the still-forming bar last; it is dropped);
+- polling the same bar twice processes it once;
+- bars missed during an outage are replayed IN ORDER, so a stop crossed during the
+  outage exits on the bar where it was crossed, not at a later price;
+- progress is persisted after every processed bar (crash-safe resume);
+- an outage longer than the fetched history cannot be replayed, so the kill switch is
+  activated (blocks entries, never closes positions) with the reason;
+- a failed fetch processes nothing and feeds the RiskEngine connectivity watchdog
+  (spec: kill switch after `max_connectivity_gap_seconds` without a good fetch);
+- several symbols advance only on timestamps they all have;
+- refuses to resume a state file written for other symbols or timeframe;
+- an operator status block in the state file (equity, cash, positions, kill switch,
+  reconcile problems, fetch errors).
+
+Command line, for Claude Code local (real network; none here):
+
+```
+python -m trading_intelligence.execution.paper_loop \
+  --symbols BTCUSDT ETHUSDT SOLUSDT --timeframe 4h --state-dir paper_runs/loop1
+# stop: create paper_runs/loop1/STOP ; status: paper_runs/loop1/loop.json
+```
+
+Safeguards: environment credentials are cleared on the market-data adapter (no
+signed endpoint reachable); Binance TESTNET data is refused unless
+`--allow-testnet-data` (an env var can force testnet silently; the downloader had
+exactly that bug); risk overrides only from an owner-controlled `--risk-config`
+JSON, spec defaults otherwise.
+
+**Validation.** 21 tests with a fake feed that, like Binance, returns the forming bar;
+14 mutants (12 on the loop's guarantees, 2 on the CLI safeguards) all killed.
+470 tests pass, ruff + mypy clean (37 files).
+
+**Honest limits.**
+- With the spec's default RiskConfig the engine rejects almost every entry (policy
+  question 5, section 30), and every strategy is NO-GO. Running this tells you how
+  the machinery behaves on real data; it does not and cannot show an edge.
+- Not exercised against the real Binance API from here (blocked in this container);
+  the response format was taken from `BinanceSpotAdapter.get_ohlcv`. Claude Code
+  local's first run is the real test.
+- A symbol with a missing bar in the middle (no trades in an interval) would look like
+  a gap and trip the kill switch. Binance returns contiguous klines, so this should
+  not happen there; another feed could. Fail closed, by design.
+- The loop does not persist the runner's per-trade strategy binding: after a restart
+  open positions exit via their persisted STOP only (unchanged from section 29).
+
+```
+470/470 tests passing (excluding the 7-test 4h battery run separately), ruff + mypy clean (37 files)
+```
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
