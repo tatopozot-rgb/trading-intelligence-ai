@@ -1422,6 +1422,53 @@ synthetic-data limit as everything else here.
 436/436 tests passing (excluding the 7-test 4h battery run separately), ruff + mypy clean (36 files)
 ```
 
+### 33. Policy question 2 built opt-in and measured: market-value exposure barely helps (2026-10-07)
+
+Owner direction (continue; "winning is surviving"). Of the five section-30
+survival-policy questions, #2 (count exposure at market value instead of entry
+notional) can be built without choosing a policy, as the trailing stop was, so the
+owner decides with numbers. Commit after `9385237`.
+
+**What was built.** `RiskConfig.exposure_basis`: `"entry"` (default, unchanged, risk
+state byte-identical) or `"entry_or_market"`, which counts the HIGHER of entry
+notional and current market value toward the total and correlated caps (a loser is
+never discounted below what was committed, so the option can only make the gate
+stricter). The runner reports marks to `RiskEngine.update_marks()` every bar;
+failure to update them blocks entries (fail closed). Reservations are never marked.
+Tests: 7 engine + 3 runner; 7 mutants (basis ignored, mark replacing entry, marked
+reservations, marks never reported, correlated cap ignoring the basis, default
+state written, failure not fail-closed) all killed. 446 tests, ruff + mypy clean.
+
+**Result, same conditions as section 30 (15 runs per variant, reckless strategy,
+synthetic correlated crashes, zero invariant violations in all 60):**
+
+| variant | mean final | worst final | mean max DD | worst DD | peak exposure | trades | halted |
+|---|---|---|---|---|---|---|---|
+| current (entry) | 0.980 | 0.691 | 34.7% | 51.5% | 54.8% | 158 | 13/15 |
+| + market basis | 0.990 | 0.735 | 34.2% | 50.6% | 54.8% | 143 | 12/15 |
+| + trailing 10% | 1.203 | 0.796 | 23.3% | 37.0% | 33.6% | 1713 | 0/15 |
+| + trailing 10% + market | 1.155 | 0.774 | 22.9% | 35.5% | 33.6% | 1598 | 0/15 |
+
+**Conclusion, and a correction to my own section 30 framing: this is not the lever.**
+The market basis moves mean max drawdown by half a point and leaves peak exposure
+exactly where it was (54.8%). I had written that it "closes the cap drift"; that was
+optimistic. Why it cannot: the basis only gates NEW entries. It does not trim a
+position that already grew, and exposure as a share of equity also rises mechanically
+when equity falls while positions are held, which no entry-time rule touches. The one
+variant that changes the outcome is the trailing stop (mean max DD 34.7% -> 23.3%,
+peak exposure 54.8% -> 33.6%, no halts). Reducing real exposure in a crash needs a
+rule that acts on positions already open, which is policy question 4 (should a halt
+reduce exposure; the spec says no), not this one.
+
+**Recommendation to the owner (not a decision):** do not spend a policy decision on
+question 2. Question 1 (trailing stop) carries the measured benefit; question 4 is the
+real one for bounding live exposure. `exposure_basis` stays in the code, default off,
+in case the owner wants the stricter gate anyway.
+
+```
+446/446 tests passing (excluding the 7-test 4h battery run separately), ruff + mypy clean (36 files)
+```
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
