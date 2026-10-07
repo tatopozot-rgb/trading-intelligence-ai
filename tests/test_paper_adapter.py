@@ -435,3 +435,46 @@ class TestPriceHelpers:
         position = restarted.get_position("BTCUSDT")
         assert restarted.last_known_equity() == restarted.cash + position.avg_entry_price * position.quantity
         assert restarted.get_account_info().equity != restarted.last_known_equity()
+
+
+
+class TestAttachedProtectiveStop:
+    """GPT Work (PR #8): the BUY fill was persisted before the runner submitted the
+    STOP; a crash in between restarted into a naked position. The adapter now writes
+    the fill and its STOP in one state save."""
+
+    def _buy(self, adapter, stop="95"):
+        adapter.submit_order(OrderRequest(symbol="BTCUSDT", side="BUY", order_type="MARKET",
+                                          quantity=Decimal("2"), client_order_id="buy",
+                                          attached_stop_price=Decimal(stop)))
+
+    def test_the_stop_is_created_with_the_fill_and_survives_a_crash(self, tmp_path):
+        adapter = _adapter(tmp_path)
+        self._buy(adapter)
+        adapter.on_new_bar("BTCUSDT", Decimal("100"), Decimal("101"), Decimal("99"), Decimal("100"), "t1")
+        restarted = _adapter(tmp_path)  # nothing else ran after on_new_bar
+        stops = [o for o in restarted.pending_orders if o.order_type == "STOP"]
+        assert len(stops) == 1
+        assert stops[0].stop_price == Decimal("95") and stops[0].quantity == Decimal("2")
+        assert stops[0].side == "SELL"
+
+    def test_the_attached_stop_is_not_judged_by_the_adapter_on_its_fill_bar(self, tmp_path):
+        adapter = _adapter(tmp_path)
+        self._buy(adapter)
+        results = adapter.on_new_bar("BTCUSDT", Decimal("100"), Decimal("101"), Decimal("90"), Decimal("92"), "t1")
+        assert [r.side for r in results] == ["BUY"], "the caller evaluates the fill bar after registering"
+        assert adapter.get_position("BTCUSDT") is not None
+        assert [f.side for f in adapter.evaluate_stops("BTCUSDT")] == ["SELL"]
+
+    def test_a_rejected_buy_creates_no_stop(self, tmp_path):
+        adapter = _adapter(tmp_path, equity=Decimal("10"))
+        self._buy(adapter)
+        adapter.on_new_bar("BTCUSDT", Decimal("100"), Decimal("101"), Decimal("99"), Decimal("100"), "t1")
+        assert adapter.get_position("BTCUSDT") is None
+        assert adapter.pending_orders == []
+
+    def test_the_attached_price_survives_a_restart_while_pending(self, tmp_path):
+        adapter = _adapter(tmp_path)
+        self._buy(adapter, stop="91.5")
+        restarted = _adapter(tmp_path)
+        assert restarted.pending_orders[0].attached_stop_price == Decimal("91.5")

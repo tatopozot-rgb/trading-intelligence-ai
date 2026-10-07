@@ -17,7 +17,10 @@ from trading_intelligence.risk.engine import (
     REASON_DRAWDOWN_PAUSE_ACTIVE,
     REASON_EXPOSURE_LIMIT_EXCEEDED,
     REASON_FILL_AT_OR_BELOW_STOP,
+    REASON_FILL_EXCEEDS_CORRELATED_EXPOSURE,
+    REASON_FILL_EXCEEDS_DAILY_TURNOVER,
     REASON_FILL_EXCEEDS_POSITION_CAP,
+    REASON_FILL_EXCEEDS_TOTAL_EXPOSURE,
     REASON_FILL_RISK_EXCEEDS_BUDGET,
     REASON_INVALID_REFERENCE_PRICE,
     REASON_KILL_SWITCH_ACTIVE,
@@ -856,3 +859,57 @@ class TestExposureBasis:
     def test_an_unknown_basis_is_refused(self):
         with pytest.raises(ValueError, match="exposure_basis"):
             RiskConfig(exposure_basis="market")
+
+
+
+class TestFillAggregateCaps:
+    """GPT Work (PR #8): the portfolio caps were only checked at approval with the
+    reserved notional; a small gap pushed the actual fill over all three."""
+
+    def _engine(self, tmp_path, **caps):
+        base = dict(max_position_size_pct=25.0, max_total_exposure_pct=25.0, max_correlated_exposure_pct=25.0,
+                    max_daily_turnover_pct=30.0, max_fill_risk_overshoot_pct=100.0)
+        return _engine(tmp_path, **{**base, **caps})
+
+    def _reserve(self, engine):
+        engine.advance_clock(EQUITY, DAY1)
+        engine.reserve_position("r1", "BTCUSDT", Decimal("1923"))
+
+    @pytest.mark.parametrize("caps,reason", [
+        ({"max_total_exposure_pct": 19.3}, REASON_FILL_EXCEEDS_TOTAL_EXPOSURE),
+        ({"max_correlated_exposure_pct": 19.3}, REASON_FILL_EXCEEDS_CORRELATED_EXPOSURE),
+        ({"max_daily_turnover_pct": 19.3}, REASON_FILL_EXCEEDS_DAILY_TURNOVER),
+    ])
+    def test_a_fill_over_a_portfolio_cap_is_vetoed(self, tmp_path, caps, reason):
+        engine = self._engine(tmp_path, **caps)
+        self._reserve(engine)
+        qty = Decimal("19.23")
+        assert engine.validate_fill(qty, Decimal("95"), Decimal("100.0"), EQUITY,
+                                    reservation_id="r1", symbol="BTCUSDT") is None  # 1923 <= 1930
+        assert engine.validate_fill(qty, Decimal("95"), Decimal("100.6"), EQUITY,
+                                    reservation_id="r1", symbol="BTCUSDT") == reason  # ~1934.5 > 1930
+
+    def test_the_reservation_is_replaced_not_added(self, tmp_path):
+        engine = self._engine(tmp_path, max_total_exposure_pct=19.3)
+        self._reserve(engine)  # the 1923 reserved must not be counted twice
+        assert engine.validate_fill(Decimal("19.29"), Decimal("95"), Decimal("100"), EQUITY,
+                                    reservation_id="r1", symbol="BTCUSDT") is None
+
+    def test_other_positions_still_count(self, tmp_path):
+        engine = self._engine(tmp_path, max_total_exposure_pct=19.3)
+        self._reserve(engine)
+        engine.register_position_opened("p0", "ETHUSDT", Decimal("100"))
+        assert engine.validate_fill(Decimal("19.23"), Decimal("95"), Decimal("100"), EQUITY,
+                                    reservation_id="r1", symbol="BTCUSDT") == REASON_FILL_EXCEEDS_TOTAL_EXPOSURE
+
+    def test_an_old_day_reservation_is_charged_in_full_to_todays_turnover(self, tmp_path):
+        engine = self._engine(tmp_path, max_daily_turnover_pct=19.3)
+        self._reserve(engine)
+        engine.advance_clock(EQUITY, DAY2)  # its charge was reset with the day
+        engine.register_position_opened("p0", "ETHUSDT", Decimal("10"))  # today: 10 already traded
+        assert engine.validate_fill(Decimal("19.23"), Decimal("95"), Decimal("100"), EQUITY,
+                                    reservation_id="r1", symbol="BTCUSDT") == REASON_FILL_EXCEEDS_DAILY_TURNOVER
+
+    def test_without_a_reservation_id_only_the_per_position_checks_run(self, tmp_path):
+        engine = self._engine(tmp_path, max_total_exposure_pct=1.0)
+        assert engine.validate_fill(Decimal("19.23"), Decimal("95"), Decimal("100"), EQUITY) is None

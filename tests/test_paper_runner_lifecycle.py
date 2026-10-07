@@ -365,9 +365,9 @@ class TestOneEquityPerTimestamp:
         seen: list[Decimal] = []
         original = RiskEngine.validate_fill
 
-        def spy(self, quantity, stop_price, fill_price, equity):
+        def spy(self, quantity, stop_price, fill_price, equity, **kwargs):
             seen.append(equity)
-            return original(self, quantity, stop_price, fill_price, equity)
+            return original(self, quantity, stop_price, fill_price, equity, **kwargs)
 
         monkeypatch.setattr(RiskEngine, "validate_fill", spy)
         nxt = _bars(_flat(WARMUP + 2))
@@ -481,3 +481,20 @@ class TestStrategyBindingAcrossRestarts:
         runner.run_replay(SYMBOL, _bars(_flat(WARMUP + 2)), warmup=WARMUP)
         assert runner.paper.get_position(SYMBOL) is not None
         assert runner._stop_order_for(SYMBOL) is not None
+
+
+class TestPortfolioCapsAtTheFill:
+    def test_a_small_gap_that_breaches_the_total_cap_cancels_the_entry(self, tmp_path):
+        """Found by GPT Work (PR #8): approval used the reserved notional; the fill did not."""
+        risk = RiskEngine(
+            RiskConfig(max_position_size_pct=25.0, max_total_exposure_pct=19.3, max_correlated_exposure_pct=25.0,
+                       max_daily_turnover_pct=30.0, max_fill_risk_overshoot_pct=100.0),
+            tmp_path / "risk.json", AuditLog(tmp_path / "audit"),
+        )
+        runner = PaperTradingRunner(_router_for(_Scripted(entry_at=WARMUP + 1, stop_pct=0.05)), risk, _paper(tmp_path))
+        prices = _flat(WARMUP + 1) + [(100.5, 101.0, 100.0, 100.5)]  # +0.5%: approved ~1923, fills ~1934 > 1930
+        steps = runner.run_replay(SYMBOL, _bars(prices), warmup=WARMUP)
+        assert steps[-1].notes == ["ENTRY_CANCELLED:FILL_EXCEEDS_TOTAL_EXPOSURE"]
+        assert runner.paper.get_position(SYMBOL) is None
+        assert risk.total_open_exposure == Decimal("0")
+        assert runner.reconcile() == []

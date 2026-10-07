@@ -71,6 +71,7 @@ def _ts(i: int) -> str:
 
 
 def _build(tmp_path: Path, feed: FakeFeed, *, entry_at: int = WARMUP + 1, symbols=(SYMBOL,), **kw) -> PaperLoop:
+    kw.setdefault("retry_backoff_seconds", 0)
     runner = PaperTradingRunner(
         lambda sym: _router_for(_Scripted(entry_at=entry_at, stop_pct=0.05, symbol=sym)),
         _risk(tmp_path), _paper(tmp_path),
@@ -313,3 +314,97 @@ class TestCommandLine:
         monkeypatch.setenv("BINANCE_TESTNET", "true")
         with pytest.raises(SystemExit, match="TESTNET"):
             paper_loop._binance_market_data(allow_testnet_data=False)
+
+
+
+class TestGapsAndFreshness:
+    """Found by GPT Work's PaperLoop review (PR #8, 0527b02)."""
+
+    def test_a_missing_bar_between_two_present_ones_trips_the_kill_switch(self, tmp_path, flat_feed):
+        loop = _build(tmp_path, flat_feed, entry_at=10**9)
+        _at(flat_feed, WARMUP + 1)
+        loop.tick()
+        flat_feed.frames[SYMBOL] = flat_feed.frames[SYMBOL].drop(pd.Timestamp(_ts(WARMUP + 2)).tz_localize(None))
+        _at(flat_feed, WARMUP + 4)
+        report = loop.tick()
+        assert report.gap_halt is not None and "1 bar(s) missing" in report.gap_halt
+        assert loop.runner.risk_engine.state.kill_switch is True
+        assert report.processed == [_ts(WARMUP + 1), _ts(WARMUP + 3)], "available bars still processed"
+
+    def test_contiguous_bars_never_halt(self, tmp_path, flat_feed):
+        loop = _build(tmp_path, flat_feed, entry_at=10**9)
+        _at(flat_feed, WARMUP + 1)
+        loop.tick()
+        _at(flat_feed, WARMUP + 5)
+        report = loop.tick()
+        assert report.gap_halt is None and report.stale_symbols == []
+        assert loop.runner.risk_engine.state.kill_switch is False
+
+    def test_a_feed_that_answers_with_old_bars_is_treated_as_an_outage(self, tmp_path, flat_feed):
+        loop = _build(tmp_path, flat_feed, entry_at=10**9)
+        _at(flat_feed, WARMUP + 1)
+        loop.tick()
+        flat_feed.frames[SYMBOL] = flat_feed.frames[SYMBOL].iloc[: WARMUP + 1]  # frozen at bar 60
+        _at(flat_feed, WARMUP + 5)
+        report = loop.tick()
+        assert report.stale_symbols == [SYMBOL]
+        assert report.processed == []
+        assert loop.runner.risk_engine.state.kill_switch is True
+        assert "Connectivity" in loop.runner.risk_engine.state.kill_switch_reason
+        status = json.loads((tmp_path / "loop.json").read_text())["status"]
+        assert status["stale_symbols"] == [SYMBOL]
+
+    def test_one_bar_of_publication_lag_is_tolerated(self, tmp_path, flat_feed):
+        loop = _build(tmp_path, flat_feed, entry_at=10**9)
+        _at(flat_feed, WARMUP + 1)
+        loop.tick()
+        flat_feed.frames[SYMBOL] = flat_feed.frames[SYMBOL].iloc[: WARMUP + 3]  # bars 0..62
+        _at(flat_feed, WARMUP + 4)  # bar 63 just closed but is not published yet
+        report = loop.tick()
+        assert report.stale_symbols == []
+        assert loop.runner.risk_engine.state.kill_switch is False
+
+    def test_one_frozen_symbol_is_named_instead_of_silently_stalling_the_portfolio(self, tmp_path):
+        full = _frame(_flat(WARMUP + 10))
+        feed = FakeFeed({"AAAUSDT": full, "BBBUSDT": full.iloc[: WARMUP + 1]})
+        loop = _build(tmp_path, feed, entry_at=10**9, symbols=("AAAUSDT", "BBBUSDT"))
+        _at(feed, WARMUP + 1)
+        loop.tick()
+        _at(feed, WARMUP + 6)
+        assert loop.tick().stale_symbols == ["BBBUSDT"]
+
+
+class TestFetchRetries:
+    class Flaky(FakeFeed):
+        def __init__(self, frames, failures):
+            super().__init__(frames)
+            self.failures = failures
+
+        def get_ohlcv(self, symbol, timeframe, limit=500):
+            if self.failures > 0:
+                self.failures -= 1
+                raise ConnectionError("blip")
+            return super().get_ohlcv(symbol, timeframe, limit)
+
+    def test_a_transient_failure_is_retried_within_the_tick(self, tmp_path):
+        feed = self.Flaky({SYMBOL: _frame(_flat(WARMUP + 5))}, failures=2)
+        slept: list[float] = []
+        loop = _build(tmp_path, feed, entry_at=10**9, sleep=slept.append, retry_backoff_seconds=2.0)
+        _at(feed, WARMUP + 1)
+        report = loop.tick()
+        assert report.fetch_error is None and report.processed == [_ts(WARMUP)]
+        assert slept == [2.0, 4.0]
+        assert loop.consecutive_fetch_errors == 0
+
+    def test_exhausted_retries_count_as_one_failed_tick(self, tmp_path):
+        feed = self.Flaky({SYMBOL: _frame(_flat(WARMUP + 5))}, failures=10)
+        loop = _build(tmp_path, feed, entry_at=10**9, fetch_attempts=3)
+        _at(feed, WARMUP + 1)
+        report = loop.tick()
+        assert report.fetch_error is not None and report.processed == []
+        assert loop.consecutive_fetch_errors == 1
+        assert feed.failures == 7, "exactly three attempts"
+
+    def test_invalid_retry_settings_are_refused(self, tmp_path, flat_feed):
+        with pytest.raises(ValueError, match="fetch_attempts"):
+            _build(tmp_path, flat_feed, fetch_attempts=0)

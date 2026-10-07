@@ -57,6 +57,7 @@ class TickReport:
     actions: list[str] = field(default_factory=list)  # "<symbol>@<bar>:<action>" for every runner step
     fetch_error: Optional[str] = None
     gap_halt: Optional[str] = None
+    stale_symbols: list[str] = field(default_factory=list)  # newest closed bar older than expected
 
 
 class PaperLoop:
@@ -73,6 +74,9 @@ class PaperLoop:
         sleep: Optional[Callable[[float], None]] = None,
         close_grace_seconds: float = 5.0,
         stop_file: Optional[Path] = None,
+        max_lag_bars: int = 1,
+        fetch_attempts: int = 3,
+        retry_backoff_seconds: float = 2.0,
     ):
         if not isinstance(runner.paper, PaperAdapter):
             raise TypeError("PaperLoop only drives a PaperAdapter (PAPER only)")
@@ -93,6 +97,11 @@ class PaperLoop:
         self.sleep = sleep or time.sleep
         self.close_grace = timedelta(seconds=close_grace_seconds)
         self.stop_file = Path(stop_file) if stop_file else None
+        if max_lag_bars < 0 or fetch_attempts < 1:
+            raise ValueError("max_lag_bars must be >= 0 and fetch_attempts >= 1")
+        self.max_lag_bars = max_lag_bars
+        self.fetch_attempts = fetch_attempts
+        self.retry_backoff_seconds = retry_backoff_seconds
         self.last_processed: Optional[datetime] = None
         self.consecutive_fetch_errors = 0
         self._load_state()
@@ -106,8 +115,16 @@ class PaperLoop:
         report = TickReport(at=now.isoformat())
         frames = self._fetch_closed(now, report)
         risk = self.runner.risk_engine
+        if frames is not None:
+            report.stale_symbols = self._stale_symbols(frames, now)
+            if report.stale_symbols:
+                logger.warning("Stale market data (newest closed bar more than %d bar(s) old): %s",
+                               self.max_lag_bars, ", ".join(report.stale_symbols))
         try:
-            risk.check_connectivity(frames is not None, now=now)
+            # A feed that answers but serves old bars is not a working market view:
+            # protective STOPs cannot see prices it does not deliver. Report it to the
+            # connectivity watchdog exactly like a failed fetch.
+            risk.check_connectivity(frames is not None and not report.stale_symbols, now=now)
         except Exception:
             logger.exception("RiskEngine connectivity watchdog failed")
         if frames is None:
@@ -119,11 +136,14 @@ class PaperLoop:
             pending = common[-1:]  # first run: start now, do not replay history as live
         else:
             pending = [t for t in common if t > self.last_processed]
-            expected_next = self.last_processed + self.interval
-            if pending and pending[0] > expected_next:
+            missing = self._missing_bars(self.last_processed, pending)
+            if missing:
+                # Any bar that should exist between what was processed and what is
+                # about to be processed (before the first, or BETWEEN two of them) is a
+                # bar whose stop crossing nobody saw. Found by GPT Work: only the first
+                # gap used to be checked.
                 report.gap_halt = (
-                    f"bars from {expected_next.isoformat()} to {(pending[0] - self.interval).isoformat()} "
-                    f"are older than the fetched history and cannot be replayed"
+                    f"{len(missing)} bar(s) missing and cannot be replayed, first {missing[0].isoformat()}"
                 )
                 logger.error("Unreplayable data gap: %s — activating kill switch", report.gap_halt)
                 if not risk.state.kill_switch:
@@ -141,19 +161,52 @@ class PaperLoop:
         return report
 
     def _fetch_closed(self, now: datetime, report: TickReport) -> Optional[dict[str, pd.DataFrame]]:
-        frames: dict[str, pd.DataFrame] = {}
-        try:
-            for symbol in self.symbols:
-                raw = self.market_data.get_ohlcv(symbol, self.timeframe, limit=self.fetch_limit)
-                frames[symbol] = self._closed_only(raw, now)
-        except Exception as exc:  # network, rate limit, malformed payload: process nothing
-            self.consecutive_fetch_errors += 1
-            report.fetch_error = f"{type(exc).__name__}: {exc}"
-            logger.warning("Market data fetch failed (%d in a row): %s",
-                           self.consecutive_fetch_errors, report.fetch_error)
-            return None
-        self.consecutive_fetch_errors = 0
-        return frames
+        # Retried within the tick: with polls hours apart, one transient failure
+        # would otherwise reach the connectivity watchdog as an hours-long outage.
+        last_error: Optional[Exception] = None
+        for attempt in range(self.fetch_attempts):
+            if attempt:
+                self.sleep(self.retry_backoff_seconds * 2 ** (attempt - 1))
+            try:
+                frames = {
+                    symbol: self._closed_only(
+                        self.market_data.get_ohlcv(symbol, self.timeframe, limit=self.fetch_limit), now,
+                    )
+                    for symbol in self.symbols
+                }
+            except Exception as exc:  # network, rate limit, malformed payload
+                last_error = exc
+                continue
+            self.consecutive_fetch_errors = 0
+            return frames
+        self.consecutive_fetch_errors += 1
+        report.fetch_error = f"{type(last_error).__name__}: {last_error}"
+        logger.warning("Market data fetch failed after %d attempt(s) (%d tick(s) in a row): %s",
+                       self.fetch_attempts, self.consecutive_fetch_errors, report.fetch_error)
+        return None
+
+    def _expected_last_closed(self, now: datetime) -> datetime:
+        step = self.interval.total_seconds()
+        return datetime.fromtimestamp((int(now.timestamp() // step) - 1) * step, tz=timezone.utc)
+
+    def _stale_symbols(self, frames: dict[str, pd.DataFrame], now: datetime) -> list[str]:
+        expected = self._expected_last_closed(now)
+        oldest_ok = expected - self.max_lag_bars * self.interval
+        stale = []
+        for symbol, frame in frames.items():
+            if frame.empty or frame.index.max().to_pydatetime() < oldest_ok:
+                stale.append(symbol)
+        return stale
+
+    def _missing_bars(self, last: datetime, pending: list[datetime]) -> list[datetime]:
+        missing: list[datetime] = []
+        expected = last + self.interval
+        for ts in pending:
+            while expected < ts:
+                missing.append(expected)
+                expected += self.interval
+            expected = ts + self.interval
+        return missing
 
     def _closed_only(self, raw: pd.DataFrame, now: datetime) -> pd.DataFrame:
         frame = raw.sort_index()
@@ -227,6 +280,8 @@ class PaperLoop:
             "kill_switch_reason": risk.state.kill_switch_reason,
             "consecutive_fetch_errors": self.consecutive_fetch_errors,
             "last_fetch_error": report.fetch_error,
+            "stale_symbols": report.stale_symbols,
+            "last_gap_halt": report.gap_halt,
             "books_disagree": self.runner.reconcile(),
         }
         data = {

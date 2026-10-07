@@ -42,6 +42,9 @@ REASON_MAX_POSITION_SIZE_EXCEEDED = "MAX_POSITION_SIZE_EXCEEDED"
 REASON_FILL_AT_OR_BELOW_STOP = "FILL_AT_OR_BELOW_STOP"
 REASON_FILL_EXCEEDS_POSITION_CAP = "FILL_EXCEEDS_POSITION_CAP"
 REASON_FILL_RISK_EXCEEDS_BUDGET = "FILL_RISK_EXCEEDS_BUDGET"
+REASON_FILL_EXCEEDS_TOTAL_EXPOSURE = "FILL_EXCEEDS_TOTAL_EXPOSURE"
+REASON_FILL_EXCEEDS_CORRELATED_EXPOSURE = "FILL_EXCEEDS_CORRELATED_EXPOSURE"
+REASON_FILL_EXCEEDS_DAILY_TURNOVER = "FILL_EXCEEDS_DAILY_TURNOVER"
 
 
 class RiskEngine:
@@ -354,6 +357,7 @@ class RiskEngine:
 
     def validate_fill(
         self, quantity: Decimal, stop_price: Decimal, fill_price: Decimal, equity: Decimal,
+        *, reservation_id: Optional[str] = None, symbol: Optional[str] = None,
     ) -> Optional[str]:
         """Re-check an approved MARKET entry against the price it would
         ACTUALLY fill at. Returns a veto reason, or None to let it fill.
@@ -376,12 +380,33 @@ class RiskEngine:
                 budget = equity * Decimal(str(self.config.max_risk_per_trade_pct)) / 100
                 allowed = budget * (1 + Decimal(str(self.config.max_fill_risk_overshoot_pct)) / 100)
                 reason = REASON_FILL_RISK_EXCEEDS_BUDGET if loss_at_stop > allowed else None
+            if reason is None and reservation_id is not None and symbol is not None:
+                reason = self._aggregate_cap_breach(reservation_id, symbol, quantity * fill_price, equity)
             if reason is not None:
                 self._audit_event(
                     "FILL_VETOED", reason=reason, quantity=str(quantity), stop_price=str(stop_price),
                     fill_price=str(fill_price), equity=str(equity),
                 )
             return reason
+
+    def _aggregate_cap_breach(
+        self, reservation_id: str, symbol: str, actual_notional: Decimal, equity: Decimal,
+    ) -> Optional[str]:
+        """Caller holds the lock. The portfolio caps were checked at approval with
+        the reserved (reference-price) notional; re-check them with the reservation
+        replaced by what the fill would actually cost. Found by GPT Work: a +0.5%
+        gap took a 1923 approval to a 1934 fill over a 1930 cap on all three."""
+        info = self.state.open_positions.get(reservation_id)
+        reserved = Decimal(info["notional_value"]) if info and info.get("reserved") else Decimal("0")
+        pct = lambda value: equity * Decimal(str(value)) / 100  # noqa: E731
+        if self.total_open_exposure - reserved + actual_notional > pct(self.config.max_total_exposure_pct):
+            return REASON_FILL_EXCEEDS_TOTAL_EXPOSURE
+        if self._correlated_exposure(symbol) - reserved + actual_notional > pct(self.config.max_correlated_exposure_pct):
+            return REASON_FILL_EXCEEDS_CORRELATED_EXPOSURE
+        charged_today = reserved if info and self._reservation_in_current_day(info) else Decimal("0")
+        if Decimal(self.state.daily_turnover) - charged_today + actual_notional > pct(self.config.max_daily_turnover_pct):
+            return REASON_FILL_EXCEEDS_DAILY_TURNOVER
+        return None
 
     def observe_equity(self, equity: Decimal, now: Optional[datetime] = None) -> None:
         """

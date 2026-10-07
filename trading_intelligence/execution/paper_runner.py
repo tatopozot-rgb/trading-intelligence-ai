@@ -262,6 +262,7 @@ class PaperTradingRunner:
                 reason = self.risk_engine.validate_fill(
                     pending.quantity, pending.proposal.stop_price,
                     self.paper.market_fill_price("BUY", open_), equity_before,
+                    reservation_id=pending.order_id, symbol=symbol,
                 )
         except Exception:
             logger.exception("RiskEngine failed re-checking the pending %s entry — cancelling", symbol)
@@ -389,7 +390,10 @@ class PaperTradingRunner:
             step.action = f"RISK_REJECTED:{risk.reason}"
             return
 
-        order = OrderRequest(symbol=symbol, side="BUY", order_type="MARKET", quantity=risk.quantity)
+        order = OrderRequest(
+            symbol=symbol, side="BUY", order_type="MARKET", quantity=risk.quantity,
+            attached_stop_price=proposal.stop_price,
+        )
         # Reserve before submitting: other symbols decided on this same bar
         # must already see this entry against max positions and exposure.
         self.risk_engine.reserve_position(order.client_order_id, symbol, risk.quantity * reference_price)
@@ -479,13 +483,16 @@ class PaperTradingRunner:
         if position is None or result.fill_price is None:
             logger.error("Entry fill for %s but no paper position — leaving for reconcile()", symbol)
             return
-        # Protection first. Risk bookkeeping can fail (disk, lock); the filled
-        # position must never be left without its STOP because of that.
-        stop = OrderRequest(
-            symbol=symbol, side="SELL", order_type="STOP",
-            quantity=position.quantity, stop_price=pending.proposal.stop_price,
-        )
-        self.paper.submit_order(stop)
+        # Protection first. The adapter normally created the STOP in the same state
+        # write as the fill (attached_stop_price), so not even a crash between the
+        # fill and this line can leave the position naked. Submit one only if not.
+        stop = self._stop_order_for(symbol)
+        if stop is None:
+            stop = OrderRequest(
+                symbol=symbol, side="SELL", order_type="STOP",
+                quantity=position.quantity, stop_price=pending.proposal.stop_price,
+            )
+            self.paper.submit_order(stop)
         self._open_trades[symbol] = _OpenTrade(
             position_id=position.position_id, quantity=position.quantity,
             entry_price=position.avg_entry_price, entry_fee=position.entry_fee,

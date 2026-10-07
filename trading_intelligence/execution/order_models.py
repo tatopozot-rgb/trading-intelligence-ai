@@ -21,6 +21,9 @@ class OrderRequest:
     limit_price: Optional[Decimal] = None
     stop_price: Optional[Decimal] = None
     client_order_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    # BUY only: a protective SELL STOP at this price is created by the adapter in
+    # the SAME state write as the fill, so no crash can leave the position naked.
+    attached_stop_price: Optional[Decimal] = None
 
 
 @dataclass

@@ -167,6 +167,7 @@ class PaperAdapter(AbstractExchangeAdapter):
         # STOP orders are handled exclusively by _maybe_trigger_stop below —
         # they must NOT fill unconditionally through the MARKET/LIMIT path.
         remaining_pending: list[OrderRequest] = []
+        attached_stops: list[OrderRequest] = []
         for order in list(self.pending_orders):  # snapshot — _fill_order never mutates this list
             if order.symbol != symbol or order.order_type == "STOP":
                 remaining_pending.append(order)
@@ -175,6 +176,13 @@ class PaperAdapter(AbstractExchangeAdapter):
             filled.append(result)
             if result.status == "PENDING":
                 remaining_pending.append(order)  # LIMIT order: condition not met yet, requeue
+            elif result.status == "FILLED" and order.side == "BUY" and order.attached_stop_price is not None:
+                stop = OrderRequest(
+                    symbol=symbol, side="SELL", order_type="STOP",
+                    quantity=self.positions[symbol].quantity, stop_price=order.attached_stop_price,
+                )
+                self._used_order_ids.add(stop.client_order_id)
+                attached_stops.append(stop)
         self.pending_orders = remaining_pending
 
         # Stop-loss check on open position (gap-through model)
@@ -184,6 +192,10 @@ class PaperAdapter(AbstractExchangeAdapter):
             if stop_result is not None:
                 filled.append(stop_result)
 
+        # Attached protective STOPs join AFTER this bar's stop pass (the caller checks
+        # the fill bar via evaluate_stops once it has registered the trade) but BEFORE
+        # the state write, so the fill and its protection are persisted together.
+        self.pending_orders.extend(attached_stops)
         self._last_price[symbol] = bar.close
         self._save_state()
         return filled
@@ -431,6 +443,9 @@ class PaperAdapter(AbstractExchangeAdapter):
                     "limit_price": str(o.limit_price) if o.limit_price is not None else None,
                     "stop_price": str(o.stop_price) if o.stop_price is not None else None,
                     "client_order_id": o.client_order_id,
+                    "attached_stop_price": (
+                        str(o.attached_stop_price) if o.attached_stop_price is not None else None
+                    ),
                 }
                 for o in self.pending_orders
             ],
@@ -459,6 +474,9 @@ class PaperAdapter(AbstractExchangeAdapter):
                 limit_price=Decimal(o["limit_price"]) if o.get("limit_price") is not None else None,
                 stop_price=Decimal(o["stop_price"]) if o.get("stop_price") is not None else None,
                 client_order_id=o["client_order_id"],
+                attached_stop_price=(
+                    Decimal(o["attached_stop_price"]) if o.get("attached_stop_price") is not None else None
+                ),
             )
             for o in data.get("pending_orders", [])
         ]
