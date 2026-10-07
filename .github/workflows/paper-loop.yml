@@ -1,0 +1,95 @@
+name: PAPER loop (public Binance data, no account)
+
+# Runs the research pipeline's PaperLoop in PAPER mode on GitHub's servers.
+# - Code: the project branch below (this file only schedules it).
+# - Data: data-api.binance.vision public klines. No account, no API key, no orders:
+#   PaperAdapter never forwards anything and the feed has no order endpoint.
+# - State: carried between runs in the Actions cache (no commits).
+# - Visibility: each run writes a summary (Actions tab) and turns RED when the loop
+#   reports a fetch error, stale data, a data gap, the kill switch, or books that
+#   disagree. Download the "paper-state" artifact for the full state.
+# Stop it: disable this workflow in the Actions tab (or delete this file).
+
+on:
+  schedule:
+    - cron: "7 */4 * * *"   # a few minutes after each 4h bar closes (UTC); GitHub may delay it
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: paper-loop
+  cancel-in-progress: false
+
+env:
+  CODE_REF: ccr-b66a9a9e-okj2pl
+  SYMBOLS: BTCUSDT ETHUSDT SOLUSDT BNBUSDT XRPUSDT
+  TIMEFRAME: 4h
+  STATE_DIR: paper_runs/live
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ env.CODE_REF }}
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+      - name: Install runtime dependencies (no exchange client, no credentials)
+        run: pip install "pandas>=2.0" "numpy>=1.24" "scipy>=1.11"
+      - name: Restore PAPER state from the previous run
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.STATE_DIR }}
+          key: paper-state-${{ github.run_id }}
+          restore-keys: paper-state-
+      - name: Run one PaperLoop poll (catches up every closed bar since the last run)
+        run: |
+          python -m trading_intelligence.execution.paper_loop \
+            --symbols $SYMBOLS --timeframe "$TIMEFRAME" --state-dir "$STATE_DIR" --max-ticks 1
+      - name: Save PAPER state for the next run
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.STATE_DIR }}
+          key: paper-state-${{ github.run_id }}
+      - name: Report (summary; red if anything needs attention)
+        if: always()
+        run: |
+          python - <<'PY'
+          import json, os, pathlib, sys
+          path = pathlib.Path(os.environ["STATE_DIR"]) / "loop.json"
+          out = open(os.environ["GITHUB_STEP_SUMMARY"], "a")
+          if not path.exists():
+              out.write("## PAPER loop\n\nNo state written: the loop did not run. See the step logs.\n")
+              sys.exit(1)
+          data = json.loads(path.read_text())
+          st = data.get("status", {})
+          problems = []
+          if st.get("last_fetch_error"): problems.append(f"fetch error: {st['last_fetch_error']}")
+          if st.get("stale_symbols"): problems.append(f"stale data: {', '.join(st['stale_symbols'])}")
+          if st.get("last_gap_halt"): problems.append(f"data gap: {st['last_gap_halt']}")
+          if st.get("kill_switch"): problems.append(f"kill switch: {st.get('kill_switch_reason')}")
+          if st.get("books_disagree"): problems.append(f"books disagree: {st['books_disagree'][0]}")
+          out.write("## PAPER loop (no account, no real orders)\n\n")
+          out.write(f"- feed: `{data.get('feed_origin')}` · symbols: `{' '.join(data.get('symbols', []))}` · {data.get('timeframe')}\n")
+          out.write(f"- last bar processed: `{data.get('last_processed')}`\n")
+          out.write(f"- equity: **{st.get('equity')}** · cash: {st.get('cash')} · open: {st.get('open_positions')}\n")
+          out.write(f"- kill switch: {st.get('kill_switch')}\n\n")
+          out.write("**Needs attention:**\n" + "".join(f"- {p}\n" for p in problems) if problems else "All checks clean.\n")
+          print(json.dumps(data, indent=2))
+          sys.exit(1 if problems else 0)
+          PY
+      - name: Keep the full state as an artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: paper-state-${{ github.run_id }}
+          path: ${{ env.STATE_DIR }}
+          retention-days: 30
+          if-no-files-found: ignore
