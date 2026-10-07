@@ -90,7 +90,7 @@ test("tres identidades reales, sin alias duplicados", () => {
 
 test("Life Simulation separada: sólo residential y park; academy es operativa (exámenes reales)", () => {
   const sim = BUILDINGS.filter((b) => b.district === "simulation").map((b) => b.id).sort();
-  assert.deepEqual(sim, ["house_a", "house_b", "house_c", "house_d", "park", "residential"]);
+  assert.deepEqual(sim, ["house_a", "house_b", "house_c", "house_d", "house_e", "park", "residential"]);
   assert.equal(BUILDINGS.find((b) => b.id === "academy").district, "operational");
   const c = deriveCity({ snapshot: fresco(), events: [], now: AHORA });
   for (const a of c.agents.filter((x) => x.kind === "simulated")) assert.match(a.state, /^SIM_/);

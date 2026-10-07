@@ -47,7 +47,7 @@ export function residentes(demanda) {
       name: NOMBRES[i % NOMBRES.length],
       kind: "simulated",
       tipo,
-      home: `house_${"abcd"[i % 4]}`,
+      home: `house_${"abcde"[i % 5]}`, // 5 casas x 8 camas (litera) = POBLACION_MAX exacto, sin repetir cama
       workplace: tipo === "worker" ? EDIFICIOS_TRABAJO[i % EDIFICIOS_TRABAJO.length] : null,
       conPuesto: tipo === "worker",
       skills: tipo === "trainee" ? ["curso"] : tipo === "worker" ? ["operación"] : [],

@@ -12,15 +12,15 @@ const ESPACIO = 9;
 const CENTRO = new THREE.Vector3(13.5, 0, 13.5);
 const COLOR_EDIFICIO = {
   foundry: 0x57534e, university: 0x0f766e, hall: 0xb45309, park: 0x65a30d,
-  house_a: 0xfde68a, house_b: 0xfca5a5, house_c: 0xbfdbfe, house_d: 0xd9f99d,
+  house_a: 0xfde68a, house_b: 0xfca5a5, house_c: 0xbfdbfe, house_d: 0xd9f99d, house_e: 0xe9d5ff,
   command_center: 0x1e3a8a, engineering_lab: 0x1d4ed8, local_ops: 0x047857, gpt_ops: 0x6d28d9,
   risk_tower: 0x991b1b, quant_lab: 0x0e7490, qa_facility: 0x4d7c0f, market_intel: 0x0369a1,
   trading_floor: 0x854d0e, knowledge_center: 0x334155, academy: 0xf9a8d4, residential: 0xfef3c7,
 };
-const ALTURA = { house_a: 3.2, house_b: 3.2, house_c: 3.2, house_d: 3.2, foundry: 4.8, university: 6, hall: 5.5,
+const ALTURA = { house_a: 3.2, house_b: 3.2, house_c: 3.2, house_d: 3.2, house_e: 3.2, foundry: 4.8, university: 6, hall: 5.5,
   park: 0.4, command_center: 7, risk_tower: 9, trading_floor: 6, knowledge_center: 5, quant_lab: 5.5,
   engineering_lab: 5, gpt_ops: 4.5, local_ops: 4, qa_facility: 4.5, market_intel: 5, academy: 4, residential: 2.5 };
-const TIENE_INTERIOR = new Set(["house_a", "house_b", "house_c", "house_d", "academy", "university", "quant_lab", "qa_facility",
+const TIENE_INTERIOR = new Set(["house_a", "house_b", "house_c", "house_d", "house_e", "academy", "university", "quant_lab", "qa_facility",
   "engineering_lab", "risk_tower", "command_center", "gpt_ops", "local_ops", "trading_floor", "knowledge_center", "foundry", "hall"]);
 const COLOR_PULSO = { TEST_PASSED: 0x22c55e, TEST_FAILED: 0xef4444, RISK_REJECTED: 0xef4444, KILL_SWITCH_TRIGGERED: 0xdc2626,
   RISK_APPROVED: 0x22c55e, NO_TRADE: 0xfacc15, TRADE_OPENED: 0x38bdf8, TRADE_CLOSED: 0x38bdf8, BACKTEST_FINISHED: 0x67e8f9,
@@ -219,7 +219,7 @@ for (const b of BUILDINGS) {
   const MATERIAL_TIPO = {
     residential: { roughness: 0.92, metalness: 0 },          // hormigón mate
     house_a: { roughness: 0.85, metalness: 0 }, house_b: { roughness: 0.85, metalness: 0 },
-    house_c: { roughness: 0.85, metalness: 0 }, house_d: { roughness: 0.85, metalness: 0 },
+    house_c: { roughness: 0.85, metalness: 0 }, house_d: { roughness: 0.85, metalness: 0 }, house_e: { roughness: 0.85, metalness: 0 },
     hall: { roughness: 0.4, metalness: 0.25 },               // piedra pulida / bronce
     command_center: { roughness: 0.2, metalness: 0.5 },      // vidrio tecnológico
     trading_floor: { roughness: 0.25, metalness: 0.4 }, risk_tower: { roughness: 0.3, metalness: 0.55 },

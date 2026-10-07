@@ -36,6 +36,9 @@ export const BUILDINGS = [
   { id: "house_b", label: "🏠 Casa B", pos: [3, 2], world: [39, 14], district: "simulation" },
   { id: "house_c", label: "🏠 Casa C", pos: [3, 2], world: [33, 22], district: "simulation" },
   { id: "house_d", label: "🏠 Casa D", pos: [3, 2], world: [39, 22], district: "simulation" },
+  // 5ª casa: con 8 camas/casa (litera, ver espacio.mjs) y POBLACION_MAX=40, 5 casas cubren el tope
+  // exacto (40 = 5x8) sin que nadie tenga que repetir cama por round-robin nunca.
+  { id: "house_e", label: "🏠 Casa E", pos: [3, 2], world: [45, 18], district: "simulation" },
 ];
 export const SIM_NOTE = SIM_NOTE_VIDA;
 
