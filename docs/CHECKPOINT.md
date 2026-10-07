@@ -1124,6 +1124,70 @@ relying on GPT Work's external harness): `TestOrderIdempotency`,
 293/293 tests passing (up from 276), ruff clean, mypy clean (34 files)
 ```
 
+### 29. Closed the end-to-end gap: `PaperTradingRunner` (router → RiskEngine → PaperAdapter), and independent confirmation of section 27's fixes (2026-10-07)
+
+**Independent confirmation first.** Ran GPT Work's own PR #8 harnesses
+(`reviews/gpt_work/`, pulled read-only from `origin/work/readiness-atomicity-followup`)
+against this branch's code instead of trusting my own tests alone:
+PaperAdapter recovery **5/5** (was 1/5), RiskEngine boundaries **5/5**
+(was 2/5), Binance readiness **6/6**, pipeline **6/6**. The 7 findings from
+section 27 are closed by the reviewer's own criteria. (The F3 atomicity and
+sync-provenance harnesses target Claude Code local's root files and are not
+run here.)
+
+**The gap.** Every stage existed and was tested alone, but nothing connected
+a RiskEngine approval to an actual paper order, registered the resulting
+position back into the RiskEngine's exposure accounting, or kept a
+protective STOP alive for it. `ShadowRunner` stops at the decision;
+`BacktestEngine` simulates internally and never consults the RiskEngine.
+GPT Work's handoff named exactly this ("true RiskEngine veto/reconciliation/
+recovery before E2E certification").
+
+**Built:** `trading_intelligence/execution/paper_runner.py`. Per completed
+bar: fill what the previous bar decided (`PaperAdapter.on_new_bar`) →
+register fills (entry → `register_position_opened` + protective STOP;
+exit → `register_position_closed`, sibling STOP cancelled, P&L from real fill
+prices and fees) → reconcile → manage the open position or decide a new
+entry (regime → router → strategy → `RiskEngine.validate_order` → sized MARKET
+BUY). `run_replay()` drives it over a DataFrame with no network, so cached
+real klines run the identical code path a live loop would.
+
+Invariants, each with a test (15 tests, `tests/test_paper_runner.py`):
+- The only path to an entry order is an approved `RiskDecision`, sized by the
+  RiskEngine. Kill switch → no order. A RiskEngine exception → no order (fail
+  closed, never a bypass).
+- New entries are blocked while the RiskEngine's and PaperAdapter's books
+  disagree, or any open position lacks a protective STOP. Closing is never
+  blocked.
+- Restart: PaperAdapter (now persisting pending orders, section 27) and
+  RiskEngine restore their own state; the runner rebuilds its trade records
+  from them. A position whose STOP survived keeps being managed (STOP-only
+  exits — the originating strategy object isn't persisted). A position with no
+  STOP is left unrecorded so entries stay blocked rather than guessing a stop.
+- Gap-up fills the account can't afford are rejected and the pending entry
+  cleared (uses section 27's affordability check).
+- Accounting: when flat, `cash == initial + Σ realized P&L` exactly.
+
+Verified the tests bite: removing the sibling-STOP cancel, and removing the
+RiskEngine opened-position registration, each fail 2 tests; originals restored.
+Smoke replay with the real `default_router()` on 4 years of synthetic daily data
+(seeds 1–3): both exit types occur (STOP and STRATEGY_EXIT), books reconcile at
+every end state, no negative cash.
+
+**What this does NOT show.** It proves wiring and accounting integrity, not
+profitability: `default_router()`'s only strategy still has the recorded real-data
+NO-GO (section 12), and the replay P&L above is synthetic. It is paper only and
+touches no exchange. A real-data replay needs Claude Code local's network access
+(cache klines with `HistoricalDataDownloader`, then
+`PaperTradingRunner(default_router(), risk, paper).run_replay(symbol, df)`).
+Not yet built: a live polling loop around `process_bar` (needs real market-data
+access to exercise), and persistence of the runner's own per-trade strategy
+binding across restarts.
+
+```
+329/329 tests passing (up from 314, excluding the 7-test 4h battery run separately), ruff + mypy clean (36 files)
+```
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
