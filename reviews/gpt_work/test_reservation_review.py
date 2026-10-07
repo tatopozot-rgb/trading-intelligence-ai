@@ -1,7 +1,7 @@
 """Independent failing acceptance checks for PR #8 reservation/fill lifecycle.
 
 Run: python -B test_reservation_review.py <snapshot-directory>
-Reviewed source: GitHub default a0941e31b5cb3b1d762e2e6d8e2a220101811fd8.
+Initially reviewed against a0941e3; rerun against an explicit source snapshot.
 Synthetic fixtures only; real RiskEngine/PaperAdapter/PaperTradingRunner.
 No production policy change, no duplicate-bar or adapter-journal review.
 """
@@ -132,6 +132,47 @@ class ReservationAcceptance(unittest.TestCase):
                         + position.entry_fee + stop.stop_price * position.quantity * self.paper.taker_fee)
         self.assertLessEqual(loss_at_stop, CAPITAL * Decimal(".01"),
                              f"risk from actual entry to fixed stop={loss_at_stop}; approved budget=100")
+
+    def test_small_gap_cannot_exceed_total_exposure_cap(self) -> None:
+        # Isolate the total cap from the single-position and fill-risk checks.
+        # The values are synthetic fixture boundaries, never deployment policy.
+        self.risk.config = RiskConfig(
+            max_position_size_pct=25.0, max_total_exposure_pct=19.3,
+            max_correlated_exposure_pct=25.0, max_daily_turnover_pct=30.0,
+            max_fill_risk_overshoot_pct=100.0,
+        )
+        self.approve()
+        self.runner.process_bar(SYMBOL, bars(62, 100.5))
+        self.assertLessEqual(
+            self.risk.total_open_exposure, CAPITAL * Decimal(".193"),
+            "a small approved-to-fill gap crossed the configured portfolio exposure cap",
+        )
+
+    def test_small_gap_cannot_exceed_correlated_exposure_cap(self) -> None:
+        self.risk.config = RiskConfig(
+            max_position_size_pct=25.0, max_total_exposure_pct=25.0,
+            max_correlated_exposure_pct=19.3, max_daily_turnover_pct=30.0,
+            max_fill_risk_overshoot_pct=100.0,
+        )
+        self.approve()
+        self.runner.process_bar(SYMBOL, bars(62, 100.5))
+        self.assertLessEqual(
+            self.risk._correlated_exposure(SYMBOL), CAPITAL * Decimal(".193"),
+            "a small approved-to-fill gap crossed the configured correlation cap",
+        )
+
+    def test_small_gap_cannot_exceed_daily_turnover_cap(self) -> None:
+        self.risk.config = RiskConfig(
+            max_position_size_pct=25.0, max_total_exposure_pct=25.0,
+            max_correlated_exposure_pct=25.0, max_daily_turnover_pct=19.3,
+            max_fill_risk_overshoot_pct=100.0,
+        )
+        self.approve()
+        self.runner.process_bar(SYMBOL, bars(62, 100.5))
+        self.assertLessEqual(
+            Decimal(self.risk.state.daily_turnover), CAPITAL * Decimal(".193"),
+            "actual fill turnover exceeded the configured daily turnover cap",
+        )
 
     def test_midnight_fill_is_counted_in_its_execution_day(self) -> None:
         self.approve(cross_midnight=True)
