@@ -23,6 +23,13 @@ Invariants this runner enforces (each has a test):
   * Equity is reported to the RiskEngine on EVERY bar, after every symbol is
     marked, so drawdown and daily-loss halts do not depend on a new signal.
     If that observation fails, new entries are blocked.
+  * Optional `trailing_stop_pct` ratchets each protective STOP up to that
+    fraction below the highest close since entry (never down). The risk
+    limits measure exposure at ENTRY notional and the initial stop is fixed
+    at the entry price, so without a trail an appreciated position ends up
+    holding far more than the cap with a stop far below the market. The new
+    STOP is submitted before the old one is cancelled, so the position is
+    never unprotected. Off by default: it changes exit behavior.
   * A proposal whose symbol differs from the symbol of the data it was
     generated from is rejected (fail closed): the risk checks and the order
     would otherwise apply to different instruments.
@@ -79,6 +86,7 @@ class RunnerStep:
     risk_decision: Optional[RiskDecision] = None
     fills: list[OrderResult] = field(default_factory=list)
     blocked_by: list[str] = field(default_factory=list)
+    equity: Optional[Decimal] = None  # account equity at this timestamp, after every symbol was marked
 
 
 @dataclass
@@ -97,6 +105,7 @@ class _OpenTrade:
     stop_order_id: str
     stop_price: Decimal
     strategy: Optional[AbstractStrategy]  # None after a restart: exits via the persisted STOP only
+    high_water: Decimal = Decimal("0")  # highest close since entry; drives the optional trailing stop
     exit_order_id: Optional[str] = None
 
 
@@ -107,7 +116,15 @@ class PaperTradingRunner:
         risk_engine: RiskEngine,
         paper: PaperAdapter,
         regime_kwargs: Optional[dict] = None,
+        history_bars: int = 500,
+        trailing_stop_pct: Optional[float] = None,
     ):
+        if history_bars < 2:
+            raise ValueError("history_bars must be >= 2")
+        if trailing_stop_pct is not None and not 0.0 < trailing_stop_pct < 1.0:
+            raise ValueError("trailing_stop_pct must be in (0, 1)")
+        self.history_bars = history_bars
+        self.trailing_stop_pct = None if trailing_stop_pct is None else Decimal(str(trailing_stop_pct))
         self._router_source = router
         self._routers: dict[str, StrategyRouter] = {}
         self.risk_engine = risk_engine
@@ -130,7 +147,8 @@ class PaperTradingRunner:
         return self.process_bars({symbol: data})[0]
 
     def process_bars(self, frames: Mapping[str, pd.DataFrame]) -> list[RunnerStep]:
-        """One timestamp across several symbols. Phase 1 fills and marks every
+        """One timestamp across several symbols (`history_bars` of trailing
+        history are used for decisions, as a live loop would have). Phase 1 fills and marks every
         symbol; phase 2 reports equity to the RiskEngine once, with every
         position marked at this timestamp; phase 3 decides, symbol by symbol
         in sorted order (deterministic; the shared RiskEngine caps are
@@ -147,10 +165,9 @@ class PaperTradingRunner:
             return steps
 
         problems: list[str] = []
+        equity = self.paper.get_account_info().equity
         try:
-            self.risk_engine.observe_equity(
-                self.paper.get_account_info().equity, now=max(t for t, _ in ingested.values()),
-            )
+            self.risk_engine.observe_equity(equity, now=max(t for t, _ in ingested.values()))
         except Exception:
             logger.exception("RiskEngine could not observe equity — blocking new entries")
             problems.append("RiskEngine failed to observe equity")
@@ -158,7 +175,10 @@ class PaperTradingRunner:
 
         for symbol in sorted(ingested):
             bar_time, fills = ingested[symbol]
-            steps.append(self._record(self._decide(symbol, frames[symbol], bar_time, fills, problems)))
+            window = frames[symbol].iloc[-self.history_bars:]
+            step = self._decide(symbol, window, bar_time, fills, problems)
+            step.equity = equity
+            steps.append(self._record(step))
         return steps
 
     def _ingest(self, symbol: str, data: pd.DataFrame) -> tuple[datetime, list[OrderResult]]:
@@ -304,8 +324,29 @@ class PaperTradingRunner:
     # Exits
     # ------------------------------------------------------------------
 
+    def _ratchet_stop(self, symbol: str, trade: _OpenTrade, close: Decimal) -> None:
+        if self.trailing_stop_pct is None:
+            return
+        trade.high_water = max(trade.high_water, close)
+        new_stop = trade.high_water * (1 - self.trailing_stop_pct)
+        if new_stop <= trade.stop_price:
+            return
+        old = self._stop_order_for(symbol)
+        if old is None:
+            return
+        stop = OrderRequest(
+            symbol=symbol, side="SELL", order_type="STOP",
+            quantity=trade.quantity, stop_price=new_stop,
+        )
+        self.paper.submit_order(stop)
+        self.paper.cancel_order(old.client_order_id)
+        trade.stop_order_id = stop.client_order_id
+        trade.stop_price = new_stop
+
     def _maybe_exit(self, symbol: str, data: pd.DataFrame, position: Position) -> str:
         trade = self._open_trades.get(symbol)
+        if trade is not None:
+            self._ratchet_stop(symbol, trade, Decimal(str(float(data["close"].iloc[-1]))))
         if trade is None or trade.strategy is None:
             return "HOLDING"
         if trade.exit_order_id is not None:
@@ -356,7 +397,7 @@ class PaperTradingRunner:
             position_id=position.position_id, quantity=position.quantity,
             entry_price=position.avg_entry_price, entry_fee=position.entry_fee,
             stop_order_id=stop.client_order_id, stop_price=pending.proposal.stop_price,
-            strategy=pending.strategy,
+            strategy=pending.strategy, high_water=position.avg_entry_price,
         )
 
     def _on_exit_filled(self, symbol: str, trade: _OpenTrade, result: OrderResult, bar_time: datetime) -> None:
@@ -410,7 +451,15 @@ class PaperTradingRunner:
                 position_id=position.position_id, quantity=position.quantity,
                 entry_price=position.avg_entry_price, entry_fee=position.entry_fee,
                 stop_order_id=stop.client_order_id, stop_price=stop.stop_price, strategy=None,
+                high_water=self._high_water_from_stop(position.avg_entry_price, stop.stop_price),
             )
+
+    def _high_water_from_stop(self, entry_price: Decimal, stop_price: Decimal) -> Decimal:
+        """The high-water mark is not persisted; with a trailing stop it is
+        recoverable from the ratcheted stop (stop = high * (1 - trail))."""
+        if self.trailing_stop_pct is None:
+            return entry_price
+        return max(entry_price, stop_price / (1 - self.trailing_stop_pct))
 
     def _stop_order_for(self, symbol: str) -> Optional[OrderRequest]:
         for order in self.paper.pending_orders:

@@ -162,3 +162,64 @@ def resample_to_1d(data_4h: pd.DataFrame) -> pd.DataFrame:
     return data_4h.resample("1D").agg(
         {"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"}
     ).dropna()
+
+
+def make_correlated_universe(
+    symbols: list[str],
+    n_days: int,
+    *,
+    seed: int,
+    shocks: dict[int, float] | None = None,
+    drift_window: tuple[int, int, float] | None = None,
+    market_vol: float = 0.025,
+    idio_vol: float = 0.02,
+    start_price: float = 100.0,
+    start: str = "2020-01-01",
+) -> dict[str, pd.DataFrame]:
+    """Several daily OHLCV series driven by ONE market factor plus idiosyncratic
+    noise, so they fall together -- which is what actually happens to crypto
+    in a crash, and what independent seeds would hide.
+
+    shocks: {day_index: factor_move} added to the market factor on that day
+            (e.g. {700: -0.30}); a shock day's whole move happens at the OPEN
+            (a true gap, so stops gap through).
+    drift_window: (start_day, end_day, extra_daily_drift) -- a grinding bear
+            leg, as opposed to a single shock.
+    Each symbol gets its own beta to the factor (0.7-1.5). Returns are clipped
+    at -95% (a spot price cannot go below zero)."""
+    rng = np.random.default_rng(seed)
+    shocks = shocks or {}
+
+    regimes = _regime_path(n_days, 1.0, rng)
+    drift = np.array([_REGIMES[r]["daily_drift"] for r in regimes])
+    if drift_window is not None:
+        a, b, extra = drift_window
+        drift[a:b] += extra
+    vol = _garch_volatility(n_days, 1.0, rng, daily_vol_target=market_vol)
+    z = rng.standard_t(df=5, size=n_days)
+    z /= np.std(z)
+    factor = drift + vol * z
+    gap_share = np.full(n_days, 0.3)
+    for day, move in shocks.items():
+        factor[day] += move
+        gap_share[day] = 1.0
+
+    idx = pd.date_range(start, periods=n_days, freq="1D")
+    out: dict[str, pd.DataFrame] = {}
+    for symbol in symbols:
+        beta = float(rng.uniform(0.7, 1.5))
+        e = rng.standard_t(df=5, size=n_days)
+        e = idio_vol * e / np.std(e)
+        ret = np.clip(beta * factor + e, -0.95, 1.0)
+        close = start_price * np.cumprod(1 + ret)
+        prev_close = np.concatenate([[start_price], close[:-1]])
+        open_ = prev_close * (1 + gap_share * ret)
+        spread = np.abs(rng.normal(0, 1, n_days)) * 0.4 * vol
+        high = np.maximum(open_, close) * (1 + spread)
+        low = np.minimum(open_, close) * (1 - spread)
+        out[symbol] = pd.DataFrame(
+            {"open": open_, "high": high, "low": low, "close": close,
+             "volume": rng.uniform(500, 3000, n_days)},
+            index=idx,
+        )
+    return out

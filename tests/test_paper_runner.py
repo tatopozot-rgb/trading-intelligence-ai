@@ -401,6 +401,92 @@ class TestSurvivalGuards:
         assert any("reservation" in p for p in runner.reconcile())
 
 
+class TestTrailingStop:
+    """Off by default. With it on, a winner's protective STOP follows the
+    market up (never down), so an appreciated position is not left with a
+    stop sitting at its original entry price."""
+
+    def _trail_runner(self, tmp_path, trail=0.10):
+        return PaperTradingRunner(
+            _router_for(_Scripted(entry_at=WARMUP + 1, stop_pct=0.05)), _risk(tmp_path),
+            _paper(tmp_path), trailing_stop_pct=trail,
+        )
+
+    def _enter(self, runner, extra=()):
+        frames = _bars(_flat(WARMUP + 2) + list(extra))
+        runner.run_replay(SYMBOL, frames, warmup=WARMUP)
+        return frames
+
+    def test_invalid_trail_is_refused(self, tmp_path):
+        for bad in (0.0, 1.0, -0.1, 1.5):
+            with pytest.raises(ValueError):
+                PaperTradingRunner(StrategyRouter(), _risk(tmp_path), _paper(tmp_path), trailing_stop_pct=bad)
+
+    def test_off_by_default_the_stop_stays_at_the_entry_level(self, tmp_path):
+        runner, _ = _entered_runner(tmp_path)
+        start = runner._stop_order_for(SYMBOL).stop_price
+        runner.run_replay(SYMBOL, _bars(_flat(WARMUP + 2) + [(100.0, 151.0, 100.0, 150.0)]), warmup=WARMUP + 2)
+        assert runner._stop_order_for(SYMBOL).stop_price == start
+
+    def test_a_wider_trail_never_loosens_the_initial_stop(self, tmp_path):
+        """Trail 10% would put the stop at 90 on a flat market; the proposal's own
+        5% stop (95) is tighter and must stay."""
+        runner = self._trail_runner(tmp_path, trail=0.10)
+        self._enter(runner)
+        assert runner._stop_order_for(SYMBOL).stop_price == Decimal("100.0") * Decimal("0.95")
+
+    def test_stop_follows_the_market_up_to_the_trail_distance(self, tmp_path):
+        runner = self._trail_runner(tmp_path)
+        self._enter(runner, [(100.0, 151.0, 100.0, 150.0)])
+        stop = runner._stop_order_for(SYMBOL)
+        assert stop.stop_price == Decimal("135.0")  # 150 * (1 - 0.10)
+        assert sum(1 for o in runner.paper.pending_orders if o.order_type == "STOP") == 1
+        assert runner.reconcile() == []
+
+    def test_stop_never_moves_down_when_price_falls_back(self, tmp_path):
+        runner = self._trail_runner(tmp_path)
+        self._enter(runner, [(100.0, 151.0, 100.0, 150.0), (150.0, 150.0, 140.0, 142.0)])
+        assert runner._stop_order_for(SYMBOL).stop_price == Decimal("135.0")
+        assert runner.paper.get_position(SYMBOL) is not None
+
+    def test_a_pullback_through_the_ratcheted_stop_locks_in_a_profit(self, tmp_path):
+        runner = self._trail_runner(tmp_path)
+        self._enter(runner, [(100.0, 151.0, 100.0, 150.0), (148.0, 148.0, 120.0, 125.0)])
+        trade = runner.closed_trades[0]
+        assert trade.exit_reason == EXIT_STOP
+        assert trade.pnl > 0, "without the trail this position would still be open, far above its stop"
+        assert runner.risk_engine.open_position_count == 0
+
+    def test_position_is_never_without_a_stop_while_ratcheting(self, tmp_path):
+        runner = self._trail_runner(tmp_path)
+        seen_unprotected = []
+        real_cancel = runner.paper.cancel_order
+
+        def watch(order_id):
+            # at the moment the old stop is cancelled the new one must already exist
+            stops = [o for o in runner.paper.pending_orders if o.order_type == "STOP"]
+            seen_unprotected.append(len(stops) < 2)
+            return real_cancel(order_id)
+
+        runner.paper.cancel_order = watch  # type: ignore[method-assign]
+        self._enter(runner, [(100.0, 151.0, 100.0, 150.0)])
+        assert seen_unprotected == [False]
+
+    def test_restart_after_a_ratchet_keeps_the_raised_stop_and_trail_continues(self, tmp_path):
+        runner = self._trail_runner(tmp_path)
+        self._enter(runner, [(100.0, 151.0, 100.0, 150.0)])
+        raised = runner._stop_order_for(SYMBOL).stop_price
+
+        restarted = PaperTradingRunner(
+            _router_for(_Scripted(entry_at=10**9)), _risk(tmp_path), _paper(tmp_path), trailing_stop_pct=0.10,
+        )
+        assert restarted._stop_order_for(SYMBOL).stop_price == raised
+        assert restarted._open_trades[SYMBOL].high_water == Decimal("150.0")
+        up = _bars(_flat(WARMUP + 2) + [(100.0, 151.0, 100.0, 150.0), (150.0, 201.0, 150.0, 200.0)])
+        restarted.process_bar(SYMBOL, up)
+        assert restarted._stop_order_for(SYMBOL).stop_price == Decimal("180.0")
+
+
 @pytest.mark.parametrize("bad", [pd.DataFrame()])
 def test_empty_data_is_a_noop(tmp_path, bad):
     runner = _runner(tmp_path, _Scripted(entry_at=1))
