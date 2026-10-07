@@ -65,13 +65,17 @@ class OneSignal(NoSignal):
 
 
 class FrozenFeed:
-    def __init__(self, frame: pd.DataFrame) -> None:
+    def __init__(self, frame: pd.DataFrame, base_url: str = "https://data-api.binance.vision") -> None:
         self.frame = frame
         self.now = START
+        self.base_url = base_url
 
     def get_ohlcv(self, symbol: str, timeframe: str, limit: int = 500) -> pd.DataFrame:
         assert symbol == SYMBOL and timeframe == "1h"
         return self.frame[self.frame.index <= pd.Timestamp(self.now.replace(tzinfo=None))].iloc[-limit:]
+
+    def get_exchange_name(self) -> str:
+        return "binance_public_data"
 
 
 def flat_bars(n: int) -> pd.DataFrame:
@@ -142,6 +146,16 @@ class PaperLoopAcceptance(unittest.TestCase):
             report.gap_halt or self.loop.runner.risk_engine.state.kill_switch,
             "multiple expected closes elapsed, but a frozen feed was classified healthy",
         )
+
+    def test_restart_refuses_different_feed_origin_for_existing_state(self) -> None:
+        self.initial_tick()
+        other = FrozenFeed(self.feed.frame, base_url="https://testnet.binance.vision")
+        other.now = self.feed.now
+        with self.assertRaisesRegex(ValueError, "feed|source|origin|host"):
+            PaperLoop(
+                self.loop.runner, other, [SYMBOL], "1h", self.root / "loop.json",
+                clock=lambda: other.now,
+            )
 
     def test_restart_after_persisted_buy_before_stop_recovers_protection(self) -> None:
         paper = self.loop.runner.paper

@@ -1,5 +1,27 @@
 # GPT Work cross-review — 2026-10-06
 
+## CURRENT — continuation 2026-10-07 19:41Z
+
+**Scope and provenance:** Claude cloud research branch `ccr-b66a9a9e-okj2pl` is still at `a180024314283d5c857ac2fcdc3e271a6d2b3b89` (checked against GitHub). Source-pinned snapshot `operations/e2e-review/snapshot-a180024` contains the reviewed PaperLoop, PaperRunner, Router and Binance public-feed blobs. GPT Work did not edit owner source, start a trading session, use account credentials, or access the user's Binance/XM accounts. These are synthetic/offline code tests, **not account or market-operation validation**.
+
+- **DONE:** lifecycle **7/7 PASS**; reservation **8/11 PASS, 3 FAIL** (actual next-open notional `1933.6586537688075` exceeds each synthetic total/correlated/turnover cap of `1930`). PaperLoop **1/5 PASS, 4 FAIL** (internal bar hole, frozen successful feed, persisted BUY without STOP after crash, resumed state with a different feed origin). Binance public-feed acceptance **1/3 test methods PASS, 2 FAIL** with eight invalid OHLCV/ticker-price subcases accepted; valid synthetic OHLCV control passes. All were rerun against the pinned a180024 source with socket connections blocked; no external HTTP. The old risk-clock finding remains closed.
+- **ACTIVE:** existing draft PR8 `work/readiness-atomicity-followup` is the single cross-review handoff. Add the two new offline harnesses and this checkpoint to that PR, then report only the new feed-origin and data-validation findings to Claude Leader/cloud. No new PR/thread/task/automation. Cloud owns `trading_intelligence/**`; Local owns root F3/SHADOW and first bounded real-data PAPER diagnostic.
+- **BLOCKED:** three fill-time caps and four PaperLoop safety checks plus public-feed input validation remain uncorrected at this SHA. The 25% fill-risk overshoot default is recorded by Claude as WAITING_FOR_USER, not ratified by GPT Work. No unattended PAPER or LIVE/E2E certification. Private Binance/XM session, permissions, balances, orders and reconciliation are **not tested** because neither account has been connected; any future account-specific tests require the user's own authenticated setup and separate authorization for live orders.
+- **NEXT:** publish the current reproductions in PR8; cloud fixes source and sends a corrected SHA; GPT Work reruns only changed scopes. After safety triage, Local can perform a bounded public-data PAPER diagnostic, explicitly distinct from private-account validation. Do not infer that a synthetic PASS verifies Binance/XM account behavior.
+- **BRANCH/COMMITS:** own PR8 head `0527b02a81435330ce074a8b5ebe67709e38356b` before this publication; reviewed research `a180024`. Previous own commits `26bba984` (risk cap checks) and `0527b02` (first PaperLoop review). GitHub Actions research run `37675024353` completed successfully at `a180024`; this does not close the separate external acceptance failures. PR8 has no check runs at its current head.
+- **HANDOFFS:** prior PR8 comments `6045056113`, `6045158141`, `6045277318` still hold for reservations and first three PaperLoop findings. Add one focused PR8 comment for the feed-source and invalid-data cases. Update the existing Notion checkpoint and Paper trading task in place. Claude Leader coordinates; Local receives the bounded PC/network phase only after source triage.
+
+Reproduce offline:
+
+```powershell
+python -B reviews/gpt_work/test_runner_lifecycle_review.py <research-checkout-at-a180024>
+python -B reviews/gpt_work/test_reservation_review.py <research-checkout-at-a180024>
+python -B reviews/gpt_work/test_paper_loop_review.py <research-checkout-at-a180024>
+python -B reviews/gpt_work/test_binance_public_review.py <research-checkout-at-a180024>
+```
+
+---
+
 ## CURRENT — continuation 2026-10-07 19:28Z
 
 Claude cloud's current research head `dd540b37d8a8d066b8932562bdc7acc679cd6ad5` includes a new PAPER-only `PaperLoop` and fixes the earlier risk-clock failure. Source-pinned local snapshot `operations/e2e-review/snapshot-dd540b3` matches GitHub blobs for the four changed paper/runner/risk modules; `paper_loop.py` matches blob `22b3736a2cccf9479336b3929589856c49f337b9`. No Binance credentials, exchange orders, persistent service, or live run were used.
