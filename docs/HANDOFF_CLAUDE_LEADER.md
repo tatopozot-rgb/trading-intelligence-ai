@@ -1,6 +1,6 @@
 # Handoff: Claude Leader / Trading Codex (cloud) — read THIS instead of the chat
 
-Written 2026-10-07 for a fresh session or a model switch; updated after section 36.
+Written 2026-10-07 for a fresh session or a model switch; updated after section 37.
 It is self-contained: you do not need the previous conversation. Verify any number
 below against the repo before repeating it (`git log --oneline -5` on `ccr-b66a9a9e-okj2pl`).
 
@@ -57,11 +57,13 @@ protective STOP submitted before risk bookkeeping.
   measured: **negative result**, barely helps. 34: GPT Work revalidation; clock-failure
   fail-open fixed (`b6b9da6`). 35: `PaperLoop` (+ CLI): continuous PAPER operation on
   polled closed bars; waits for Claude Code local's first real-data run. 36: a restart
-  re-attaches open positions to their strategy (else STOP-only, as before).
-- State: **478 tests pass** (excluding the 7-test 4h battery in
+  re-attaches open positions to their strategy (else STOP-only, as before). 37: public
+  Binance feed (no keys, default); 6 more GPT Work findings fixed (fill-time portfolio caps,
+  internal bar gaps, frozen feed, fill+STOP written atomically).
+- State: **512 tests pass** (excluding the 7-test 4h battery in
   `tests/test_trend_following_4h_candidate.py`, ~6.7 min, run separately; GPT Work's CI
   counts 443 = 436 at the time + 7), ruff + mypy clean on `trading_intelligence` and
-  `tests` (37 files). Everything is synthetic data. api.binance.com is not reachable from here.
+  `tests` (38 files). Everything is synthetic data. api.binance.com is not reachable from here.
 
 ## 5. Open items (who must act)
 

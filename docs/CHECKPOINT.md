@@ -1615,6 +1615,47 @@ fresh state.
 478/478 tests passing (excluding the 7-test 4h battery run separately), ruff + mypy clean (37 files)
 ```
 
+### 37. Public Binance feed, and six more real findings from GPT Work fixed (2026-10-07)
+
+**Public feed** (`a180024`). `python-binance` is not installed in a clean environment, so
+the section-35 command would not have run there. `BinancePublicKlines`
+(`trading_intelligence/data/binance_public_feed.py`) uses only the standard library
+against `data-api.binance.vision`, Binance's public market-data host: no account, no
+key, no order endpoint (every account/order method raises). It is now the loop's
+default feed. From this cloud container the host is blocked by the environment's
+network policy (proxy 403); a real run of the loop here recorded `URLError ... 403` in
+its status and changed nothing, which is the intended behaviour.
+
+**GPT Work's review of PaperLoop and fill-time caps** (PR #8, `26bba98`, `0527b02`).
+Six failures, reproduced against `a180024` before any change; all real. Fixed in
+`eb63be0` and `11aab53`:
+
+| Finding | Fix |
+|---|---|
+| A +0.5% gap took a 1923 approval to a ~1934 fill over a 1930 total-exposure, correlated-exposure and daily-turnover cap (3 checks) | `validate_fill` re-checks the three portfolio caps with the reservation replaced by the actual fill notional (old-day reservations charged in full to today's turnover); the runner passes the reservation |
+| A missing bar BETWEEN two present bars was skipped silently (only the first gap was checked) | every missing bar before or between pending bars trips the kill switch; available bars are still processed so exits work |
+| A feed that answers successfully with old bars kept refreshing the connectivity watchdog | a symbol whose newest closed bar is more than `max_lag_bars` (1) behind is reported to the watchdog as an outage and named in the status |
+| The BUY fill was persisted before its STOP: a crash in between restarted into a naked position | bracket protection: `OrderRequest.attached_stop_price`; the adapter writes the fill and its STOP in the same state save; the runner reuses it |
+
+Also, from my own reading while fixing the feed issue: with polls hours apart a single
+transient fetch failure reached the watchdog as an hours-long outage and tripped the
+kill switch. Fetches are now retried within the tick (3 attempts, 2s/4s backoff).
+
+**Validation.** GPT Work's suites at `11aab53`: lifecycle 7/7, reservation 11/11 (was 8/11),
+PaperLoop 4/4 (was 1/4). 21 new tests of ours; 11 mutants all killed. One mutant (the
+runner no longer attaching the STOP) first survived because the runner's post-fill
+fallback masked it; a runner-level crash test now kills it. 512 tests, ruff + mypy clean.
+
+**Still open.** After a crash in that window the position is protected, but its
+reservation was never confirmed: on restart the reservation is released and the paper
+position is not registered in the RiskEngine, so `reconcile()` blocks new entries until an
+operator looks. Fail closed, deliberately not auto-healed. The 25% fill-risk tolerance is
+still WAITING_FOR_USER.
+
+```
+512/512 tests passing (excluding the 7-test 4h battery run separately), ruff + mypy clean (38 files)
+```
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
