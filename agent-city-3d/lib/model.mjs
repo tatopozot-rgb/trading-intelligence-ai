@@ -3,6 +3,7 @@
 // WORKING requiere AGENT_WORKING o TASK_STARTED recientes; nunca se deduce de un commit ni de un estado REVIEW.
 
 import { residentes, actividadPara, actividadRol, ROLES_SIMULADOS, SIM_NOTE as SIM_NOTE_VIDA } from "./life.mjs";
+import { perfilEtapa, actividadJubilado } from "./lifecycle.mjs";
 
 export const MODE = "BUILD"; // OPERATIONS queda preparado, no activo
 
@@ -177,15 +178,21 @@ export function deriveCity({ snapshot, society, events, now, life = null }) {
   const demanda = abiertas + Math.ceil(actividad24h / 2);
   const hora = new Date(ahoraMs).getHours();
   const vidaPorId = Object.fromEntries((life?.poblacion || []).map((p) => [p.id, p]));
+  const EDIFICIO_JUBILADO = { home: "residential", park: "park", residential: "residential" };
   const vida = residentes(demanda).map((r) => {
-    const a = actividadPara(r, hora);
     const persona = vidaPorId[r.id];
+    // Un jubilado ya no sigue el horario laboral: vive su propia rutina, nunca desaparece.
+    const a = persona && persona.etapa === "RETIRED"
+      ? (() => { const j = actividadJubilado(hora); return { ...j, destino: EDIFICIO_JUBILADO[j.destino] || j.destino, transporte: "caminar" }; })()
+      : actividadPara(r, hora);
+    const perfil = persona ? perfilEtapa(persona.etapa) : { escala: 1, velocidad: 1 };
     return { key: r.id, name: r.name, alias: r.tipo, color: 0xcbd5e1, target: a.destino, state: "SIM_" + a.actividad,
       reason: a.etiqueta, currentTask: null, lastResult: null, heartbeat: null, lastEvent: null,
       kind: "simulated", stage: r.stage, tipo: r.tipo, home: r.home, workplace: r.workplace,
       transporte: a.transporte, conPuesto: Boolean(r.conPuesto), skills: r.skills || [], xp: r.xp || 0,
       nivel: r.tipo === "trainee" ? "APRENDIZ (sim)" : r.tipo === "worker" ? "TRABAJADOR (sim)" : "VECINO (sim)",
-      etapaVital: persona ? persona.etapa : null, edadSim: persona ? Math.floor(persona.edad) : null };
+      etapaVital: persona ? persona.etapa : null, edadSim: persona ? Math.floor(persona.edad) : null,
+      escalaVisual: perfil.escala, velocidadVisual: perfil.velocidad };
   });
   const simRoles = ROLES_SIMULADOS.map((r) => {
     const a = actividadRol(r, hora);

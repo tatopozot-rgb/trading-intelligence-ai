@@ -84,3 +84,25 @@ export function personaInicial(r) {
     relaciones: [],
   };
 }
+
+// Perfil visual por etapa: tamaño y velocidad del avatar. Puro; la escena sólo lo aplica.
+export const PERFIL_ETAPA = {
+  CHILD: { escala: 0.62, velocidad: 0.9 },
+  STUDENT: { escala: 0.82, velocidad: 1 },
+  YOUNG_ADULT: { escala: 1, velocidad: 1 },
+  ADULT: { escala: 1, velocidad: 1 },
+  SENIOR: { escala: 0.97, velocidad: 0.8 },
+  RETIRED: { escala: 0.95, velocidad: 0.65 },
+};
+export function perfilEtapa(etapa) {
+  return PERFIL_ETAPA[etapa] || { escala: 1, velocidad: 1 };
+}
+
+// Rutina de jubilado: ya no trabaja; vive, pasea y socializa. Nunca desaparece.
+export function actividadJubilado(hora) {
+  if (hora >= 22 || hora < 7) return { actividad: "SLEEPING", destino: "home", etiqueta: "descanso (jubilado)" };
+  if (hora < 11) return { actividad: "LEISURE", destino: "home", etiqueta: "mañana tranquila en casa" };
+  if (hora < 16) return { actividad: "LEISURE", destino: "park", etiqueta: "parque y socializar (jubilado)" };
+  if (hora < 20) return { actividad: "LEISURE", destino: "residential", etiqueta: "paseo por el barrio" };
+  return { actividad: "LEISURE", destino: "home", etiqueta: "tarde en casa" };
+}

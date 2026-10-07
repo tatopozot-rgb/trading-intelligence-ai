@@ -108,3 +108,20 @@ test("aplicarOffline sobre una población mantiene el tamaño y no muta la entra
   assert.equal(r.poblacion.length, 2);
   assert.equal(JSON.stringify(pob), antes);
 });
+
+test("perfil por etapa: niños y jubilados son más pequeños y lentos; adultos son el estándar", () => {
+  assert.ok(C.perfilEtapa("CHILD").escala < C.perfilEtapa("ADULT").escala);
+  assert.ok(C.perfilEtapa("RETIRED").velocidad < C.perfilEtapa("ADULT").velocidad);
+  assert.equal(C.perfilEtapa("ADULT").escala, 1);
+  assert.deepEqual(C.perfilEtapa("DESCONOCIDA"), { escala: 1, velocidad: 1 });
+});
+
+test("rutina de jubilado: nunca trabaja, siempre tiene destino, usa el parque a mediodía", () => {
+  for (let h = 0; h < 24; h++) {
+    const a = C.actividadJubilado(h);
+    assert.ok(a.destino);
+    assert.notEqual(a.actividad, "WORKING");
+  }
+  assert.equal(C.actividadJubilado(13).destino, "park");
+  assert.equal(C.actividadJubilado(2).actividad, "SLEEPING");
+});

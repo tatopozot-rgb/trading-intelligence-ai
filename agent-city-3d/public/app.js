@@ -285,8 +285,9 @@ for (const [x, z] of [[24.5, 27], [28, 22], [26, 30], [21, 24], [31, 30]]) {
 
 // ---------- avatares humanoides (con niveles de detalle)
 const agentes = {};
-const PIEL = [0xfcd9b6, 0xe0ac7e, 0xc68642, 0x8d5524];
-const PELO = [0x1f2937, 0x78350f, 0xa16207, 0x111827];
+const PIEL = [0xfcd9b6, 0xe0ac7e, 0xc68642, 0x8d5524, 0xf4c2a1, 0x6b4226];
+const PELO = [0x1f2937, 0x78350f, 0xa16207, 0x111827, 0xd4d4d8, 0x7f1d1d];
+const PANTALON_PALETA = [0x1e293b, 0x374151, 0x3f3f46, 0x1c1917, 0x44403c];
 const PALETA_ROPA = [0x60a5fa, 0xf472b6, 0x34d399, 0xfbbf24, 0xa78bfa, 0xf87171, 0x22d3ee, 0xfb923c, 0x94a3b8];
 function hashClave(key) {
   let h = 0;
@@ -297,39 +298,54 @@ function crearAvatar(key, nombre, color, esSimulado) {
   const grupo = new THREE.Group();
   const h = hashClave(key);
   if (esSimulado) color = PALETA_ROPA[h % PALETA_ROPA.length];
-  grupo.scale.y = 0.9 + ((h >> 3) % 5) * 0.04;
   const ropa = new THREE.MeshStandardMaterial({ color, roughness: 0.55, transparent: esSimulado, opacity: esSimulado ? 0.85 : 1 });
-  const piel = new THREE.MeshStandardMaterial({ color: PIEL[key.length % PIEL.length] });
-  const pelo = new THREE.MeshStandardMaterial({ color: PELO[key.charCodeAt(0) % PELO.length] });
-  const pantalon = new THREE.MeshStandardMaterial({ color: 0x1e293b });
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.7, 0.36), ropa);
-  torso.position.y = 1.35;
+  const piel = new THREE.MeshStandardMaterial({ color: PIEL[h % PIEL.length], roughness: 0.75 });
+  const pelo = new THREE.MeshStandardMaterial({ color: PELO[(h >> 2) % PELO.length], roughness: 0.6 });
+  const pantalon = new THREE.MeshStandardMaterial({ color: PANTALON_PALETA[(h >> 5) % PANTALON_PALETA.length] });
+  const zapatoM = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.5 });
+  // Complexión variable: torso más ancho/estrecho según la clave, no un molde único.
+  const ancho = 0.52 + ((h >> 1) % 4) * 0.035;
+  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(ancho * 0.42, 0.44, 4, 8), ropa);
+  torso.scale.set(1, 1, 0.78);
+  torso.position.y = 1.38;
   torso.castShadow = true;
-  const cabeza = new THREE.Mesh(new THREE.SphereGeometry(0.27, 12, 10), piel);
+  const cuello = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.11, 0.14, 8), piel);
+  cuello.position.y = 1.78;
+  const cabeza = new THREE.Mesh(new THREE.SphereGeometry(0.26, 14, 12), piel);
+  cabeza.scale.set(0.92, 1.05, 0.95);
   cabeza.position.y = 2.0;
-  const cabello = new THREE.Mesh(new THREE.SphereGeometry(0.29, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), pelo);
-  cabello.position.y = 2.05;
+  cabeza.castShadow = true;
   const extras = [];
-  if (h % 3 === 0) {
-    const largo = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.5, 0.18), pelo);
-    largo.position.set(0, 1.8, -0.16);
+  const calvo = h % 5 === 0;
+  let cabello = new THREE.Mesh(new THREE.SphereGeometry(0.001), new THREE.MeshBasicMaterial({ visible: false }));
+  if (!calvo) {
+    cabello = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 8, 0, Math.PI * 2, 0, Math.PI / 1.8), pelo);
+    cabello.position.y = 2.06;
+  }
+  if (!calvo && h % 3 === 0) { // melena larga
+    const largo = new THREE.Mesh(new THREE.CapsuleGeometry(0.16, 0.42, 4, 8), pelo);
+    largo.position.set(0, 1.78, -0.14);
     extras.push(largo);
   }
-  if (h % 4 === 1) {
-    const barba = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.14, 0.12), pelo);
-    barba.position.set(0, 1.78, 0.2);
+  if (h % 4 === 1) { // barba corta
+    const barba = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.12, 0.1), pelo);
+    barba.position.set(0, 1.84, 0.19);
     extras.push(barba);
   }
-  const brazoI = new THREE.Group(); brazoI.position.set(-0.42, 1.6, 0);
-  const brazoD = new THREE.Group(); brazoD.position.set(0.42, 1.6, 0);
-  const malI = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.62, 0.18), ropa); malI.position.y = -0.31;
-  const malD = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.62, 0.18), ropa); malD.position.y = -0.31;
-  brazoI.add(malI); brazoD.add(malD);
+  const brazoI = new THREE.Group(); brazoI.position.set(-0.4 * ancho / 0.52, 1.62, 0);
+  const brazoD = new THREE.Group(); brazoD.position.set(0.4 * ancho / 0.52, 1.62, 0);
+  const malI = new THREE.Mesh(new THREE.CapsuleGeometry(0.075, 0.42, 3, 6), ropa); malI.position.y = -0.24;
+  const malD = new THREE.Mesh(new THREE.CapsuleGeometry(0.075, 0.42, 3, 6), ropa); malD.position.y = -0.24;
+  const manoI = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), piel); manoI.position.y = -0.48;
+  const manoD = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), piel); manoD.position.y = -0.48;
+  brazoI.add(malI, manoI); brazoD.add(malD, manoD);
   const piernaI = new THREE.Group(); piernaI.position.set(-0.16, 1.0, 0);
   const piernaD = new THREE.Group(); piernaD.position.set(0.16, 1.0, 0);
-  const subI = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.85, 0.22), pantalon); subI.position.y = -0.42;
-  const subD = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.85, 0.22), pantalon); subD.position.y = -0.42;
-  piernaI.add(subI); piernaD.add(subD);
+  const subI = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.56, 3, 6), pantalon); subI.position.y = -0.34;
+  const subD = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.56, 3, 6), pantalon); subD.position.y = -0.34;
+  const zapatoI = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.1, 0.26), zapatoM); zapatoI.position.set(0, -0.68, 0.05);
+  const zapatoD = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.1, 0.26), zapatoM); zapatoD.position.set(0, -0.68, 0.05);
+  piernaI.add(subI, zapatoI); piernaD.add(subD, zapatoD);
   const aro = new THREE.Mesh(new THREE.RingGeometry(0.55, 0.7, 24), new THREE.MeshBasicMaterial({ color: 0x6b7280, side: THREE.DoubleSide }));
   aro.rotation.x = -Math.PI / 2; aro.position.y = 0.05;
   const seleccionAro = new THREE.Mesh(new THREE.RingGeometry(0.95, 1.12, 32), new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide }));
@@ -347,7 +363,7 @@ function crearAvatar(key, nombre, color, esSimulado) {
   cuadro.position.set(0, 0.6, 0);
   grupoBici.add(cuadro);
   grupoBici.visible = false;
-  const elementos = [torso, cabeza, cabello, brazoI, brazoD, piernaI, piernaD, aro, seleccionAro, etiqueta, grupoBici];
+  const elementos = [torso, cuello, cabeza, cabello, brazoI, brazoD, piernaI, piernaD, aro, seleccionAro, etiqueta, grupoBici];
   if (key === "sim-supervisor") {
     // Presencia visual del supervisor: portapapeles de backlog en el brazo izquierdo.
     const tabla = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.36, 0.04), new THREE.MeshStandardMaterial({ color: 0xf8fafc }));
@@ -358,11 +374,12 @@ function crearAvatar(key, nombre, color, esSimulado) {
   elementos.push(...extras);
   grupo.add(...elementos);
   grupo.userData = { kind: "agent", key };
-  for (const m of [torso, cabeza, cabello, subI, subD, malI, malD]) m.userData = grupo.userData;
+  for (const m of [torso, cuello, cabeza, cabello, subI, subD, malI, malD, manoI, manoD, zapatoI, zapatoD]) m.userData = grupo.userData;
   scene.add(grupo);
   agentes[key] = { grupo, aro, seleccionAro, etiqueta, piernaI, piernaD, brazoI, brazoD, torso, cabeza, cabello, grupoBici,
     ruta: [], destino: null, destinoClave: null, desfase: Math.random() * 6, esSimulado, enEdificio: null,
-    velocidad: VELOCIDAD_PIE, lod: 0, estado: null, transporte: "caminar", sentado: false, acostado: false };
+    velocidad: VELOCIDAD_PIE, escalaBase: 0.92 + ((h >> 3) % 5) * 0.035, escalaVital: 1, velocidadVital: 1,
+    lod: 0, estado: null, transporte: "caminar", sentado: false, acostado: false };
   return agentes[key];
 }
 
@@ -393,7 +410,10 @@ function asignarDestinos(city) {
     const clave = `${a.target}|${adentro}|${slot}|${a.state}`;
     ag.estado = a.state;
     ag.transporte = a.transporte || "caminar";
-    ag.velocidad = ag.transporte === "bici" ? VELOCIDAD_BICI : VELOCIDAD_PIE;
+    ag.velocidadVital = a.velocidadVisual ?? 1;
+    ag.velocidad = (ag.transporte === "bici" ? VELOCIDAD_BICI : VELOCIDAD_PIE) * ag.velocidadVital;
+    const escala = ag.escalaBase * (a.escalaVisual ?? 1);
+    ag.grupo.scale.setScalar(escala);
     ag.sentado = adentro && SENTADO_SIM.includes(a.state);
     ag.acostado = adentro && a.state === "SIM_SLEEPING";
     ag.colorEstado = STATE_COLOR[a.state] ?? 0x6b7280;
