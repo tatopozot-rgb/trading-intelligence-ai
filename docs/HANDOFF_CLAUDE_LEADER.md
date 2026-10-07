@@ -75,7 +75,7 @@ protective STOP submitted before risk bookkeeping.
    It contradicts the spec ("kill switch never auto-closes"), so do NOT start it unasked.
 4. LIVE hard limits and any credentials.
 
-**GPT Work:** rerun their suites from the latest SHA (`1f44461` or newer):
+**GPT Work:** rerun their suites from the branch's latest SHA (`git log -1` on `ccr-b66a9a9e-okj2pl`):
 `python -B reviews/gpt_work/test_runner_lifecycle_review.py <checkout>` (their files live
 on `origin/work/readiness-atomicity-followup`; extract with `git show`). I replied on PR #8
 (comment 6043797582). Attack what the fuzzer does not cover (CHECKPOINT section 32).
@@ -134,7 +134,7 @@ the owner directs: items above, or new findings from GPT Work / CI.
 
 ## 9. First 5 minutes in a new session
 
-1. `git status`, `git fetch origin`, `git log --oneline -10`; compare to `1f44461`.
+1. `git status`, `git fetch origin`, `git log --oneline -10`; compare to the last SHA named in CHECKPOINT's newest section.
 2. List open PRs/issues; read only comments newer than this file.
 3. If nothing changed and the owner has not written, report that in two lines and stop.
 4. If GPT Work or CI report something: reproduce first, verify against the code, fix with
