@@ -239,3 +239,88 @@ class PaperLoop:
         tmp = self.state_path.with_suffix(self.state_path.suffix + ".tmp")
         tmp.write_text(json.dumps(data, indent=2))
         tmp.replace(self.state_path)
+
+
+# ----------------------------------------------------------------------
+# Command line: `python -m trading_intelligence.execution.paper_loop ...`
+# ----------------------------------------------------------------------
+
+def build_loop(
+    symbols: list[str],
+    timeframe: str,
+    state_dir: Path,
+    *,
+    market_data: AbstractExchangeAdapter,
+    paper_equity: str = "10000",
+    risk_overrides: Optional[dict] = None,
+    trailing_stop_pct: Optional[float] = None,
+    stop_file: Optional[Path] = None,
+) -> PaperLoop:
+    """Wires the real RiskEngine, PaperAdapter and the default router (per symbol,
+    at this timeframe) into a PaperLoop whose state lives in `state_dir`.
+    `risk_overrides` must come from a file the owner controls; without it the
+    RiskEngine uses the spec defaults."""
+    from decimal import Decimal
+
+    from trading_intelligence.persistence.audit_log import AuditLog
+    from trading_intelligence.risk.engine import RiskEngine
+    from trading_intelligence.risk.models import RiskConfig
+    from trading_intelligence.strategy.router import default_router
+
+    state_dir = Path(state_dir)
+    state_dir.mkdir(parents=True, exist_ok=True)
+    risk = RiskEngine(RiskConfig(**(risk_overrides or {})), state_dir / "risk.json", AuditLog(state_dir / "audit"))
+    paper = PaperAdapter(market_data, Decimal(paper_equity), state_dir / "paper.json")
+    runner = PaperTradingRunner(
+        lambda sym: default_router(sym, timeframe), risk, paper, trailing_stop_pct=trailing_stop_pct,
+    )
+    return PaperLoop(runner, market_data, symbols, timeframe, state_dir / "loop.json", stop_file=stop_file)
+
+
+def _binance_market_data(allow_testnet_data: bool) -> AbstractExchangeAdapter:
+    """Public Binance klines only. Credentials are cleared so no signed endpoint
+    can be reached from here, and testnet data (which an environment variable
+    can silently force) is refused unless explicitly allowed."""
+    from trading_intelligence.execution.binance import BinanceSpotAdapter
+
+    adapter = BinanceSpotAdapter(testnet=False)
+    adapter.api_key = None
+    adapter.secret_key = None
+    if adapter.testnet and not allow_testnet_data:
+        raise SystemExit(
+            "Refusing to run on Binance TESTNET market data (BINANCE_TESTNET forces it). "
+            "Unset it, or pass --allow-testnet-data if that is really intended."
+        )
+    return adapter
+
+
+def main(argv: Optional[list[str]] = None, market_data: Optional[AbstractExchangeAdapter] = None) -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Run the research pipeline continuously in PAPER mode.")
+    parser.add_argument("--symbols", nargs="+", required=True)
+    parser.add_argument("--timeframe", required=True, choices=sorted(INTERVAL_SECONDS))
+    parser.add_argument("--state-dir", required=True, type=Path)
+    parser.add_argument("--paper-equity", default="10000", help="simulated starting equity (PAPER only)")
+    parser.add_argument("--risk-config", type=Path, help="JSON file of RiskConfig overrides chosen by the owner")
+    parser.add_argument("--trailing-stop-pct", type=float, help="opt-in trailing stop, e.g. 0.10")
+    parser.add_argument("--max-ticks", type=int, help="stop after this many polls (default: run until stopped)")
+    parser.add_argument("--stop-file", type=Path, help="the loop stops before its next poll if this file exists")
+    parser.add_argument("--allow-testnet-data", action="store_true")
+    args = parser.parse_args(argv)
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    overrides = json.loads(args.risk_config.read_text()) if args.risk_config else None
+    feed = market_data or _binance_market_data(args.allow_testnet_data)
+    loop = build_loop(
+        args.symbols, args.timeframe, args.state_dir, market_data=feed, paper_equity=args.paper_equity,
+        risk_overrides=overrides, trailing_stop_pct=args.trailing_stop_pct,
+        stop_file=args.stop_file or args.state_dir / "STOP",
+    )
+    ticks = loop.run(max_ticks=args.max_ticks)
+    logger.info("PaperLoop stopped after %d polls; state in %s", ticks, args.state_dir)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

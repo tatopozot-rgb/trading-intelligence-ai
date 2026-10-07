@@ -265,3 +265,51 @@ def test_status_reports_what_an_operator_needs(tmp_path, flat_feed):
     assert status["books_disagree"] == []
     assert Decimal(status["equity"]) == Decimal("10000")
 
+
+
+class TestCommandLine:
+    def test_main_runs_the_real_pipeline_on_an_injected_feed(self, tmp_path, flat_feed):
+        from trading_intelligence.execution import paper_loop
+
+        _at(flat_feed, WARMUP + 1)
+        risk_file = tmp_path / "risk.json.in"
+        risk_file.write_text(json.dumps({"max_position_size_pct": 10.0}))
+        original_clock = paper_loop.PaperLoop.__init__
+
+        def init(self, *args, **kwargs):
+            kwargs["clock"] = lambda: flat_feed.now
+            original_clock(self, *args, **kwargs)
+
+        import unittest.mock as mock
+        with mock.patch.object(paper_loop.PaperLoop, "__init__", init):
+            code = paper_loop.main(
+                ["--symbols", SYMBOL, "--timeframe", "1h", "--state-dir", str(tmp_path / "s"),
+                 "--risk-config", str(risk_file), "--max-ticks", "1"],
+                market_data=flat_feed,
+            )
+        assert code == 0
+        saved = json.loads((tmp_path / "s" / "loop.json").read_text())
+        assert saved["last_processed"] == _ts(WARMUP)
+        assert (tmp_path / "s" / "risk.json").exists() and (tmp_path / "s" / "paper.json").exists()
+
+    def test_a_stop_file_in_the_state_dir_is_honoured_by_default(self, tmp_path, flat_feed):
+        from trading_intelligence.execution import paper_loop
+
+        (tmp_path / "s").mkdir()
+        (tmp_path / "s" / "STOP").write_text("")
+        assert paper_loop.main(["--symbols", SYMBOL, "--timeframe", "1h", "--state-dir", str(tmp_path / "s"),
+                                "--max-ticks", "3"], market_data=flat_feed) == 0
+        assert flat_feed.calls == 0
+
+    def test_binance_feed_refuses_testnet_data_and_carries_no_credentials(self, monkeypatch):
+        from trading_intelligence.execution import paper_loop
+
+        monkeypatch.setenv("BINANCE_API_KEY", "should-never-be-used")
+        monkeypatch.setenv("BINANCE_SECRET_KEY", "should-never-be-used")
+        monkeypatch.setenv("BINANCE_TESTNET", "false")
+        feed = paper_loop._binance_market_data(allow_testnet_data=False)
+        assert feed.api_key is None and feed.secret_key is None
+        assert feed.testnet is False
+        monkeypatch.setenv("BINANCE_TESTNET", "true")
+        with pytest.raises(SystemExit, match="TESTNET"):
+            paper_loop._binance_market_data(allow_testnet_data=False)
