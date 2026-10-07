@@ -23,6 +23,7 @@ from tests.test_paper_runner import (
     _Scripted,
 )
 from trading_intelligence.execution.paper_runner import EXIT_STOP, PaperTradingRunner
+from trading_intelligence.risk.engine import RiskEngine
 
 
 def _signalled(tmp_path: Path, **kw) -> tuple[PaperTradingRunner, pd.DataFrame]:
@@ -310,3 +311,30 @@ def test_replaying_the_whole_history_after_the_run_is_inert(tmp_path, bars_after
     for _ in range(bars_after):
         assert runner.process_bar(SYMBOL, data).action == "STALE_BAR_IGNORED"
     assert (runner.paper.cash, dict(runner.paper.positions), runner.risk_engine.open_position_count) == snapshot
+
+
+class TestOneEquityPerTimestamp:
+    def test_every_fill_check_in_a_timestamp_sees_the_same_equity(self, tmp_path, monkeypatch):
+        """Found by the lifecycle fuzzer: equity was re-read per symbol, so the first
+        symbol's fill (cash spent, its mark moved) changed the cap and risk budget the
+        next symbol was vetted against, and the limits depended on symbol order."""
+        runner = PaperTradingRunner(
+            lambda sym: _router_for(_Scripted(entry_at=WARMUP + 1, symbol=sym)), _risk(tmp_path), _paper(tmp_path),
+        )
+        flat = _bars(_flat(WARMUP + 1))
+        runner.process_bars({"AAAUSDT": flat, "BBBUSDT": flat})  # both signal and are approved
+        assert len(runner._pending_entries) == 2
+
+        seen: list[Decimal] = []
+        original = RiskEngine.validate_fill
+
+        def spy(self, quantity, stop_price, fill_price, equity):
+            seen.append(equity)
+            return original(self, quantity, stop_price, fill_price, equity)
+
+        monkeypatch.setattr(RiskEngine, "validate_fill", spy)
+        nxt = _bars(_flat(WARMUP + 2))
+        runner.process_bars({"AAAUSDT": nxt, "BBBUSDT": nxt})
+        assert len(seen) == 2
+        assert seen[0] == seen[1], f"the second symbol was vetted against a different equity: {seen}"
+        assert len(runner.paper.positions) == 2, "fixture must actually fill both entries"

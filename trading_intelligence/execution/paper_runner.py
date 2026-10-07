@@ -179,15 +179,20 @@ class PaperTradingRunner:
 
         problems: list[str] = []
         now = max(_bar_time(d) for d in fresh.values())
+        # ONE equity for every check made before this timestamp's fills. Reading it
+        # per symbol let the first symbol's fill (cash spent, its own mark moved)
+        # change the cap and risk-budget another symbol was vetted against, so the
+        # limits depended on alphabetical order. Found by the lifecycle fuzzer.
+        equity_before = self.paper.last_known_equity()
         try:
-            self.risk_engine.advance_clock(self.paper.last_known_equity(), now)
+            self.risk_engine.advance_clock(equity_before, now)
         except Exception:
             logger.exception("RiskEngine could not advance its clock — blocking new entries")
             problems.append("RiskEngine failed to advance its clock")
 
         ingested: dict[str, tuple[datetime, list[OrderResult], list[str]]] = {}
         for symbol in sorted(fresh):
-            ingested[symbol] = self._ingest(symbol, fresh[symbol])
+            ingested[symbol] = self._ingest(symbol, fresh[symbol], equity_before)
             self._last_bar_time[symbol] = ingested[symbol][0]
 
         equity = self.paper.get_account_info().equity
@@ -208,12 +213,12 @@ class PaperTradingRunner:
         return steps
 
     def _ingest(
-        self, symbol: str, data: pd.DataFrame,
+        self, symbol: str, data: pd.DataFrame, equity_before: Decimal,
     ) -> tuple[datetime, list[OrderResult], list[str]]:
         bar_time = _bar_time(data)
         last = data.iloc[-1]
         open_ = Decimal(str(float(last["open"])))
-        notes = self._veto_pending_entry(symbol, open_)
+        notes = self._veto_pending_entry(symbol, open_, equity_before)
         fills = self.paper.on_new_bar(
             symbol, open_, Decimal(str(float(last["high"]))),
             Decimal(str(float(last["low"]))), Decimal(str(float(last["close"]))),
@@ -222,7 +227,7 @@ class PaperTradingRunner:
         fills = fills + self._handle_fills(symbol, fills, bar_time)
         return bar_time, fills, notes
 
-    def _veto_pending_entry(self, symbol: str, open_: Decimal) -> list[str]:
+    def _veto_pending_entry(self, symbol: str, open_: Decimal, equity_before: Decimal) -> list[str]:
         """An entry approved on an earlier bar is about to fill at this bar's
         open. Re-check what the approval could not know: that no halt has
         begun in between (kill switch, daily-loss halt, drawdown pause), and
@@ -237,7 +242,7 @@ class PaperTradingRunner:
             if reason is None:
                 reason = self.risk_engine.validate_fill(
                     pending.quantity, pending.proposal.stop_price,
-                    self.paper.market_fill_price("BUY", open_), self.paper.last_known_equity(),
+                    self.paper.market_fill_price("BUY", open_), equity_before,
                 )
         except Exception:
             logger.exception("RiskEngine failed re-checking the pending %s entry — cancelling", symbol)
