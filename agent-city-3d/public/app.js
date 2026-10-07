@@ -564,6 +564,32 @@ function aplicarEtiquetasEdificios() {
     e.etiqueta.visible = dist < 50 || (EDIFICIOS_PRINCIPALES.has(id) && dist < 110);
   }
 }
+// Label System 2.0: detección de colisión en pantalla. Prioridad: agente real > edificio
+// principal > edificio secundario > agente simulado. Si dos se solapan, gana la de mayor prioridad.
+function declutterEtiquetas() {
+  const rect = renderer.domElement.getBoundingClientRect();
+  if (!rect.width) return;
+  const candidatos = [];
+  for (const id in edificios) {
+    const e = edificios[id];
+    if (e.etiqueta.visible) candidatos.push({ obj: e.etiqueta, prioridad: EDIFICIOS_PRINCIPALES.has(id) ? 2 : 1, radio: 72 });
+  }
+  for (const key in agentes) {
+    const ag = agentes[key];
+    if (ag.grupo.visible && ag.etiqueta.visible) candidatos.push({ obj: ag.etiqueta, prioridad: ag.seleccionAro.visible ? 4 : ag.esSimulado ? 0 : 3, radio: 58 });
+  }
+  candidatos.sort((a, b) => b.prioridad - a.prioridad);
+  const aceptados = [];
+  const v = new THREE.Vector3();
+  for (const c of candidatos) {
+    c.obj.getWorldPosition(v).project(camara);
+    if (v.z > 1 || v.z < -1) { c.obj.visible = false; continue; }
+    const x = (v.x * 0.5 + 0.5) * rect.width, y = (1 - (v.y * 0.5 + 0.5)) * rect.height;
+    const choca = aceptados.some((a) => Math.abs(a.x - x) < (a.r + c.radio) / 2 && Math.abs(a.y - y) < 26);
+    c.obj.visible = !choca;
+    if (!choca) aceptados.push({ x, y, r: c.radio });
+  }
+}
 function aplicarInteriores() {
   for (const id in edificios) if (edificios[id].interior) edificios[id].interior.visible = interioresVisibles;
 }
@@ -818,6 +844,7 @@ renderer.setAnimationLoop(() => {
   avanzarAgentes(dt, ahora, camara.position);
   animarPulsos(Date.now());
   aplicarEtiquetasEdificios();
+  declutterEtiquetas();
   animarVuelo(ahora);
   if (seguir && agentes[seguir] && agentes[seguir].grupo.visible) {
     const d = agentes[seguir].grupo.position.clone().sub(controles.target);
