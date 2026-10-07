@@ -350,6 +350,42 @@ class TestRunAnchoredWalkForwardIntegration:
         assert len(calls) == 2 * 2
 
 
+def _make_mixed_regime_ohlcv(n: int = 1000, seed: int = 17) -> pd.DataFrame:
+    """Alternates trending and mean-reverting (ranging) stretches so a
+    router covering both TREND_UP/BREAKOUT_UP and RANGE actually sees bars
+    of each kind — unlike _make_trending_ohlcv, which is pure trend/noise
+    and would never route anything to a RANGE-only strategy."""
+    rng = np.random.default_rng(seed)
+    segment = 100
+    closes = [100.0]
+    for seg_start in range(0, n, segment):
+        seg_len = min(segment, n - seg_start)
+        if (seg_start // segment) % 2 == 0:
+            # Trending stretch
+            drift = rng.choice([-1, 1]) * 0.0015
+            returns = rng.normal(drift, 0.012, seg_len)
+            for r in returns:
+                closes.append(closes[-1] * (1 + r))
+        else:
+            # Ranging stretch: oscillates around the level it entered at,
+            # no persistent drift.
+            level = closes[-1]
+            for i in range(seg_len):
+                closes.append(level * (1 + 0.02 * np.sin(i / 4.0) + rng.normal(0, 0.004)))
+    close = np.array(closes[1 : n + 1])
+    idx = pd.date_range("2018-01-01", periods=len(close), freq="1D")
+    return pd.DataFrame(
+        {
+            "open": close * (1 + rng.uniform(-0.003, 0.003, len(close))),
+            "high": close * (1 + rng.uniform(0.001, 0.008, len(close))),
+            "low": close * (1 - rng.uniform(0.001, 0.008, len(close))),
+            "close": close,
+            "volume": rng.uniform(1000, 5000, len(close)),
+        },
+        index=idx,
+    )
+
+
 class TestRunAnchoredWalkForwardRouterMode:
     """router_factory mode — validating a regime-aware StrategyRouter
     configuration through the same gate, instead of one fixed strategy."""
@@ -400,5 +436,28 @@ class TestRunAnchoredWalkForwardRouterMode:
         assert isinstance(go, bool)
         assert isinstance(reason, str) and reason
         assert "regime_router_e2e_test" in report.summary()
+        for fold in report.folds:
+            assert fold.oos_start > fold.is_end
+
+    def test_end_to_end_report_with_range_reversion_router_is_well_formed(self):
+        """Same proof as the default_router() test above, but for
+        router_with_range_reversion() (BollingerReversion registered for
+        Regime.RANGE — the real gap this strategy was built to fill) on
+        data with genuine ranging stretches, not pure trend/noise. Makes no
+        claim about GO vs NO-GO — that honest result is reported separately
+        in docs/CHECKPOINT.md, not asserted here."""
+        from trading_intelligence.strategy.router import router_with_range_reversion
+
+        data = _make_mixed_regime_ohlcv(n=1000, seed=23)
+        report = run_anchored_walk_forward(
+            router_factory=lambda params: router_with_range_reversion(),
+            params={"strategy_id": "range_reversion_e2e_test"},
+            data=data, is_pct=0.5, oos_pct=0.2, step_pct=0.15, max_folds=3,
+        )
+        assert isinstance(report, WalkForwardReport)
+        go, reason = report.go_no_go()
+        assert isinstance(go, bool)
+        assert isinstance(reason, str) and reason
+        assert "range_reversion_e2e_test" in report.summary()
         for fold in report.folds:
             assert fold.oos_start > fold.is_end

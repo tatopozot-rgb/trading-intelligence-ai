@@ -9,7 +9,9 @@ from trading_intelligence.strategy.router import (
     ROUTED,
     StrategyRouter,
     default_router,
+    router_with_range_reversion,
 )
+from trading_intelligence.strategy.strategies.bollinger_reversion import BollingerReversion
 from trading_intelligence.strategy.strategies.ma_crossover import DualMACrossover
 
 
@@ -109,6 +111,43 @@ class TestDefaultRouter:
             decision = router.route(_snapshot(regime, confidence=1.0))
             assert decision.is_no_trade, f"{regime} should be NO_TRADE but got a strategy"
             assert decision.reason == NO_STRATEGY_FOR_REGIME
+
+
+class TestRouterWithRangeReversion:
+    """router_with_range_reversion() — default_router()'s coverage plus
+    BollingerReversion for Regime.RANGE, kept as a separate function (see
+    router.py's own docstring) rather than mutating default_router() itself."""
+
+    def test_covers_default_router_regimes_plus_range(self):
+        router = router_with_range_reversion()
+        assert router.registered_regimes() == frozenset(
+            {Regime.TREND_UP, Regime.BREAKOUT_UP, Regime.RANGE}
+        )
+
+    def test_range_routes_to_bollinger_reversion(self):
+        router = router_with_range_reversion()
+        decision = router.route(_snapshot(Regime.RANGE, confidence=0.9))
+        assert isinstance(decision.strategy, BollingerReversion)
+
+    def test_trend_up_and_breakout_up_still_route_to_dual_ma_crossover(self):
+        """Confirms this function reuses default_router()'s own registry
+        rather than rebuilding it separately (and potentially diverging)."""
+        router = router_with_range_reversion()
+        for regime in (Regime.TREND_UP, Regime.BREAKOUT_UP):
+            decision = router.route(_snapshot(regime, confidence=0.9))
+            assert isinstance(decision.strategy, DualMACrossover)
+
+    def test_default_router_itself_is_unmodified(self):
+        """The coordination note is explicit: adding RANGE coverage must not
+        silently mutate the shared default_router() every other caller uses."""
+        router = default_router()
+        assert router.registered_regimes() == frozenset({Regime.TREND_UP, Regime.BREAKOUT_UP})
+
+    def test_range_below_confidence_threshold_is_no_trade(self):
+        router = router_with_range_reversion()
+        decision = router.route(_snapshot(Regime.RANGE, confidence=0.1))
+        assert decision.is_no_trade
+        assert decision.reason == CONFIDENCE_BELOW_THRESHOLD
 
 
 class TestNonFiniteConfidenceFailsClosed:

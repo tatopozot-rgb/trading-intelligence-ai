@@ -7,6 +7,7 @@ from trading_intelligence.analysis.indicators import (
     above_ma_filter,
     adx,
     atr,
+    bollinger_bands,
     donchian_high,
     donchian_low,
     ema,
@@ -205,3 +206,40 @@ class TestAboveMAFilter:
         result = above_ma_filter(s, period=10)
         # Near end, price should be below MA
         assert not result.dropna().iloc[-1]
+
+
+# ── Bollinger Bands ───────────────────────────────────────────────────────────
+
+class TestBollingerBands:
+    def test_flat_prices_zero_std_bands_collapse_to_middle(self):
+        s = _series([100.0] * 25)
+        middle, upper, lower = bollinger_bands(s, period=20, num_std=2.0)
+        assert middle.iloc[-1] == pytest.approx(100.0)
+        assert upper.iloc[-1] == pytest.approx(100.0)
+        assert lower.iloc[-1] == pytest.approx(100.0)
+
+    def test_known_values_against_manual_computation(self):
+        values = [float(v) for v in [10, 12, 11, 13, 14, 12, 15, 13, 16, 14]]
+        s = _series(values)
+        middle, upper, lower = bollinger_bands(s, period=5, num_std=2.0)
+        window = np.array(values[-5:])
+        expected_mean = window.mean()
+        expected_std = window.std(ddof=0)
+        assert middle.iloc[-1] == pytest.approx(expected_mean)
+        assert upper.iloc[-1] == pytest.approx(expected_mean + 2.0 * expected_std)
+        assert lower.iloc[-1] == pytest.approx(expected_mean - 2.0 * expected_std)
+
+    def test_warmup_period_is_nan(self):
+        s = _series([100.0] * 10)
+        middle, upper, lower = bollinger_bands(s, period=20, num_std=2.0)
+        assert pd.isna(middle.iloc[-1])
+        assert pd.isna(upper.iloc[-1])
+        assert pd.isna(lower.iloc[-1])
+
+    def test_invalid_period(self):
+        with pytest.raises(ValueError, match="period"):
+            bollinger_bands(_series([1.0, 2.0, 3.0]), period=1)
+
+    def test_invalid_num_std(self):
+        with pytest.raises(ValueError, match="num_std"):
+            bollinger_bands(_series([1.0, 2.0, 3.0]), period=2, num_std=0)

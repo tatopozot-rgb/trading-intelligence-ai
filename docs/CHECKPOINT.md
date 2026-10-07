@@ -832,6 +832,123 @@ Control, Supervisor):
   coordination convention). Task: build and validate ONE mean-reversion
   strategy for `Regime.RANGE`. Registered in Notion's AGENTS table.
 
+### 28. Quant/Strategy session: built and validated a Bollinger-Band mean-reversion strategy for `Regime.RANGE` — honest result: NO-GO (insufficient sample size, with a real economic cause identified)
+
+Read `AGENTS.md`, this checkpoint's last five sections (22-25), `docs/AGENT_COORDINATION.md`,
+and `docs/STRATEGY_VALIDATION_FRAMEWORK.md` first, per the session's own brief.
+Confirmed the real gap: `default_router()` covers `TREND_UP`/`BREAKOUT_UP`
+via `DualMACrossover` only; `Regime.RANGE` was honestly `NO_TRADE` for lack
+of a validated strategy.
+
+**Built**: `trading_intelligence/strategy/strategies/bollinger_reversion.py`
+(`BollingerReversion`, long-only spot, subclasses `AbstractStrategy`). Entry:
+price closed below the lower Bollinger Band (20, 2σ) with RSI(14) < 30
+confirming genuine oversold at some bar within the last `confirm_lookback`
+bars, and has now closed back above the lower band. Exit: price reverts to
+the middle band (SMA) or RSI recovers past 50. Stop: ATR(14) × 1.5 below
+entry — a swing-low stop (as `DualMACrossover` uses) was rejected here: a
+mean-reversion entry's own swing low is often the oversold extreme itself,
+placing the stop uncomfortably close to a thin bounce. Added `bollinger_bands()`
+to `trading_intelligence/analysis/indicators.py` (pure function, same style
+as the existing indicators) since no Bollinger Band implementation existed
+yet.
+
+**One evidence-based entry-timing fix made before looking at any
+performance number** (same discipline as section 22's calibration fix, not
+post-hoc tuning): the first version required the oversold condition and the
+reversion confirmation on exactly adjacent bars, which produced only 3
+signals across 4 years of realistic synthetic daily data — checked why
+instead of accepting a near-zero count, found the single-bar window missed
+real setups where price sat below the band for 2-3 bars before confirming,
+and added `confirm_lookback` (default 5 bars) to allow the gap. This raised
+standalone signal count to 25 over the same data — a structural fix to
+whether the strategy can recognize its own hypothesized setup at all, decided
+before any Sharpe/PF number was computed, not a tuning pass.
+
+**Registered in a new, separate router config** —
+`router_with_range_reversion()` in `trading_intelligence/strategy/router.py`
+— reusing `default_router()`'s existing registry plus `BollingerReversion`
+for `Regime.RANGE`. Does NOT mutate `default_router()` itself (confirmed by
+a dedicated test); `default_router()`'s own registered-regimes test still
+asserts exactly `{TREND_UP, BREAKOUT_UP}`.
+
+**Tested** in `tests/test_bollinger_reversion.py` (10 tests: param
+validation, insufficient-data guard, no-signal-on-flat-prices, no-signal-
+when-price-never-breaches-the-band, a verified dip-and-recovery fixture
+producing a valid Decimal stop below entry, and exit-on-reversion), plus
+5 new tests for `bollinger_bands()` in `tests/test_indicators.py`
+(known-value check against a manual numpy computation, flat-price
+degenerate case, warmup NaN, invalid params), 5 new tests for
+`router_with_range_reversion()` in `tests/test_strategy_router.py`, and one
+new end-to-end walk-forward integration test in `tests/test_walk_forward.py`
+using a new mixed-regime (trend + ranging stretches) synthetic data
+generator. 21 new tests from this work, merged via rebase on top of two
+concurrent sessions' own pushes (Quant/Validation's section 26, Trading
+Codex's PR #8 bug-fix section 27) — **321/321 tests passing** on the final
+merged branch, verified directly (not computed from commit-message deltas,
+which disagreed with each other since each session counted from its own
+pre-push baseline): 276 before any of these three concurrent sessions
+started, 300 immediately before this session's own commit, 321 after it.
+`ruff check` and `mypy` clean across the whole package.
+
+**Validated honestly through `run_anchored_walk_forward(router_factory=...)`**
+— the real gate, not a shortcut. Used a RANGE-ONLY router (no TREND_UP/
+BREAKOUT_UP registered) for this specific validation run, so the GO/NO-GO
+result reflects `BollingerReversion`'s own performance, uncontaminated by
+`DualMACrossover`'s trades — `router_with_range_reversion()` itself is the
+production-shaped config, kept separate for exactly this reason. Data: one
+seeded (2026) run of ~4 years (1460 bars) of realistic synthetic daily
+OHLCV alternating randomized trend and ranging stretches — not pure
+sine/noise, and not re-rolled after seeing results. `is_pct=0.5,
+oos_pct=0.15, step_pct=0.1, max_folds=5`.
+
+**Result: NO-GO.** All 4 attempted folds were skipped before OOS — every
+IS window had zero trades (IS Sharpe stuck at exactly 0.00) — 0 OOS trades,
+0 folds completed, `go_no_go()` reason "No folds completed". Diagnosed why,
+not just reported the number: a RANGE-only router applied to the full
+dataset produced exactly **1 trade in ~4 years**. Checked the standalone
+strategy signal count against the regime at each signal bar (confirmed via
+`detect_regime`, not assumed) — of 25 standalone signals, only 4 (16%)
+coincided with a `RANGE`-classified bar at `min_confidence=0.5`; 16 (64%)
+landed in `TREND_DOWN`, 3 in `BREAKOUT_DOWN`, 2 in `NO_EDGE`. **Real economic
+cause, not just "not enough data"**: a confirmed-`RANGE` bar (low ADX, per
+`trading_intelligence/regime/detector.py`) correlates with LOW realized
+volatility on this data — which makes a 2-standard-deviation Bollinger Band
+breach intrinsically rare while genuinely ranging. An oversold band-breach
+bounce is, on this evidence, much more characteristic of a sharp dip within
+a down-move (`TREND_DOWN`/`BREAKOUT_DOWN` — regimes this long-only spot
+project cannot trade anyway) than of a true sideways market. This mirrors
+section 22's own discovery that `DualMACrossover`'s real signals land on
+`BREAKOUT_UP`, not ADX-confirmed `TREND_UP` — a strategy's actual signal
+timing and a regime detector's classification timing do not have to agree,
+and checking that directly (not assuming it) is the whole point of running
+this gate for real.
+
+**Not re-tuned after seeing this result** — `docs/STRATEGY_VALIDATION_FRAMEWORK.md`'s
+explicit rule against tuning until something looks good, and this project's
+own prior precedent (checkpoint section 12: a first-strategy NO-GO treated
+as correct, useful information, not a failure to patch around). The
+`confirm_lookback` fix above was made and justified by signal-count evidence
+*before* this performance number existed, which is a different thing.
+`router_with_range_reversion()`'s own docstring now states this NO-GO result
+explicitly and says not to promote it into `default_router()`.
+
+**What would be needed for a real GO attempt on this regime** (documented,
+not attempted now — a new validation attempt, not a patch to this one):
+a mean-reversion trigger designed around what actually co-occurs with
+*low* realized volatility (e.g. a tighter, volatility-relative band such as
+Keltner Channels scaled to ATR, or a %B/RSI threshold calibrated
+specifically within already-confirmed-RANGE bars) rather than a fixed
+2σ Bollinger breach, which this evidence shows rarely fires inside genuine
+RANGE regimes at all.
+
+Status: `docs/AGENT_COORDINATION.md`'s task row updated to **DONE — NO-GO**.
+Files touched: `trading_intelligence/analysis/indicators.py`,
+`trading_intelligence/strategy/strategies/bollinger_reversion.py` (new),
+`trading_intelligence/strategy/router.py`, `tests/test_indicators.py`,
+`tests/test_bollinger_reversion.py` (new), `tests/test_strategy_router.py`,
+`tests/test_walk_forward.py`. No other agent's in-progress files touched.
+
 ## What's Next
 
 **For whichever agent picks this up next:**

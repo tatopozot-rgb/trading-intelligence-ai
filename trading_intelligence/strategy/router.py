@@ -146,3 +146,37 @@ def candidate_router_trend_4h() -> StrategyRouter:
     router.register(Regime.TREND_UP, strategy, min_confidence=0.5)
     router.register(Regime.BREAKOUT_UP, strategy, min_confidence=0.0)
     return router
+
+
+def router_with_range_reversion() -> StrategyRouter:
+    """default_router()'s coverage, PLUS BollingerReversion (mean-reversion,
+    see trading_intelligence/strategy/strategies/bollinger_reversion.py)
+    registered for Regime.RANGE.
+
+    Deliberately kept separate from default_router() rather than mutating it
+    in place — per docs/AGENT_COORDINATION.md's coordination note, adding
+    RANGE coverage to the shared router needs its own explicit review, not a
+    silent edit to the config every other caller already uses.
+
+    **Walk-forward validation result: NO-GO. Do NOT promote this into
+    default_router().** Run through run_anchored_walk_forward() on ~4 years
+    of realistic regime-mixed synthetic daily data (RANGE-only router, to
+    isolate this strategy's own performance): every attempted fold's IS
+    window had zero trades (IS Sharpe stuck at 0.00), because BollingerReversion's
+    own oversold-bounce signal predominantly fires during TREND_DOWN/
+    BREAKOUT_DOWN bars (16+3 of 25 standalone signals), not RANGE (4 of 25) —
+    a confirmed-RANGE bar (low ADX) correlates with LOW realized volatility
+    on this data, which makes a 2-standard-deviation Bollinger Band breach
+    intrinsically rare while genuinely ranging. The RANGE-gated router
+    produced exactly 1 trade across the full ~4-year dataset: nowhere near
+    the 30-OOS-trade minimum STRATEGY_VALIDATION_FRAMEWORK.md requires. See
+    docs/CHECKPOINT.md's entry for this session for the full evidence. Not
+    re-tuned after seeing this result, per that framework's explicit rule
+    against tuning until something looks good.
+    """
+    from trading_intelligence.strategy.strategies.bollinger_reversion import BollingerReversion
+
+    router = default_router()
+    strategy = BollingerReversion("BTCUSDT", "1d")
+    router.register(Regime.RANGE, strategy, min_confidence=0.5)
+    return router

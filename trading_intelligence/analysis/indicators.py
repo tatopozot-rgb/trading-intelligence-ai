@@ -115,6 +115,25 @@ def ma_crossover_signal(
     return signal.fillna(0).astype(int)
 
 
+def bollinger_bands(
+    close: pd.Series, period: int = 20, num_std: float = 2.0
+) -> tuple[pd.Series, pd.Series, pd.Series]:
+    """
+    Bollinger Bands: (middle, upper, lower).
+    Middle = SMA(period). Bands = middle +/- num_std * rolling std (population,
+    ddof=0, the standard Bollinger convention).
+    """
+    if period < 2:
+        raise ValueError(f"period must be >= 2, got {period}")
+    if num_std <= 0:
+        raise ValueError(f"num_std must be > 0, got {num_std}")
+    middle = sma(close, period)
+    std = close.rolling(window=period, min_periods=period).std(ddof=0)
+    upper = middle + num_std * std
+    lower = middle - num_std * std
+    return middle, upper, lower
+
+
 def above_ma_filter(close: pd.Series, period: int, ma_type: Literal["sma", "ema"] = "sma") -> pd.Series:
     """
     Returns a boolean series: True when price is above the MA.
