@@ -755,8 +755,8 @@ function pintarSimulacion() {
   const sims = ultimo.agents.filter((a) => a.kind === "simulated" && a.stage !== "SIM_ROLE");
   const porEstado = {};
   for (const s of sims) porEstado[s.state] = (porEstado[s.state] || 0) + 1;
-  const estados = Object.entries(porEstado).map(([k, v]) => `<span>${escapar(k)} ${v}</span>`).join("") || "<span>ninguno</span>";
-  const roles = ultimo.agents.filter((a) => a.stage === "SIM_ROLE").map((s) => `<span>${escapar(s.name)}</span>`).join("") || "<span>ninguno</span>";
+  const estados = Object.entries(porEstado).map(([k, v]) => `${escapar(k.replace("SIM_", ""))} (${v})`).join(" · ") || "ninguno";
+  const roles = ultimo.agents.filter((a) => a.stage === "SIM_ROLE").map((s) => escapar(s.name)).join(" · ") || "ninguno";
   const aprendices = ultimo.agents.filter((a) => a.stage === "TRAINEE").length;
   const trabajadores = ultimo.agents.filter((a) => a.tipo === "worker").length;
   $("sec-sim").innerHTML =
@@ -765,14 +765,14 @@ function pintarSimulacion() {
      ${fila("Población", sims.length)}
      ${fila("Aprendices (sim)", aprendices)}
      ${fila("Puestos ocupados (sim)", trabajadores)}
-     <div class="grupo-titulo">Estados visuales</div><div class="chipline">${estados}</div>
-     <div class="grupo-titulo">Roles simulados activos</div><div class="chipline">${roles}</div>`;
+     <div class="grupo-titulo">Estados visuales</div><p class="linea-compacta">${estados}</p>
+     <div class="grupo-titulo">Roles simulados activos</div><p class="linea-compacta">${roles}</p>`;
 }
 
 function pintarRoles() {
   const conectados = ultimo.agents.filter((a) => a.kind !== "simulated" && a.stage === "CORE")
-    .map((a) => `<span>${escapar(a.name)} (${escapar(a.alias)})</span>`).join("") || "<span>ninguno</span>";
-  const simulados = ultimo.agents.filter((a) => a.stage === "SIM_ROLE").map((a) => `<span>${escapar(a.name)}</span>`).join("") || "<span>ninguno</span>";
+    .map((a) => `${escapar(a.name)} (${escapar(a.alias)})`).join(" · ") || "ninguno";
+  const simulados = ultimo.agents.filter((a) => a.stage === "SIM_ROLE").map((a) => escapar(a.name)).join(" · ") || "ninguno";
   const planeados = ultimo.planned || [];
   const grupos = CATEGORIAS.map((c) => {
     const lista = planeados.filter((p) => p.categoria === c);
@@ -780,8 +780,8 @@ function pintarRoles() {
     return `<div class="grupo-titulo">${escapar(c)}</div>` + lista.map((p) => fila(p.name, p.state)).join("");
   }).join("");
   $("sec-roles").innerHTML =
-    `<div class="grupo-titulo">Conectados a fuente real</div><div class="chipline">${conectados}</div>
-     <div class="grupo-titulo">Simulados activos (sin fuente real)</div><div class="chipline">${simulados}</div>
+    `<div class="grupo-titulo">Conectados a fuente real</div><p class="linea-compacta">${conectados}</p>
+     <div class="grupo-titulo">Simulados activos (sin fuente real)</div><p class="linea-compacta">${simulados}</p>
      <div class="grupo-titulo">Planificados (inactivos)</div>${grupos || "<p class='muted'>ninguno</p>"}`;
 }
 
