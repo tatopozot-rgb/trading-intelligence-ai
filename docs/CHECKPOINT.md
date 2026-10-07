@@ -1357,6 +1357,71 @@ LIVE hard limits.
 424/424 tests passing (excluding the 7-test 4h battery run separately), ruff + mypy clean (36 files)
 ```
 
+### 32. Proactive hunt for the next defect class: a stateful lifecycle fuzzer (2026-10-07)
+
+Scheduled 8h checkpoint. Nothing new from GPT Work, Local or `davcevar1` since
+section 31 (CI green on `0ae0d17`; no commits by anyone else), so the useful work
+left in cloud scope was not to wait for the next external review. GPT Work found 12
+real defects in code whose unit tests were green, and every one was an
+*interaction* (restart between approval and fill, a replayed bar, a halt
+mid-lifecycle, a bookkeeping call failing after a fill). Tests the author writes
+test the author's mental model, so this checkpoint builds a tool that does not
+share it.
+
+**`tests/runner_fuzz.py`** drives the real pipeline (always-long strategy, real
+RiskEngine, real PaperAdapter, correlated crash data) through a random sequence of
+mid-run restarts, replayed old bars, kill-switch on/off, and injected failures of
+`confirm_reservation`, `register_position_closed` and `observe_equity`, and checks
+after every bar: cash >= 0 and equity > 0; every open position has a STOP of
+exactly its size; open + pending <= `max_open_positions`; books reconcile (or, if a
+failure was injected, no entry is submitted while they disagree); nothing fills or
+is submitted while the kill switch is active; every fill respects the position cap
+and the risk budget at its real price; a restart changes no cash/position/stop and
+leaves no pending entry or reservation; replaying an old bar changes nothing.
+Deterministic per seed. `python -m tests.runner_fuzz N [FIRST_SEED]`.
+
+**Is the fuzzer able to see anything? Yes, measured, not assumed.** Run against the
+pre-fix code (`a0941e3`, via a worktree with two API shims): **373 violations in 30
+seeds** (old bars executing orders, fills through a halt, position caps exceeded, an
+`OSError` escaping the step). Run against the fixed code: 0. `test_runner_fuzz.py`
+also carries two self-tests that disable a protection on purpose and require the
+fuzzer to report it, plus a check that every event type actually fired.
+
+**It found one real defect in my section-31 code (fixed, `b02dfec`).** The fill-time
+veto read equity per symbol inside the ingest loop. The first symbol's fill (cash
+spent, its own mark moved) changed the position cap and risk budget the *next*
+symbol was vetted against, so the limits depended on alphabetical symbol order.
+Seed 62: a fill of 1009.28 against a cap of 1007.59 (0.17% over). Small, but exactly
+the kind of order-dependence that is invisible to a hand-written test. One equity
+snapshot is now taken per timestamp and used for every check before that
+timestamp's fills; a regression test pins it and was mutated to confirm it fails
+without the fix.
+
+**One thing the fuzzer taught me about *my own* test, not the code:** its first
+version asserted that after a bookkeeping failure the system would never submit an
+entry again. It did submit one, and tracing it showed the runner was right and the
+assertion wrong: entries stayed blocked while the books disagreed, then the orphan
+position closed on its STOP, a restart released the orphan reservation, the books
+agreed again, and trading resumed. The invariant is "never submit while the books
+disagree", not "never again". Fixed in the fuzzer.
+
+**Results on the fixed code:** seeds 1-40: 0 violations; seeds 41-160: **0 violations
+in 120 seeds** (691 restarts, 597 replayed bars, 499 kill-switch toggles, 39
+confirm + 33 close-registration failures injected, 972 equity-observation
+failures). 436 tests pass (424 + 11 fuzz + 1 regression), ruff + mypy clean
+(`trading_intelligence`, `tests`; the 8 ruff / 42 mypy findings in `reviews/` and
+test typing are pre-existing and out of scope, identical before and after).
+
+**What this does NOT prove.** Zero violations over a finite random search is
+evidence, not a proof. The fuzzer covers the events I thought to model; a failure
+mode outside that list (clock skew, partial JSON writes, two processes sharing the
+state files, an exchange that rejects a protective STOP) is not exercised. Same
+synthetic-data limit as everything else here.
+
+```
+436/436 tests passing (excluding the 7-test 4h battery run separately), ruff + mypy clean (36 files)
+```
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
