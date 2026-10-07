@@ -259,3 +259,76 @@ class TestStatePersistence:
         position = adapter2.get_position("BTCUSDT")
         assert position is not None
         assert position.quantity == Decimal("0.1")
+
+    def test_pending_order_survives_restart(self, tmp_path):
+        """Real bug found by GPT Work's independent review: _save_state only
+        persisted cash/positions — a pending entry (and, worse, a protective
+        STOP on an open position) silently vanished on restart."""
+        state_path = tmp_path / "paper_state.json"
+        adapter1 = PaperAdapter(FakeMarketDataAdapter(), Decimal("10000"), state_path=state_path)
+        order = OrderRequest(symbol="BTCUSDT", side="BUY", order_type="LIMIT",
+                              quantity=Decimal("0.1"), limit_price=Decimal("49000"),
+                              client_order_id="fixture-pending")
+        adapter1.submit_order(order)
+
+        adapter2 = PaperAdapter(FakeMarketDataAdapter(), Decimal("999999"), state_path=state_path)
+        assert [o.client_order_id for o in adapter2.pending_orders] == ["fixture-pending"]
+        assert adapter2.pending_orders[0].limit_price == Decimal("49000")
+
+    def test_protective_stop_survives_restart_and_still_closes_on_gap(self, tmp_path):
+        state_path = tmp_path / "paper_state.json"
+        adapter1 = PaperAdapter(FakeMarketDataAdapter(), Decimal("10000"), state_path=state_path)
+        adapter1.submit_order(OrderRequest(symbol="BTCUSDT", side="BUY", order_type="MARKET",
+                                            quantity=Decimal("0.1"), client_order_id="fixture-buy"))
+        adapter1.on_new_bar("BTCUSDT", Decimal("50000"), Decimal("50500"), Decimal("49500"),
+                            Decimal("50200"), "2026-01-01T01:00:00Z")
+        adapter1.submit_order(OrderRequest(symbol="BTCUSDT", side="SELL", order_type="STOP",
+                                            quantity=Decimal("0.1"), stop_price=Decimal("48000"),
+                                            client_order_id="fixture-stop"))
+
+        adapter2 = PaperAdapter(FakeMarketDataAdapter(), Decimal("999999"), state_path=state_path)
+        adapter2.on_new_bar("BTCUSDT", Decimal("47000"), Decimal("47000"), Decimal("46000"),
+                            Decimal("46500"), "2026-01-02T00:00:00Z")
+        assert adapter2.get_position("BTCUSDT") is None, "restart must not discard the protective STOP"
+
+
+class TestOrderIdempotency:
+    def test_duplicate_client_order_id_does_not_double_fill(self, tmp_path):
+        """Real bug found by GPT Work's independent review: resubmitting the
+        identical OrderRequest filled it twice."""
+        adapter = _adapter(tmp_path)
+        order = OrderRequest(symbol="BTCUSDT", side="BUY", order_type="MARKET",
+                              quantity=Decimal("1"), client_order_id="fixture-dup")
+        first = adapter.submit_order(order)
+        second = adapter.submit_order(order)
+        assert first.status == "SUBMITTED"
+        assert second.status == "REJECTED"
+        adapter.on_new_bar("BTCUSDT", Decimal("100"), Decimal("100"), Decimal("100"),
+                           Decimal("100"), "2026-01-01T00:00:00Z")
+        assert adapter.get_position("BTCUSDT").quantity == Decimal("1")
+
+
+class TestGapFillAffordability:
+    def test_gap_fill_cannot_create_negative_cash(self, tmp_path):
+        """Real bug found by GPT Work's independent review: a BUY affordable
+        at decision-time price could still fill at a gapped-up next-bar
+        open with no affordability check at all, driving cash negative."""
+        adapter = _adapter(tmp_path, equity=Decimal("1000"))
+        # Affordable at ~100 (900 + fees); not at a gap to 200.
+        adapter.submit_order(OrderRequest(symbol="BTCUSDT", side="BUY", order_type="MARKET",
+                                           quantity=Decimal("9"), client_order_id="fixture-gap"))
+        results = adapter.on_new_bar("BTCUSDT", Decimal("200"), Decimal("210"), Decimal("195"),
+                                      Decimal("205"), "2026-01-01T00:00:00Z")
+        assert results[0].status == "REJECTED"
+        assert adapter.cash == Decimal("1000")
+        assert adapter.get_position("BTCUSDT") is None
+
+    def test_affordable_fill_still_succeeds(self, tmp_path):
+        adapter = _adapter(tmp_path, equity=Decimal("1000"))
+        adapter.submit_order(OrderRequest(symbol="BTCUSDT", side="BUY", order_type="MARKET",
+                                           quantity=Decimal("1"), client_order_id="fixture-ok"))
+        results = adapter.on_new_bar("BTCUSDT", Decimal("100"), Decimal("105"), Decimal("95"),
+                                      Decimal("100"), "2026-01-01T00:00:00Z")
+        assert results[0].status == "FILLED"
+        assert adapter.cash < Decimal("1000")
+        assert adapter.cash > Decimal("0")

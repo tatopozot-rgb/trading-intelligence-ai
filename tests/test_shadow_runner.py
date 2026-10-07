@@ -97,7 +97,12 @@ class FakeMarketDataAdapter(AbstractExchangeAdapter):
 def _risk_engine(tmp_path: Path, **config_overrides) -> RiskEngine:
     config = RiskConfig(**{
         "max_position_size_pct": 100.0, "max_total_exposure_pct": 100.0,
-        "max_correlated_exposure_pct": 100.0, **config_overrides,
+        "max_correlated_exposure_pct": 100.0,
+        # Previously unenforced (real bug, now fixed in trading_intelligence/
+        # risk/engine.py's Step 9b), so this fixture never needed to loosen
+        # it before.
+        "max_daily_turnover_pct": 1000.0,
+        **config_overrides,
     })
     audit_log = AuditLog(tmp_path / "audit")
     return RiskEngine(config, tmp_path / "risk_state.json", audit_log)

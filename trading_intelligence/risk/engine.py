@@ -27,7 +27,10 @@ REASON_DAILY_LOSS_LIMIT_REACHED = "DAILY_LOSS_LIMIT_REACHED"
 REASON_DRAWDOWN_PAUSE_ACTIVE = "DRAWDOWN_PAUSE_ACTIVE"
 REASON_NO_STOP_LOSS_DEFINED = "NO_STOP_LOSS_DEFINED"
 REASON_INVALID_REFERENCE_PRICE = "INVALID_REFERENCE_PRICE"
+REASON_INVALID_STOP_PRICE = "INVALID_STOP_PRICE"
+REASON_INVALID_STOP_DIRECTION = "INVALID_STOP_DIRECTION"
 REASON_STOP_TOO_TIGHT = "STOP_TOO_TIGHT"
+REASON_DAILY_TURNOVER_LIMIT_EXCEEDED = "DAILY_TURNOVER_LIMIT_EXCEEDED"
 REASON_POSITION_SIZE_ZERO = "POSITION_SIZE_ZERO"
 REASON_MAX_POSITIONS_REACHED = "MAX_POSITIONS_REACHED"
 REASON_DAILY_TRADE_LIMIT_REACHED = "DAILY_TRADE_LIMIT_REACHED"
@@ -283,6 +286,20 @@ class RiskEngine:
                 return self._reject(proposal, REASON_INVALID_REFERENCE_PRICE, equity, daily_pnl,
                                      daily_loss_pct, drawdown_pct)
 
+            # --- Step 4b/4c: stop price sanity ---
+            # Found by GPT Work's independent review: abs(entry - stop) below
+            # treats direction as irrelevant, so a non-positive stop or a
+            # stop placed on the wrong side of entry passed as long as its
+            # absolute distance wasn't "too tight". TradeProposal.side is
+            # spot-only BUY (long-only, per its own type) — a stop that
+            # protects a long position must be strictly below entry.
+            if proposal.stop_price <= 0:
+                return self._reject(proposal, REASON_INVALID_STOP_PRICE, equity, daily_pnl,
+                                     daily_loss_pct, drawdown_pct)
+            if proposal.stop_price >= entry_price:
+                return self._reject(proposal, REASON_INVALID_STOP_DIRECTION, equity, daily_pnl,
+                                     daily_loss_pct, drawdown_pct)
+
             stop_distance_pct = abs(entry_price - proposal.stop_price) / entry_price * 100
 
             # --- Step 5: stop too tight ---
@@ -314,6 +331,19 @@ class RiskEngine:
             # --- Step 9: daily trade count ---
             if self.state.daily_trade_count >= self.config.max_trades_per_day:
                 return self._reject(proposal, REASON_DAILY_TRADE_LIMIT_REACHED, equity, daily_pnl,
+                                     daily_loss_pct, drawdown_pct, stop_distance_pct=stop_distance_pct,
+                                     position_value=position_value)
+
+            # --- Step 9b: daily turnover limit ---
+            # Found by GPT Work's independent review: max_daily_turnover_pct
+            # has existed in RiskConfig since the start, and daily_turnover
+            # is tracked (register_position_opened), but validate_order()
+            # never actually checked one against the other — a configured
+            # hard limit that silently enforced nothing.
+            new_daily_turnover = Decimal(self.state.daily_turnover) + position_value
+            max_daily_turnover = equity * Decimal(str(self.config.max_daily_turnover_pct)) / 100
+            if new_daily_turnover > max_daily_turnover:
+                return self._reject(proposal, REASON_DAILY_TURNOVER_LIMIT_EXCEEDED, equity, daily_pnl,
                                      daily_loss_pct, drawdown_pct, stop_distance_pct=stop_distance_pct,
                                      position_value=position_value)
 

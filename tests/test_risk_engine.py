@@ -68,6 +68,9 @@ def _loose_engine(tmp_path: Path, **config_overrides) -> RiskEngine:
         "max_position_size_pct": 100.0,
         "max_total_exposure_pct": 100.0,
         "max_correlated_exposure_pct": 100.0,
+        # Previously unenforced (real bug, now fixed — see engine.py's
+        # Step 9b), so this helper never needed to loosen it before.
+        "max_daily_turnover_pct": 1000.0,
         **config_overrides,
     }
     return _engine(tmp_path, **overrides)
@@ -287,7 +290,8 @@ class TestPositionAndExposureLimits:
 
     def test_total_exposure_limit_exceeded(self, tmp_path):
         engine = _engine(tmp_path, max_total_exposure_pct=1.0, max_open_positions=100,
-                          max_correlated_exposure_pct=100.0, max_position_size_pct=100.0)
+                          max_correlated_exposure_pct=100.0, max_position_size_pct=100.0,
+                          max_daily_turnover_pct=1000.0)
         # Pre-existing exposure already consumes the 1% budget (equity=10000 -> budget=100)
         engine.register_position_opened("p1", "ETHUSDT", Decimal("95"))
         decision = engine.validate_order(_proposal(symbol="BTCUSDT", entry_price=Decimal("50000"),
@@ -300,7 +304,8 @@ class TestPositionAndExposureLimits:
         """Same-symbol exposure limited by max_correlated_exposure_pct even though
         max_total_exposure_pct has plenty of room left."""
         engine = _engine(tmp_path, max_total_exposure_pct=50.0, max_correlated_exposure_pct=1.0,
-                          max_open_positions=100, max_position_size_pct=100.0)
+                          max_open_positions=100, max_position_size_pct=100.0,
+                          max_daily_turnover_pct=1000.0)
         engine.register_position_opened("p1", "BTCUSDT", Decimal("95"))  # consumes ~1% correlated budget
         decision = engine.validate_order(_proposal(symbol="BTCUSDT", entry_price=Decimal("50000"),
                                                      stop_price=Decimal("49000")),
@@ -386,4 +391,80 @@ class TestDrawdownControls:
         decision = engine.validate_order(_proposal(), equity=Decimal("9999"),
                                           reference_price=Decimal("50000"), now=day3)
         assert engine.state.drawdown_paused is False
+        assert decision.approved
+
+
+class TestStopPriceSanity:
+    """Real bugs found by GPT Work's independent review: Step 5's
+    abs(entry - stop) treated direction as irrelevant, so a non-positive
+    stop or a stop on the wrong side of entry passed as long as its
+    absolute distance wasn't 'too tight'."""
+
+    def test_stop_above_entry_rejected(self, tmp_path):
+        from trading_intelligence.risk.engine import REASON_INVALID_STOP_DIRECTION
+        engine = _loose_engine(tmp_path)
+        proposal = _proposal(entry_price=Decimal("100"), stop_price=Decimal("120"))
+        decision = engine.validate_order(proposal, equity=Decimal("10000"), reference_price=Decimal("100"))
+        assert not decision.approved
+        assert decision.reason == REASON_INVALID_STOP_DIRECTION
+
+    def test_stop_equal_to_entry_rejected(self, tmp_path):
+        from trading_intelligence.risk.engine import REASON_INVALID_STOP_DIRECTION
+        engine = _loose_engine(tmp_path)
+        proposal = _proposal(entry_price=Decimal("100"), stop_price=Decimal("100"))
+        decision = engine.validate_order(proposal, equity=Decimal("10000"), reference_price=Decimal("100"))
+        assert not decision.approved
+        assert decision.reason == REASON_INVALID_STOP_DIRECTION
+
+    def test_negative_stop_rejected(self, tmp_path):
+        from trading_intelligence.risk.engine import REASON_INVALID_STOP_PRICE
+        engine = _loose_engine(tmp_path)
+        proposal = _proposal(entry_price=Decimal("100"), stop_price=Decimal("-1"))
+        decision = engine.validate_order(proposal, equity=Decimal("10000"), reference_price=Decimal("100"))
+        assert not decision.approved
+        assert decision.reason == REASON_INVALID_STOP_PRICE
+
+    def test_zero_stop_rejected(self, tmp_path):
+        from trading_intelligence.risk.engine import REASON_INVALID_STOP_PRICE
+        engine = _loose_engine(tmp_path)
+        proposal = _proposal(entry_price=Decimal("100"), stop_price=Decimal("0"))
+        decision = engine.validate_order(proposal, equity=Decimal("10000"), reference_price=Decimal("100"))
+        assert not decision.approved
+        assert decision.reason == REASON_INVALID_STOP_PRICE
+
+    def test_valid_long_stop_below_entry_still_passes(self, tmp_path):
+        engine = _loose_engine(tmp_path)
+        decision = engine.validate_order(_proposal(), equity=Decimal("10000"), reference_price=Decimal("50000"))
+        assert decision.approved
+
+
+class TestDailyTurnoverLimit:
+    """Real bug found by GPT Work's independent review: max_daily_turnover_pct
+    existed in RiskConfig and daily_turnover was tracked on every opened
+    position, but validate_order() never actually checked one against the
+    other — a configured hard limit that silently enforced nothing."""
+
+    def test_configured_turnover_ceiling_is_a_hard_limit(self, tmp_path):
+        from trading_intelligence.risk.engine import REASON_DAILY_TURNOVER_LIMIT_EXCEEDED
+        # Equity 1000, ceiling 1% = 10. Default risk/stop sizing for this
+        # proposal produces ~19.92 notional — comfortably over the ceiling.
+        engine = _engine(tmp_path, max_daily_turnover_pct=1.0, max_position_size_pct=100.0,
+                          max_total_exposure_pct=100.0, max_correlated_exposure_pct=100.0)
+        decision = engine.validate_order(_proposal(), equity=Decimal("1000"), reference_price=Decimal("50000"))
+        assert not decision.approved
+        assert decision.reason == REASON_DAILY_TURNOVER_LIMIT_EXCEEDED
+
+    def test_turnover_accumulates_across_positions_opened_same_day(self, tmp_path):
+        from trading_intelligence.risk.engine import REASON_DAILY_TURNOVER_LIMIT_EXCEEDED
+        engine = _engine(tmp_path, max_daily_turnover_pct=1.0, max_position_size_pct=100.0,
+                          max_total_exposure_pct=100.0, max_correlated_exposure_pct=100.0,
+                          max_open_positions=100)
+        engine.register_position_opened("p1", "ETHUSDT", Decimal("9.9"))  # consumes most of the 1% budget
+        decision = engine.validate_order(_proposal(), equity=Decimal("1000"), reference_price=Decimal("50000"))
+        assert not decision.approved
+        assert decision.reason == REASON_DAILY_TURNOVER_LIMIT_EXCEEDED
+
+    def test_under_ceiling_still_approves(self, tmp_path):
+        engine = _loose_engine(tmp_path)  # max_daily_turnover_pct loosened to 1000.0
+        decision = engine.validate_order(_proposal(), equity=Decimal("10000"), reference_price=Decimal("50000"))
         assert decision.approved

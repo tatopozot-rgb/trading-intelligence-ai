@@ -119,6 +119,7 @@ what another agent has or hasn't done — do not rely on stale doc text alone.
 
 | Task | Agent | Date | PR |
 |------|-------|------|----|
+| Fixed 7 real bugs found by GPT Work's independent cross-review (PR #8 draft): PaperAdapter idempotency/pending-order persistence/gap-fill affordability (4), RiskEngine stop-direction/stop-positivity/daily-turnover enforcement (3) | Trading Codex (cloud) | 2026-10-07 | this branch, see `docs/CHECKPOINT.md` section 27 — 293/293 tests (up from 276), ruff+mypy clean |
 | Initial coordination setup | Trading Codex | 2026-10-05 | #1 |
 | Quantitative specs (7 documents) | Trading Claude-Work | 2026-10-05 | #1 |
 | trading_intelligence/ strategy+backtesting layer | Trading Claude-Work | 2026-10-05 | #1 |

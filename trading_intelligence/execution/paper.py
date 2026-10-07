@@ -100,6 +100,15 @@ class PaperAdapter(AbstractExchangeAdapter):
             self.order_history.append(result)
             return result
 
+        if self._is_duplicate_order(order.client_order_id):
+            result = OrderResult(
+                client_order_id=order.client_order_id, status="REJECTED", symbol=order.symbol,
+                side=order.side, requested_quantity=order.quantity,
+                reject_reason="duplicate client_order_id — already submitted",
+            )
+            self.order_history.append(result)
+            return result
+
         self.pending_orders.append(order)
         result = OrderResult(
             client_order_id=order.client_order_id,
@@ -112,6 +121,16 @@ class PaperAdapter(AbstractExchangeAdapter):
         self.order_history.append(result)
         self._save_state()
         return result
+
+    def _is_duplicate_order(self, client_order_id: str) -> bool:
+        """A client_order_id already live (pending or filled) must not be
+        accepted again — the caller is expected to retry with a new id,
+        not resend the same submission. Found by GPT Work's independent
+        review: re-submitting the identical order doubled the fill."""
+        return any(
+            r.client_order_id == client_order_id and r.status in ("SUBMITTED", "PENDING", "FILLED")
+            for r in self.order_history
+        )
 
     def cancel_order(self, client_order_id: str) -> bool:
         before = len(self.pending_orders)
@@ -184,6 +203,26 @@ class PaperAdapter(AbstractExchangeAdapter):
         fee = fill_price * quantity * self.taker_fee
 
         if order.side == "BUY":
+            # A MARKET/LIMIT BUY fills at the NEXT bar's open, which can gap
+            # away from the price the caller checked affordability against
+            # at decision time. Found by GPT Work's independent review:
+            # submitting a BUY affordable at the current price, then a large
+            # gap up before the fill bar, used to debit cash past zero with
+            # no check at all. Fail closed instead of ever going negative.
+            cost_basis = fill_price * quantity + fee
+            if cost_basis > self.cash:
+                result = OrderResult(
+                    client_order_id=order.client_order_id, status="REJECTED", symbol=order.symbol,
+                    side=order.side, requested_quantity=order.quantity,
+                    reject_reason=(
+                        f"insufficient cash at fill price: needs {cost_basis}, have {self.cash}"
+                    ),
+                )
+                for r in self.order_history:
+                    if r.client_order_id == order.client_order_id:
+                        r.status = result.status
+                        r.reject_reason = result.reject_reason
+                return result
             self._apply_buy(order.symbol, quantity, fill_price, fee)
         else:
             self._apply_sell(order.symbol, quantity, fill_price, fee)
@@ -336,6 +375,20 @@ class PaperAdapter(AbstractExchangeAdapter):
                 }
                 for sym, p in self.positions.items()
             },
+            # Found by GPT Work's independent review: this previously only
+            # persisted cash/positions — a pending entry or protective STOP
+            # silently vanished on restart, leaving an open position with no
+            # stop watching it.
+            "pending_orders": [
+                {
+                    "symbol": o.symbol, "side": o.side, "order_type": o.order_type,
+                    "quantity": str(o.quantity),
+                    "limit_price": str(o.limit_price) if o.limit_price is not None else None,
+                    "stop_price": str(o.stop_price) if o.stop_price is not None else None,
+                    "client_order_id": o.client_order_id,
+                }
+                for o in self.pending_orders
+            ],
         }
         tmp = self.state_path.with_suffix(self.state_path.suffix + ".tmp")
         tmp.write_text(json.dumps(data, indent=2))
@@ -353,3 +406,14 @@ class PaperAdapter(AbstractExchangeAdapter):
             )
             for sym, p in data["positions"].items()
         }
+        # .get(..., []) — state files saved before this fix have no key.
+        self.pending_orders = [
+            OrderRequest(
+                symbol=o["symbol"], side=o["side"], order_type=o["order_type"],
+                quantity=Decimal(o["quantity"]),
+                limit_price=Decimal(o["limit_price"]) if o.get("limit_price") is not None else None,
+                stop_price=Decimal(o["stop_price"]) if o.get("stop_price") is not None else None,
+                client_order_id=o["client_order_id"],
+            )
+            for o in data.get("pending_orders", [])
+        ]

@@ -937,6 +937,76 @@ Full suite (excluding the heavy 15-seed candidate file, run separately)  280/280
 ruff + mypy: clean
 ```
 
+### 27. Fixed 7 real bugs found by GPT Work's independent cross-review (PR #8 draft) — PaperAdapter idempotency/persistence/affordability, RiskEngine turnover/stop sanity (same day, continued)
+
+PR #8 (`work/readiness-atomicity-followup`, draft, GPT Work) landed with new
+offline acceptance harnesses under `reviews/gpt_work/` against code this
+agent owns — `trading_intelligence/execution/paper.py` (1 PASS/4 FAIL) and
+`trading_intelligence/risk/engine.py` (2 PASS/3 FAIL). Verified every claim
+against the actual source before fixing anything, per this project's own
+cross-review discipline.
+
+**PaperAdapter (4 real bugs, all fixed):**
+- `submit_order` had no idempotency check at all — resubmitting the
+  identical `OrderRequest` (same `client_order_id`) queued it a second
+  time and filled it twice. Fixed: reject a resubmission whose
+  `client_order_id` already has a live (`SUBMITTED`/`PENDING`) or
+  already-`FILLED` entry in `order_history`.
+- `_save_state()`/`_load_state()` only ever persisted `cash` and
+  `positions` — a pending entry, and worse, a protective STOP on an
+  already-open position, silently vanished on restart. Fixed: serialize
+  and restore `pending_orders` too (backward-compatible — old state
+  files without the key load as an empty list).
+- A BUY fills at the *next* bar's open, which can gap away from the price
+  the caller checked affordability against at decision time — there was
+  no affordability check at fill time at all, so a gap could debit `cash`
+  past zero. Fixed: before applying a BUY fill, check
+  `fill_price * quantity + fee <= cash`; reject (not raise — `on_new_bar`
+  processes multiple orders per bar and a raise would abort the rest) if
+  not, so cash can never go negative from this path.
+- (Positive control already passing: a filled position and its cash
+  correctly survive a restart — not touched.)
+
+**RiskEngine (3 real bugs, all fixed):**
+- Step 5's `stop_distance_pct = abs(entry_price - proposal.stop_price)`
+  treats direction as irrelevant — a stop placed *above* entry (meaningless
+  for this project's long-only `TradeProposal.side: Literal["BUY"]`) passed
+  as long as its absolute distance wasn't "too tight." Fixed: new
+  `REASON_INVALID_STOP_DIRECTION` rejects `stop_price >= entry_price`
+  before the distance check ever runs.
+- A non-positive `stop_price` (zero or negative) was never rejected — the
+  same `abs()` blindness let it through. Fixed: new
+  `REASON_INVALID_STOP_PRICE` rejects `stop_price <= 0`.
+- `RiskConfig.max_daily_turnover_pct` has existed since this package's
+  first commit, and `state.daily_turnover` is tracked on every
+  `register_position_opened()` call, but `validate_order()` never actually
+  compared one against the other — a configured hard limit that silently
+  enforced nothing. Fixed: new Step 9b rejects with
+  `REASON_DAILY_TURNOVER_LIMIT_EXCEEDED` when `daily_turnover +
+  position_value` would exceed `equity * max_daily_turnover_pct / 100`.
+
+**Test-fixture fallout, not a regression**: three existing test helpers
+(`test_risk_engine.py`'s `_loose_engine` plus two direct `_engine(...)`
+calls, `test_shadow_runner.py`'s `_risk_engine`) loosened
+`max_position_size_pct`/`max_total_exposure_pct`/`max_correlated_exposure_pct`
+specifically because those caps were being tested elsewhere, but never
+needed to loosen turnover — because it was dead code. Now that it's a
+real, correctly-enforced check (spec defaults size a position at ~45% of
+equity, comfortably over the 30% default turnover ceiling), those fixtures
+needed the same treatment to keep isolating only what each test actually
+exercises. Added `max_daily_turnover_pct=1000.0`/`1.0` (as appropriate) to
+each. This is the fixture catching up to a fix, not the fix being wrong.
+
+New regression tests added directly to this project's own suite (not just
+relying on GPT Work's external harness): `TestOrderIdempotency`,
+`TestGapFillAffordability`, two new `TestStatePersistence` cases
+(`tests/test_paper_adapter.py`); `TestStopPriceSanity`,
+`TestDailyTurnoverLimit` (`tests/test_risk_engine.py`).
+
+```
+293/293 tests passing (up from 276), ruff clean, mypy clean (34 files)
+```
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
