@@ -4,6 +4,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { BUILDINGS, AGENTS, STATE_COLOR, SIM_NOTE, deriveCity, CATEGORIAS } from "/lib/model.mjs";
 import { horaVisual } from "/lib/life.mjs";
+import { ALTURA_PLANTA, plantasDe } from "/lib/espacio.mjs";
 import { planRuta, posicionMundo, PUERTA_Z } from "/lib/paths.mjs";
 
 const REFRESCO_MS = 8000; // más frecuente: la rutina SIM usa reloj acelerado y debe notarse en poco tiempo real
@@ -143,26 +144,57 @@ function crearTarjeta(a) {
 }
 
 // ---------- interiores y puertas
-function interiorDe(id) {
+function piezaCasa([x, z]) {
+  const g = new THREE.Group();
+  const cama = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.35, 1.6), new THREE.MeshStandardMaterial({ color: 0x60a5fa }));
+  cama.position.set(x * 1.6, 0.3, z * 1.6);
+  const almohada = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.12, 0.3), new THREE.MeshStandardMaterial({ color: 0xf8fafc }));
+  almohada.position.set(x * 1.6, 0.45, z * 1.6 - 0.6);
+  g.add(cama, almohada);
+  return g;
+}
+function piezaEscritorio([x, z]) {
+  const g = new THREE.Group();
+  const madera = new THREE.MeshStandardMaterial({ color: 0x78350f });
+  const pantalla = new THREE.MeshStandardMaterial({ color: 0x1e293b, emissive: 0x0ea5e9, emissiveIntensity: 0.5 });
+  const silla = new THREE.MeshStandardMaterial({ color: 0x334155 });
+  const mesa = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.12, 0.6), madera);
+  mesa.position.set(x * 1.6, 0.7, z * 1.6);
+  const p = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.4, 0.05), pantalla);
+  p.position.set(x * 1.6, 1.0, z * 1.6 - 0.25);
+  const asiento = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.4), silla);
+  asiento.position.set(x * 1.6, 0.4, z * 1.6 + 0.4);
+  g.add(mesa, p, asiento);
+  return g;
+}
+// Interior real: camas y escritorios en las posiciones que decide lib/espacio.mjs (misma que la ruta).
+// Los edificios de dos plantas llevan una losa superior visible y escaleras entre ambas.
+function interiorDe(b) {
   const g = new THREE.Group();
   const piso = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.05, 3.6), new THREE.MeshStandardMaterial({ color: 0xf1f5f9 }));
   piso.position.y = 0.06;
   g.add(piso);
-  const madera = new THREE.MeshStandardMaterial({ color: 0x78350f });
-  const pantalla = new THREE.MeshStandardMaterial({ color: 0x1e293b, emissive: 0x0ea5e9, emissiveIntensity: 0.5 });
-  if (id.startsWith("house")) {
-    const cama = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.4, 1.0), new THREE.MeshStandardMaterial({ color: 0x60a5fa }));
-    cama.position.set(-0.9, 0.3, -0.9);
-    const sofa = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.4, 0.6), new THREE.MeshStandardMaterial({ color: 0xf97316 }));
-    sofa.position.set(0.8, 0.3, 0.9);
-    g.add(cama, sofa);
+  const sofa = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.4, 0.6), new THREE.MeshStandardMaterial({ color: 0xf97316 }));
+  if (b.id.startsWith("house")) {
+    sofa.position.set(0, 0.3, 0);
+    g.add(sofa);
+    for (const pos of [[-0.66, -0.66], [0.66, -0.66], [-0.66, 0.66], [0.66, 0.66]]) g.add(piezaCasa(pos));
   } else {
-    for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.12, 0.6), madera);
-      m.position.set(x * 0.9, 0.7, z * 0.9);
-      const p = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.4, 0.05), pantalla);
-      p.position.set(x * 0.9, 1.0, z * 0.9 - 0.25);
-      g.add(m, p);
+    for (const pos of [[-0.6, -0.6], [0.6, -0.6], [-0.6, 0.6], [0.6, 0.6]]) g.add(piezaEscritorio(pos));
+  }
+  const plantas = plantasDe(b.id);
+  if (plantas > 1) {
+    const losa = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.08, 3.6), new THREE.MeshStandardMaterial({ color: 0xcbd5e1 }));
+    losa.position.y = ALTURA_PLANTA;
+    const barandas = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.5, 0.06), new THREE.MeshStandardMaterial({ color: 0x475569 }));
+    barandas.position.set(0, ALTURA_PLANTA + 0.3, 1.78);
+    const escalera = new THREE.Mesh(new THREE.BoxGeometry(0.9, ALTURA_PLANTA, 1.6), new THREE.MeshStandardMaterial({ color: 0x57534e, transparent: true, opacity: 0.55 }));
+    escalera.position.set(-1.3, ALTURA_PLANTA / 2, 0);
+    g.add(losa, barandas, escalera);
+    for (const pos of [[-0.6, -0.6], [0.6, -0.6], [-0.6, 0.6], [0.6, 0.6]]) {
+      const pieza = piezaEscritorio(pos);
+      pieza.position.y = ALTURA_PLANTA;
+      g.add(pieza);
     }
   }
   return g;
@@ -216,7 +248,7 @@ for (const b of BUILDINGS) {
     tejado.rotation.y = Math.PI / 4; tejado.position.y = alto + 0.75; tejado.castShadow = true;
     grupo.add(tejado);
   }
-  const interior = TIENE_INTERIOR.has(b.id) ? interiorDe(b.id) : null;
+  const interior = TIENE_INTERIOR.has(b.id) ? interiorDe(b) : null;
   if (interior) grupo.add(interior);
   const ventana = new THREE.MeshStandardMaterial({ color: 0xbef264, emissive: 0x3f6212, emissiveIntensity: 0.5, transparent: true, opacity: 0.8 });
   const marco = new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.7 });
@@ -429,9 +461,18 @@ function asignarDestinos(city) {
       const origen = ag.enEdificio ? EDIFICIO_DE[ag.enEdificio] : null;
       const plan = planRuta({ desde: { x: actual.x, z: actual.z }, origen, destino: b, adentro });
       const puntos = plan.puntos.map(v3);
-      // El último punto se desplaza por slot para que los avatares del mismo edificio no se solapen.
-      const fin = puntos[puntos.length - 1];
-      fin.x += offset;
+      // Punto de llegada real: la cama o el escritorio asignados (lib/espacio.mjs), no el centro genérico.
+      // Si está en otra planta, sube primero por la escalera (tramo vertical visible), nunca directo.
+      const destinoExacto = adentro ? (a.state === "SIM_SLEEPING" ? a.cama : a.estacion) : null;
+      if (destinoExacto) {
+        const centro = puntos[puntos.length - 1]; // llega primero al centro, en planta baja
+        const planta = destinoExacto.planta || 0;
+        if (planta > 0) puntos.push(new THREE.Vector3(centro.x, planta * ALTURA_PLANTA, centro.z));
+        puntos.push(new THREE.Vector3(centro.x + destinoExacto.x * 1.6, planta * ALTURA_PLANTA, centro.z + destinoExacto.z * 1.6));
+      } else {
+        // Sin cama/estación asignada (rol simulado, fundador en la calle): reparto genérico por slot.
+        puntos[puntos.length - 1].x += offset;
+      }
       ag.ruta = puntos;
       ag.t = 0;
       ag.destinoClave = clave;
@@ -479,7 +520,8 @@ function avanzarAgentes(dt, tiempo, camaraPos) {
     const moviendose = ag.ruta.length >= 2;
     ag.grupoBici.visible = moviendose && ag.transporte === "bici" && ag.lod === 0;
     if (moviendose) {
-      ag.grupo.lookAt(ag.ruta[1]);
+      const dx = ag.ruta[1].x - ag.grupo.position.x, dz = ag.ruta[1].z - ag.grupo.position.z;
+      if (Math.hypot(dx, dz) > 0.05) ag.grupo.lookAt(ag.ruta[1]); // tramo vertical puro: conserva la orientación
       const paso = Math.sin(tiempo / (ag.transporte === "bici" ? 60 : 110) + ag.desfase) * 0.7;
       ag.piernaI.rotation.x = paso; ag.piernaD.rotation.x = -paso;
       ag.brazoI.rotation.x = -paso * 0.8; ag.brazoD.rotation.x = paso * 0.8;
@@ -868,7 +910,7 @@ window.__debugCity = () => ({
   t: Date.now(),
   horaSim: horaVisual(Date.now()),
   agentes: Object.fromEntries(Object.entries(agentes).filter(([, ag]) => ag.grupo.visible).map(([k, ag]) => [k, {
-    x: Number(ag.grupo.position.x.toFixed(2)), z: Number(ag.grupo.position.z.toFixed(2)),
+    x: Number(ag.grupo.position.x.toFixed(2)), y: Number(ag.grupo.position.y.toFixed(2)), z: Number(ag.grupo.position.z.toFixed(2)),
     enRuta: ag.ruta.length >= 2, estado: ag.estado, sim: ag.esSimulado,
   }])),
 });
