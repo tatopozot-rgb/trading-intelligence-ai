@@ -149,6 +149,16 @@ class TestRouterWithRangeReversion:
         assert decision.is_no_trade
         assert decision.reason == CONFIDENCE_BELOW_THRESHOLD
 
+    def test_every_registered_strategy_trades_the_requested_symbol(self):
+        """A per-symbol router must not mix symbols: strategy_by_id() re-attaches
+        an open position to its strategy after a restart by (id, symbol)."""
+        router = router_with_range_reversion("ETHUSDT")
+        symbols = {s.symbol for s, _ in router._registry.values()}
+        assert symbols == {"ETHUSDT"}
+        trend = router.route(_snapshot(Regime.TREND_UP, confidence=0.9)).strategy
+        assert trend is not None
+        assert router.strategy_by_id(trend.strategy_id, "ETHUSDT") is trend
+
 
 class TestNonFiniteConfidenceFailsClosed:
     """

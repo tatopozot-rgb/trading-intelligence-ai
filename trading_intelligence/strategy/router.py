@@ -184,7 +184,7 @@ def router_with_range_reversion(symbol: str = "BTCUSDT") -> StrategyRouter:
     """
     from trading_intelligence.strategy.strategies.bollinger_reversion import BollingerReversion
 
-    router = default_router()
+    router = default_router(symbol)
     strategy = BollingerReversion(symbol, "1d")
     router.register(Regime.RANGE, strategy, min_confidence=0.5)
     return router
