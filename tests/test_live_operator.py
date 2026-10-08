@@ -79,6 +79,9 @@ class TestTransport:
     def test_a_safe_key_passes_and_any_extra_power_is_refused(self, tmp_path):
         t, fake = _trader(tmp_path)
         assert t.verify_key() is True and t.key_checked
+        fake.restrictions = {**FakeBinance().restrictions, "enableWithdrawals": True}
+        with pytest.raises(B.UnsafeKey, match="WITHDRAWALS"):
+            t.verify_key()
         for bad in ({"enableWithdrawals": True}, {"enableWithdrawals": None}, {"ipRestrict": False},
                     {"enableSpotAndMarginTrading": False}, {"permitsUniversalTransfer": True},
                     {"enableFutures": True}, {"enableNewThing": True}):
@@ -168,6 +171,12 @@ class TestLossGuard:
         assert s.status == STOPPED and "STOP" in msg
         with pytest.raises(ValueError):
             s.owner_continue()
+
+    def test_a_sell_never_exceeds_what_the_session_holds(self):
+        s = self._session()
+        s.record_buy("BTCUSDT", Decimal("0.1"), Decimal("10"), Decimal("0"), "open")
+        pnl = s.record_sell("BTCUSDT", Decimal("5"), Decimal("11"), Decimal("0"), "close")
+        assert pnl == Decimal("1") and not s.holdings and s.trades[-1]["qty"] == "0.1"
 
     def test_added_capital_raises_the_limit_and_rearms_the_warning(self):
         s = self._session()
@@ -335,6 +344,11 @@ class TestOperator:
             {"read_at": (now - timedelta(minutes=5)).isoformat(), "trader": "x", "positions": {"BTCUSDT": 0.3}}))
         op.step(decide=True)
         assert trader.orders[-1][:2] == ("BTCUSDT", "BUY")
+        (tmp_path / "leader_positions.json").write_text(json.dumps(
+            {"read_at": (now - timedelta(hours=7)).isoformat(), "trader": "x", "positions": {}}))
+        orders_before = len(trader.orders)
+        op.step(decide=True)  # stale leader data: hold what we have, never read it as "leader sold"
+        assert len(trader.orders) == orders_before and "BTCUSDT" in op.session.holdings
         targets, problem = leader_targets(tmp_path / "leader_positions.json", timedelta(minutes=1), now)
         assert problem == "LEADER_POSITIONS_STALE" and targets == {}
 

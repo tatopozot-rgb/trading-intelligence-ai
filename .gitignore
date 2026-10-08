@@ -65,3 +65,6 @@ htmlcov/
 # Distribution
 *.tar.gz
 *.whl
+
+# Real-trading working state on the owner PC (reports are copied to docs/live_reports/)
+live_runs/
