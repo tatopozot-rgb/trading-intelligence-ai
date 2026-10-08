@@ -1,0 +1,40 @@
+name: PAPER tests (manual)
+
+# Manual until runner availability and included Actions allowance are verified.
+# This workflow never starts trading.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: paper-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4 verified 2026-10-05
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5 verified 2026-10-05
+        with:
+          python-version: '3.13'
+      - name: Create isolated environment
+        shell: pwsh
+        run: python -m venv .venv
+      - name: Install declared dependencies
+        shell: pwsh
+        run: .\.venv\Scripts\python.exe -m pip install -r requirements-paper.txt
+      - name: Check tracked-file safety
+        shell: pwsh
+        run: .\.venv\Scripts\python.exe -B tools/check_repository.py
+      - name: Offline tests with temporary fixtures
+        shell: pwsh
+        run: |
+          $tests = @(Get-ChildItem -File -Filter 'test_*.py' | Select-Object -ExpandProperty BaseName)
+          if ($tests.Count -eq 0) { throw 'No PAPER test modules found' }
+          & .\.venv\Scripts\python.exe -B -m unittest @tests -q

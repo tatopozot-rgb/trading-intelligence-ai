@@ -65,3 +65,27 @@ htmlcov/
 # Distribution
 *.tar.gz
 *.whl
+
+# Real-trading working state on the owner PC (reports are copied to docs/live_reports/)
+live_runs/
+
+# Operational state, historical data and future credentials stay local
+.env.*
+!.env.example
+*.db-*
+*.sqlite*
+datasets/
+backups/
+solicitudes/
+respuestas/
+runner_status.json
+runner.lock
+claude_request.json
+claude_request.txt
+DETENER_*
+PAUSA_*
+market_cooldown.json
+binance_signed_cooldown.json*
+binance_testnet_cooldown.json*
+binance_testnet_journal.json*
+.publication/

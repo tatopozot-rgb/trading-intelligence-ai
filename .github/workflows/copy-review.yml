@@ -1,0 +1,42 @@
+name: Trader review (copy trading, advice only)
+
+# Every time a lead-trader capture lands in docs/snapshots/ (on any branch), rank all
+# captured traders with their reasons, tell the owner what to do with each trader
+# currently copied (docs/snapshots/followed.json), and measure across captures whether
+# the selection works. Read-only: no account, no API key, no orders.
+# RED = a trader you copy must be stopped now (see the run summary).
+
+on:
+  push:
+    paths:
+      - "docs/snapshots/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: copy-review-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+      - name: Review captured traders (standard library only)
+        run: python -m trading_intelligence.copy_trading.review --snapshots docs/snapshots --followed docs/snapshots/followed.json --out copy_review
+      - name: Keep the review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: copy-review-${{ github.run_id }}
+          path: copy_review
+          retention-days: 90
+          if-no-files-found: ignore

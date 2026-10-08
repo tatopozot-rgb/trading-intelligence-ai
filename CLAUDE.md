@@ -16,7 +16,7 @@ AI-powered trading system for cryptocurrency and forex markets. Includes data ac
 - Never execute real trades, move funds, or enable withdrawals without explicit owner authorization
 - Risk engine decisions are final — Claude cannot override them
 - Daily loss limits, position size limits, and exposure limits are enforced at engine level
-- All fills must account for fees, slippage, and realistic execution
+- Fees and fill assumptions must be explicit. Legacy price and optional depth FOK V1 coexist; lot/dust filters and empirical calibration remain open. Do not claim full execution realism.
 
 ## Agent Coordination
 
@@ -27,7 +27,7 @@ AI-powered trading system for cryptocurrency and forex markets. Includes data ac
 
 ## Development
 
-- Python is the primary language (confirm after codebase upload)
+- Python 3.13 is the primary language; existing Windows PAPER source and tests are imported, not rebuilt
 - Tests required for: risk engine, order execution, position management
 - Type hints required
 - Logging: DEBUG (dev), INFO (ops), WARNING/ERROR (issues)

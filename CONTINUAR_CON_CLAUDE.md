@@ -1,0 +1,35 @@
+# Continuación compacta — vigente30-09-2026
+
+CIERRE MÁS RECIENTE:547testsOK48,411s. Además deH6c, corregida herencia Decimal en paper_fills(simulación/cierre), execution_filters/percent ybroker_adapters;7tests nuevos en test_decimal_isolation.py.75dirigidasOK, doctorcontable/config/dependenciasOK, estadodeprocesoactualNO_VERIFICADO porregistroantiguo. Próximo filtros/lotes con modeloversionado preservandoV1/evidencias; primero contrato de volumen/tipoorden ydocs oficiales, luego fixture end-to-end. Reutilizar execution_* yGETexchangeInfo existentes. No confundir compraquoteconLIMIT ni rehacerH6c/suite sin cambios. No hay pregunta pendiente.
+
+VIGENTE: leer primero CHECKPOINT VIGENTE de ESTADO_PROYECTO.md. H6c completado: historical_portfolio_report.py con12tests conecta H5f/H6a guardados al motorH6b17tests; cuatro sensibilidades,392IDs/6censuras preservados y fuentes intactas. Suite540OK59,126s. Informe RESULTADO_CARTERA_PAPER.md:75/73aceptados, saldo realizadoNO MTM87,0513/88,8265 desde100; una posición abierta a coste, NO rentabilidad validada ni equivalente exacto del runner. No repetir generación ni historia90d. Próximo: contexto Decimal operativo y filtros/lotes, reusar contratos execution_* existentes. No adoptar tardío como estrategia ni ajustar parámetros para mejorar muestra.
+
+Permiso de compartir resumen técnico al chat existente YA CONCEDIDO por el usuario. Claude55/56 respondió con Sonnet5.5Medio, revisión conceptual sin acceso/ejecución local. Opus5.5 también visible; reservar para casos complejos. No nuevos proyectos/chat/cuentas/API/compras; no usar modelos por cada operación.30sep08:38Guayaquil herramienta oficialCodex:90%5h/11%semanal restante, lectura puntual; cuotaClaude exacta desconocida. Seguimiento eliminado. No preguntar nuevamente por permiso resuelto.
+
+## Histórico29sep — sustituido por estado anterior
+
+Primero leer sólo el CHECKPOINT VIGENTE de ESTADO_PROYECTO.md. Programa PAPER local conserva panel y modo por reglas sin IA por operación. Depth FOK optativo ya integrado, cantidad Decimal persistida, evidencia atómica, fees y recuperación conciliables. Doctor sólo lectura listo. H6a completo392casos; H6b motor de escenarios cartera compartida completo con16tests/200escenarios sintéticos, todavía SIN aplicar al histórico. Suite527OK43,537s. Siguiente H6c: adaptador offline deH5f/H6a con hashes externos y escenarios explícitos de incertidumbre, sin repetir señales90d ni inventar fills. Ver CONTRATO_CARTERA_PAPER.md, MODELO_FILLS_PAPER.md y RESULTADO_SOLAPES.md; pedir sólo fragmentos necesarios, no repo/conversación completa. No duplicar implementaciones ni afirmar acceso local sin verificarlo.
+
+Claude53/54 revisó contrato28sep. Intento29sep de enviar resumen técnico de ledger/fills fue bloqueado por revisión de permisos ANTES del envío; no nuevo mensaje. Se requiere aprobación explícita del usuario para enviar ese resumen de código/pruebas al chat existente, sin datos de cuenta/claves; no reintentar por otra vía. Esto no bloquea trabajo local. Saldo exacto de Claude desconocido. GlobalCodex desconocido por error de lectura; revisores auxiliares tuvieron límite. Seguimiento eliminado: no crear ni reactivar tareas/objetivos.
+
+## Histórico25-09 — no ejecutar su siguiente paso ya completado
+
+Usar el chat existente “03 — SISTEMA OPERATIVO Y AUTOMATIZACIÓN” del proyecto TRADING INTELLIGENCE. No enviar toda la conversación ni el repositorio. Cowork aparece disponible, pero su acceso a la carpeta local no fue verificado; no afirmar que puede leerla o ejecutar pruebas antes de comprobarlo.
+
+## Contexto para pegar una sola vez al retomar
+
+Continúa TRADING INTELLIGENCE desde este checkpoint, sin reconstruir lo completado. Proyecto local: C:\Users\tatop\trading-ai. Último estado: ESTADO_PROYECTO.md. Si no tienes acceso local, indícalo y trabaja sólo con el contexto aportado; no afirmes haber leído archivos ni ejecutado comandos.
+
+Completado: programa autónomo PAPER por reglas con panel, controles y registro; primera prueba30min cerrada. Módulos execution_* todavía son fixtures offline, sin envío de órdenes. Cliente público Binance probado; pausa ante403/418/429 y ahora451 persistente, sin evasión. Usuario sólo vio video sobre bloqueos; no hay error concreto en su cuenta.
+
+Históricos BTC/ETH25jun–22sep2026: señales90d y392casos aislados ya calculados. Base BTC164:41objetivo/123stop. ETH228:71objetivo/151stop/6sin salida. H5g desglosa mes/semanaISO/día por señalUTC. H5h ya completado: entrada+15m al nuevo open, misma señal/ATR porcentual/capital/comisión, fin absoluto fijo (menor horizonte). BTC2cambios cruzados y totales iguales; ETH10cambios y totales75objetivo/147stop/6sin salida. Cero excluidos, períodos/matrices conciliados.419pruebasOK; ocho casos retrasados contrastados exactamente con H5e. JSON en datasets/20260625_20260923/{BTCUSDT,ETHUSDT}/retraso_15m.json, originales intactos. NO cartera, recomendación de retraso ni ganancias mensuales. Detalles/huellas en RESULTADO_RETRASO_15M.md y RESULTADO_HISTORICO_CASOS.md. Claude49–52 revisó contrato/cierre, no archivos ni pruebas locales.
+
+Siguiente bloque EXACTO H6a: inventario cronológico CONJUNTO BTC/ETH de intervalos/solapes de baseH5f casos_episodios.json con hashes externos. No convertir el estrésH5h en estrategia. Conservar todos los índices; registrar incertidumbre intravela, ambigüedad y casos sin salida al fin (fin de observación NO cierre). No asignar fondos, priorizar símbolos, descartar por límite sin política ni sumarP&L. Prepara cartera con riesgo/capital compartidos. Revisión inicialClaude52 ya realizada: eje temporal global, no mapas aislados. No repetir revisión/historia ni alterar reglas. Pedir sólo archivos necesarios; entregar cambio pequeño, pruebas y checkpoint.
+
+El programa Python realiza los ciclos; no usar IA por cada operación. Claude/Codex colaboran en desarrollo y auditoría. Mantener PAPER, no iniciar sesión operativa, pedir intervención para acceso/cuenta/arranque. No nuevas claves, permisos, pagos ni resets. Seguimiento5h ELIMINADO: no recrear tareas, objetivos o seguimiento automático. Iniciar otro chat/proyecto tampoco es necesario.
+
+## Ahorro y límites
+
+El checkpoint evita reconstrucción manual, pero mantener un chat largo no garantiza consumo cero: su contexto también cuenta. En chat sin archivos conectados, pegar este bloque y sólo el fragmento solicitado. En Cowork con acceso verificado, leer primero el checkpoint y abrir únicamente los archivos necesarios. No hacer que ambas plataformas reescriban el mismo módulo ni repetir pruebas ya documentadas sin cambios.
+
+Última cuota Codex observada al comenzar H5h: uso ordinario permitido;78%ventana5h/24%semanal restante y reinicio30sep2026 10:13 UTC-5. Lectura puntual, no saldo posterior ni cuotaClaude. Claude respondió a ambas consultas de este bloque, sin saldo exacto verificado. Sin seguimiento automático, retomar requiere un mensaje del usuario; no prometer vigilancia en segundo plano. No repetir consultas/revisiones sólo para consumir cuota.
