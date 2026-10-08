@@ -24,6 +24,28 @@ visto una clave. PAPER sigue siendo el único modo; nada de esto autoriza LIVE.
   este PC y el reloj local va unos 1,1 s por detrás del servidor, dentro de
   `recvWindow` = 5000 ms.
 
+## Actualización tras la revisión de cloud del PR #9 (comentario 6055699215)
+
+| Punto de la revisión | Estado |
+|---|---|
+| 1a. Watchdog: `ultimo_ok IS NULL` como hueco infinito | Corregido en `7283edc` |
+| 1b. `_abrir_validado` revertía la valoración válida al rechazar la orden | Corregido en `7283edc` (savepoint; la orden rechazada se revierte entera y después se confirma la valoración) |
+| 2. Falta el fix de #5 (`is_junction`) | Incluido por merge de `7921038` |
+| 3. Conflictos de documentos con la rama por defecto | Resueltos: se conservan las versiones de la rama por defecto; las locales quedan en `docs/history/` |
+| 4. Descripción del PR desactualizada | Pendiente: este PC no tiene `gh`; texto propuesto al final de este archivo |
+
+Pruebas en este PC tras el merge:
+
+- `test_paper_halt`: 34 OK (26 previas + 8 nuevas). 8 mutantes sobre los dos arreglos: 7 eliminados; el
+  superviviente es redundante (la fila inicial sin latido la rellena el mismo `inicializar()`).
+- `reviews/gpt_work/test_watchdog_review.py` (sin cambios, commit `c21300c`): 8/8 OK; antes 4/8.
+- `test_binance_signed`, `test_binance_testnet_orders`, `test_xm_mt5_readonly`: 57 OK.
+- Cada módulo `test_*.py` raíz ejecutado en su propio proceso da el mismo resultado antes y después de
+  los arreglos, salvo `test_paper_halt` (26 -> 34). Para importar los módulos que dependen de pandas se
+  usó un sustituto vacío de pandas, porque Smart App Control bloquea sus DLL; 13 módulos que usan pandas
+  de verdad fallan igual antes y después. **No ejecutado aquí:** `tests/` de `trading_intelligence`
+  (pandas real), mypy, ni el `check_repository.py` en Linux.
+
 ## Verificador de GPT Work
 
 Para la primera consulta firmada de permisos se usa, sin cambios, el verificador
@@ -52,8 +74,7 @@ no booleano. Ambas fallan cerrado.
 4. Prueba real de H3: el paquete `MetaTrader5` no está instalado y no se intentó
    instalar (Smart App Control ya bloqueó otras DLL). Requiere además la terminal
    MT5 abierta con una cuenta demo.
-5. PR borrador: este PC no tiene `gh` y el conector de GitHub no conectó. Abrir desde
-   `https://github.com/tatopozot-rgb/trading-intelligence-ai/compare/claude-code/finding-3-persistent-halt...claude-code/api-session-readonly?expand=1`.
+5. El PR #9 ya existe contra la rama por defecto; falta actualizar su descripción (ver abajo).
 
 ## Límites conocidos
 
@@ -78,3 +99,16 @@ no booleano. Ambas fallan cerrado.
    `MAX_DAILY_LOSS`, `MAX_DRAWDOWN`, `MAX_OPEN_POSITIONS`, `ALLOWED_INSTRUMENTS`,
    `MAX_LEVERAGE` y la autorización explícita del dueño. El piloto previsto de
    USD 30 no cambia esto.
+
+## Texto propuesto para la descripción del PR #9
+
+**Título:** Sistema PAPER real (#3 -> #4 -> F3) + capa de API de solo lectura (H1-H3)
+
+Contiene la cadena completa: import del runtime PAPER (#3), contrato MARKET lote/dust (#4), fix de
+`is_junction` (#5), halt persistente y política de drawdown ratificada (F3) con sus dos defectos de
+watchdog corregidos, y la capa de API: lectura firmada de Binance con guardia de permisos (H1),
+órdenes solo en Spot Testnet con diario y conciliación (H2) y lectura de XM/MT5 en demo (H3).
+
+PAPER únicamente. Ningún código de esta rama envía órdenes a Binance real, mueve fondos ni maneja
+credenciales; nada se ha ejecutado contra una cuenta real, Testnet ni una terminal MT5. Detalle de
+pruebas, límites y pasos pendientes del dueño: `docs/HANDOFF_CLAUDE_LOCAL_API.md`.
