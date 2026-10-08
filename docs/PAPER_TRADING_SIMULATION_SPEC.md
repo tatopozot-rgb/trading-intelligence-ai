@@ -1,3 +1,10 @@
+---
+type: spec
+tags: [trading-intelligence, paper-trading, risk-engine]
+status: reference
+aliases: ["Paper Trading Simulation Spec"]
+---
+
 # Paper Trading Simulation Specification — Trading Intelligence AI
 
 > Author: Trading claude work
@@ -112,9 +119,16 @@ Entry:
   position = {symbol, quantity, avg_price, entry_fee}
 
 Exit:
-  proceeds = fill_price * quantity - exit_fee
-  realized_pnl = proceeds - (entry_avg_price * quantity) - entry_fee - exit_fee
-  equity += (entry_avg_price * quantity) + realized_pnl
+  proceeds = fill_price * quantity - exit_fee          # exit_fee already netted out here
+  realized_pnl = proceeds - (entry_avg_price * quantity) - entry_fee
+  equity += proceeds   # NOT (entry_avg_price*quantity) + realized_pnl — that
+                       # double-subtracts entry_fee, since realized_pnl above
+                       # already nets it out once. The entry cost was already
+                       # fully debited from equity at Entry; nothing separate
+                       # is "returned" at Exit beyond the sale's own proceeds.
+                       # (Found as a real bug in trading_intelligence/execution/
+                       # paper.py — fixed there; corrected here so it isn't
+                       # re-implemented the same wrong way elsewhere.)
 ```
 
 ### Unrealized P&L (for risk calculations)

@@ -35,7 +35,7 @@ class TradeProposal:
 
 @dataclass
 class RiskDecision:
-    """Placeholder until risk engine is implemented by Codex."""
+    """Returned by RiskEngine.validate_order() (trading_intelligence/risk/engine.py)."""
     approved: bool
     reason: str
     quantity: Optional[Decimal] = None   # set only when approved

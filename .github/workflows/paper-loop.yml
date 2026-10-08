@@ -1,0 +1,81 @@
+name: PAPER loop (public Binance data, no account)
+
+# Runs the research pipeline's PaperLoop in PAPER mode on GitHub's servers.
+# - Code: this branch. It must live on the repo's DEFAULT branch (ccr-b66a9a9e-okj2pl):
+#   GitHub only runs schedule/workflow_dispatch workflows from the default branch.
+# - Data: data-api.binance.vision public klines. No account, no API key, no orders:
+#   PaperAdapter never forwards anything and the feed has no order endpoint.
+# - State: carried between runs in the Actions cache (no commits).
+# - Visibility: each run writes a summary (Actions tab: latest decision per symbol and
+#   why, simulated fills, closed trades, equity) and turns RED when the loop
+#   reports a fetch error, stale data, a data gap, the kill switch, or books that
+#   disagree. Download the "paper-state" artifact for the full state.
+# Stop it: disable this workflow in the Actions tab (or delete this file).
+
+on:
+  schedule:
+    - cron: "7 */4 * * *"   # a few minutes after each 4h bar closes (UTC); GitHub may delay it
+  workflow_dispatch:
+    inputs:
+      bootstrap:
+        description: "Start PAPER from scratch (only when there is no previous state). Scheduled runs never do this."
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: paper-loop
+  cancel-in-progress: false
+
+env:
+  SYMBOLS: BTCUSDT ETHUSDT SOLUSDT BNBUSDT XRPUSDT
+  TIMEFRAME: 4h
+  STATE_DIR: paper_runs/live
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+      - name: Install runtime dependencies (no exchange client, no credentials)
+        run: pip install "pandas>=2.0" "numpy>=1.24" "scipy>=1.11"
+      - name: Restore PAPER state from the previous run
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.STATE_DIR }}
+          key: paper-state-${{ github.run_id }}
+          restore-keys: paper-state-
+      - name: Run one PaperLoop poll (catches up every closed bar since the last run)
+        env:
+          BOOTSTRAP: ${{ inputs.bootstrap }}
+        run: |
+          # A lost state (evicted cache) must turn the run red, never restart PAPER silently.
+          REQUIRE="--require-state"
+          if [ "$BOOTSTRAP" = "true" ]; then REQUIRE=""; echo "Bootstrap requested: starting PAPER from scratch if no state exists"; fi
+          python -m trading_intelligence.execution.paper_loop \
+            --symbols $SYMBOLS --timeframe "$TIMEFRAME" --state-dir "$STATE_DIR" --max-ticks 1 $REQUIRE
+      - name: Save PAPER state for the next run
+        if: always() && hashFiles('paper_runs/live/loop.json') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.STATE_DIR }}
+          key: paper-state-${{ github.run_id }}
+      - name: Report (decisions, fills, trades, equity; red if anything needs attention)
+        if: always()
+        run: python -m trading_intelligence.execution.paper_report --state-dir "$STATE_DIR"
+      - name: Keep the full state as an artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: paper-state-${{ github.run_id }}
+          path: ${{ env.STATE_DIR }}
+          retention-days: 30
+          if-no-files-found: ignore

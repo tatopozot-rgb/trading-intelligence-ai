@@ -1,3 +1,10 @@
+---
+type: spec
+tags: [trading-intelligence, strategy, validation]
+status: reference
+aliases: ["Strategy Validation Framework"]
+---
+
 # Strategy Validation Framework — Trading Intelligence AI
 
 > Author: Trading claude work

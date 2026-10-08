@@ -1,0 +1,548 @@
+"""
+PaperLoop: continuous PAPER operation on polled bars. The RiskEngine,
+PaperAdapter and runner are real; only the market-data feed and the clock are
+fakes. The feed, like Binance, also returns the still-forming bar.
+"""
+import json
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal
+from pathlib import Path
+
+import pandas as pd
+import pytest
+
+from tests.test_paper_runner import WARMUP, _flat, _paper, _risk, _router_for, _Scripted
+from trading_intelligence.execution.base import AbstractExchangeAdapter
+from trading_intelligence.execution.paper_loop import PaperLoop
+from trading_intelligence.execution.paper_runner import EXIT_STOP, PaperTradingRunner
+
+SYMBOL = "BTCUSDT"
+START = datetime(2026, 1, 1, tzinfo=timezone.utc)
+HOUR = timedelta(hours=1)
+
+
+def _frame(prices: list[tuple[float, float, float, float]]) -> pd.DataFrame:
+    idx = pd.date_range(START.replace(tzinfo=None), periods=len(prices), freq="1h")  # naive, like Binance
+    return pd.DataFrame(
+        [{"open": o, "high": hi, "low": lo, "close": c, "volume": 1.0} for o, hi, lo, c in prices], index=idx,
+    )
+
+
+class FakeFeed(AbstractExchangeAdapter):
+    """Returns every bar whose open time has passed, including the forming one."""
+
+    def __init__(self, frames: dict[str, pd.DataFrame]):
+        self.frames = frames
+        self.now = START
+        self.fail = False
+        self.calls = 0
+
+    def get_ohlcv(self, symbol, timeframe, limit=500):
+        self.calls += 1
+        if self.fail:
+            raise ConnectionError("feed down")
+        frame = self.frames[symbol]
+        return frame[frame.index <= pd.Timestamp(self.now.replace(tzinfo=None))].iloc[-limit:]
+
+    def submit_order(self, order):
+        raise AssertionError("the market-data feed must never receive an order")
+
+    def cancel_order(self, client_order_id):
+        raise AssertionError("not used")
+
+    def get_position(self, symbol):
+        return None
+
+    def get_account_info(self):
+        raise AssertionError("not used")
+
+    def get_current_price(self, symbol):
+        return Decimal("100")
+
+    def is_connected(self):
+        return not self.fail
+
+    def get_exchange_name(self):
+        return "fake_feed"
+
+
+def _ts(i: int) -> str:
+    return (START + i * HOUR).isoformat()
+
+
+def _build(tmp_path: Path, feed: FakeFeed, *, entry_at: int = WARMUP + 1, symbols=(SYMBOL,), **kw) -> PaperLoop:
+    kw.setdefault("retry_backoff_seconds", 0)
+    runner = PaperTradingRunner(
+        lambda sym: _router_for(_Scripted(entry_at=entry_at, stop_pct=0.05, symbol=sym)),
+        _risk(tmp_path), _paper(tmp_path),
+    )
+    return PaperLoop(runner, feed, list(symbols), "1h", tmp_path / "loop.json", clock=lambda: feed.now, **kw)
+
+
+def _at(feed: FakeFeed, hours: float) -> None:
+    feed.now = START + timedelta(hours=hours)
+
+
+@pytest.fixture
+def flat_feed():
+    return FakeFeed({SYMBOL: _frame(_flat(WARMUP + 20))})
+
+
+class TestClosedBarsOnly:
+    def test_the_forming_bar_is_never_processed(self, tmp_path, flat_feed):
+        loop = _build(tmp_path, flat_feed)
+        _at(flat_feed, WARMUP + 1)  # bar 60 just closed; bar 61 is forming and visible
+        report = loop.tick()
+        assert report.processed == [_ts(WARMUP)]
+        assert report.actions == [f"{SYMBOL}@{_ts(WARMUP)}:ENTRY_SUBMITTED"]
+
+    def test_a_first_run_starts_at_the_latest_closed_bar(self, tmp_path, flat_feed):
+        loop = _build(tmp_path, flat_feed, entry_at=10**9)
+        _at(flat_feed, WARMUP + 10.5)
+        assert loop.tick().processed == [_ts(WARMUP + 9)], "history is context, not replayed as live"
+
+    def test_polling_the_same_bar_twice_processes_it_once(self, tmp_path, flat_feed):
+        loop = _build(tmp_path, flat_feed)
+        _at(flat_feed, WARMUP + 1)
+        loop.tick()
+        steps = len(loop.runner.steps)
+        _at(flat_feed, WARMUP + 1.5)
+        assert loop.tick().processed == []
+        assert len(loop.runner.steps) == steps
+
+    def test_the_next_closed_bar_fills_the_entry(self, tmp_path, flat_feed):
+        loop = _build(tmp_path, flat_feed)
+        _at(flat_feed, WARMUP + 1)
+        loop.tick()
+        _at(flat_feed, WARMUP + 2)
+        assert loop.tick().processed == [_ts(WARMUP + 1)]
+        assert loop.runner.paper.get_position(SYMBOL) is not None
+
+
+class TestCatchUpAfterAnOutage:
+    def _crash_feed(self) -> FakeFeed:
+        prices = _flat(WARMUP + 1) + _flat(2) + [(99.0, 99.5, 80.0, 82.0)] + _flat(10, 82.0)
+        return FakeFeed({SYMBOL: _frame(prices)})  # the stop (95) is crossed on bar 63
+
+    def test_missed_bars_are_replayed_in_order(self, tmp_path):
+        feed = self._crash_feed()
+        loop = _build(tmp_path, feed)
+        _at(feed, WARMUP + 1)
+        loop.tick()  # entry approved on bar 60
+        _at(feed, WARMUP + 6)  # down for bars 61..65
+        report = loop.tick()
+        assert report.processed == [_ts(i) for i in range(WARMUP + 1, WARMUP + 6)]
+
+    def test_a_stop_crossed_during_the_outage_exits_on_the_bar_it_was_crossed(self, tmp_path):
+        feed = self._crash_feed()
+        loop = _build(tmp_path, feed)
+        _at(feed, WARMUP + 1)
+        loop.tick()
+        _at(feed, WARMUP + 6)
+        loop.tick()
+        trades = loop.runner.closed_trades
+        assert [t.exit_reason for t in trades] == [EXIT_STOP]
+        assert trades[0].closed_at == _ts(WARMUP + 3)
+        assert abs(trades[0].exit_price - Decimal("95") * (1 - 2 * loop.runner.paper.slippage_rate)) < Decimal("0.01")
+
+    def test_progress_survives_a_restart_and_resumes_where_it_stopped(self, tmp_path):
+        feed = self._crash_feed()
+        loop = _build(tmp_path, feed)
+        _at(feed, WARMUP + 2)
+        loop.tick()
+        saved = json.loads((tmp_path / "loop.json").read_text())
+        assert saved["last_processed"] == _ts(WARMUP + 1)
+
+        restarted = _build(tmp_path, feed, entry_at=10**9)
+        _at(feed, WARMUP + 5)
+        assert restarted.tick().processed == [_ts(WARMUP + 2), _ts(WARMUP + 3), _ts(WARMUP + 4)]
+
+    def test_an_outage_longer_than_the_fetched_history_trips_the_kill_switch(self, tmp_path, flat_feed):
+        loop = _build(tmp_path, flat_feed, entry_at=10**9, fetch_limit=5)
+        _at(flat_feed, WARMUP + 1)
+        loop.tick()
+        _at(flat_feed, WARMUP + 15)  # 14 bars missed, only 5 fetched
+        report = loop.tick()
+        assert report.gap_halt is not None
+        risk = loop.runner.risk_engine
+        assert risk.state.kill_switch is True
+        assert "data gap" in risk.state.kill_switch_reason
+        assert report.processed, "the bars that ARE available still get processed (exits keep working)"
+
+
+class TestFeedFailures:
+    def test_a_failed_fetch_processes_nothing_and_is_reported(self, tmp_path, flat_feed):
+        loop = _build(tmp_path, flat_feed)
+        _at(flat_feed, WARMUP + 1)
+        flat_feed.fail = True
+        report = loop.tick()
+        assert report.processed == [] and report.fetch_error is not None
+        assert loop.consecutive_fetch_errors == 1
+        assert loop.runner.steps == []
+        status = json.loads((tmp_path / "loop.json").read_text())["status"]
+        assert status["consecutive_fetch_errors"] == 1
+
+    def test_a_long_outage_trips_the_connectivity_kill_switch(self, tmp_path, flat_feed):
+        loop = _build(tmp_path, flat_feed, entry_at=10**9)
+        _at(flat_feed, WARMUP + 1)
+        loop.tick()  # a successful fetch is recorded
+        flat_feed.fail = True
+        _at(flat_feed, WARMUP + 2)
+        loop.tick()
+        assert loop.runner.risk_engine.state.kill_switch is True
+        assert "Connectivity" in loop.runner.risk_engine.state.kill_switch_reason
+
+    def test_recovery_resets_the_error_count_and_catches_up(self, tmp_path, flat_feed):
+        loop = _build(tmp_path, flat_feed, entry_at=10**9)
+        _at(flat_feed, WARMUP + 1)
+        loop.tick()
+        flat_feed.fail = True
+        _at(flat_feed, WARMUP + 1.01)
+        loop.tick()
+        flat_feed.fail = False
+        _at(flat_feed, WARMUP + 3)
+        report = loop.tick()
+        assert loop.consecutive_fetch_errors == 0
+        assert report.processed == [_ts(WARMUP + 1), _ts(WARMUP + 2)]
+
+
+class TestPortfolio:
+    def test_a_lagging_symbol_holds_the_timestamp_back_until_it_arrives(self, tmp_path):
+        full = _frame(_flat(WARMUP + 5))
+        feed = FakeFeed({"AAAUSDT": full, "BBBUSDT": full.iloc[: WARMUP + 1]})  # BBB lacks bars 61+
+        loop = _build(tmp_path, feed, entry_at=10**9, symbols=("AAAUSDT", "BBBUSDT"))
+        _at(feed, WARMUP + 3)
+        assert loop.tick().processed == [_ts(WARMUP)]
+        feed.frames["BBBUSDT"] = full
+        assert loop.tick().processed == [_ts(WARMUP + 1), _ts(WARMUP + 2)]
+
+
+class TestGuards:
+    def test_refuses_anything_but_a_paper_adapter(self, tmp_path, flat_feed):
+        runner = PaperTradingRunner(_router_for(_Scripted(entry_at=10**9)), _risk(tmp_path), _paper(tmp_path))
+        runner.paper = object()  # type: ignore[assignment]
+        with pytest.raises(TypeError, match="PAPER only"):
+            PaperLoop(runner, flat_feed, [SYMBOL], "1h", tmp_path / "loop.json")
+
+    def test_refuses_to_resume_a_state_file_written_for_another_setup(self, tmp_path, flat_feed):
+        (tmp_path / "loop.json").write_text(json.dumps({"symbols": ["ETHUSDT"], "timeframe": "1h", "last_processed": None}))
+        with pytest.raises(ValueError, match="refusing to resume"):
+            _build(tmp_path, flat_feed)
+
+    def test_rejects_an_unknown_timeframe(self, tmp_path, flat_feed):
+        runner = PaperTradingRunner(_router_for(_Scripted(entry_at=10**9)), _risk(tmp_path), _paper(tmp_path))
+        with pytest.raises(ValueError, match="timeframe"):
+            PaperLoop(runner, flat_feed, [SYMBOL], "7m", tmp_path / "loop.json")
+
+
+class TestRun:
+    def test_run_polls_then_sleeps_until_just_after_the_next_close(self, tmp_path, flat_feed):
+        slept: list[float] = []
+
+        def fake_sleep(seconds: float) -> None:
+            slept.append(seconds)
+            flat_feed.now += timedelta(seconds=seconds)
+
+        loop = _build(tmp_path, flat_feed, entry_at=10**9, sleep=fake_sleep, close_grace_seconds=5)
+        _at(flat_feed, WARMUP + 1.25)
+        assert loop.run(max_ticks=3) == 3
+        assert slept[0] == pytest.approx(0.75 * 3600 + 5)
+        assert loop.last_processed == START + (WARMUP + 2) * HOUR
+
+    def test_a_stop_file_stops_the_loop_before_polling(self, tmp_path, flat_feed):
+        stop = tmp_path / "STOP"
+        stop.write_text("")
+        loop = _build(tmp_path, flat_feed, stop_file=stop)
+        assert loop.run(max_ticks=5) == 0
+        assert flat_feed.calls == 0
+
+
+def test_status_reports_what_an_operator_needs(tmp_path, flat_feed):
+    loop = _build(tmp_path, flat_feed)
+    _at(flat_feed, WARMUP + 1)
+    loop.tick()
+    status = json.loads((tmp_path / "loop.json").read_text())["status"]
+    assert set(status) >= {"last_tick", "equity", "cash", "open_positions", "kill_switch", "books_disagree"}
+    assert status["books_disagree"] == []
+    assert Decimal(status["equity"]) == Decimal("10000")
+
+
+
+class TestCommandLine:
+    def test_main_runs_the_real_pipeline_on_an_injected_feed(self, tmp_path, flat_feed):
+        from trading_intelligence.execution import paper_loop
+
+        _at(flat_feed, WARMUP + 1)
+        risk_file = tmp_path / "risk.json.in"
+        risk_file.write_text(json.dumps({"max_position_size_pct": 10.0}))
+        original_clock = paper_loop.PaperLoop.__init__
+
+        def init(self, *args, **kwargs):
+            kwargs["clock"] = lambda: flat_feed.now
+            original_clock(self, *args, **kwargs)
+
+        import unittest.mock as mock
+        with mock.patch.object(paper_loop.PaperLoop, "__init__", init):
+            code = paper_loop.main(
+                ["--symbols", SYMBOL, "--timeframe", "1h", "--state-dir", str(tmp_path / "s"),
+                 "--risk-config", str(risk_file), "--max-ticks", "1"],
+                market_data=flat_feed,
+            )
+        assert code == 0
+        saved = json.loads((tmp_path / "s" / "loop.json").read_text())
+        assert saved["last_processed"] == _ts(WARMUP)
+        assert (tmp_path / "s" / "risk.json").exists() and (tmp_path / "s" / "paper.json").exists()
+
+    def test_a_stop_file_in_the_state_dir_is_honoured_by_default(self, tmp_path, flat_feed):
+        from trading_intelligence.execution import paper_loop
+
+        (tmp_path / "s").mkdir()
+        (tmp_path / "s" / "STOP").write_text("")
+        assert paper_loop.main(["--symbols", SYMBOL, "--timeframe", "1h", "--state-dir", str(tmp_path / "s"),
+                                "--max-ticks", "3"], market_data=flat_feed) == 0
+        assert flat_feed.calls == 0
+
+    def test_binance_feed_refuses_testnet_data_and_carries_no_credentials(self, monkeypatch):
+        from trading_intelligence.execution import paper_loop
+
+        monkeypatch.setenv("BINANCE_API_KEY", "should-never-be-used")
+        monkeypatch.setenv("BINANCE_SECRET_KEY", "should-never-be-used")
+        monkeypatch.setenv("BINANCE_TESTNET", "false")
+        feed = paper_loop._binance_market_data(allow_testnet_data=False)
+        assert feed.api_key is None and feed.secret_key is None
+        assert feed.testnet is False
+        monkeypatch.setenv("BINANCE_TESTNET", "true")
+        with pytest.raises(SystemExit, match="TESTNET"):
+            paper_loop._binance_market_data(allow_testnet_data=False)
+
+
+
+class TestGapsAndFreshness:
+    """Found by GPT Work's PaperLoop review (PR #8, 0527b02)."""
+
+    def test_a_missing_bar_between_two_present_ones_trips_the_kill_switch(self, tmp_path, flat_feed):
+        loop = _build(tmp_path, flat_feed, entry_at=10**9)
+        _at(flat_feed, WARMUP + 1)
+        loop.tick()
+        flat_feed.frames[SYMBOL] = flat_feed.frames[SYMBOL].drop(pd.Timestamp(_ts(WARMUP + 2)).tz_localize(None))
+        _at(flat_feed, WARMUP + 4)
+        report = loop.tick()
+        assert report.gap_halt is not None and "1 bar(s) missing" in report.gap_halt
+        assert loop.runner.risk_engine.state.kill_switch is True
+        assert report.processed == [_ts(WARMUP + 1), _ts(WARMUP + 3)], "available bars still processed"
+
+    def test_contiguous_bars_never_halt(self, tmp_path, flat_feed):
+        loop = _build(tmp_path, flat_feed, entry_at=10**9)
+        _at(flat_feed, WARMUP + 1)
+        loop.tick()
+        _at(flat_feed, WARMUP + 5)
+        report = loop.tick()
+        assert report.gap_halt is None and report.stale_symbols == []
+        assert loop.runner.risk_engine.state.kill_switch is False
+
+    def test_a_feed_that_answers_with_old_bars_is_treated_as_an_outage(self, tmp_path, flat_feed):
+        loop = _build(tmp_path, flat_feed, entry_at=10**9)
+        _at(flat_feed, WARMUP + 1)
+        loop.tick()
+        flat_feed.frames[SYMBOL] = flat_feed.frames[SYMBOL].iloc[: WARMUP + 1]  # frozen at bar 60
+        _at(flat_feed, WARMUP + 5)
+        report = loop.tick()
+        assert report.stale_symbols == [SYMBOL]
+        assert report.processed == []
+        assert loop.runner.risk_engine.state.kill_switch is True
+        assert "Connectivity" in loop.runner.risk_engine.state.kill_switch_reason
+        status = json.loads((tmp_path / "loop.json").read_text())["status"]
+        assert status["stale_symbols"] == [SYMBOL]
+
+    def test_one_bar_of_publication_lag_is_tolerated(self, tmp_path, flat_feed):
+        loop = _build(tmp_path, flat_feed, entry_at=10**9)
+        _at(flat_feed, WARMUP + 1)
+        loop.tick()
+        flat_feed.frames[SYMBOL] = flat_feed.frames[SYMBOL].iloc[: WARMUP + 3]  # bars 0..62
+        _at(flat_feed, WARMUP + 4)  # bar 63 just closed but is not published yet
+        report = loop.tick()
+        assert report.stale_symbols == []
+        assert loop.runner.risk_engine.state.kill_switch is False
+
+    def test_one_frozen_symbol_is_named_instead_of_silently_stalling_the_portfolio(self, tmp_path):
+        full = _frame(_flat(WARMUP + 10))
+        feed = FakeFeed({"AAAUSDT": full, "BBBUSDT": full.iloc[: WARMUP + 1]})
+        loop = _build(tmp_path, feed, entry_at=10**9, symbols=("AAAUSDT", "BBBUSDT"))
+        _at(feed, WARMUP + 1)
+        loop.tick()
+        _at(feed, WARMUP + 6)
+        assert loop.tick().stale_symbols == ["BBBUSDT"]
+
+
+class TestFetchRetries:
+    class Flaky(FakeFeed):
+        def __init__(self, frames, failures):
+            super().__init__(frames)
+            self.failures = failures
+
+        def get_ohlcv(self, symbol, timeframe, limit=500):
+            if self.failures > 0:
+                self.failures -= 1
+                raise ConnectionError("blip")
+            return super().get_ohlcv(symbol, timeframe, limit)
+
+    def test_a_transient_failure_is_retried_within_the_tick(self, tmp_path):
+        feed = self.Flaky({SYMBOL: _frame(_flat(WARMUP + 5))}, failures=2)
+        slept: list[float] = []
+        loop = _build(tmp_path, feed, entry_at=10**9, sleep=slept.append, retry_backoff_seconds=2.0)
+        _at(feed, WARMUP + 1)
+        report = loop.tick()
+        assert report.fetch_error is None and report.processed == [_ts(WARMUP)]
+        assert slept == [2.0, 4.0]
+        assert loop.consecutive_fetch_errors == 0
+
+    def test_exhausted_retries_count_as_one_failed_tick(self, tmp_path):
+        feed = self.Flaky({SYMBOL: _frame(_flat(WARMUP + 5))}, failures=10)
+        loop = _build(tmp_path, feed, entry_at=10**9, fetch_attempts=3)
+        _at(feed, WARMUP + 1)
+        report = loop.tick()
+        assert report.fetch_error is not None and report.processed == []
+        assert loop.consecutive_fetch_errors == 1
+        assert feed.failures == 7, "exactly three attempts"
+
+    def test_invalid_retry_settings_are_refused(self, tmp_path, flat_feed):
+        with pytest.raises(ValueError, match="fetch_attempts"):
+            _build(tmp_path, flat_feed, fetch_attempts=0)
+
+
+class TestFeedOrigin:
+    """GPT Work (PR #8): a state built on one feed must not resume on another."""
+
+    def test_the_feed_origin_is_recorded(self, tmp_path, flat_feed):
+        loop = _build(tmp_path, flat_feed, entry_at=10**9)
+        _at(flat_feed, WARMUP + 1)
+        loop.tick()
+        assert json.loads((tmp_path / "loop.json").read_text())["feed_origin"] == "fake_feed"
+
+    def test_resuming_on_a_different_feed_is_refused(self, tmp_path, flat_feed):
+        loop = _build(tmp_path, flat_feed, entry_at=10**9)
+        _at(flat_feed, WARMUP + 1)
+        loop.tick()
+
+        class OtherFeed(FakeFeed):
+            def get_exchange_name(self):
+                return "binance_spot_testnet"
+
+        with pytest.raises(ValueError, match="feed origin"):
+            _build(tmp_path, OtherFeed(flat_feed.frames), entry_at=10**9)
+
+    def test_resuming_on_the_same_feed_and_on_old_state_files_works(self, tmp_path, flat_feed):
+        loop = _build(tmp_path, flat_feed, entry_at=10**9)
+        _at(flat_feed, WARMUP + 1)
+        loop.tick()
+        _build(tmp_path, flat_feed, entry_at=10**9)  # same origin: fine
+        data = json.loads((tmp_path / "loop.json").read_text())
+        del data["feed_origin"]  # a state file written before this check existed
+        (tmp_path / "loop.json").write_text(json.dumps(data))
+        _build(tmp_path, flat_feed, entry_at=10**9)
+
+
+class TestDecisionJournal:
+    """What the loop decided and why survives across runs (each GitHub Actions run is
+    a fresh process), so the owner can read it in the run summary."""
+
+    def test_every_decision_fill_and_closed_trade_is_journaled_across_restarts(self, tmp_path):
+        feed = TestCatchUpAfterAnOutage()._crash_feed()
+        loop = _build(tmp_path, feed)
+        _at(feed, WARMUP + 1)
+        loop.tick()  # entry approved
+        _at(feed, WARMUP + 2)
+        loop.tick()  # entry filled
+        restarted = _build(tmp_path, feed)  # a new process, as on every scheduled run
+        _at(feed, WARMUP + 6)
+        restarted.tick()  # the stop is crossed on bar 63
+        saved = json.loads((tmp_path / "loop.json").read_text())
+        actions = [e["action"] for e in saved["journal"]]
+        assert actions[0] == "ENTRY_SUBMITTED"
+        assert [e["bar"] for e in saved["journal"]] == [_ts(i) for i in range(WARMUP, WARMUP + 6)]
+        fills = [(e["bar"], f["side"]) for e in saved["journal"] for f in e["fills"] if f["status"] == "FILLED"]
+        assert fills[0] == (_ts(WARMUP + 1), "BUY") and fills[-1][1] == "SELL"
+        assert len(saved["trades"]) == 1 and saved["trades"][0]["exit_reason"] == EXIT_STOP
+        assert Decimal(saved["trades"][0]["pnl"]) < 0
+        assert [h["bar"] for h in saved["equity_history"]] == [_ts(i) for i in range(WARMUP, WARMUP + 6)]
+        assert saved["journal"][-1]["close"] is not None and saved["journal"][-1]["regime"] is not None
+
+    def test_the_journal_is_bounded(self, tmp_path, flat_feed, monkeypatch):
+        from trading_intelligence.execution import paper_loop
+
+        monkeypatch.setattr(paper_loop, "JOURNAL_MAX", 3)
+        monkeypatch.setattr(paper_loop, "EQUITY_HISTORY_MAX", 2)
+        loop = _build(tmp_path, flat_feed, entry_at=10**9)
+        for h in range(WARMUP + 1, WARMUP + 7):
+            _at(flat_feed, h)
+            loop.tick()
+        saved = json.loads((tmp_path / "loop.json").read_text())
+        assert [e["bar"] for e in saved["journal"]] == [_ts(i) for i in range(WARMUP + 3, WARMUP + 6)]
+        assert len(saved["equity_history"]) == 2
+
+    def test_old_state_files_without_a_journal_still_load(self, tmp_path, flat_feed):
+        loop = _build(tmp_path, flat_feed, entry_at=10**9)
+        _at(flat_feed, WARMUP + 1)
+        loop.tick()
+        path = tmp_path / "loop.json"
+        data = json.loads(path.read_text())
+        for key in ("journal", "trades", "equity_history"):
+            data.pop(key)
+        path.write_text(json.dumps(data))
+        resumed = _build(tmp_path, flat_feed, entry_at=10**9)
+        _at(flat_feed, WARMUP + 2)
+        resumed.tick()
+        assert len(json.loads(path.read_text())["journal"]) == 1
+
+
+class TestStateContinuity:
+    """Found by GPT Work (PR #8): an evicted Actions cache turned the next scheduled run
+    into a silent first run (fresh cash, risk counters and progress) that still passed."""
+
+    def _main(self, tmp_path, feed, *extra):
+        from unittest import mock
+
+        from trading_intelligence.execution import paper_loop
+
+        original = paper_loop.PaperLoop.__init__
+
+        def init(self, *args, **kwargs):
+            kwargs["clock"] = lambda: feed.now
+            original(self, *args, **kwargs)
+
+        with mock.patch.object(paper_loop.PaperLoop, "__init__", init):
+            return paper_loop.main(["--symbols", SYMBOL, "--timeframe", "1h", "--state-dir", str(tmp_path / "s"),
+                                    "--max-ticks", "1", *extra], market_data=feed)
+
+    def test_a_scheduled_run_without_state_refuses_and_writes_nothing(self, tmp_path, flat_feed):
+        _at(flat_feed, WARMUP + 1)
+        assert self._main(tmp_path, flat_feed, "--require-state") == 3
+        assert not (tmp_path / "s" / "loop.json").exists()
+
+    def test_bootstrap_then_scheduled_runs_continue(self, tmp_path, flat_feed):
+        _at(flat_feed, WARMUP + 1)
+        assert self._main(tmp_path, flat_feed) == 0  # deliberate bootstrap
+        _at(flat_feed, WARMUP + 2)
+        assert self._main(tmp_path, flat_feed, "--require-state") == 0
+        saved = json.loads((tmp_path / "s" / "loop.json").read_text())
+        assert saved["last_processed"] == _ts(WARMUP + 1)
+
+    def test_losing_all_state_after_an_established_run_turns_red(self, tmp_path, flat_feed):
+        import shutil
+
+        _at(flat_feed, WARMUP + 1)
+        assert self._main(tmp_path, flat_feed) == 0
+        shutil.rmtree(tmp_path / "s")  # the cache was evicted
+        _at(flat_feed, WARMUP + 5)
+        assert self._main(tmp_path, flat_feed, "--require-state") == 3
+        assert not (tmp_path / "s" / "loop.json").exists()
+
+    @pytest.mark.parametrize("lost", ["paper.json", "risk.json"])
+    def test_partial_state_is_refused_even_without_the_flag(self, tmp_path, flat_feed, lost):
+        _at(flat_feed, WARMUP + 1)
+        assert self._main(tmp_path, flat_feed) == 0
+        (tmp_path / "s" / lost).unlink()
+        before = (tmp_path / "s" / "loop.json").read_text()
+        _at(flat_feed, WARMUP + 2)
+        assert self._main(tmp_path, flat_feed) == 3
+        assert (tmp_path / "s" / "loop.json").read_text() == before

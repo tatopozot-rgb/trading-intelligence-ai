@@ -1,0 +1,57 @@
+{
+  "nodes": [
+    {"id": "title", "type": "text", "x": 0, "y": -180, "width": 760, "height": 90,
+     "text": "# 🏙️ Agent City\n\nTrading Intelligence AI — operational now (left), life simulation later (right). See [[Agent City]] for the full explanation before trusting anything below."},
+
+    {"id": "rule", "type": "text", "x": 800, "y": -180, "width": 420, "height": 90, "color": "1",
+     "text": "**La ciudad no puede mentir.**\nRe-check the operational side against real GitHub/Notion state every time this is refreshed — never copy a status forward unverified."},
+
+    {"id": "grp-operational", "type": "group", "x": -20, "y": -60, "width": 800, "height": 420,
+     "label": "OPERATIONAL — real, checked each refresh", "color": "4"},
+
+    {"id": "cc", "type": "text", "x": 20, "y": 0, "width": 340, "height": 140, "color": "4",
+     "text": "## 🏛️ Command Center\n**Trading Codex (cloud)** — coordination lead\n\nDecides priorities, resolves conflicts, assigns tasks. Does not set risk policy unilaterally."},
+
+    {"id": "el", "type": "file", "x": 400, "y": 0, "width": 340, "height": 140, "color": "4",
+     "file": "02 Agents/Trading Codex (cloud).md"},
+
+    {"id": "gptops", "type": "file", "x": 20, "y": 180, "width": 340, "height": 140, "color": "3",
+     "file": "02 Agents/Trading Claude-Work (GPT Work).md"},
+
+    {"id": "localops", "type": "file", "x": 400, "y": 180, "width": 340, "height": 140, "color": "4",
+     "file": "02 Agents/Claude Code local.md"},
+
+    {"id": "grp-lifesim", "type": "group", "x": 840, "y": -60, "width": 780, "height": 600,
+     "label": "LIFE SIMULATION — future, creative, no real agents yet", "color": "6"},
+
+    {"id": "quant", "type": "text", "x": 860, "y": 0, "width": 230, "height": 110,
+     "text": "### 🧮 Quant Lab\n*FUTURE — no agent assigned, no real activity.*"},
+
+    {"id": "risk", "type": "text", "x": 1110, "y": 0, "width": 230, "height": 110,
+     "text": "### 🛡️ Risk Control\n*FUTURE — no agent assigned, no real activity.*"},
+
+    {"id": "qa", "type": "text", "x": 1360, "y": 0, "width": 230, "height": 110,
+     "text": "### ✅ QA Facility\n*FUTURE — no agent assigned, no real activity.*"},
+
+    {"id": "floor", "type": "text", "x": 860, "y": 140, "width": 230, "height": 110,
+     "text": "### 📈 Trading Floor\n*FUTURE — PAPER only when it exists; never a path to real orders without the real risk engine.*"},
+
+    {"id": "knowledge", "type": "text", "x": 1110, "y": 140, "width": 230, "height": 110,
+     "text": "### 📚 Knowledge Center\n*FUTURE — likely where this vault's own [[Trading Dashboard]] lives once it's richer.*"},
+
+    {"id": "academy", "type": "text", "x": 1360, "y": 140, "width": 230, "height": 110,
+     "text": "### 🎓 Agent Academy\n*FUTURE — concept only: how a new specialized agent would be onboarded and evidenced before getting a district.*"},
+
+    {"id": "houses", "type": "text", "x": 860, "y": 280, "width": 480, "height": 110,
+     "text": "### 🏠 Residential zones / houses\n*FUTURE — pure world-building. No agent lifecycle or persistence model exists for this yet.*"},
+
+    {"id": "gens", "type": "text", "x": 1360, "y": 280, "width": 230, "height": 110,
+     "text": "### 🌱 Generations / evolution\n*FUTURE — creative placeholder, not a committed roadmap item.*"}
+  ],
+  "edges": [
+    {"id": "e1", "fromNode": "cc", "fromSide": "right", "toNode": "el", "toSide": "left", "color": "4"},
+    {"id": "e2", "fromNode": "cc", "fromSide": "bottom", "toNode": "gptops", "toSide": "top", "color": "4"},
+    {"id": "e3", "fromNode": "cc", "fromSide": "bottom", "toNode": "localops", "toSide": "top", "color": "4"},
+    {"id": "e4", "fromNode": "cc", "fromSide": "right", "toNode": "grp-lifesim", "toSide": "left", "label": "grows into, not yet real"}
+  ]
+}

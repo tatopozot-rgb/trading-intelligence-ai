@@ -1,0 +1,229 @@
+# Checkpoint — Trading Intelligence AI
+
+> Last updated: 2026-10-05 — Finding 3 halt implemented on claude-code/finding-3-persistent-halt (pending review)
+> Agent: Trading Codex
+
+## Live status (autonomous session, 2026-10-05)
+
+- Issue #2 open. PR #3 open: `codex/import-paper-baseline` -> `ccr-b66a9a9e-okj2pl`, not draft, not merged.
+  PR #1 open: `ccr-b66a9a9e-okj2pl` -> `main` (remote specs/strategy package). Remote `main` untouched.
+- Verified GitHub (private repo, read via existing git credential): PR #3 head `933642a`; import branch code is
+  byte-identical to local `C:\Users\tatop\trading-ai` root `*.py` once CRLF is ignored (0 content diffs).
+  Only local-only files: runtime/data (`trading.db`, `runner*.json/lock`, `claude_request*`, `DETENER_SESION_*`); not published.
+- Publication guard on PR #3 tree: `tools/check_repository.py` -> 153 files, 0 findings.
+- Baseline reproduced locally in `C:\Users\tatop\trading-ai` (original `.venv`): 547 tests OK (52.6s).
+- PR #3 tree reproduced: 558 tests OK (54.4s). The 11 extra are `test_repository_safety`.
+- "32 tests" claim (`docs/history/CHECKPOINT_CLAUDE_2026-10-05_1615.md`): NOT reproduced. Its breakdown is
+  in the research package under `tests/` (pytest, separate deps), not in the root suite. Not summed with 558.
+- Working copy for this session: `C:\Users\tatop\trading-intelligence-work\repo` (git clone, not the `.codex` snapshot).
+  Original `C:\Users\tatop\trading-ai` was only read and executed, never modified.
+
+### Branch `claude-code/finding-3-persistent-halt` (stacked on PR #4 `codex/market-lot-contract`, Claude Code local)
+
+- **Finding 3 mechanism implemented**: persistent automatic drawdown halt, separate from `PAUSA_ENTRADAS`.
+  - `paper_store.py`: new `paper_halt` singleton row (activo, razon, pico_equity, equity_activacion).
+    `equity_mtm()` = realized balance + unrealized P&L using the same formula as `calcular_resultado_cierre`.
+    `_evaluar_halt()` is the single decision point, called from `_abrir_validado` (covers both Claude and
+    `REGLAS_PAPER_V1` entry paths). Activation is committed even though the entry is rejected (returns
+    `registrada: False`); an already-active halt raises.
+  - `paper_monitor.revisar_operaciones()` also calls `evaluar_riesgo()` every cycle, isolated in try/except,
+    so the peak is captured from MTM even with no entry attempts. Closing positions is never gated.
+  - `liberar_halt(confirmado=True)` is the only exit; refused while drawdown is still at or above the threshold.
+    Nothing auto-clears on restart or price recovery.
+  - Fail-closed: missing/corrupt halt row, unapproved threshold, or any price failure blocks new entries.
+    A price failure does NOT activate the halt (it is not evidence of drawdown).
+  - Events `HALT_ACTIVADO`, `HALT_LIBERADO`, `HALT_INICIALIZADO` in `paper_events`.
+- **Threshold is NOT approved**: `config.DRAWDOWN_HALT_PCT = None`. While unset, the PAPER runner opens no new
+  entries (by design). Trading Claude-Work must supply the value. Spec placeholders (8%/15%) are not used.
+- **Decisions taken for Trading Claude-Work to ratify or change**:
+  1. Peak = all-time high-water mark of equity (most conservative). The spec's 30-day rolling lookback is not implemented.
+     Consequence: one bad quote that spikes MTM ratchets the peak permanently; recovery then requires a human decision.
+  2. Only the persistent halt is implemented. Drawdown pause with auto-resume (spec tier 1) and the connectivity
+     watchdog (spec 60 s) are NOT implemented.
+  3. Liberation does not reset the peak.
+- **Known limitations**: open positions are valued at the public ticker price, also for depth-model (`modelo_fill_paper`)
+  positions, not at the executable book. The valuation runs inside the BEGIN IMMEDIATE transaction, so slow HTTP can hold
+  the SQLite write lock (timeout 10 s). `paper_report` and `ControlPaper` do not yet expose the halt state or a clear action.
+- **Finding 2 tests**: `DailyLossContractTests` pins the baseline UTC-5 day boundary (04:59 UTC vs 05:00 UTC) and checks
+  that losses before the cutoff count against the previous local day's budget. Contract preserved; no clock change.
+- **Test fixtures**: legacy PAPER test setups now inject `DRAWDOWN_HALT_PCT=50.0` and a deterministic
+  `_precio_para_equity` (100.0). Without the injection, tests hit the real Binance ticker; one run produced a
+  ~34 000 "price" and a nonsense peak. This is why the fixtures change.
+- Full root suite: **621 passed, 1 failed** (622 collected; baseline 605 + 1 failed, plus 16 new). The failure is
+  `test_paper_control::test_launcher_venv_real_con_sonda...`, pre-existing and environmental: it copies `pyvenv.cfg`
+  from the system Python prefix, which is not a venv. Not caused by this change.
+- Lint: `ruff --select E,F,W` reports the same 4 pre-existing findings in `paper_monitor.py` as HEAD; none new.
+- `config.py` is mixed-EOL in HEAD. The diff was rebuilt from HEAD bytes so it shows only the 5 added lines.
+
+### Ratified risk policy implemented (ad2f86c on ccr), branch claude-code/finding-3-persistent-halt
+
+- **Halt threshold applied**: `DRAWDOWN_HALT_PCT = 15.0` (persistent, only `liberar_halt`).
+- **30-day rolling peak**: equity history in `paper_equity_hist`; peak = max over the window (not all-time).
+- **Pause tier 8 %**: `DRAWDOWN_PAUSE_PCT = 8.0`. Blocks new entries, never closes; not persistent, recomputed from history, auto-resumes below 8 %.
+- **Connectivity watchdog 60 s**: open positions + failed valuation for more than 60 s (or never valued) activates the persistent halt (`CONNECTIVITY_WATCHDOG`). A short gap only blocks the entry. Liberation requires a valid valuation.
+- **Tests**: `test_paper_halt.py` 26/26. Full root suite 629 passed; 3 failed = the known `pyvenv.cfg` environment failure plus `test_paper_ui_controls`, which passes in isolation (pre-existing intermittent).
+- Legacy fixtures disable the pause tier explicitly (`DRAWDOWN_PAUSE_PCT=None`), documented in each file.
+- Watchdog caveat: it only runs when a valuation is attempted (the monitor every 60 s). A dead monitor would not trigger it.
+- Not yet done: paper_report / ControlPaper display for the pause tier.
+- CAPITAL_USD = 100.0 unchanged. USAR_DINERO_REAL = False. LIVE not enabled. No credentials used.
+
+### Handoff — Claude Code local, branch `claude-code/finding-3-persistent-halt`
+
+- **Persistent halt: IMPLEMENTED** (commit 44eb425). Threshold `config.DRAWDOWN_HALT_PCT = None` is NOT approved: while unset,
+  no new PAPER entries open (fail-closed). Closes are never gated.
+- **Exposure added**: `paper_report.informe()` returns `halt` (activo, razon, pico_equity, equity_activacion) read-only, and flags
+  `HALT_AUSENTE_O_CORRUPTO` if the row is missing. `ControlPaper.observar()` returns `halt_riesgo` via `estado_halt()`, which
+  reports `disponible: False` on any read failure and never presents a failed read as healthy. The clear action (`liberar_halt`)
+  is intentionally NOT exposed in ControlPaper; it stays a code-only, confirmed call.
+- **Tests**: full root suite 624 passed, 1 pre-existing environmental failure (`test_paper_control::test_launcher_venv_real_con_sonda`,
+  `pyvenv.cfg` absent from the system Python prefix; not caused by this work). `test_paper_ui_controls` is intermittently flaky
+  in full runs and also fails on HEAD without these changes (3 different tests seen across runs). Lint on touched files: clean.
+- **Fixture change**: `test_paper_doctor` fixtures include the `paper_halt` table with an inactive row, matching the current schema.
+- CAPITAL_USD unchanged. LIVE not enabled. No private credentials used. Binance used only for read-only public data.
+- `C:\Users\tatop\trading-ai` is NOT a git repo and was not modified. Deploying requires copying changed files there by hand.
+
+#### Tasks for TRADING CODEX (cloud lineage; not touched here)
+- `BinanceSpotAdapter` defaults to `testnet=True`. `HistoricalDataDownloader()` inherits it and can silently return incomplete
+  testnet history (observed: 28 bars from 2026-09 instead of 2830 from 2019). Fix: public market-data default to production
+  without breaking the existing public downloader, and raise when returned history is shorter than requested.
+
+#### Tasks for CLAUDE LEADER / RISK (Trading Claude-Work)
+- Drawdown pause tier with auto-resume: NOT implemented. Decide whether it is still a requirement.
+- Connectivity watchdog (60 s): NOT implemented. Decide whether it is still a requirement and its semantics.
+- Review equity valued at public ticker/depth price vs. the executable order book. Depth-model positions are valued at the ticker.
+- Set `DRAWDOWN_HALT_PCT`. Ratify all-time high-water peak (no lookback) and that liberation does not reset the peak.
+  A single bad quote ratchets the peak permanently.
+
+#### Files
+- Modified this session: `paper_report.py`, `paper_control.py`, `test_paper_halt.py`, `test_paper_doctor.py`, `docs/CHECKPOINT.md`,
+  `docs/AGENT_COORDINATION.md`.
+- Free for others: all other root files, including `paper_store.py`, `paper_fills.py`, `broker_adapters.py`, `trading_intelligence/*`.
+
+### Real-data research run: BTCUSDT 1D (Claude Code local, research only, no runtime change)
+
+- Data: Binance **production** public klines, BTCUSDT 1d, 2019-01-01 to 2026-09-30, 2830 bars. No credentials, no orders.
+  Run from a scratch worktree of `origin/ccr-b66a9a9e-okj2pl` (`trading_intelligence/`), not from this branch.
+- Strategy: `DualMACrossover` with package defaults (EMA 20/50, SMA200 trend filter, 10-bar swing-low stop).
+  Initial equity 10 000.
+- Full-period backtest: **11 trades**, win rate 45.5 %, PF 6.91, Sharpe 0.35, max DD -2.9 %, PnL +4 029.57, fees 33.93.
+- Walk-forward (anchored, defaults): **0 folds**. IS Sharpe < 0.5 in every fold, so OOS is skipped by design. Result: **NO-GO**.
+- Reading: the sample is far below the framework's 30-trade minimum, and Sharpe 0.35 is below 0.5. PF 6.91 on 11 trades is
+  NOT evidence of edge. This is not a profitability claim and not a validated strategy.
+- **Defect (registered, not fixed here; file not claimed)**: `BinanceSpotAdapter` defaults to `testnet=True`, and
+  `HistoricalDataDownloader()` builds its adapter with that default. Without an explicit `testnet=False`, the downloader
+  silently returns only testnet history (28 bars, from 2026-09) and does not raise. Owner: Trading Codex (cloud lineage).
+  Suggested fix: default `testnet=False` for public market data, and raise when the returned history is shorter than requested.
+- Next (for Trading Claude-Work to decide): whether to test shorter timeframes (more trades) or other candidates. No threshold or
+  strategy change is approved by this run.
+
+### Branch `codex/market-lot-contract` (commit `a33f4e2`, PR #4 open -> `codex/import-paper-baseline`, not draft, not merged)
+
+- New `execution_market_filters.py` (`MARKET_FILTERS_OFFLINE_V1`): offline MARKET quantity contract, fail-closed.
+  Requires both MARKET_LOT_SIZE and LOT_SIZE; rejects `quoteOrderQty`; rejects MIN_NOTIONAL/NOTIONAL applying
+  to MARKET (needs a reference price); remainder helper `remanente_de_lote` reports dust, never rounds an order.
+- New `test_execution_market_filters.py`: 16 tests OK (0.004s).
+- Full suite on this branch: 574 tests OK (56.465s) = 558 + 16.
+- Official Binance docs (developers.binance.com filters page) confirm LOT_SIZE/MARKET_LOT_SIZE rules and
+  MIN_NOTIONAL/NOTIONAL `applyToMarket` flags. They do NOT specify quoteOrderQty validation, nor whether LOT_SIZE
+  also applies to MARKET orders. Those points are therefore conservative (reject) and remain UNVERIFIED.
+- `execution_filters.py`, `execution_percent.py`, `paper_fills.py`, `paper_store.py`, `risk_engine.py`, V1 evidence: unchanged.
+
+## Current State
+
+**Phase**: IMPORT & REVIEW of existing Windows PAPER program.
+**Status**: Source located, isolated reproduction and publication guard passed; GitHub branch import in progress.
+Branch: `codex/import-paper-baseline`; base `ccr-b66a9a9e-okj2pl` @ `1c6103f67e96f0c2ad68ffc90c1432c78b875059`.
+Integration base updated to `69cbc2bc7047942fed4dae337a991e7be318eb4e` after detecting new remote work.
+Preserve its `trading_intelligence/`, `tests/`, pytest.ini, requirements.txt and seven specification documents unchanged.
+The imported root PAPER runtime remains separate; requirements-paper.txt and root-only test command avoid mixing suites.
+Research code is not connected to the runtime or accepted as risk policy. Remote 32-test claim not independently verified;
+its own breakdown totals 33, so report it as claimed evidence until reproduced. Do not sum it with 558 baseline tests.
+Prior remote checkpoints/coordination preserved verbatim under docs/history/ with a historical banner.
+Issue: https://github.com/tatopozot-rgb/trading-intelligence-ai/issues/2
+
+GitHub is technical authority. Engineering copy (not authenticated Git clone):
+`C:\Users\tatop\.codex\.chatgpt-projects\g-p-6a9dd44fb9348191a9ece7cc6b44c04c\trading-intelligence-ai`.
+Original `C:\Users\tatop\trading-ai` and its runtime/data remain untouched. Do not develop in both copies.
+
+## Original setup (historical)
+
+- Created `AGENTS.md` with permanent rules for both agents
+- Created `docs/AGENT_COORDINATION.md` for task tracking and file ownership
+- Created `docs/CHECKPOINT.md` (this file)
+- Created `CLAUDE.md` with project context for Claude agents
+- Created `.github/pull_request_template.md`
+- Set up Notion operations center (if connected)
+- Pushed initial coordination infrastructure to repository
+
+## Completed this block
+
+- Found real program (47 Python modules, 43 test files, 18 Markdown); copied source/documents only, no runtime/data.
+- Verified 90 original Python files byte-identical. Limited secret-pattern scan: no matches.
+- Reproduced 547 tests OK in 56.717s from clean source using original venv; NOT a fresh dependency installation.
+- Found existing Notion center and boards; changed upload task from owner-blocked to Codex In Progress.
+- Trading Claude Work confirmed it will wait for the PR, then review; no concurrent implementation.
+- Added requirements.txt, manual Windows CI, documentation index compatible with Obsidian and publication guard.
+- New guard: 11 tests OK (0.097s); 120 explicit files scanned, zero findings. Full suite 558 tests OK (52.808s).
+- Mission Control functional structures added in the existing Notion center: PROJECTS, AGENTS, RUNS, BLOCKERS;
+  TASKS/CHECKPOINTS/DECISIONS/METRICS reused. IDs and cycle rules in docs/MISSION_CONTROL.md.
+- Auxiliary hit its usage limit after writing two files; main reviewed them and tested, no retry loop. Official global
+  usage read allowed work; do not equate auxiliary failure to global outage or infer Claude credits.
+- Created eight-hour development heartbeat (explicit new user instruction supersedes deleted old monitors).
+
+## Changed files
+
+Initial import of root *.py and *.md; .gitignore, CLAUDE.md, README.md, ESTADO_PROYECTO.md,
+requirements.txt, .github/workflows/paper-tests.yml, docs/{AGENT_COORDINATION,CHECKPOINT,INDEX,IMPORTACION_2026-10-05}.md.
+Guard tools/check_repository.py and test_repository_safety.py completed and tested; docs/MISSION_CONTROL.md added.
+
+## Exact next step
+
+1. DONE: PR #4 opened (`codex/market-lot-contract` -> `codex/import-paper-baseline`; does not touch `main` or PR #3 merge state).
+2. Request Trading Claude Work cross-review of PR #3 (migration, risk/architecture) and of the new MARKET contract
+   (quantitative/fill-semantics review). No merge until review.
+3. Then decide, with review input, how the MARKET contract integrates with `paper_fills.py`. Not done in this block:
+   no change to LIMIT/FOK V1 paths, no persisted-model change, no quoteOrderQty support.
+4. Still open: Notion update for PR #3 (Mission Control), and whether the cross-review requires PR #3 fixes first.
+
+Technical next step retained from 30 September: read MODELO_FILLS_PAPER.md, execution_filters.py,
+execution_percent.py, execution_context.py and paper_fills.py. Verify official Binance MARKET_LOT_SIZE/LOT_SIZE
+and quoteOrderQty semantics, define versioned lot/dust contract with fixtures, preserve V1 evidence and persisted model.
+Do not reuse LIMIT filters by analogy or modify risk/strategy to fit adverse results.
+
+## Blockers
+
+- Git CLI cannot authenticate noninteractively; authorized GitHub connector works. Not a user blocker.
+- CI remote execution/allowance not verified; manual workflow only, do not claim remote tests passed.
+- Dataset-backed historical evidence stays local; full H6c cannot be reproduced from GitHub alone yet.
+- Execution realism (lot/dust, calibration), strategy out-of-sample validation, final audit still open.
+- Private/Testnet/XM access is not configured; it does not block public data or fixture/PAPER development.
+
+## Test Status
+
+547 baseline tests OK (56.717s), then 11 new guard tests OK (0.097s), then full 558 tests OK (52.808s), 05-10-2026.
+Session re-run 05-10-2026: root baseline 547 OK (52.6s, original venv); PR #3 tree 558 OK (54.4s);
+branch `codex/market-lot-contract` 574 OK (56.5s) = 558 + 16 new MARKET contract tests.
+No operational session; new publication guard scans only explicit/tracked paths and does not certify complete security.
+Sandbox initially denied Python process; permitted isolated execution succeeded. Mock HTTP/disk errors expected.
+
+Command from engineering copy (existing local venv):
+```powershell
+$tests = @(Get-ChildItem -File -Filter 'test_*.py' | Select-Object -ExpandProperty BaseName)
+& 'C:\Users\tatop\trading-ai\.venv\Scripts\python.exe' -B -m unittest @tests -q
+```
+Fresh checkout setup: README.md. No credentials needed for tests. No repeated suite until meaningful code/test changes.
+Use the explicit root-only command after combining with the research package; the earlier discover result describes
+the clean baseline before remote-package incorporation. Research tests/ uses pytest.ini and separate dependencies.
+
+## Single unanswered question (does not block engineering)
+
+WAIT-CLAUDE-CODE-001 exists in Notion: Trading Claude Work asked for the result of installing Claude Code.
+Do not repeat or execute that user workflow in parallel. It blocks CLI setup there, not publication/testing here.
+No Binance keys or MT5 installation required for current work. See docs/MISSION_CONTROL.md.
+
+## System Health
+
+PAPER program exists; no new session started, no account/funds accessed. Session max eight hours is not a 24/7 service.
+H6c historical shared-capital sensitivities gave realized balances 87.0513 / 88.8265 from hypothetical 100,
+with one open ETH position at cost (NOT mark-to-market or final account value). No profitability validated.
+Full construction/audit NOT finished; final email must not be sent yet.
