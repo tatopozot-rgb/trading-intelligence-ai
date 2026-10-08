@@ -70,15 +70,25 @@ martingala, dos operadores a la vez.
 
 ## 6. Qué corre solo
 
-- El **operador**: mientras el PC esté encendido. Decide en cada vela de 1 hora y vigila
-  la pérdida y los stops cada minuto.
+- El **operador**: mientras el PC esté encendido. Decide en cada vela de **4 horas** y
+  vigila la pérdida y los stops cada minuto.
 - El **PAPER loop**: en GitHub cada 4 h, como laboratorio paralelo.
 - La **revisión de traders**: en GitHub, cada vez que se sube una captura.
 - La revisión del proyecto por **Claude Leader**: cada 8 h.
 
-## 7. Advertencia honesta
+## 7. Lo que dicen los datos reales (sección 45 del checkpoint)
 
-Ninguna estrategia del proyecto ha demostrado todavía, con datos reales, que gane dinero
-después de comisiones. La sesión Quant lo está midiendo ahora. Hasta tener ese resultado,
-cada sesión real es un experimento con pérdida máxima acotada por su regla de 20% y el
-aviso de 2 USD. Le reportaré el resultado de la medición en cuanto exista.
+La sesión Quant probó ambas estrategias con 1 a 4 años de datos reales de Binance, en las
+12 monedas, con comisiones incluidas y sin retocarlas:
+
+| Configuración | Resultado por operación después de comisiones | Veredicto |
+|---|---|---|
+| tendencia, velas de 1 h | **−0,80%** (408 operaciones) | **pierde dinero** de forma demostrada |
+| tendencia + rango, 1 h | **−0,67%** (473 operaciones) | **pierde dinero** de forma demostrada |
+| tendencia, velas de 4 h | +3,51% (206 operaciones) | positiva, **no demostrada** (p ≈ 0,09) |
+| tendencia + rango, 4 h | +3,06% (235 operaciones) | positiva, no demostrada (p ≈ 0,09) |
+
+Decisión del líder: **el operador no envía órdenes reales en 1 h**; solo en 4 h. En 4 h, la
+operación típica (la mediana) pierde, y el resultado depende de pocas ganancias grandes.
+Se esperan rachas de pérdidas pequeñas. Cada sesión real sigue siendo un experimento con la
+pérdida acotada por su regla del 20% y el aviso de 2 USD.

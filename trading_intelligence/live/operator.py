@@ -2,7 +2,7 @@
 Operator for REAL trading (route B). Run on the owner's PC by Claude Code local; the
 owner gives the orders in plain words and Claude Code local translates them:
 
-  "trading sin parar con 50"      -> iniciar --capital 50 --perfil tendencia --real
+  "trading sin parar con 50"      -> iniciar --capital 50 --perfil tendencia --real   (4h)
   "usa también rangos"            -> iniciar ... --perfil tendencia_rango
   "copia al trader X"             -> iniciar ... --perfil copiar  (+ lider --archivo ...)
   "continúa" (after the $2 warning) -> continuar
@@ -44,6 +44,11 @@ from trading_intelligence.live.session import STOPPED, Session
 logger = logging.getLogger(__name__)
 DEFAULT_DIR = Path("live_runs/current")
 PROFILES = ("tendencia", "tendencia_rango", "copiar")
+# Real-data walk-forward (CHECKPOINT section 45): at 1h both profiles LOSE after fees
+# (-0.80% / -0.67% per trade, p < 0.01). 4h is positive but not proven (p ~ 0.09).
+# Real orders are allowed only at a timeframe that has not been shown to lose.
+REAL_TIMEFRAMES = frozenset({"4h"})
+DEFAULT_TIMEFRAME = "4h"
 MID_REPORT_EVERY = timedelta(hours=12)
 
 AGENTS_BY_PROFILE = {
@@ -330,7 +335,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     start.add_argument("--perfil", choices=PROFILES, default="tendencia")
     start.add_argument("--real", action="store_true", help="send real orders (without it: SHADOW)")
     start.add_argument("--simbolos", nargs="+")
-    start.add_argument("--temporalidad", default="1h")
+    start.add_argument("--temporalidad", default=DEFAULT_TIMEFRAME)
     start.add_argument("--max-iteraciones", type=int)
     sub.add_parser("estado")
     sub.add_parser("continuar")
@@ -372,6 +377,10 @@ def main(argv: Optional[list[str]] = None) -> int:
     capital = Decimal(args.capital)
     if capital <= 0:
         parser.error("capital must be positive")
+    if args.real and args.perfil != "copiar" and args.temporalidad not in REAL_TIMEFRAMES:
+        parser.error(f"real orders at {args.temporalidad} refused: on real Binance data this configuration lost "
+                     f"money after fees (CHECKPOINT section 45). Allowed for real: {sorted(REAL_TIMEFRAMES)}; "
+                     "any timeframe is allowed without --real (SHADOW).")
     symbols = args.simbolos or sorted(limits.allowed_symbols)
     if not set(symbols) <= limits.allowed_symbols:
         parser.error(f"symbols outside the approved list: {sorted(set(symbols) - limits.allowed_symbols)}")

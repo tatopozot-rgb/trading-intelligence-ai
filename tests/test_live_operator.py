@@ -398,3 +398,13 @@ def test_the_real_engine_drives_the_real_account_end_to_end(tmp_path):
     held = op.session.holdings[SYMBOL]
     assert held.qty * 100 <= Decimal("20.01")  # owner's 40% cap of 50
     assert getattr(op, "_last_stops")[SYMBOL] < Decimal("100")  # the engine's protective stop is known live
+
+
+def test_real_orders_are_refused_at_a_timeframe_proven_to_lose(tmp_path, capsys):
+    from trading_intelligence.live import operator as O
+
+    assert O.DEFAULT_TIMEFRAME == "4h" and O.REAL_TIMEFRAMES == {"4h"}
+    with pytest.raises(SystemExit):
+        O.main(["--dir", str(tmp_path), "iniciar", "--capital", "50", "--temporalidad", "1h", "--real"])
+    assert "lost money after fees" in capsys.readouterr().err
+    assert not (tmp_path / "session.json").exists()

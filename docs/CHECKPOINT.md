@@ -1981,6 +1981,21 @@ at 1h) lost about 0.8% per trade after fees out-of-sample on real Binance data. 
 the four configurations clears the project's own GO bar. Results artifacts:
 `walk-forward-<profile>-<tf>` on run `37787747047` (90 days).
 
+### 46. Leader acts on section 45: no real orders at 1h; operator defaults to 4h (2026-10-08)
+
+Verified the Quant result (section 45, run `37787747047`): at 1h both profiles lose after
+fees with p < 0.01, so the operator's 1h default would have been expected to lose
+about 0.8% per trade. Changes:
+- `REAL_TIMEFRAMES = {"4h"}`: `--real` at any other timeframe is refused with the reason.
+  SHADOW still allows any timeframe.
+- The default timeframe is now 4h.
+- New test; the live suite has 31 tests.
+
+4h is NOT proven (p ≈ 0.09; the median trade loses). The owner is told this plainly in
+`docs/OPERATING_MODEL.md` section 7. Next evidence for 4h: a pre-registered forward test
+(Quant session) and the PAPER loop, which already runs `tendencia` at 4h on real data
+every 4 hours.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
