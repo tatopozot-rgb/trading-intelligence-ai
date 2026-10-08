@@ -1751,6 +1751,60 @@ by any agent:
 - H4 first real read-only check, run by the owner.
 Every credential step is WAITING_FOR_USER. Nothing here authorizes LIVE.
 
+### 41. Owner directive: real pilot with USD 30, copy trading; pipeline built (2026-10-08)
+
+Owner's directive: a program that studies the market and trades automatically, first
+real pilot with USD 30 when ready; agents for trader exploration, evaluation/selection,
+risk, execution/follow-up, learning/application. The previously exposed API key was
+revoked; a new one exists and is configured locally by Claude Code local only.
+
+**Verified constraint:** Binance's official Copy Trading API is two LEAD-trader-only
+endpoints (`/sapi/v1/copyTrading/futures/userStatus`, `/leadSymbol`), checked in the
+official `binance-connector-python` source. No official way to list leaders, read their
+positions/performance or follow one by API. Leaderboard "APIs" are scrapers of
+undocumented endpoints: refused by the code. Native copy minimums (~10 USDT per copy,
+profit share >= 10%, Spot copy needs KYC + region) come from Binance help pages seen via
+search; binance.com is unreachable from this container, so Claude Code local confirms in
+the app.
+
+**Built and tested** (`trading_intelligence/copy_trading/`, commits `9c7ff24`, `73b8131`):
+- `sources.py`: only `binance_app_manual` / `binance_official_api`; synthetic only when
+  explicitly allowed and labelled; look-ahead events refused.
+- `evaluator.py`: net-of-profit-share return, drawdown, consistency, worst 30 days,
+  profit and symbol concentration, liquidity, leverage, history shrinkage, survivorship
+  warning; works on a daily series or on the app's reported ROI windows
+  (basis flagged); selection with hysteresis; every decision carries reason codes;
+  invalidating failures exit copies, ranking failures wind down.
+- `risk.py`: on top of the RiskEngine (its veto is final for new risk; exits never
+  blocked). Loss within the envelope -> hold; beyond it -> hold and watch unless the
+  regime turned against the position (thesis invalidated -> exit); hard stop -> exit.
+  Never adds to a losing copy; a leader averaging down repeatedly is blocked. All values
+  PROPOSED, not ratified.
+- `follower.py`: PAPER/SHADOW only (LIVE refused at construction): latency, slippage,
+  fees, step size, exchange minimum notional, cash cut, failed orders healed by target
+  events, per-trader loss budget, wait-for-leader after our own exit, emergency stop
+  (flatten only with owner confirmation), comparison with the leader's own exit.
+- `pipeline.py` + `demo.py`: end-to-end run and owner report. 47 tests; 28/28 mutants
+  killed (one survivor exposed a real bug, fixed: a blocked trader was re-followed on
+  re-selection). Full suite 577 passed before the reported-figures addition.
+- PaperLoop: decision journal + owner report in the Actions summary (`08e27fd`); run #2
+  on real data green, showing per-symbol decisions (all NO_TRADE: NO_EDGE / no strategy).
+
+**Key finding for USD 30:** at the proposed 30% per-trader allocation every copy is
+below Binance's 5 USDT minimum (7/7 skipped in the demo). Only a 100% allocation to one
+trader works, which is the concentration the evaluator penalizes: owner decision.
+
+**Path and decisions:** `docs/PILOT_30_USD.md` (routes A native copy vs B own API,
+decisions list, shortest path). Claude Code local's part appended to
+`docs/prompts/CLAUDE_LOCAL_API_SESSION.md` section 6 (new key read-only and no
+withdrawals, confirm copy-trading facts in the app, capture leaders with the template).
+
+**Still blocking real money:** owner decisions (route, max total and daily loss,
+instruments/leverage, number of traders/allocation, profit share, risk values,
+explicit authorization); real leader snapshot; Testnet transport (Claude Code local);
+no own strategy has a proven edge. The scheduled cron of the automator has not fired
+yet (only manual runs); re-check at 04:07/08:07 UTC.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |

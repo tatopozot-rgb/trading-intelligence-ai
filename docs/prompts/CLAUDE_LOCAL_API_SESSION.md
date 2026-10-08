@@ -100,3 +100,29 @@ necesites una credencial, una guardia de permisos falle o algo contradiga estas 
 No declares "listo para LIVE": LIVE necesita los límites que el dueño aún no ha fijado
 (`LIVE_CAPITAL_USD`, `MAX_RISK_PER_TRADE`, `MAX_DAILY_LOSS`, `MAX_DRAWDOWN`,
 `MAX_OPEN_POSITIONS`, `ALLOWED_INSTRUMENTS`, `MAX_LEVERAGE`) y su autorización explícita.
+
+## 6. Actualización 2026-10-08 (nuevo objetivo del dueño: piloto real con USD 30, copy trading)
+
+Lee `docs/PILOT_30_USD.md` (rutas A/B, hallazgos, decisiones pendientes) y la sección 41
+de `docs/CHECKPOINT.md`. Cloud ya construyó y probó el pipeline de copy trading
+(`trading_intelligence/copy_trading/`): **no lo dupliques**. Tu parte, en este orden:
+
+1. **Clave nueva.** La clave expuesta antes fue **revocada**; el dueño creó otra. Ayúdale
+   a configurarla **en su PC** como variables de entorno de usuario (sección 3), sin que
+   nadie la vea ni la pegue en un chat. Verifica en la página de la clave en Binance:
+   **retiros desactivados**, restricción de IP activa y, por ahora, **solo lectura**
+   (trading se habilita únicamente cuando el dueño apruebe los límites del piloto). Luego
+   completa H1 y muéstrale solo: conectado sí/no, permisos y número de activos con saldo.
+2. **Copy Trading en la app (sin scraping).** Con el dueño mirando la app, confirma y anota
+   en el PR: disponibilidad de Spot Copy Trading y de Futures Copy Trading para su región,
+   monto mínimo real por copia, profit share típico, y si el saldo/posiciones de un
+   portafolio de copia aparecen en la API de solo lectura (`/api/v3/account` u otro
+   endpoint **documentado**). No uses endpoints web no documentados.
+3. **Captura de líderes.** Con el dueño, llena `docs/templates/copy_trading_snapshot.template.json`
+   para 10 a 20 líderes (incluye los que dejaron de liderar, `active: false`), con la hora
+   de captura. Guárdalo como `docs/snapshots/binance_app_<fecha>.json` en tu PR. Cloud lo
+   evalúa: `python -m trading_intelligence.copy_trading.pipeline --snapshot <archivo>`.
+4. Sigue con H2 (Testnet) solo después de lo anterior.
+
+Nada de esto autoriza dinero real: las decisiones de la sección 4 de `PILOT_30_USD.md`
+son del dueño.
