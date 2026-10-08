@@ -46,7 +46,11 @@ class InputError(ValueError):
 
 
 def _linked(path: Path) -> bool:
-    return path.is_symlink() or path.is_junction()
+    # is_junction() is Windows-only and only exists on Python >=3.12's
+    # WindowsPath; PosixPath never has it. Treat its absence as "not a
+    # junction" rather than crashing on Linux/Mac or older Python.
+    is_junction = getattr(path, "is_junction", None)
+    return path.is_symlink() or (is_junction is not None and is_junction())
 
 
 def _root(root: Path) -> Path:
