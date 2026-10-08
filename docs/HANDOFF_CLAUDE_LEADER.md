@@ -1,6 +1,6 @@
 # Handoff: Claude Leader / Trading Codex (cloud) — read THIS instead of the chat
 
-Written 2026-10-07 for a fresh session or a model switch; updated after section 41.
+Written 2026-10-07 for a fresh session or a model switch; updated after section 42.
 It is self-contained: you do not need the previous conversation. Verify any number
 below against the repo before repeating it (`git log --oneline -5` on `ccr-b66a9a9e-okj2pl`).
 

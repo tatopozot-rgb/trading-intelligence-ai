@@ -1805,6 +1805,46 @@ explicit authorization); real leader snapshot; Testnet transport (Claude Code lo
 no own strategy has a proven edge. The scheduled cron of the automator has not fired
 yet (only manual runs); re-check at 04:07/08:07 UTC.
 
+### 42. Automator on schedule; state loss fails closed; PR #9 (H1-H3) reviewed (2026-10-08)
+
+**Automator on schedule.** First scheduled run #3 (`37734512828`, event `schedule`) at
+05:51 UTC: GitHub fired the 04:07 slot about 1h45m late (the 00:07 slot never fired).
+Green.
+
+**State-loss defect fixed** (found by GPT Work, PR #8 comment 6049600727; source path
+confirmed). Before, an evicted Actions cache made the next run a silent "first run":
+fresh cash, risk counters and progress, and still green. Fix `1aff32e`:
+- `paper_loop --require-state` refuses to start (exit 3, writes nothing) without
+  `loop.json`, `paper.json` and `risk.json`.
+- Partial state is always refused.
+- Scheduled runs always require state; only a manual dispatch with `bootstrap=true`
+  starts from scratch.
+- State is saved only when it exists; the report explains a missing state.
+- 5 acceptance tests; 3/3 mutants killed.
+- Verified live: run #4 (`37748549025`, on `1aff32e`, no bootstrap) continued from the
+  cached state. Equity history now spans 3 consecutive 4h bars recorded across separate
+  runs (20:00, 00:00, 04:00 UTC). All five symbols were TREND_DOWN (no strategy for that
+  regime, so NO_TRADE), and all checks were clean.
+
+**PR #9 reviewed** (Claude Code local, `7ae7752`; comment 6055699215). H1 (signed
+read-only client with fail-closed permission guard), H2 (Testnet-only transport, journal
+before POST, reconciliation by client order id, never resend) and H3 (MT5 demo
+read-only): code sound. 57/57 of its tests pass independently.
+
+Not mergeable as is:
+- It carries the F3 chain at `1533690` with the two known defects still present
+  (`_watchdog` NULL `ultimo_ok` treated as an infinite gap; `_abrir_validado` rolls back
+  the `ultimo_ok` write on unrelated rejections). Both fail conservative but are open.
+- It lacks PR #5's fix (`check_repository.py` crashes on Linux).
+- Merging into the current default branch conflicts in three docs only.
+- The PR body describes the old #3 import, not H1-H3.
+
+No authenticated Binance call has been made by any agent. The next step is the owner
+running GPT Work's one-shot permission probe with the new read-only key.
+
+Full research suite at `1aff32e`: see the commit's CI. Locally, PaperLoop + report tests
+45 passed, ruff and mypy clean.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
