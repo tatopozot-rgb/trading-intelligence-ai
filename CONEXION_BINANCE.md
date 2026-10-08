@@ -40,6 +40,16 @@ Pasos del dueño (ningún agente ve las claves):
 
 La salida muestra únicamente: conectado sí/no, permisos de la clave (lectura, trading, retiros, restricción de IP) y el número de activos con saldo.
 
+## Órdenes solo en Spot Testnet (H2, 08-10-2026)
+
+`binance_testnet_orders.py` es transporte de órdenes hacia `testnet.binance.vision` (dinero ficticio). Las pruebas son offline; **todavía no se ha enviado nada a Testnet**. No está conectado al runner PAPER ni al Risk Engine.
+
+- Cualquier otro host lanza un error antes de tocar la red y no existe opción para cambiarlo.
+- Cada intento se anota en `binance_testnet_journal.json` (local, no se versiona) antes del único POST. Una orden nunca se reenvía y su `newClientOrderId` no se reutiliza en ningún estado.
+- Timeout, corte, 5xx, restricción HTTP o respuesta ilegible dejan la orden como `INCIERTA`. Se resuelve con `conciliar()`, que consulta por `newClientOrderId`; mientras quede una sin conciliar no se envía otra, también tras reiniciar.
+- "La orden no existe" solo se acepta como definitivo pasados 10 s desde el intento.
+- Claves: `BINANCE_TESTNET_API_KEY` y `BINANCE_TESTNET_SECRET_KEY`, creadas en testnet.binance.vision. `python binance_testnet_orders.py` comprueba la conexión sin enviar órdenes.
+
 ## Reparto de trabajo
 
 - Programa Python: reglas, consulta de datos, controles, ejecución cuando exista integración validada, registros e interfaz.
