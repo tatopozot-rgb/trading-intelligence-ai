@@ -2060,6 +2060,45 @@ Quant session (sections 46-47) reviewed:
 The only remaining blocker for the first real order is the owner storing the trading key,
 then his phrase.
 
+### 49. Owner's time box and profit target; key connected; who receives the owner's orders (2026-10-08)
+
+Claude Code local (PR #9 branch, `4a2eca5`): the owner stored the trading key as Windows
+user variables; a signed read with the operator's own `verify_key` shows reading YES, Spot
+trading YES, withdrawals NO, IP restriction YES. No order was sent. Free USDT in Spot was 0
+at that moment, so a real session buys nothing until the owner deposits or converts to USDT.
+The operator must be started from a new terminal (the variables were created after that
+session started).
+
+Operator (`trading_intelligence/live/operator.py`), for the owner's phrases "por 3-4 horas"
+and "hasta ver ganancias del 60%":
+- `iniciar --horas N`: when the time is up, sells the session's positions and finishes.
+- `iniciar --meta N`: when session equity >= capital × (1 + N%), sells the session's
+  positions and finishes ("META_ALCANZADA").
+- Both only close. The loss limit, the 2 USD warning and every other limit are unchanged.
+  Non-positive or non-finite values are refused. Each writes `AVISO.txt` and the final
+  report.
+- Fixed: after `parar`, the session stayed RUNNING, so a new `iniciar` was refused with
+  "a session is already open" and the owner had no way forward. Every finish (owner stop,
+  time, target) now marks the session STOPPED.
+- 38 live tests (6 new); ruff and mypy clean; 4/4 mutants of the new exits killed.
+
+Honest note for the owner: with 4h bars, a 3-hour session decides once or twice (at start
+and at the next bar close). +60% in hours is very unlikely; such a session will almost
+always end on time. The operator never raises size or risk to reach a target.
+
+Stop losses (owner, same day: "actuar igual con stop loss"), verified unchanged:
+- every engine entry carries a protective stop (`strategy/models.py`: no stop, no proposal);
+  the operator learns it from the attached or pending STOP order and checks it every minute,
+  between bars too, with a MARKET sell on the real account;
+- the session guard (warning 2 USD before, hard stop at 20%) applies to every profile, and the
+  time box and profit target close the same way;
+- `copiar` has no per-position stop, by the owner's earlier rule not to close mechanically
+  on a temporary loss; the session guard still bounds it.
+
+Who receives the owner's orders: Claude Code local (on the owner's PC, opened from the
+Claude phone app). It holds the key and runs the operator. Claude Leader relays when the
+owner writes here instead.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |

@@ -42,9 +42,17 @@ cualquier orden y, por encima de todo, la guardia de pérdida del dueño.
 
 ## 3. Las órdenes que usted da (desde el celular)
 
+**A quién se las dice:** a **Claude Code local**, la sesión que corre en su PC. Ábrala desde
+la app de Claude en el celular (el PC debe estar encendido). Es la única que puede tocar su
+cuenta de Binance, porque la clave vive solo en su PC. Si me escribe a mí (Claude Leader), le
+paso la orden a Claude Code local, pero es un paso más y más lento.
+
 | Usted dice | Pasa |
 |---|---|
 | "trading sin parar con 50" | arranca una sesión real con 50 USDT, perfil tendencia |
+| "trading por 3 horas con 50" | igual, y al cumplirse el plazo vende lo de la sesión y termina |
+| "... hasta ganar 60%" | termina y vende cuando la sesión gana ese % (se puede combinar con las horas) |
+| "un trader top hizo movimientos, analízalos" | Claude Code local los lee en la app/web de Binance de su PC y le explica qué hizo y si conviene copiarlo |
 | "revisa top traders" | Claude Code local lee la app con usted; el sistema ordena a los líderes con motivos |
 | "copia al trader X con 50" | perfil copiar |
 | "agrega 20" / "usa 1000" | suma capital a la sesión (después de que usted depositó) |

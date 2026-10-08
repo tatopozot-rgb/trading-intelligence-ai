@@ -415,3 +415,48 @@ def test_a_shadow_report_never_claims_real_execution(tmp_path):
     text = op.write_report("inicio").read_text(encoding="utf-8")
     used = next(line for line in text.splitlines() if line.startswith("Usados:"))
     assert "SHADOW" in text and "Ejecución real" not in used and "Ejecución simulada" in used
+
+
+class TestOwnerExits:
+    """The owner's "por N horas" and "hasta ganar N%": both only close, and a finished
+    session can be followed by a new one."""
+
+    def test_profit_target_takes_the_gain_and_finishes(self, tmp_path):
+        trader = FakeTrader({"BTCUSDT": Decimal("100")})
+        op = _operator(tmp_path, trader)
+        op.profit_target_pct = Decimal("10")
+        op.session.record_buy("BTCUSDT", Decimal("0.2"), Decimal("20"), Decimal("0"), "t")
+        trader.prices["BTCUSDT"] = Decimal("124")  # equity 54.8: +9.6%, not yet
+        assert op.finish_reason() is None
+        trader.prices["BTCUSDT"] = Decimal("126")  # equity 55.2: +10.4%
+        op.run(poll_seconds=0, sleep=lambda s: None, max_iterations=3)
+        s = Session.load(tmp_path / "session.json")
+        assert s.status == STOPPED and not s.holdings and s.realized_pnl == Decimal("5.2")
+        assert trader.orders[-1][1] == "SELL" and "META_ALCANZADA" in (tmp_path / "AVISO.txt").read_text()
+        assert list(tmp_path.glob("reporte_final_*.md"))
+
+    def test_time_box_closes_and_finishes(self, tmp_path):
+        now = [datetime(2026, 10, 8, 12, tzinfo=timezone.utc)]
+        trader = FakeTrader({"BTCUSDT": Decimal("100")})
+        op = _operator(tmp_path, trader, now=lambda: now[0])
+        op.end_at = now[0] + timedelta(hours=3)
+        op.session.record_buy("BTCUSDT", Decimal("0.1"), Decimal("10"), Decimal("0"), "t")
+        assert op.finish_reason() is None
+        now[0] += timedelta(hours=3)
+        op.run(poll_seconds=0, sleep=lambda s: None, max_iterations=3)
+        s = Session.load(tmp_path / "session.json")
+        assert s.status == STOPPED and not s.holdings and "TIEMPO_CUMPLIDO" in s.events[-1]["text"]
+
+    def test_after_the_owner_stops_a_new_session_can_start(self, tmp_path):
+        op = _operator(tmp_path, FakeTrader({"BTCUSDT": Decimal("100")}))
+        (tmp_path / "STOP").write_text("parar")
+        op.run(poll_seconds=0, sleep=lambda s: None, max_iterations=1)
+        assert Session.load(tmp_path / "session.json").status == STOPPED
+
+    @pytest.mark.parametrize("flag", [["--horas", "0"], ["--meta", "-5"], ["--meta", "NaN"]])
+    def test_nonsense_exits_are_refused(self, tmp_path, flag, capsys):
+        from trading_intelligence.live import operator as O
+
+        with pytest.raises(SystemExit):
+            O.main(["--dir", str(tmp_path), "iniciar", "--capital", "50", *flag])
+        assert not (tmp_path / "session.json").exists()

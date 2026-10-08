@@ -168,7 +168,8 @@ def leader_targets(path: Path, max_age: timedelta, now: datetime) -> tuple[dict[
 class Operator:
     def __init__(self, state_dir: Path, trader, limits: OwnerLimits, *, profile: str, timeframe: str,
                  symbols: list[str], loop=None, clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
-                 notify: Callable[[str], None] = print, real: bool = False) -> None:
+                 notify: Callable[[str], None] = print, real: bool = False,
+                 end_at: Optional[datetime] = None, profit_target_pct: Optional[Decimal] = None) -> None:
         self.dir = Path(state_dir)
         self.trader = trader
         self.limits = limits
@@ -179,6 +180,8 @@ class Operator:
         self.clock = clock
         self.notify = notify
         self.real = real
+        self.end_at = end_at  # owner's "por N horas": close the session's positions and finish
+        self.profit_target_pct = profit_target_pct  # owner's "hasta ganar N%": take the gain and finish
         self.session = Session.load(self.dir / "session.json")
         self.last_mid_report = self.clock()
 
@@ -276,6 +279,35 @@ class Operator:
         path.write_text(text, encoding="utf-8")
         return path
 
+    def finish_reason(self) -> Optional[str]:
+        """The owner's own exits: a time box or a profit target on the session's equity.
+        Both only ever close positions; neither can open one or raise risk."""
+        if self.end_at is not None and self.clock() >= self.end_at:
+            return f"TIEMPO_CUMPLIDO: terminó el plazo pedido por el dueño ({self.end_at.isoformat(timespec='minutes')})"
+        if self.profit_target_pct is not None:
+            prices = {sym: self.trader.price(sym) for sym in self.session.holdings}
+            gain = self.session.equity(prices) - self.session.capital
+            if gain >= self.session.capital * self.profit_target_pct / 100:
+                return (f"META_ALCANZADA: ganancia {gain:.2f} USDT >= {self.profit_target_pct}% de "
+                        f"{self.session.capital:.2f}; se toma la ganancia")
+        return None
+
+    def _finish(self, reason: str, close: bool) -> None:
+        if close and self.session.holdings:
+            try:
+                mirror.flatten(self.session, self.trader, reason.split(":")[0])
+            except Unreconciled as error:
+                self.session.note("UNCERTAIN", str(error))
+            except LiveError as error:
+                self.session.note("ERROR", str(error))
+                self.notify(f"ERROR de ejecución al cerrar: {error}")
+        self.session.status = STOPPED  # a finished session never buys again; a new one can start
+        self.session.note("FIN", reason)
+        self.notify(reason)
+        (self.dir / "AVISO.txt").write_text(f"{self.clock().isoformat()} {reason}\n", encoding="utf-8")
+        self._save()
+        self.write_report("final")
+
     def run(self, poll_seconds: float = 60.0, sleep: Callable[[float], None] = time.sleep,
             max_iterations: Optional[int] = None) -> None:
         from trading_intelligence.execution.paper_loop import INTERVAL_SECONDS
@@ -286,11 +318,11 @@ class Operator:
         while max_iterations is None or n < max_iterations:
             if (self.dir / "STOP").exists():
                 close = (self.dir / "STOP").read_text(encoding="utf-8").strip() == "cerrar"
-                if close and self.session.holdings:
-                    mirror.flatten(self.session, self.trader, "OWNER_STOP")
-                self.session.note("OWNER", "parada ordenada por el dueño" + (" con cierre" if close else ""))
-                self._save()
-                self.write_report("final")
+                self._finish("OWNER_STOP: parada ordenada por el dueño" + (" con cierre" if close else ""), close)
+                return
+            reason = self.finish_reason()
+            if reason:
+                self._finish(reason, close=True)
                 return
             # 30 s after a bar closes, so the exchange has published it.
             bar = int((self.clock().timestamp() - 30) // interval)
@@ -341,6 +373,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     start.add_argument("--simbolos", nargs="+")
     start.add_argument("--temporalidad", default=DEFAULT_TIMEFRAME)
     start.add_argument("--max-iteraciones", type=int)
+    start.add_argument("--horas", type=float, help="finish after N hours, closing the session's positions")
+    start.add_argument("--meta", help="finish when the session gains N%% of its capital, closing its positions")
     sub.add_parser("estado")
     sub.add_parser("continuar")
     add = sub.add_parser("agregar")
@@ -385,6 +419,11 @@ def main(argv: Optional[list[str]] = None) -> int:
         parser.error(f"real orders at {args.temporalidad} refused: on real Binance data this configuration lost "
                      f"money after fees (CHECKPOINT section 45). Allowed for real: {sorted(REAL_TIMEFRAMES)}; "
                      "any timeframe is allowed without --real (SHADOW).")
+    if args.horas is not None and args.horas <= 0:
+        parser.error("--horas must be positive")
+    target = Decimal(args.meta) if args.meta is not None else None
+    if target is not None and (not target.is_finite() or target <= 0):
+        parser.error("--meta must be a positive percentage")
     symbols = args.simbolos or sorted(limits.allowed_symbols)
     if not set(symbols) <= limits.allowed_symbols:
         parser.error(f"symbols outside the approved list: {sorted(set(symbols) - limits.allowed_symbols)}")
@@ -396,8 +435,11 @@ def main(argv: Optional[list[str]] = None) -> int:
         trader = _trader(args.real, d / "orders.json")
         now = datetime.now(timezone.utc)
         Session(f"{now:%Y%m%dT%H%M%S}", args.perfil, now.isoformat(timespec="seconds"), capital).save(session_path)
+        end_at = now + timedelta(hours=args.horas) if args.horas is not None else None
         (d / "meta.json").write_text(json.dumps({"profile": args.perfil, "timeframe": args.temporalidad,
-                                                 "symbols": symbols, "real": args.real}), encoding="utf-8")
+                                                 "symbols": symbols, "real": args.real,
+                                                 "end_at": end_at.isoformat() if end_at else None,
+                                                 "profit_target_pct": args.meta}), encoding="utf-8")
         loop = None
         if args.perfil != "copiar":
             from trading_intelligence.data.binance_public_feed import BinancePublicKlines
@@ -407,7 +449,7 @@ def main(argv: Optional[list[str]] = None) -> int:
                               paper_equity=str(capital), risk_overrides=engine_risk_overrides(limits),
                               router_factory=router_factory(args.perfil, args.temporalidad))
         op = Operator(d, trader, limits, profile=args.perfil, timeframe=args.temporalidad, symbols=symbols,
-                      loop=loop, real=args.real)
+                      loop=loop, real=args.real, end_at=end_at, profit_target_pct=target)
         print(op.write_report("inicio"))
         op.run(max_iterations=args.max_iteraciones)
     finally:

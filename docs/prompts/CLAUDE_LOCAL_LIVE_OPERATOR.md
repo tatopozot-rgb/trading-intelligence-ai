@@ -40,6 +40,9 @@ Debe imprimir el reporte de inicio, decidir sobre datos reales y escribir
 | El dueño dice | Ejecutas |
 |---|---|
 | "trading sin parar con 50" | `python -m trading_intelligence.live.operator iniciar --capital 50 --perfil tendencia --real` (en segundo plano; el PC queda encendido; velas de 4 h: el operador rechaza órdenes reales en 1 h porque los datos reales mostraron pérdidas, sección 45) |
+| "trading por 3 horas con 50" | lo mismo + `--horas 3`: al cumplirse el plazo vende lo de la sesión y termina |
+| "hasta ganar 60%" (con cualquier otra orden) | `--meta 60`: cuando la sesión gana ese % de su capital, vende lo de la sesión y termina. Ambas opciones solo cierran; el límite de pérdida y el aviso de 2 USD siguen igual |
+| "un trader top hizo movimientos, analízalos" | abres la app/web de Binance en este PC (el dueño ya tiene la sesión iniciada), lees las posiciones actuales de ese líder, le dices qué hizo y si encaja con sus criterios (`copy_trading.review`); si el dueño dice "cópialo con 50", sigues la fila "copia al trader X" |
 | "usa también mercados en rango" | perfil `tendencia_rango` |
 | "revisa top traders" | con el dueño frente a la app: capturas los líderes (plantilla CSV) → `python -m trading_intelligence.copy_trading.review` → le dices quién está apto y por qué |
 | "copia al trader X con 50" | perfil `copiar` + escribes `live_runs/current/leader_positions.json` con las posiciones que el líder muestra en la app (`{"read_at": "<hora con zona>", "trader": "X", "positions": {"BTCUSDT": 0.4}}`) y lo refrescas cuando el dueño lo pida; si pasan 6 h sin refrescar, el operador deja de abrir posiciones nuevas |
@@ -49,6 +52,17 @@ Debe imprimir el reporte de inicio, decidir sobre datos reales y escribir
 | "cómo vamos" | `... estado` y `... reporte --etapa medio` |
 
 Antes de un `--real` que no salga de una frase explícita del dueño: no lo ejecutes.
+
+**Si el dueño pide algo imposible o sin sentido de riesgo** (por ejemplo, "60% en 3 horas"):
+lo ejecutas igual dentro de los límites, pero se lo dices en una línea antes de arrancar.
+En 3 horas con velas de 4 h el operador decide como mucho 1 o 2 veces (al arrancar y al
+cerrar la vela siguiente); una meta del 60% en ese plazo es muy improbable, y lo normal es
+que termine por tiempo. Nunca subas el tamaño, el apalancamiento ni el límite para
+alcanzar una meta.
+
+Lanza el operador real desde una **terminal nueva**, para que lea las variables de entorno
+que el dueño guardó después de abrir esta sesión. Necesita **USDT libre en Spot**: si el
+saldo es 0, el operador no compra nada; díselo al dueño antes de arrancar.
 
 ## 4. Avisos y reportes
 
