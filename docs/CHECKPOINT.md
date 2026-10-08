@@ -1996,6 +1996,42 @@ about 0.8% per trade. Changes:
 (Quant session) and the PAPER loop, which already runs `tendencia` at 4h on real data
 every 4 hours.
 
+### 47. 4h forward confirmation pre-registered; PAPER loop on the 12 live symbols (2026-10-08)
+
+Quant/Strategy session, tasked by the leader after section 46. Research and PAPER only:
+no key, no orders. `trading_intelligence/live/` and `config/live_limits.json` were not
+modified.
+
+**1. Pre-registration** (`docs/PREREG_4H_FORWARD.md`, commit `f679012`, pushed on its own
+before anything else). Code: `trading_intelligence/backtesting/forward_confirmation.py`
+(8 tests).
+- **Hypothesis:** net mean return per closed trade > 0 for `tendencia` (primary) and
+  `tendencia_rango` (secondary), at 4h, after fees and slippage.
+- **Data:** only bars from 2026-10-01 onward, with no warm-up from earlier. The 12 symbols
+  are frozen in the code.
+- **Looks:**
+  - 2027-04-01 is a futility look; it can only REFUTE.
+  - 2027-10-01 and 2028-10-01 can declare GO with ≥30 trades, PF ≥ 1.3, mean > 0 and
+    p < 0.025 (Bonferroni across the two GO looks).
+  - REFUTED means trades ≥ 30 and (mean ≤ 0 or PF < 1.0).
+  - Anything not GO at 2028-10-01 is NO-GO.
+- **Guards:** the code refuses early looks and unregistered dates.
+- **Stated in advance:** if the true edge equals the section 45 estimate, the power to GO
+  is only about 0.15 at 2027-10-01 and about 0.30 at 2028-10-01. The test is far better at
+  catching a losing 4h profile than at proving a winning one. "Not refuted" is not
+  "validated".
+
+**2. PAPER loop** (`.github/workflows/paper-loop.yml`):
+- The symbols are now read at run time from `config/live_limits.json` (`allowed_symbols`,
+  12 symbols, previously 5 hard-coded). `--require-state` is unchanged for scheduled runs.
+- A `bootstrap=true` dispatch now skips restoring the cache. Without that, the old
+  5-symbol state would be restored, and PaperLoop refuses to resume it with 12 symbols
+  (paper_loop.py `_load_state`), so no fresh start was possible.
+- The old 5-symbol state remains in the `paper-state-<run_id>` artifacts (30 days).
+- Scheduled runs between this push and the bootstrap dispatch turn red with the
+  symbol-set mismatch. That is intended (fail closed).
+- Bootstrap dispatch: see the commit after this one, or the Actions tab.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |

@@ -18,7 +18,7 @@ on:
   workflow_dispatch:
     inputs:
       bootstrap:
-        description: "Start PAPER from scratch (only when there is no previous state). Scheduled runs never do this."
+        description: "Start PAPER from scratch: the previous state is NOT restored (it stays in that run's paper-state artifact). Scheduled runs never do this."
         type: boolean
         default: false
 
@@ -30,7 +30,10 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  SYMBOLS: BTCUSDT ETHUSDT SOLUSDT BNBUSDT XRPUSDT
+  # SYMBOLS: read from config/live_limits.json (allowed_symbols) in the run step, so PAPER
+  # covers exactly what the operator may trade. Changing that list changes the symbol set,
+  # which PaperLoop refuses to resume: the next scheduled run turns red until a
+  # bootstrap=true dispatch starts a fresh state (the old one stays in the run artifacts).
   TIMEFRAME: 4h
   STATE_DIR: paper_runs/live
 
@@ -48,6 +51,9 @@ jobs:
       - name: Install runtime dependencies (no exchange client, no credentials)
         run: pip install "pandas>=2.0" "numpy>=1.24" "scipy>=1.11"
       - name: Restore PAPER state from the previous run
+        # Skipped on bootstrap: a state written for another symbol set cannot be resumed
+        # (PaperLoop refuses), so a deliberate fresh start must not restore it.
+        if: inputs.bootstrap != true
         uses: actions/cache/restore@v4
         with:
           path: ${{ env.STATE_DIR }}
@@ -59,7 +65,9 @@ jobs:
         run: |
           # A lost state (evicted cache) must turn the run red, never restart PAPER silently.
           REQUIRE="--require-state"
-          if [ "$BOOTSTRAP" = "true" ]; then REQUIRE=""; echo "Bootstrap requested: starting PAPER from scratch if no state exists"; fi
+          if [ "$BOOTSTRAP" = "true" ]; then REQUIRE=""; echo "Bootstrap requested: starting PAPER from scratch (previous state not restored)"; fi
+          SYMBOLS=$(python -c "import json; print(' '.join(json.load(open('config/live_limits.json'))['allowed_symbols']))")
+          echo "Symbols: $SYMBOLS"
           python -m trading_intelligence.execution.paper_loop \
             --symbols $SYMBOLS --timeframe "$TIMEFRAME" --state-dir "$STATE_DIR" --max-ticks 1 $REQUIRE
       - name: Save PAPER state for the next run
