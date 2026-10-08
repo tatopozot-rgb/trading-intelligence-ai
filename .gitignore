@@ -83,4 +83,6 @@ DETENER_*
 PAUSA_*
 market_cooldown.json
 binance_signed_cooldown.json*
+binance_testnet_cooldown.json*
+binance_testnet_journal.json*
 .publication/

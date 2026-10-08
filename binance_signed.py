@@ -200,6 +200,59 @@ def activos_con_saldo(cuenta: Mapping[str, object]) -> int:
     return total
 
 
+class Enfriamiento:
+    """Restricciones HTTP 429/418/403/451: mismo criterio que el cliente público
+    (CONEXION_BINANCE.md). Persistido para que otro proceso tampoco insista."""
+
+    def __init__(self, ruta: Path, reloj: Callable[[], float]) -> None:
+        self._ruta = Path(ruta)
+        self._reloj = reloj
+        self._memoria = 0.0
+
+    def comprobar(self) -> None:
+        if self._reloj() < self._memoria:
+            raise BinanceRestringido('Restricción HTTP activa en este proceso.')
+        try:
+            dato = json.loads(self._ruta.read_text(encoding='utf-8'))
+        except FileNotFoundError:
+            return
+        except (ValueError, OSError):
+            raise BinanceRestringido('No se puede verificar el bloqueo de la API firmada.') from None
+        hasta = dato.get('hasta') if type(dato) is dict else None
+        if type(hasta) not in (int, float) or not math.isfinite(hasta):
+            raise BinanceRestringido('Restricción HTTP sin plazo válido; requiere revisión del dueño.')
+        if self._reloj() < hasta:
+            raise BinanceRestringido(f'API firmada bloqueada hasta UTC epoch {hasta}.')
+
+    def bloquear(self, respuesta: RespuestaHttp) -> None:
+        hasta: Optional[float] = None  # Nunca inventar el vencimiento de una restricción.
+        if respuesta.status != 451:  # Una restricción legal no se libera por temporizador.
+            cabeceras = {k.lower(): v for k, v in respuesta.cabeceras.items()}
+            try:
+                espera = float(cabeceras.get('retry-after', ''))
+                if math.isfinite(espera) and espera > 0:
+                    hasta = self._reloj() + espera
+            except (TypeError, ValueError):
+                pass
+        # Si falla persistir, este cliente tampoco vuelve a consultar en este proceso.
+        self._memoria = max(self._memoria, math.inf if hasta is None else hasta)
+        try:
+            previo = json.loads(self._ruta.read_text(encoding='utf-8')).get('hasta')
+            if type(previo) not in (int, float) or not math.isfinite(previo):
+                hasta = None
+            elif hasta is not None:
+                hasta = max(hasta, previo)
+        except FileNotFoundError:
+            pass
+        except (ValueError, OSError, AttributeError):
+            hasta = None
+        dato = {'hasta': hasta, 'status': respuesta.status, 'creado_epoch': self._reloj()}
+        temporal = self._ruta.with_name(f'{self._ruta.name}.{uuid.uuid4().hex}.tmp')
+        temporal.write_text(json.dumps(dato, allow_nan=False), encoding='utf-8')
+        temporal.replace(self._ruta)
+        logger.error('Restricción HTTP %s en la API firmada; hasta=%s', respuesta.status, hasta)
+
+
 class ClienteLectura:
     """Lecturas firmadas de la cuenta. Sin guardia de permisos superada no lee nada."""
 
@@ -212,59 +265,19 @@ class ClienteLectura:
         self._transporte: Transporte = transporte or transporte_urllib
         self._reloj = reloj or time.time
         self._dormir = dormir or time.sleep
-        self._ruta_bloqueo = Path(ruta_bloqueo) if ruta_bloqueo else (
-            Path(__file__).resolve().parent / 'binance_signed_cooldown.json')
-        self._bloqueo_memoria = 0.0
+        self._enfriamiento = Enfriamiento(ruta_bloqueo or (
+            Path(__file__).resolve().parent / 'binance_signed_cooldown.json'), self._reloj)
         self._desfase_ms: Optional[int] = None
         self._permisos: Optional[Permisos] = None
 
     def __repr__(self) -> str:
         return f'ClienteLectura(host={PRODUCCION!r}, guardia={"OK" if self._permisos else "PENDIENTE"})'
 
-    # --- restricciones HTTP: mismo criterio que el cliente público (CONEXION_BINANCE.md) ---
-
     def _comprobar_bloqueo(self) -> None:
-        if self._reloj() < self._bloqueo_memoria:
-            raise BinanceRestringido('Restricción HTTP activa en este proceso.')
-        try:
-            dato = json.loads(self._ruta_bloqueo.read_text(encoding='utf-8'))
-        except FileNotFoundError:
-            return
-        except (ValueError, OSError):
-            raise BinanceRestringido('No se puede verificar el bloqueo de la API firmada.') from None
-        hasta = dato.get('hasta') if type(dato) is dict else None
-        if type(hasta) not in (int, float) or not math.isfinite(hasta):
-            raise BinanceRestringido('Restricción HTTP sin plazo válido; requiere revisión del dueño.')
-        if self._reloj() < hasta:
-            raise BinanceRestringido(f'API firmada bloqueada hasta UTC epoch {hasta}.')
+        self._enfriamiento.comprobar()
 
     def _bloquear(self, respuesta: RespuestaHttp) -> None:
-        hasta: Optional[float] = None  # Nunca inventar el vencimiento de una restricción.
-        if respuesta.status != 451:  # Una restricción legal no se libera por temporizador.
-            cabeceras = {k.lower(): v for k, v in respuesta.cabeceras.items()}
-            try:
-                espera = float(cabeceras.get('retry-after', ''))
-                if math.isfinite(espera) and espera > 0:
-                    hasta = self._reloj() + espera
-            except (TypeError, ValueError):
-                pass
-        # Si falla persistir, este cliente tampoco vuelve a consultar en este proceso.
-        self._bloqueo_memoria = max(self._bloqueo_memoria, math.inf if hasta is None else hasta)
-        try:
-            previo = json.loads(self._ruta_bloqueo.read_text(encoding='utf-8')).get('hasta')
-            if type(previo) not in (int, float) or not math.isfinite(previo):
-                hasta = None
-            elif hasta is not None:
-                hasta = max(hasta, previo)
-        except FileNotFoundError:
-            pass
-        except (ValueError, OSError, AttributeError):
-            hasta = None
-        dato = {'hasta': hasta, 'status': respuesta.status, 'creado_epoch': self._reloj()}
-        temporal = self._ruta_bloqueo.with_name(f'{self._ruta_bloqueo.name}.{uuid.uuid4().hex}.tmp')
-        temporal.write_text(json.dumps(dato, allow_nan=False), encoding='utf-8')
-        temporal.replace(self._ruta_bloqueo)
-        logger.error('Restricción HTTP %s en la API firmada; hasta=%s', respuesta.status, hasta)
+        self._enfriamiento.bloquear(respuesta)
 
     # --- transporte ---
 
