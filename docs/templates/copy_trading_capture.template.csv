@@ -1,0 +1,3 @@
+trader_id,name,market,active,profit_share_pct,aum_usd,copiers,max_leverage,roi_7d,roi_30d,roi_90d,roi_180d,mdd_pct,lead_days,trades,win_rate_pct,symbols,last_pnls
+EXAMPLE_1,example placeholder (not a real trader),SPOT,yes,10,150000,250,1,1.5,4.2,11.0,19.5,14.0,320,140,58,BTCUSDT:45;ETHUSDT:35;SOLUSDT:20,12.4;-3.1;8.0;5.5;-2.2;9.9;4.1;-1.0;6.3;3.3;2.8;-4.0;7.7;1.9;-0.8;5.0;3.6;-2.9;4.4;6.1
+EXAMPLE_2,example that stopped leading,SPOT,no,10,0,0,1,,-12.0,-30.5,-41.0,55.0,200,90,41,BTCUSDT:100,-20;-15;5;-30
