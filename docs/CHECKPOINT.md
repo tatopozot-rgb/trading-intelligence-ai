@@ -1879,6 +1879,49 @@ Still blocking real money: the owner's approval phrase, the first real capture, 
 read-only key check. Route B (own API execution) stays on Testnet: no own strategy has a
 proven edge.
 
+### 44. Route B authorized: real-money operator built; Claude Code local runs it (2026-10-08)
+
+**Owner decision (chat, 2026-10-08).** Route B: the system trades by itself through the
+official Binance Spot API, and every order comes from the project's operator. The pilot
+values are approved, with variable capital (the owner assigns per order: 50, 20, 1000...).
+Before stopping for loss, ask the owner 2 USD before the limit. Three continuous trading
+options that switch markets. The owner alone handles deposits and withdrawals. GPT Work
+reports at the start, middle and end. Encoded in `config/live_limits.json`:
+- Spot only, no leverage;
+- loss limit 20% of the session capital, warning 2 USD before it;
+- 40% max per position, 3 positions, 12 approved symbols;
+- withdrawals false.
+
+**Built** (`trading_intelligence/live/`, commits after `4ebde00`):
+- Spot transport: the key must be read + Spot trading + IP-restricted only.
+  Journal-before-send, reconcile and never resend, cooldowns, secrets redacted.
+- Session ledger and guard: warn 2 USD before the limit and pause buys, continue on the
+  owner's word, stop and close at the limit. It never sells coins the session did not buy.
+- Mirror from the PAPER engine (the real PaperLoop/runner/RiskEngine decide) onto the
+  account, with caps, exchange minimums, no adding to losers and live stop enforcement.
+- Operator CLI (iniciar/estado/continuar/agregar/parar/reporte), profiles tendencia /
+  tendencia_rango / copiar. SHADOW unless `--real`. Single-instance lock.
+- Inicio/medio/final reports.
+- 30 tests including the real engine end to end; 22/22 safety mutants killed. The suite
+  is 635 passed; ruff and mypy are clean.
+
+**Coordination:**
+- Claude Code local (session `session_011uxmHVkoAcPKwDWJ4tHxoA`, the owner's PC) was sent
+  `docs/prompts/CLAUDE_LOCAL_LIVE_OPERATOR.md`.
+- GPT Work's reports: `docs/prompts/GPT_WORK_TRADING_REPORTS.md`.
+- The Quant session (`session_013NRgckXg3s5ATkCcrUe6KN`) was tasked with a real-data
+  walk-forward of both profiles at 1h/4h after fees, via GitHub Actions.
+
+**Blocking the first real order:**
+1. Python with pandas on the owner's PC: Smart App Control blocks it. Recommended fix is
+   WSL2; the alternative is the owner disabling SAC, which is his decision.
+2. The trading key, created by the owner with 2FA: read + Spot trading + IP restriction,
+   no withdrawals.
+3. A SHADOW check, then the owner's phrase.
+
+**Honest risk:** no profile has a proven edge on real data yet; each session's loss is
+bounded by the owner's 20% rule.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
