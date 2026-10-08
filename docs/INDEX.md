@@ -54,3 +54,24 @@ diverge and why that divergence is a tracked decision, not an oversight.
 - [Notion Operations Center](https://app.notion.com/p/3f002a0ff45f81c58fecc00ba9221812) — Mission Control
 - [Agent City (Notion)](https://app.notion.com/p/3f102a0ff45f81678550e6b88514b55f) — V0
 - [Agent City (web snapshot)](https://claude.ai/artifact/98zjB7JbToV2ernTsjdLKD) — V1, a point-in-time read, not a live feed
+
+## Sistema PAPER real (módulos raíz, Claude Code local)
+
+Sección añadida al resolver el merge del PR #9: conserva el índice que traía la rama local.
+
+- [Importación y reproducción](IMPORTACION_2026-10-05.md)
+- [Mission Control y protocolo de ciclos](MISSION_CONTROL.md)
+- [Operación y arquitectura](../README.md)
+- [Fills](../MODELO_FILLS_PAPER.md)
+- [Controles](../CONTRATO_CONTROLES_PAPER.md)
+- [Ejecución offline](../CONTRATO_EJECUCION_OFFLINE.md)
+- [Binance/XM separados](../PLATAFORMAS_BINANCE_XM.md)
+- [Conexión, bloqueos, lectura firmada y Testnet](../CONEXION_BINANCE.md)
+- [Cartera](../CONTRATO_CARTERA_PAPER.md)
+- [Diagnóstico negativo](../RESULTADO_CARTERA_PAPER.md)
+- [Roadmap](../PLAN_PILOTO.md)
+- [Historial](../CHECKPOINTS.md)
+- [Diagnóstico sin operar](../ENTORNO_Y_DIAGNOSTICO.md)
+- [Handoff de la capa de API (H1-H3)](HANDOFF_CLAUDE_LOCAL_API.md)
+- `history/`: checkpoint y coordinación de la rama local tal como estaban antes de este merge
+  (`CHECKPOINT_CLAUDE_LOCAL_2026-10-08.md`, `COORDINATION_CLAUDE_LOCAL_2026-10-08.md`).
