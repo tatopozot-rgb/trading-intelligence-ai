@@ -1922,6 +1922,65 @@ reports at the start, middle and end. Encoded in `config/live_limits.json`:
 **Honest risk:** no profile has a proven edge on real data yet; each session's loss is
 bounded by the owner's 20% rule.
 
+### 45. Real-data walk-forward of both live profiles: NO-GO at 1h and 4h; 1h loses money after fees (2026-10-08)
+
+Quant/Strategy session, tasked in section 44. Research only: public klines, no key,
+no orders; `trading_intelligence/live/` and `config/live_limits.json` untouched.
+
+**Method** (`trading_intelligence/backtesting/real_data_validation.py`, protocol and
+GO rule fixed in its docstring before any result; workflow
+`.github/workflows/real-data-walk-forward.yml`, dispatch-only, `contents: read`; run
+`37787747047` on commit `66bdce9`, all 4 jobs green):
+- Profiles exactly as `live/operator.py` builds them (a test proves the routers are
+  identical): `tendencia` = `default_router`, `tendencia_rango` = `router_with_range_reversion`.
+- The 12 symbols in `config/live_limits.json`; data-api.binance.vision klines checked with
+  the feed's impossible-bar guard; 0 gaps on every series. 1h: 2024-10-01 to 2026-10-01
+  (17,520 bars each). 4h: 2022-10-01 to 2026-10-01 (8,766 bars each).
+- Each decision sees the trailing 500 bars, as `PaperTradingRunner` does (new optional
+  `BacktestEngine.history_bars`; default unchanged). Fee 0.1% per side, slippage 5 bps.
+- Anchored walk-forward per symbol: IS = first 50%, then five consecutive 10% OOS windows,
+  so the whole second half is out-of-sample. Results below pool every OOS trade of every
+  symbol, with no IS gate. GO needs: ≥30 trades, profit factor ≥1.3, mean net
+  return per trade > 0 with p < 0.05, and at least half the symbols GO under the framework.
+
+| Profile @ TF | OOS trades | Win rate | Mean net/trade | Median | Profit factor | p | Worst fold DD | Verdict |
+|---|---|---|---|---|---|---|---|---|
+| tendencia @ 1h | 408 | 24.0% | **−0.80%** | −1.61% | 0.82 | 0.000 | −7.0% | **NO-GO (loses)** |
+| tendencia_rango @ 1h | 473 | 28.1% | **−0.67%** | −1.33% | 0.84 | 0.001 | −7.4% | **NO-GO (loses)** |
+| tendencia @ 4h | 206 | 33.0% | +3.51% | −2.72% | 1.99 | 0.088 | −5.6% | NO-GO (not significant) |
+| tendencia_rango @ 4h | 235 | 35.7% | +3.06% | −2.33% | 1.90 | 0.090 | −5.6% | NO-GO (not significant) |
+
+Drawdowns are per 10,000 with 1% risk per trade; they say nothing about the live sizing
+(40% max per position), under which the same trades would draw down far more.
+
+**Reading it honestly:**
+1. **1h, the operator's default timeframe, has significantly negative expectancy after
+   fees** on all evidence here: 10 of 12 symbols lose per trade, and the other two are
+   flat (ETH +0.02%, TRX +0.02% in `tendencia`). Running either profile at 1h is
+   expected to lose money, not merely "unproven".
+2. **4h is nominally positive but not proven.** p ≈ 0.09 misses 0.05. The median trade
+   loses, and the mean rests on a few large winners (XRPUSDT +15.0% per trade in
+   `tendencia`). That is the normal shape of trend-following, but it is also the shape a
+   lucky period produces.
+3. **Confound, not a timeframe finding:** the 1h OOS is the last 12 months (mean
+   buy-and-hold −42%), and the 4h OOS is the last 24 months (+11%). The two rows test
+   different markets, so "4h beats 1h" is not established by this run.
+4. **Adding RANGE coverage does not help:** `tendencia_rango` adds 65 (1h) and 29 (4h)
+   trades with about the same mean. This is consistent with section 28.
+5. "0/12 symbols GO under the framework" holds in all four runs, but it is structural at
+   this sample size. The framework counts a fold only if it alone has ≥30 OOS trades,
+   and each symbol has 12–50 OOS trades in total. The pooled test above is the
+   informative one.
+
+**Not done, deliberately:** no parameter was tuned and no rerun was made after seeing these
+numbers (STRATEGY_VALIDATION_FRAMEWORK.md). A 4h confirmation should be a new,
+pre-registered run on a period not used here, or forward PAPER/SHADOW evidence.
+
+**For the owner, before any real order:** the profiles as configured today (`tendencia`
+at 1h) lost about 0.8% per trade after fees out-of-sample on real Binance data. None of
+the four configurations clears the project's own GO bar. Results artifacts:
+`walk-forward-<profile>-<tf>` on run `37787747047` (90 days).
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
