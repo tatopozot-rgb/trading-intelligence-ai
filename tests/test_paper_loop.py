@@ -493,3 +493,56 @@ class TestDecisionJournal:
         _at(flat_feed, WARMUP + 2)
         resumed.tick()
         assert len(json.loads(path.read_text())["journal"]) == 1
+
+
+class TestStateContinuity:
+    """Found by GPT Work (PR #8): an evicted Actions cache turned the next scheduled run
+    into a silent first run (fresh cash, risk counters and progress) that still passed."""
+
+    def _main(self, tmp_path, feed, *extra):
+        from unittest import mock
+
+        from trading_intelligence.execution import paper_loop
+
+        original = paper_loop.PaperLoop.__init__
+
+        def init(self, *args, **kwargs):
+            kwargs["clock"] = lambda: feed.now
+            original(self, *args, **kwargs)
+
+        with mock.patch.object(paper_loop.PaperLoop, "__init__", init):
+            return paper_loop.main(["--symbols", SYMBOL, "--timeframe", "1h", "--state-dir", str(tmp_path / "s"),
+                                    "--max-ticks", "1", *extra], market_data=feed)
+
+    def test_a_scheduled_run_without_state_refuses_and_writes_nothing(self, tmp_path, flat_feed):
+        _at(flat_feed, WARMUP + 1)
+        assert self._main(tmp_path, flat_feed, "--require-state") == 3
+        assert not (tmp_path / "s" / "loop.json").exists()
+
+    def test_bootstrap_then_scheduled_runs_continue(self, tmp_path, flat_feed):
+        _at(flat_feed, WARMUP + 1)
+        assert self._main(tmp_path, flat_feed) == 0  # deliberate bootstrap
+        _at(flat_feed, WARMUP + 2)
+        assert self._main(tmp_path, flat_feed, "--require-state") == 0
+        saved = json.loads((tmp_path / "s" / "loop.json").read_text())
+        assert saved["last_processed"] == _ts(WARMUP + 1)
+
+    def test_losing_all_state_after_an_established_run_turns_red(self, tmp_path, flat_feed):
+        import shutil
+
+        _at(flat_feed, WARMUP + 1)
+        assert self._main(tmp_path, flat_feed) == 0
+        shutil.rmtree(tmp_path / "s")  # the cache was evicted
+        _at(flat_feed, WARMUP + 5)
+        assert self._main(tmp_path, flat_feed, "--require-state") == 3
+        assert not (tmp_path / "s" / "loop.json").exists()
+
+    @pytest.mark.parametrize("lost", ["paper.json", "risk.json"])
+    def test_partial_state_is_refused_even_without_the_flag(self, tmp_path, flat_feed, lost):
+        _at(flat_feed, WARMUP + 1)
+        assert self._main(tmp_path, flat_feed) == 0
+        (tmp_path / "s" / lost).unlink()
+        before = (tmp_path / "s" / "loop.json").read_text()
+        _at(flat_feed, WARMUP + 2)
+        assert self._main(tmp_path, flat_feed) == 3
+        assert (tmp_path / "s" / "loop.json").read_text() == before

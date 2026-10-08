@@ -164,7 +164,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     path = Path(args.state_dir) / "loop.json"
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
     if not path.exists():
-        text = "## PAPER loop\n\nNo se escribió estado: el loop no corrió. Revisa los logs del paso anterior.\n"
+        text = ("## PAPER loop\n\n**Estado: ATENCIÓN**: no hay estado. O el loop falló (revisa el paso anterior), "
+                "o se perdió el estado de la ejecución previa (caché de Actions). No se reinicia solo: para "
+                "empezar de cero a propósito, lanza el workflow a mano con `bootstrap = true`.\n")
         code = 1
         data: dict = {}
     else:

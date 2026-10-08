@@ -16,6 +16,11 @@ on:
   schedule:
     - cron: "7 */4 * * *"   # a few minutes after each 4h bar closes (UTC); GitHub may delay it
   workflow_dispatch:
+    inputs:
+      bootstrap:
+        description: "Start PAPER from scratch (only when there is no previous state). Scheduled runs never do this."
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -49,11 +54,16 @@ jobs:
           key: paper-state-${{ github.run_id }}
           restore-keys: paper-state-
       - name: Run one PaperLoop poll (catches up every closed bar since the last run)
+        env:
+          BOOTSTRAP: ${{ inputs.bootstrap }}
         run: |
+          # A lost state (evicted cache) must turn the run red, never restart PAPER silently.
+          REQUIRE="--require-state"
+          if [ "$BOOTSTRAP" = "true" ]; then REQUIRE=""; echo "Bootstrap requested: starting PAPER from scratch if no state exists"; fi
           python -m trading_intelligence.execution.paper_loop \
-            --symbols $SYMBOLS --timeframe "$TIMEFRAME" --state-dir "$STATE_DIR" --max-ticks 1
+            --symbols $SYMBOLS --timeframe "$TIMEFRAME" --state-dir "$STATE_DIR" --max-ticks 1 $REQUIRE
       - name: Save PAPER state for the next run
-        if: always()
+        if: always() && hashFiles('paper_runs/live/loop.json') != ''
         uses: actions/cache/save@v4
         with:
           path: ${{ env.STATE_DIR }}

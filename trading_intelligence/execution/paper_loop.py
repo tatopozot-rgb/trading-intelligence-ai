@@ -426,6 +426,15 @@ def _binance_market_data(allow_testnet_data: bool) -> AbstractExchangeAdapter:
     return adapter
 
 
+# Every PAPER run writes these three; runner.json only exists once a position is bound.
+STATE_FILES = ("loop.json", "paper.json", "risk.json")
+EXIT_STATE_MISSING = 3
+
+
+def missing_state(state_dir: Path) -> list[str]:
+    return [name for name in STATE_FILES if not (Path(state_dir) / name).exists()]
+
+
 def main(argv: Optional[list[str]] = None, market_data: Optional[AbstractExchangeAdapter] = None) -> int:
     import argparse
 
@@ -443,9 +452,25 @@ def main(argv: Optional[list[str]] = None, market_data: Optional[AbstractExchang
                              "dependency (default); binance: python-binance client")
     parser.add_argument("--feed-url", default=None, help="override the binance-public host (https only)")
     parser.add_argument("--allow-testnet-data", action="store_true")
+    parser.add_argument("--require-state", action="store_true",
+                        help="refuse to start without the previous run's state (scheduled runs): a lost "
+                             "state must never silently restart PAPER from scratch")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    missing = missing_state(args.state_dir)
+    if args.require_state and missing:
+        # Found by GPT Work (PR #8): an evicted Actions cache made the next scheduled run a
+        # silent "first run" (fresh cash, risk counters and progress) that still went green.
+        logger.error("PAPER state missing in %s (%s): refusing to start. Run once without "
+                     "--require-state (workflow input bootstrap=true) to deliberately start over.",
+                     args.state_dir, ", ".join(missing))
+        return EXIT_STATE_MISSING
+    if missing and len(missing) < len(STATE_FILES):
+        # Partial state is never a valid starting point: the loop would resume its progress
+        # with a reset account or reset risk counters.
+        logger.error("Partial PAPER state in %s (missing %s): refusing to start.", args.state_dir, ", ".join(missing))
+        return EXIT_STATE_MISSING
     overrides = json.loads(args.risk_config.read_text()) if args.risk_config else None
     if market_data is not None:
         feed = market_data
