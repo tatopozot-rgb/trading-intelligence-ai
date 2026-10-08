@@ -1845,6 +1845,40 @@ running GPT Work's one-shot permission probe with the new read-only key.
 Full research suite at `1aff32e`: see the commit's CI. Locally, PaperLoop + report tests
 45 passed, ruff and mypy clean.
 
+### 43. Ready to start: trader review cycle, operating model, pilot approval form (2026-10-08)
+
+The owner asked the Leader to put everything in order to start trading, with agents
+reviewing top traders, learning from them and copying them. Built and pushed
+(`ed83788`, `9c09919`, `4ebde00`):
+
+- `copy_trading/capture.py` + `docs/templates/copy_trading_capture.template.csv`: one
+  CSV row per lead trader as the app shows it -> validated `binance_app_manual`
+  snapshot. Errors name the line and column.
+- `copy_trading/review.py`: ranks every captured trader with plain-Spanish reasons.
+  For each trader the owner copies (`docs/snapshots/followed.json`) it says MANTENER /
+  DEJAR DE COPIAR YA / let it wind down. Exit 1 (red) when a copied trader must be
+  stopped now. Unofficial files are skipped and named.
+- `copy_trading/learning.py`: out-of-sample check across consecutive captures. It
+  reports the forward result of selected traders vs the rest, hit rate, disappearances
+  (counted, never dropped), rank stability and the effect of each criterion. Exact on
+  daily series; approximate on app windows, and says so.
+- `.github/workflows/copy-review.yml`: runs the review on every push touching
+  `docs/snapshots/` (any branch). Standard library only, no account, no key.
+- 18 tests; 10 mutants, 8 killed. The 2 survivors are equivalent because a later layer
+  rejects the same input.
+- `docs/OPERATING_MODEL.md`: roles (cloud brain, local hands, GPT Work auditor, owner
+  decides and clicks), the pilot trade flow, what runs by itself, what never happens.
+- `docs/PILOT_DECISION_FORM.md`: PROPOSED pilot values and the exact approval phrase:
+  route A native Spot Copy Trading, 30 USDT, 1 trader, 6 USDT max loss, 20% copy stop
+  if the app offers it, Spot only, no leverage, profit share <= 10%, 4 weeks. Nothing is
+  approved; nothing starts without the phrase.
+- Claude Code local prompt section 7: first real capture today with the owner (10-20
+  leaders including quitters), confirm the app facts, weekly cadence.
+
+Still blocking real money: the owner's approval phrase, the first real capture, and the
+read-only key check. Route B (own API execution) stays on Testnet: no own strategy has a
+proven edge.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
