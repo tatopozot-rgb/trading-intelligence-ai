@@ -22,6 +22,24 @@ El bloqueo abarca el cliente público de host único `data-api.binance.vision`; 
 
 La revisión breve de Claude (mensajes 47/48 del chat existente) propuso registrar origen, mostrar bloqueo en salud y auditar el desbloqueo manual. Son pendientes: no hay procedimiento nuevo de desbloqueo en este bloque. El estado de salud actual informa errores de componente, pero no un panel específico de restricción HTTP. No guardar cuerpos/cabeceras completos sin un diseño de minimización de datos.
 
+## Lectura firmada de la cuenta (H1, 08-10-2026)
+
+`binance_signed.py` es un cliente firmado de **solo lectura** contra `api.binance.com`, escrito solo con biblioteca estándar. Las pruebas (`test_binance_signed.py`) son offline con un transporte falso; **todavía no se ha ejecutado contra una cuenta real**.
+
+- Solo emite GET a una lista cerrada: restricciones de la clave, cuenta/saldos, órdenes abiertas y trades propios. No contiene envío de órdenes, retiros ni transferencias, y no hay opción para añadirlos.
+- Guardia de permisos fail-closed: antes de leer la cuenta consulta `/sapi/v1/account/apiRestrictions`. Se niega si la clave tiene retiros, trading, transferencias, margen, futuros o cualquier otro permiso activo, o si no puede determinarlo.
+- 429/418/403/451: mismo criterio que la tabla anterior, con su propio archivo local `binance_signed_cooldown.json` (no se versiona). Un bloqueo sin plazo exige que el dueño lo revise y borre ese archivo.
+- Solo admite claves HMAC. La clave y el secreto se leen de `BINANCE_READONLY_API_KEY` y `BINANCE_READONLY_SECRET_KEY`; ningún mensaje, log o excepción contiene su valor ni la firma.
+- No usa proxies del entorno ni sigue redirecciones.
+
+Pasos del dueño (ningún agente ve las claves):
+
+1. En Binance, crear una clave de tipo HMAC con **solo "Enable Reading"**, sin trading ni retiros, y con restricción de IP.
+2. Inicio → "Editar las variables de entorno de esta cuenta" → crear las dos variables anteriores. No pegarlas en ningún chat.
+3. Abrir una terminal nueva en la carpeta del proyecto y ejecutar `python binance_signed.py`.
+
+La salida muestra únicamente: conectado sí/no, permisos de la clave (lectura, trading, retiros, restricción de IP) y el número de activos con saldo.
+
 ## Reparto de trabajo
 
 - Programa Python: reglas, consulta de datos, controles, ejecución cuando exista integración validada, registros e interfaz.

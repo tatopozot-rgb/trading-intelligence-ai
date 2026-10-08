@@ -82,4 +82,5 @@ claude_request.txt
 DETENER_*
 PAUSA_*
 market_cooldown.json
+binance_signed_cooldown.json*
 .publication/
