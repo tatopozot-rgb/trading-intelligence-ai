@@ -2099,6 +2099,22 @@ Who receives the owner's orders: Claude Code local (on the owner's PC, opened fr
 Claude phone app). It holds the key and runs the operator. Claude Leader relays when the
 owner writes here instead.
 
+### 50. Pull requests resolved (2026-10-08, owner: "soluciona los pull request")
+
+- PR #9 (Claude Code local: real PAPER system #3 -> #4 -> F3 + read-only API H1-H3) merged
+  into the default branch, `15255f1`. Only conflict: `.gitignore` (kept both sides).
+  - Research suite: 677 passed; ruff and mypy clean.
+  - Root PAPER unittest suite: 660/662; the 2 errors need `tkinter`, which is absent in the
+    cloud container and present on the owner's PC.
+  - Repository guard: 0 findings.
+- PR #8 (GPT Work cross-review harness) merged, `4130970`. All of its reproduction suites
+  pass against the code; the findings were fixed in sections 31-37 and 40.
+  - Synthetic key literals were shortened so the guard stays at 0 findings.
+- PR #3: closed by the merge. PRs #4 and #5: closed as superseded (their content is in #9).
+- PR #1 merged: `main` is now in sync with the default branch, which stays
+  `ccr-b66a9a9e-okj2pl`.
+- No open PRs remain. Claude Code local should work from the default branch from now on.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
