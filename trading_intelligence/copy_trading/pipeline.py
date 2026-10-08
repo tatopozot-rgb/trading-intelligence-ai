@@ -58,10 +58,17 @@ class PipelineResult:
 
 
 def record_as_of(record: TraderRecord, as_of: datetime) -> TraderRecord:
-    """The record as it looked at `as_of`: drops the daily returns after it."""
+    """The record as it looked at `as_of`: drops the daily returns after it. App figures
+    (reported ROI windows) cannot be rewound, so replaying events from before the
+    capture with them would be look-ahead: refused."""
     drop = (record.captured_at.date() - as_of.date()).days
     if drop <= 0:
         return record
+    if not record.daily_returns and record.reported is not None:
+        raise ValueError(
+            f"{record.trader_id}: reported app figures end at the capture time and cannot be used to "
+            f"select traders as of {as_of.isoformat()} (look-ahead); evaluate at capture and follow forward"
+        )
     return replace(record, daily_returns=record.daily_returns[:-drop] if drop < len(record.daily_returns) else ())
 
 

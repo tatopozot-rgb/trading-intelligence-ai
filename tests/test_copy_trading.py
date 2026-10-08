@@ -157,6 +157,57 @@ class TestEvaluator:
         assert earlier.history_days == r.history_days - 10
 
 
+class TestReportedAppFigures:
+    """What the Binance app actually shows: ROI windows, MDD, lead days, trades."""
+
+    C = E.SelectionCriteria()
+
+    def _rep(self, **kw):
+        from trading_intelligence.copy_trading.models import ReportedStats
+
+        base = dict(roi_pct_by_days={7: Decimal("1"), 30: Decimal("4"), 90: Decimal("9"), 180: Decimal("20")},
+                    max_drawdown_pct=Decimal("12"), lead_days=400, trades=120)
+        base.update(kw)
+        return _record(daily_returns=(), reported=ReportedStats(**base))
+
+    def test_a_sound_reported_record_is_eligible_and_flagged_as_coarser(self):
+        ev = E.evaluate(self._rep(), self.C)
+        assert ev.failed == [] and ev.metrics.basis == "reported_windows"
+        assert ev.metrics.max_drawdown == Decimal("0.12") and ev.metrics.trades == 120
+
+    def test_only_windows_inside_the_lead_period_count(self):
+        m = E.compute_metrics(self._rep(lead_days=100, roi_pct_by_days={30: Decimal("4"), 180: Decimal("90")}), self.C)
+        assert m.history_days == 100 and m.annual_net_return < Decimal("1")  # the 180-day 90% is ignored
+        assert E.HISTORY_TOO_SHORT in E.evaluate(self._rep(lead_days=100), self.C).failed
+
+    def test_reported_drawdown_and_losing_windows_are_judged(self):
+        failed = E.evaluate(self._rep(max_drawdown_pct=Decimal("45"),
+                                      roi_pct_by_days={30: Decimal("-6"), 90: Decimal("-3"), 180: Decimal("5")}),
+                            self.C).failed
+        assert E.DRAWDOWN_TOO_DEEP in failed and E.INCONSISTENT in failed
+
+    def test_snapshot_parsing_and_no_rewinding(self):
+        data = {"source": "binance_app_manual", "captured_at": NOW.isoformat(), "traders": [{
+            "trader_id": "x", "market": "SPOT", "active": True, "symbol_share": {"BTCUSDT": "0.5", "ETHUSDT": "0.5"},
+            "closed_trade_pnls": ["5"] * 30,
+            "reported": {"roi_pct_by_days": {"30": "4", "180": "20"}, "max_drawdown_pct": "10",
+                         "lead_days": 300, "trades": 90}}]}
+        rec = parse_snapshot(data).traders[0]
+        assert rec.reported.roi_pct_by_days[180] == Decimal("20") and rec.history_days == 300
+        with pytest.raises(ValueError, match="look-ahead"):
+            record_as_of(rec, NOW - timedelta(days=3))
+        bare = {**data, "traders": [{**data["traders"][0], "reported": None}]}
+        with pytest.raises(ValueError, match="neither"):
+            parse_snapshot(bare)
+
+    def test_the_template_file_parses(self):
+        from pathlib import Path
+
+        template = Path(__file__).resolve().parents[1] / "docs/templates/copy_trading_snapshot.template.json"
+        snap = parse_snapshot(json.loads(template.read_text(encoding="utf-8")))
+        assert snap.source == "binance_app_manual" and snap.traders
+
+
 # ---------------------------------------------------------------- risk policy
 
 

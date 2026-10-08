@@ -27,6 +27,18 @@ class Side(str, Enum):
 
 
 @dataclass(frozen=True)
+class ReportedStats:
+    """What a lead-trader page in the Binance app shows, as reported (percentages as
+    displayed, e.g. 12.5 = 12.5%). Used when no daily series is available."""
+
+    roi_pct_by_days: dict[int, Decimal]  # e.g. {7: 1.2, 30: 4.0, 90: 9.5, 180: 21.0}
+    max_drawdown_pct: Decimal
+    lead_days: int
+    trades: int
+    win_rate_pct: Optional[Decimal] = None
+
+
+@dataclass(frozen=True)
 class TraderRecord:
     """What is known about one lead trader at `captured_at`, from one source.
 
@@ -48,9 +60,12 @@ class TraderRecord:
     max_leverage: Decimal = Decimal("1")
     symbol_share: dict[str, Decimal] = field(default_factory=dict)  # share of traded notional per symbol
     closed_trade_pnls: tuple[Decimal, ...] = ()  # realized PnL per closed trade, for concentration
+    reported: Optional[ReportedStats] = None  # app figures, when no daily series exists
 
     @property
     def history_days(self) -> int:
+        if not self.daily_returns and self.reported is not None:
+            return self.reported.lead_days
         return len(self.daily_returns)
 
     @property

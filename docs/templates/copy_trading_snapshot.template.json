@@ -1,0 +1,28 @@
+{
+  "_instructions": "Copy this file, fill one entry per lead trader as shown in the Binance app (Copy Trading > lead trader page), keep traders that stopped leading too (active false), set captured_at to the moment you read the figures (with timezone). Never put any API key, password or account data here. Example values below are placeholders, not real traders.",
+  "source": "binance_app_manual",
+  "captured_at": "2026-10-08T15:00:00-05:00",
+  "traders": [
+    {
+      "trader_id": "EXAMPLE_PORTFOLIO_ID",
+      "name": "example name as shown",
+      "market": "SPOT",
+      "active": true,
+      "profit_share_pct": "10",
+      "aum_usd": "150000",
+      "copiers": 250,
+      "max_leverage": "1",
+      "reported": {
+        "roi_pct_by_days": {"7": "1.5", "30": "4.2", "90": "11.0", "180": "19.5"},
+        "max_drawdown_pct": "14.0",
+        "lead_days": 320,
+        "trades": 140,
+        "win_rate_pct": "58"
+      },
+      "symbol_share": {"BTCUSDT": "0.45", "ETHUSDT": "0.35", "SOLUSDT": "0.20"},
+      "closed_trade_pnls": ["12.4", "-3.1", "8.0", "5.5", "-2.2", "9.9", "4.1", "-1.0", "6.3", "3.3",
+                            "2.8", "-4.0", "7.7", "1.9", "-0.8", "5.0", "3.6", "-2.9", "4.4", "6.1"]
+    }
+  ],
+  "events": []
+}

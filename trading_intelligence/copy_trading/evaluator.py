@@ -77,6 +77,7 @@ class TraderMetrics:
     max_symbol_share: Optional[Decimal]
     liquid_share: Optional[Decimal]
     score: Decimal
+    basis: str = "daily_series"  # or "reported_windows" (app figures: coarser, flagged in reports)
 
 
 @dataclass
@@ -113,7 +114,54 @@ def _q(x: float) -> Decimal:
     return Decimal(str(round(x, 6)))
 
 
+def _concentration(record: TraderRecord, criteria: SelectionCriteria):
+    top3: Optional[Decimal] = None
+    gains = sorted((p for p in record.closed_trade_pnls if p > 0), reverse=True)
+    if gains:
+        top3 = (sum(gains[:3], Decimal("0")) / sum(gains, Decimal("0"))).quantize(Decimal("0.0001"))
+    max_sym = max(record.symbol_share.values()) if record.symbol_share else None
+    liquid = (
+        sum((v for s, v in record.symbol_share.items() if s in criteria.liquid_symbols), Decimal("0"))
+        if record.symbol_share else None
+    )
+    return top3, max_sym, liquid
+
+
+def _metrics_from_reported(record: TraderRecord, criteria: SelectionCriteria) -> TraderMetrics:
+    """App figures only: the longest reported ROI window within the lead period sets the
+    return, the reported MDD the drawdown, and the share of positive windows stands in
+    for consistency. Coarser than a daily series; reports say so (basis)."""
+    rep = record.reported
+    assert rep is not None
+    share = float(record.profit_share_pct) / 100
+    windows = {d: float(v) / 100 for d, v in rep.roi_pct_by_days.items() if d <= rep.lead_days}
+    if windows:
+        w = max(windows)
+        gross = windows[w]
+        net = gross * (1 - share) if gross > 0 else gross
+        annual = (1 + net) ** (365 / w) - 1 if net > -1 else -1.0
+    else:
+        annual = -1.0
+    n = rep.lead_days
+    shrunk = annual * n / (n + criteria.shrinkage_prior_days) if n else 0.0
+    positives = [v for v in windows.values() if v > 0]
+    consistency = len(positives) / len(windows) if windows else 0.0
+    worst = windows.get(30, min(windows.values(), default=0.0))
+    max_dd = float(rep.max_drawdown_pct) / 100
+    top3, max_sym, liquid = _concentration(record, criteria)
+    dd = max(Decimal(str(max_dd)), criteria.drawdown_floor)
+    return TraderMetrics(
+        history_days=n, trades=rep.trades,
+        total_net_return=_q(net if windows else -1.0), annual_net_return=_q(annual), shrunk_annual_return=_q(shrunk),
+        max_drawdown=_q(max_dd), consistency=_q(consistency), worst_30d=_q(worst),
+        top3_trade_share=top3, max_symbol_share=max_sym, liquid_share=liquid,
+        score=(_q(shrunk) / dd).quantize(Decimal("0.0001")), basis="reported_windows",
+    )
+
+
 def compute_metrics(record: TraderRecord, criteria: SelectionCriteria) -> TraderMetrics:
+    if not record.daily_returns and record.reported is not None:
+        return _metrics_from_reported(record, criteria)
     share = float(record.profit_share_pct) / 100
     # Copy traders pay the leader a share of profits; approximated per day on gains.
     net = [float(r) if r <= 0 else float(r) * (1 - share) for r in record.daily_returns]
@@ -133,22 +181,13 @@ def compute_metrics(record: TraderRecord, criteria: SelectionCriteria) -> Trader
     consistency = sum(1 for b in block_returns if b > 0) / len(block_returns) if block_returns else 0.0
     worst_30d = min(block_returns) if block_returns else 0.0
 
-    top3: Optional[Decimal] = None
-    gains = sorted((p for p in record.closed_trade_pnls if p > 0), reverse=True)
-    if gains:
-        top3 = sum(gains[:3], Decimal("0")) / sum(gains, Decimal("0"))
-    max_sym = max(record.symbol_share.values()) if record.symbol_share else None
-    liquid = (
-        sum((v for s, v in record.symbol_share.items() if s in criteria.liquid_symbols), Decimal("0"))
-        if record.symbol_share else None
-    )
+    top3, max_sym, liquid = _concentration(record, criteria)
     dd = max(Decimal(str(max_dd)), criteria.drawdown_floor)
     return TraderMetrics(
         history_days=n, trades=len(record.closed_trade_pnls),
         total_net_return=_q(total), annual_net_return=_q(annual), shrunk_annual_return=_q(shrunk),
         max_drawdown=_q(max_dd), consistency=_q(consistency), worst_30d=_q(worst_30d),
-        top3_trade_share=top3.quantize(Decimal("0.0001")) if top3 is not None else None,
-        max_symbol_share=max_sym, liquid_share=liquid,
+        top3_trade_share=top3, max_symbol_share=max_sym, liquid_share=liquid,
         score=(_q(shrunk) / dd).quantize(Decimal("0.0001")),
     )
 

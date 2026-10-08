@@ -23,7 +23,14 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 
-from trading_intelligence.copy_trading.models import LeaderAction, LeaderEvent, Market, Side, TraderRecord
+from trading_intelligence.copy_trading.models import (
+    LeaderAction,
+    LeaderEvent,
+    Market,
+    ReportedStats,
+    Side,
+    TraderRecord,
+)
 
 OFFICIAL_COPY_TRADING_ENDPOINTS = {
     "/sapi/v1/copyTrading/futures/userStatus": "is the CALLER a futures lead trader (lead-trader account only)",
@@ -80,6 +87,17 @@ def parse_snapshot(data: dict, *, allow_synthetic: bool = False) -> Snapshot:
     captured_at = _dt(data["captured_at"])
     traders = []
     for t in data.get("traders", []):
+        reported = None
+        if t.get("reported") is not None:
+            r = t["reported"]
+            reported = ReportedStats(
+                roi_pct_by_days={int(k): _dec(v) for k, v in r["roi_pct_by_days"].items()},
+                max_drawdown_pct=_dec(r["max_drawdown_pct"]), lead_days=int(r["lead_days"]),
+                trades=int(r["trades"]),
+                win_rate_pct=_dec(r["win_rate_pct"]) if r.get("win_rate_pct") is not None else None,
+            )
+        if not t.get("daily_returns") and reported is None:
+            raise ValueError(f"trader {t['trader_id']!r} has neither daily_returns nor reported stats")
         traders.append(TraderRecord(
             trader_id=str(t["trader_id"]),
             name=str(t.get("name", t["trader_id"])),
@@ -87,13 +105,14 @@ def parse_snapshot(data: dict, *, allow_synthetic: bool = False) -> Snapshot:
             source=source,
             captured_at=captured_at,
             active=bool(t["active"]),
-            daily_returns=tuple(_dec(r) for r in t["daily_returns"]),
+            daily_returns=tuple(_dec(r) for r in t.get("daily_returns", [])),
             profit_share_pct=_dec(t.get("profit_share_pct", "10")),
             aum_usd=_dec(t["aum_usd"]) if t.get("aum_usd") is not None else None,
             copiers=int(t["copiers"]) if t.get("copiers") is not None else None,
             max_leverage=_dec(t.get("max_leverage", "1")),
             symbol_share={str(k): _dec(v) for k, v in t.get("symbol_share", {}).items()},
             closed_trade_pnls=tuple(_dec(p) for p in t.get("closed_trade_pnls", [])),
+            reported=reported,
         ))
     ids = [t.trader_id for t in traders]
     if len(ids) != len(set(ids)):
