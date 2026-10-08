@@ -123,3 +123,38 @@ test("los residentes simulados llevan cama propia y, si trabajan, estación y pl
     else assert.equal(s.estacion, null);
   }
 });
+
+// Revisión cruzada de GPT Work (reviews/gpt_work/agent_city_acceptance.test.mjs).
+test("un snapshot con fecha futura o ilegible no prueba sincronización", () => {
+  for (const generated_at of ["2026-10-07T04:00:00Z", "2026-10-06T04:00:01Z", "no-es-fecha"]) {
+    const c = deriveCity({ snapshot: fresco({ gpt: "BLOCKED" }, { generated_at }), events: [], now: AHORA });
+    assert.equal(c.syncOk, false, generated_at);
+    assert.equal(agente(c, "gpt").state, "STALE", generated_at);
+  }
+  assert.equal(deriveCity({ snapshot: fresco(), events: [], now: AHORA }).syncOk, true);
+});
+
+test("un evento con fecha futura o ilegible no cuenta como reciente", () => {
+  for (const minutosAtras of [-1, -24 * 60]) {
+    const c = deriveCity({ snapshot: fresco(), events: [ev("TASK_STARTED", "GPT Work", minutosAtras), ev("NO_TRADE", "", minutosAtras)], now: AHORA });
+    assert.notEqual(agente(c, "gpt").state, "WORKING");
+    assert.equal(agente(c, "gpt").lastEvent, null);
+    for (const b of c.buildings) assert.equal(b.pulses.length, 0);
+    assert.equal(c.banners.some((t) => t.includes("NO_TRADE")), false);
+  }
+  const ilegible = { type: "TASK_STARTED", subject: "GPT Work", observed_at: "no-es-fecha" };
+  assert.notEqual(agente(deriveCity({ snapshot: fresco(), events: [ilegible], now: AHORA }), "gpt").state, "WORKING");
+  // El instante exacto de "ahora" sí es reciente.
+  assert.equal(agente(deriveCity({ snapshot: fresco(), events: [ev("TASK_STARTED", "GPT Work", 0)], now: AHORA }), "gpt").state, "WORKING");
+});
+
+test("el texto WORKING de un snapshot no concede WORKING sin evento observado", () => {
+  const sin = deriveCity({ snapshot: fresco({ gpt: "WORKING" }), events: [], now: AHORA });
+  assert.equal(agente(sin, "gpt").state, "IN_PROGRESS");
+  assert.equal(agente(sin, "gpt").reason, "WORKING documentado sin evento observado");
+  assert.equal(agente(sin, "gpt").target, "gpt_ops");
+  const con = deriveCity({ snapshot: fresco({ gpt: "WORKING" }), events: [ev("AGENT_WORKING", "GPT Work")], now: AHORA });
+  assert.equal(agente(con, "gpt").state, "WORKING");
+  const reposo = deriveCity({ snapshot: fresco({ gpt: "WORKING" }), events: [ev("AGENT_IDLE", "GPT Work")], now: AHORA });
+  assert.equal(agente(reposo, "gpt").state, "IDLE");
+});

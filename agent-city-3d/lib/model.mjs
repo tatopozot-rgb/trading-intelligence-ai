@@ -118,11 +118,17 @@ function visualDeSociedad(rec, ultimo) {
 export function deriveCity({ snapshot, society, events, now, life = null }) {
   const ahoraMs = now instanceof Date ? now.getTime() : Date.parse(now);
   const ev = [...(events || [])].filter((e) => e && ALL_EVENT_TYPES.includes(e.type));
-  const snapAge = snapshot?.generated_at ? ahoraMs - Date.parse(snapshot.generated_at) : Infinity;
+  // Edad de una marca de tiempo. Una fecha ilegible o FUTURA no es evidencia reciente: sin
+  // tolerancia de desfase de reloj, se trata como infinitamente vieja (nunca como "fresca").
+  const edadMs = (marca) => {
+    const edad = ahoraMs - Date.parse(marca);
+    return Number.isFinite(edad) && edad >= 0 ? edad : Infinity;
+  };
+  const snapAge = snapshot?.generated_at ? edadMs(snapshot.generated_at) : Infinity;
   const syncOk = Boolean(snapshot?.sync?.ok) && snapAge < SNAPSHOT_STALE_MS;
 
   const pulses = Object.fromEntries(BUILDINGS.map((b) => [b.id, []]));
-  const recientes = ev.filter((e) => ahoraMs - Date.parse(e.observed_at || e.ts || 0) < VENTANA_ACTIVA_MS);
+  const recientes = ev.filter((e) => edadMs(e.observed_at || e.ts || 0) < VENTANA_ACTIVA_MS);
   const ultimoDe = (predicado) => [...recientes].reverse().find(predicado);
 
   for (const e of recientes.slice(-300)) {
@@ -139,6 +145,9 @@ export function deriveCity({ snapshot, society, events, now, life = null }) {
     let destino = null;
     let estado = syncOk ? estadoDoc : "STALE";
     let razon = "estado documentado";
+    // WORKING sólo lo concede un evento observado (rama siguiente). El texto "WORKING" de un
+    // snapshot es un estado documentado: se muestra como IN_PROGRESS, sin animación de trabajo.
+    if (estado === "WORKING") { estado = "IN_PROGRESS"; razon = "WORKING documentado sin evento observado"; }
     if (ultimo) {
       if (ultimo.type === "AGENT_BLOCKED") { destino = a.home; estado = "BLOCKED"; razon = "evento AGENT_BLOCKED"; }
       else if (["AGENT_WORKING", "TASK_STARTED"].includes(ultimo.type)) { destino = a.home; estado = "WORKING"; razon = `evento ${ultimo.type}`; }
