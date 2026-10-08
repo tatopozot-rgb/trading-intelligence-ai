@@ -79,9 +79,12 @@ def inicializar():
                     (config.CAPITAL_USD, config.CAPITAL_USD, 0, fecha, fecha))
         # Fila inicial sólo al crear la tabla: si luego desaparece, es corrupción y se bloquea (fail-closed).
         if halt_nuevo:
-            con.execute('INSERT OR IGNORE INTO paper_halt(id,activo,razon,fecha_actualizacion) VALUES (1,0,?,?)',
-                        ('', fecha))
+            con.execute('INSERT OR IGNORE INTO paper_halt(id,activo,razon,fecha_actualizacion,ultimo_ok) '
+                        'VALUES (1,0,?,?,?)', ('', fecha, fecha))
             evento(con, 'HALT_INICIALIZADO', {'activo': 0})
+        # Una fila nueva o migrada sin ultimo_ok tendría un hueco infinito: el primer fallo transitorio
+        # activaría el halt sin los 60 s de gracia. Sólo toca filas NULL; nunca extiende un latido válido.
+        con.execute('UPDATE paper_halt SET ultimo_ok=? WHERE id=1 AND ultimo_ok IS NULL', (fecha,))
 
 
 def evento(con, tipo, datos):
@@ -281,7 +284,28 @@ def _abrir_validado(con, fila, plan, respuesta, precio_actual, automatico,
         if nuevo:
             # Retorno normal: la activación se confirma aunque la entrada quede rechazada.
             return {'registrada': False, 'motivo': motivo}
+        # Halt ya activo o pausa: la valoración recién registrada (si la hubo) se confirma igualmente.
+        con.commit()
         raise ValueError(motivo)
+    # La valoración válida (ultimo_ok, muestra y pico) debe sobrevivir al rechazo de ESTA orden por un
+    # control posterior; si no, el watchdog mediría el hueco desde una valoración más antigua. La orden
+    # rechazada se revierte entera hasta el savepoint y sólo entonces se confirma lo anterior.
+    con.execute('SAVEPOINT apertura')
+    try:
+        resultado = _registrar_apertura(con, fila, plan, respuesta, precio_actual, automatico, sesion_activa,
+                                        autorizacion, origen, evidencia_fill, stop, objetivo, posicion)
+    except Exception:
+        con.execute('ROLLBACK TO apertura')
+        con.execute('RELEASE apertura')
+        con.commit()
+        raise
+    con.execute('RELEASE apertura')
+    return resultado
+
+
+def _registrar_apertura(con, fila, plan, respuesta, precio_actual, automatico, sesion_activa,
+                        autorizacion, origen, evidencia_fill, stop, objetivo, posicion):
+    """Controles posteriores al halt e inserción; se ejecuta dentro del savepoint de _abrir_validado."""
     saldo = con.execute('SELECT saldo_actual FROM paper_account WHERE id=1').fetchone()[0]
     estado = resumen(con)
     dia, base = asegurar_dia(con, ahora(), saldo)
@@ -553,8 +577,8 @@ def liberar_halt(*, confirmado=False, precio_fn=None):
         if dd >= umbral:
             raise ValueError('Drawdown sigue por encima del umbral; halt no liberable.')
         fecha = ahora().isoformat()
-        con.execute("UPDATE paper_halt SET activo=0,razon='',pico_equity=?,fecha_actualizacion=? WHERE id=1",
-                    (pico, fecha))
+        con.execute("UPDATE paper_halt SET activo=0,razon='',pico_equity=?,fecha_actualizacion=?,ultimo_ok=? "
+                    "WHERE id=1", (pico, fecha, fecha))
         evento(con, 'HALT_LIBERADO', {'equity': equity, 'pico': pico,
                                       'drawdown_pct': dd, 'umbral_pct': umbral})
         return {'liberado': True, 'equity': equity, 'pico': pico, 'drawdown_pct': dd}

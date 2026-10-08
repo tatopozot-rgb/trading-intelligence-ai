@@ -330,5 +330,156 @@ class PausaVentanaWatchdogTests(_Base):
         raise OSError('sin red')
 
 
+class LatidoWatchdogTests(_Base):
+    """Defectos de F3 en 1533690: ultimo_ok NULL como hueco infinito y valoración válida
+    revertida por un rechazo posterior de la orden (revisión de GPT Work y de cloud)."""
+    umbral = 15.0
+    pausa = 8.0
+    reloj = datetime.now(timezone.utc) + timedelta(hours=1)
+
+    def setUp(self):
+        super().setUp()
+        self.reloj = type(self).reloj
+
+    def avanzar(self, segundos):
+        self.reloj = self.reloj + timedelta(seconds=segundos)
+
+    def posicion_sin_valorar(self):
+        # Fixture: posición previa a la migración, abierta sin pasar por la evaluación de halt.
+        with store.conectar() as con:
+            con.execute("INSERT INTO paper_trades (simbolo,fecha_apertura,estado,entrada,stop_precio,"
+                        "objetivo_precio,tamano_posicion,riesgo_usd,comision_pct_apertura) "
+                        "VALUES ('BTCUSDT',?,'ABIERTA',100,98,104,40,0.88,0.1)", (self.reloj.isoformat(),))
+
+    def solicitud(self, identidad):
+        with store.conectar() as con:
+            return dict(con.execute('SELECT estado,trade_id FROM paper_requests WHERE id=?', (identidad,)).fetchone())
+
+    def muestras(self):
+        with store.conectar() as con:
+            return con.execute('SELECT COUNT(*) FROM paper_equity_hist').fetchone()[0]
+
+    @staticmethod
+    def _sin_red(simbolo):
+        raise OSError('sin red')
+
+    def test_fila_nueva_tiene_latido_y_el_primer_fallo_transitorio_no_activa_halt(self):
+        latido = self.estado_halt()['ultimo_ok']
+        self.assertIsNotNone(latido)
+        self.reloj = datetime.fromisoformat(latido) + timedelta(seconds=30)
+        self.posicion_sin_valorar()
+        self.mercado = self._sin_red
+        with self.assertRaisesRegex(ValueError, 'Precio no disponible'):
+            store.evaluar_riesgo()
+        self.assertEqual(self.estado_halt()['activo'], 0)
+        self.assertEqual(self.eventos('HALT_ACTIVADO'), 0)
+
+    def test_fila_migrada_sin_latido_se_rellena_y_recibe_los_60_segundos_de_gracia(self):
+        self.posicion_sin_valorar()
+        with store.conectar() as con:
+            con.execute('UPDATE paper_halt SET ultimo_ok=NULL')
+        store.inicializar()
+        self.assertEqual(self.estado_halt()['ultimo_ok'], self.reloj.isoformat())
+        self.mercado = self._sin_red
+        self.avanzar(59)
+        with self.assertRaisesRegex(ValueError, 'Precio no disponible'):
+            store.evaluar_riesgo()
+        self.assertEqual(self.estado_halt()['activo'], 0)
+        self.avanzar(2)  # la gracia no es indefinida: pasado el límite el halt sí se activa
+        self.assertTrue(store.evaluar_riesgo()['nuevo'])
+        self.assertEqual(self.estado_halt()['activo'], 1)
+
+    def test_reinicializar_no_extiende_un_latido_valido(self):
+        self.posicion_sin_valorar()
+        store.evaluar_riesgo()
+        latido = self.estado_halt()['ultimo_ok']
+        self.assertEqual(latido, self.reloj.isoformat())
+        self.avanzar(59)
+        store.inicializar()
+        self.assertEqual(self.estado_halt()['ultimo_ok'], latido)
+        self.mercado = self._sin_red
+        self.avanzar(2)
+        self.assertTrue(store.evaluar_riesgo()['nuevo'])
+
+    def test_latido_ausente_sin_reinicializar_sigue_siendo_fail_closed(self):
+        self.posicion_sin_valorar()
+        with store.conectar() as con:
+            con.execute('UPDATE paper_halt SET ultimo_ok=NULL')
+        # Las rutas públicas pasan por inicializar(), que rellena el latido; si aun así faltara,
+        # el punto de decisión no concede gracia.
+        with store.conectar() as con:
+            con.execute('BEGIN IMMEDIATE')
+            bloqueado, nuevo, motivo = store._evaluar_halt(con, self._sin_red)
+        self.assertTrue(bloqueado and nuevo)
+        self.assertIn('CONNECTIVITY_WATCHDOG', motivo)
+        self.assertEqual(self.estado_halt()['activo'], 1)
+
+    def test_liberacion_confirmada_refresca_el_latido(self):
+        self.posicion_sin_valorar()
+        store.evaluar_riesgo()
+        self.mercado = self._sin_red
+        self.avanzar(61)
+        self.assertTrue(store.evaluar_riesgo()['nuevo'])
+        self.mercado = lambda simbolo: 100.0
+        self.avanzar(1)
+        self.assertTrue(store.liberar_halt(confirmado=True)['liberado'])
+        self.assertEqual(self.estado_halt()['ultimo_ok'], self.reloj.isoformat())
+
+    def test_rechazo_posterior_conserva_la_valoracion_valida_y_revierte_la_orden(self):
+        self.abrir()
+        self.avanzar(59)
+        duplicada = self.respuesta()
+        muestras = self.muestras()
+        with self.assertRaisesRegex(ValueError, 'Ya existe'):
+            self.abrir(duplicada)
+        # Valoró de verdad en t+59: eso queda confirmado; la orden rechazada, no.
+        self.assertEqual(self.estado_halt()['ultimo_ok'], self.reloj.isoformat())
+        self.assertEqual(self.muestras(), muestras + 1)
+        self.assertEqual(self.solicitud(duplicada['request_id']), {'estado': 'PENDIENTE', 'trade_id': None})
+        self.assertEqual(self.trades_abiertos(), 1)
+        self.assertEqual(self.eventos('APERTURA'), 1)
+        otra = self.respuesta({**self.plan, 'simbolo': 'ETHUSDT'})
+        self.mercado = self._sin_red
+        self.avanzar(2)  # corte real 2 s después de la última valoración válida, no 61 s
+        with self.assertRaisesRegex(ValueError, 'Precio no disponible'):
+            self.abrir(otra)
+        self.assertEqual(self.estado_halt()['activo'], 0)
+
+    def test_rechazo_tras_insertar_no_deja_orden_parcial(self):
+        self.abrir()
+        self.avanzar(30)
+        respuesta = self.respuesta({**self.plan, 'simbolo': 'ETHUSDT'})
+        saldo = store.cuenta()['saldo_actual']
+        original = store.evento
+
+        def evento_que_falla(con, tipo, datos):
+            original(con, tipo, datos)
+            if tipo == 'APERTURA':  # el trade, la solicitud y el evento ya están escritos
+                raise ValueError('fallo tardío inyectado')
+
+        with patch.object(store, 'evento', side_effect=evento_que_falla):
+            with self.assertRaisesRegex(ValueError, 'fallo tardío'):
+                self.abrir(respuesta)
+        self.assertEqual(self.trades_abiertos(), 1)
+        self.assertEqual(self.eventos('APERTURA'), 1)
+        self.assertEqual(self.solicitud(respuesta['request_id']), {'estado': 'PENDIENTE', 'trade_id': None})
+        self.assertEqual(store.cuenta()['saldo_actual'], saldo)
+        self.assertEqual(self.estado_halt()['ultimo_ok'], self.reloj.isoformat())
+        # La misma solicitud sigue siendo utilizable: no quedó consumida a medias.
+        self.assertTrue(self.abrir(respuesta)['registrada'])
+        self.assertEqual(self.trades_abiertos(), 2)
+
+    def test_pausa_por_drawdown_conserva_la_valoracion_valida(self):
+        self.abrir()
+        self.avanzar(59)
+        respuesta = self.respuesta({**self.plan, 'simbolo': 'ETHUSDT'})
+        self.mercado = lambda simbolo: 80.0
+        with self.assertRaisesRegex(ValueError, 'PAUSA_DRAWDOWN'):
+            self.abrir(respuesta)
+        self.assertEqual(self.estado_halt()['ultimo_ok'], self.reloj.isoformat())
+        self.assertEqual(self.estado_halt()['activo'], 0)
+        self.assertEqual(self.solicitud(respuesta['request_id'])['estado'], 'PENDIENTE')
+
+
 if __name__ == '__main__':
     unittest.main()
