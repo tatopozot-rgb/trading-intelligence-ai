@@ -1723,6 +1723,34 @@ Risk config is the spec default (no override), so expect mostly NO_TRADE / RISK_
 (section 30, question 5 is the owner's). Actions pinned by tag for cache/artifact (v4) and
 by SHA for checkout/setup-python, matching the existing CI.
 
+### 40. Checkpoint saved; API / login work handed to Claude Code local (2026-10-08)
+
+State at this checkpoint (default branch `ccr-b66a9a9e-okj2pl`):
+- **PAPER automator live** on GitHub Actions (section 39). Run #1 (manual) green on real
+  Binance public data. The first *scheduled* slot (00:07 UTC) had not produced a run by
+  ~00:45 UTC: GitHub delays or skips scheduled runs under load, most of all for a workflow
+  registered minutes earlier. Next slots 04:07, 08:07 UTC. If none appears by 08:30 UTC,
+  that is a real problem, not a delay: re-check and report.
+- Nothing new from other agents since section 39: PR #8 (GPT Work) last commit `dbd39ad`
+  (already handled); PRs #3/#4/#5 unchanged; PR #5 safety-net check-in 3 armed for 03:11 UTC.
+- Owner decisions still open: section 34 (25% fill-risk tolerance), section 30 survival
+  policies, LIVE limits. None made by any agent.
+
+**New assignment: API and login layer -> Claude Code local.** The owner connected Claude
+Code local (driven by another Work session of this project) and asked for a prompt to start
+the API / login work. Prompt: `docs/prompts/CLAUDE_LOCAL_API_SESSION.md`. Scope, read-only
+first, credentials only set by the owner in Windows user environment variables, never seen
+by any agent:
+- H1 signed Binance client (stdlib only, because Smart App Control blocks unsigned DLLs on
+  the owner's PC), read-only account/balances/orders/trades, fail-closed key-permission guard
+  (refuses when withdrawals are enabled or cannot be determined), secret redaction tested;
+- H2 order transport to Spot **Testnet only** (production host refused for any order
+  endpoint), uncertain responses reconciled by client order id, never blindly resent;
+- H3 XM/MT5 read-only on a DEMO account the owner logs into himself in the terminal
+  (`initialize()` without a password; `order_send` disabled);
+- H4 first real read-only check, run by the owner.
+Every credential step is WAITING_FOR_USER. Nothing here authorizes LIVE.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |

@@ -1,6 +1,6 @@
 # Handoff: Claude Leader / Trading Codex (cloud) — read THIS instead of the chat
 
-Written 2026-10-07 for a fresh session or a model switch; updated after section 39.
+Written 2026-10-07 for a fresh session or a model switch; updated after section 40.
 It is self-contained: you do not need the previous conversation. Verify any number
 below against the repo before repeating it (`git log --oneline -5` on `ccr-b66a9a9e-okj2pl`).
 
@@ -84,7 +84,8 @@ protective STOP submitted before risk bookkeeping.
 on `origin/work/readiness-atomicity-followup`; extract with `git show`). I replied on PR #8
 (comment 6043797582). Attack what the fuzzer does not cover (CHECKPOINT section 32).
 
-**Claude Code local:** first real-data run of `PaperLoop` (exact command in
+**Claude Code local:** API / login layer (read-only first), prompt `docs/prompts/CLAUDE_LOCAL_API_SESSION.md`
+(CHECKPOINT section 40); first real-data run of `PaperLoop` (exact command in
 `AGENT_COORDINATION.md` and CHECKPOINT section 35); watchdog
 `ultimo_ok IS NULL` fix; `_abrir_validado` deferred-rejection transaction fix (SAVEPOINT
 alone is insufficient); SHADOW port; Binance/XM adapter skeletons (no credentials);
