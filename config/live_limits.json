@@ -1,0 +1,14 @@
+{
+  "_comment": "Owner-approved limits for REAL trading (route B). Changing any value requires the owner's written approval. Withdrawals and deposits are done only by the owner, never by the system.",
+  "approved_by_owner": true,
+  "approved_at": "2026-10-08",
+  "approval_quote": "El piloto está bien ... capital variable ... con la opción b ... antes de dejar de hacer trading por la pérdida me pregunte 2 dólares antes",
+  "market": "SPOT",
+  "max_leverage": 1,
+  "loss_limit_pct": 20,
+  "warn_before_usd": 2,
+  "max_position_pct": 40,
+  "max_open_positions": 3,
+  "allowed_symbols": ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "LINKUSDT", "AVAXUSDT", "LTCUSDT", "TRXUSDT", "DOTUSDT"],
+  "withdrawals": false
+}
