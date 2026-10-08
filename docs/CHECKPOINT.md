@@ -2030,7 +2030,12 @@ before anything else). Code: `trading_intelligence/backtesting/forward_confirmat
 - The old 5-symbol state remains in the `paper-state-<run_id>` artifacts (30 days).
 - Scheduled runs between this push and the bootstrap dispatch turn red with the
   symbol-set mismatch. That is intended (fail closed).
-- Bootstrap dispatch: see the commit after this one, or the Actions tab.
+- Bootstrap dispatch done: run `37803096284` on `785e9a8`, green. It ran on all 12 symbols
+  with a fresh 10,000 equity and no positions, and saved cache key
+  `paper-state-37803096284`, which scheduled runs now resume with `--require-state`.
+  First bar processed: 2026-10-08 08:00 UTC. On that bar no symbol had a regime with a
+  strategy (RANGE / TREND_DOWN / BREAKOUT_DOWN), so it made no trades. The previous
+  5-symbol state is in the artifacts of run `37801489208` (30 days).
 
 ## Documents Ready for Codex to Implement Against
 
