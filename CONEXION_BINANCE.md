@@ -48,6 +48,7 @@ La salida muestra únicamente: conectado sí/no, permisos de la clave (lectura, 
 - Cada intento se anota en `binance_testnet_journal.json` (local, no se versiona) antes del único POST. Una orden nunca se reenvía y su `newClientOrderId` no se reutiliza en ningún estado.
 - Timeout, corte, 5xx, restricción HTTP o respuesta ilegible dejan la orden como `INCIERTA`. Se resuelve con `conciliar()`, que consulta por `newClientOrderId`; mientras quede una sin conciliar no se envía otra, también tras reiniciar.
 - "La orden no existe" solo se acepta como definitivo pasados 10 s desde el intento.
+- Un bloqueo de archivo (`binance_testnet_journal.json.lock`) hace que comprobar y anotar un intento sea una sola operación entre procesos e hilos: dos instancias que compartan el diario no pueden enviar a la vez, y guardar un resultado nunca pisa lo que otro proceso escribió.
 - Claves: `BINANCE_TESTNET_API_KEY` y `BINANCE_TESTNET_SECRET_KEY`, creadas en testnet.binance.vision. `python binance_testnet_orders.py` comprueba la conexión sin enviar órdenes.
 
 ## Reparto de trabajo

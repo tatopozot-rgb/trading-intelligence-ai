@@ -11,6 +11,7 @@ su newClientOrderId. Mientras quede una orden sin conciliar no se envía otra.
 """
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import dataclass
 import json
 import logging
@@ -19,7 +20,7 @@ from pathlib import Path
 import re
 import sys
 import time
-from typing import Callable, Mapping, Optional, Sequence, TextIO
+from typing import Callable, Iterator, Mapping, Optional, Sequence, TextIO
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -134,6 +135,29 @@ class Diario:
 
     def __init__(self, ruta: Path) -> None:
         self._ruta = Path(ruta)
+
+    @contextmanager
+    def exclusivo(self) -> Iterator[None]:
+        """Un único escritor entre procesos e hilos. Toda secuencia leer-decidir-guardar va dentro:
+        reemplazar el archivo de forma atómica no basta para que la secuencia lo sea.
+        No es reentrante. Si no se obtiene el bloqueo, no se envía ni se escribe nada."""
+        with self._ruta.with_name(self._ruta.name + '.lock').open('a+b') as archivo:
+            archivo.seek(0)
+            try:
+                if os.name == 'nt':
+                    import msvcrt
+                    msvcrt.locking(archivo.fileno(), msvcrt.LK_LOCK, 1)
+                else:
+                    import fcntl
+                    fcntl.flock(archivo, fcntl.LOCK_EX)
+            except OSError:
+                raise DiarioInconsistente('Diario de órdenes Testnet ocupado por otro proceso.') from None
+            try:
+                yield
+            finally:
+                if os.name == 'nt':
+                    archivo.seek(0)
+                    msvcrt.locking(archivo.fileno(), msvcrt.LK_UNLCK, 1)
 
     def leer(self) -> dict[str, dict]:
         try:
@@ -253,20 +277,34 @@ class ClienteTestnet:
     def sin_conciliar(self) -> list[str]:
         return sorted(k for k, o in self._diario.leer().items() if o['estado'] in SIN_CONCILIAR)
 
-    def enviar(self, orden: OrdenTestnet) -> dict:
-        """Un único POST. Devuelve el registro del diario; INCIERTA exige conciliar()."""
-        params = orden.parametros()
-        ordenes = self._diario.leer()
-        if orden.client_order_id in ordenes:
+    @staticmethod
+    def _exigir_libre(client_order_id: str, ordenes: Mapping[str, dict]) -> None:
+        if client_order_id in ordenes:
             raise OrdenInvalida('Ese newClientOrderId ya consta en el diario: una orden nunca se reenvía.')
         if any(o['estado'] in SIN_CONCILIAR for o in ordenes.values()):
             raise ConciliacionPendiente('Hay una orden sin conciliar; no se envía otra hasta resolverla.')
+
+    def _actualizar(self, client_order_id: str, registro: Mapping[str, object]) -> None:
+        """Guarda UN registro sobre el diario releído bajo bloqueo: nunca pisa lo que otro escribió."""
+        with self._diario.exclusivo():
+            ordenes = self._diario.leer()
+            ordenes[client_order_id] = dict(registro)
+            self._diario.guardar(ordenes)
+
+    def enviar(self, orden: OrdenTestnet) -> dict:
+        """Un único POST. Devuelve el registro del diario; INCIERTA exige conciliar()."""
+        params = orden.parametros()
+        self._exigir_libre(orden.client_order_id, self._diario.leer())  # rechazo temprano, sin tocar la red
         self._preparar()
         registro: dict = {'estado': PENDIENTE_ENVIO, 'simbolo': orden.simbolo, 'lado': orden.lado,
                           'tipo': orden.tipo, 'cantidad': orden.cantidad, 'precio': orden.precio,
                           'creado_epoch': self._reloj()}
-        ordenes[orden.client_order_id] = registro
-        self._diario.guardar(ordenes)  # Si esto falla, la orden no sale.
+        # Reserva: comprobar y anotar son una sola operación para cualquier otro proceso o hilo.
+        with self._diario.exclusivo():
+            ordenes = self._diario.leer()
+            self._exigir_libre(orden.client_order_id, ordenes)  # la comprobación que vale
+            ordenes[orden.client_order_id] = registro
+            self._diario.guardar(ordenes)  # Si esto falla, la orden no sale.
         respuesta = self._firmada('POST', RUTA_ORDEN, params)
         dato = self._json(respuesta)
         codigo = dato.get('code') if type(dato) is dict else None
@@ -278,16 +316,17 @@ class ClienteTestnet:
         else:
             # Timeout, corte, 5xx, restricción o respuesta que no se entiende: estado desconocido.
             registro.update(estado=INCIERTA, http=None if respuesta is None else respuesta.status)
-        self._diario.guardar(ordenes)
+        self._actualizar(orden.client_order_id, registro)
         logger.info('Orden Testnet %s: %s', orden.client_order_id, registro['estado'])
         return dict(registro)
 
     def conciliar(self) -> dict[str, str]:
         """Consulta por newClientOrderId cada orden sin conciliar. Nunca reenvía."""
-        ordenes = self._diario.leer()
         resultado: dict[str, str] = {}
-        for client_order_id in sorted(k for k, o in ordenes.items() if o['estado'] in SIN_CONCILIAR):
-            registro = ordenes[client_order_id]
+        for client_order_id in self.sin_conciliar():
+            registro = self._diario.leer().get(client_order_id)
+            if registro is None or registro['estado'] not in SIN_CONCILIAR:
+                continue  # otro proceso la resolvió entretanto
             self._preparar()
             respuesta = self._firmada('GET', RUTA_ORDEN, {'symbol': registro['simbolo'],
                                                          'origClientOrderId': client_order_id})
@@ -300,7 +339,15 @@ class ClienteTestnet:
                 registro['estado'] = NO_ENCONTRADA
             else:
                 registro['estado'] = INCIERTA
-            self._diario.guardar(ordenes)
+            with self._diario.exclusivo():
+                ordenes = self._diario.leer()
+                actual = ordenes.get(client_order_id)
+                # Un resultado definitivo que otro proceso ya anotó no se degrada.
+                if actual is not None and actual['estado'] in SIN_CONCILIAR:
+                    ordenes[client_order_id] = registro
+                    self._diario.guardar(ordenes)
+                elif actual is not None:
+                    registro = actual
             resultado[client_order_id] = registro['estado']
             if respuesta is not None and respuesta.status in ESTADOS_RESTRICCION:
                 break

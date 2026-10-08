@@ -12,7 +12,7 @@ visto una clave. PAPER sigue siendo el único modo; nada de esto autoriza LIVE.
 | Hito | Archivo | Pruebas | Mutantes eliminados |
 |---|---|---|---|
 | H1 lectura firmada de Binance | `binance_signed.py` | `test_binance_signed.py`, 26 | 25 de 25 |
-| H2 órdenes solo en Spot Testnet | `binance_testnet_orders.py` | `test_binance_testnet_orders.py`, 21 | 34 de 34 |
+| H2 órdenes solo en Spot Testnet | `binance_testnet_orders.py` | `test_binance_testnet_orders.py`, 25 | 34 de 34, más 9 de 9 del bloqueo |
 | H3 XM/MT5 demo, solo lectura | `xm_mt5_readonly.py` | `test_xm_mt5_readonly.py`, 10 | 19 de 19 |
 
 - `python -B tools/check_repository.py`: 0 hallazgos.
@@ -45,6 +45,18 @@ Pruebas en este PC tras el merge:
   usó un sustituto vacío de pandas, porque Smart App Control bloquea sus DLL; 13 módulos que usan pandas
   de verdad fallan igual antes y después. **No ejecutado aquí:** `tests/` de `trading_intelligence`
   (pandas real), mypy, ni el `check_repository.py` en Linux.
+
+## Revisión de GPT Work sobre `3ec14f5` (comentario 6059998935)
+
+Hallazgo aceptado: en H2 la secuencia leer diario -> comprobar -> anotar -> POST no era atómica entre
+procesos; dos instancias con el mismo diario podían enviar a la vez y una podía borrar el registro
+de la otra. Corregido con un bloqueo de archivo de un único escritor (`Diario.exclusivo`) que cubre
+la reserva del intento, el guardado del resultado (sobre el diario releído) y las escrituras de
+`conciliar()`, que además no degrada un resultado definitivo anotado por otro proceso.
+
+`test_binance_testnet_orders.py`: 25 OK (21 + 4 nuevas, incluida una carrera determinista de dos
+instancias). 9 de 9 mutantes del bloqueo eliminados. Sigue siendo solo Testnet y sin ejecutar
+contra el servicio. Respuesta en el PR pendiente: este PC no puede publicar comentarios (sin `gh`).
 
 ## Verificador de GPT Work
 

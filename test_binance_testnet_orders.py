@@ -2,8 +2,10 @@ import inspect
 import io
 import json
 import logging
+import os
 from pathlib import Path
 import tempfile
+import threading
 import traceback
 import unittest
 import urllib.parse
@@ -314,6 +316,99 @@ class TestnetOrdenesTests(unittest.TestCase):
                     with self.assertRaises(DiarioInconsistente):
                         accion()
                 self.assertEqual(falso.llamadas, [])
+
+    # --- un único escritor del diario (revisión de GPT Work sobre 3ec14f5) ---
+
+    def test_dos_instancias_en_carrera_solo_envian_una_orden(self):
+        a_en_reserva, b_termino, resultado_b = threading.Event(), threading.Event(), {}
+        hilo_a = threading.current_thread()
+        lecturas_de_a = []
+        leer_original = modulo.Diario.leer
+
+        def leer_con_pausa(diario):
+            ordenes = leer_original(diario)
+            if threading.current_thread() is hilo_a:
+                lecturas_de_a.append(1)
+                if len(lecturas_de_a) == 2:  # la lectura de la reserva: A ya leyó "vacío" y aún no anotó
+                    a_en_reserva.set()
+                    b_termino.wait(1.0)
+            return ordenes
+
+        class PostLento(Falso):
+            def __call__(self, metodo, url, cabeceras, timeout):
+                if metodo == 'POST' and 'ti-A' in url:
+                    b_termino.wait(10)  # A sigue PENDIENTE_ENVIO mientras B decide
+                return super().__call__(metodo, url, cabeceras, timeout)
+
+        falso = PostLento(POST_order=[aceptada(orden('ti-A')), aceptada(orden('ti-B'))])
+        cliente_a, cliente_b = self.cliente(falso), self.cliente(falso)
+        for cliente in (cliente_a, cliente_b):
+            cliente._preparar()  # hora ya sincronizada: la carrera queda sólo en el diario
+
+        def enviar_b():
+            a_en_reserva.wait(10)
+            try:
+                resultado_b['registro'] = cliente_b.enviar(orden('ti-B'))
+            except Exception as error:  # noqa: BLE001
+                resultado_b['error'] = error
+            b_termino.set()
+
+        hilo_b = threading.Thread(target=enviar_b)
+        with patch.object(modulo.Diario, 'leer', leer_con_pausa):
+            hilo_b.start()
+            registro_a = cliente_a.enviar(orden('ti-A'))
+            hilo_b.join(20)
+        self.assertFalse(hilo_b.is_alive())
+        self.assertEqual(registro_a['estado'], CONFIRMADA)
+        self.assertIsInstance(resultado_b.get('error'), ConciliacionPendiente)
+        self.assertEqual([dict(urllib.parse.parse_qsl(c[2]))['newClientOrderId'] for c in falso.de('POST')], ['ti-A'])
+        diario = json.loads(self.diario.read_text())['ordenes']
+        self.assertEqual({k: v['estado'] for k, v in diario.items()}, {'ti-A': CONFIRMADA})
+
+    def test_guardar_un_resultado_no_pisa_lo_que_otro_proceso_escribio(self):
+        o = orden()
+        otro = modulo.Diario(self.diario)
+
+        class EscribeDurantePost(Falso):
+            def __call__(self, metodo, url, cabeceras, timeout):
+                if metodo == 'POST':
+                    with otro.exclusivo():
+                        ordenes = otro.leer()
+                        ordenes['ajena'] = {'estado': RECHAZADA, 'simbolo': 'ETHUSDT', 'creado_epoch': 1.0}
+                        otro.guardar(ordenes)
+                return super().__call__(metodo, url, cabeceras, timeout)
+
+        self.cliente(EscribeDurantePost(POST_order=[aceptada(o)])).enviar(o)
+        diario = json.loads(self.diario.read_text())['ordenes']
+        self.assertEqual({k: v['estado'] for k, v in diario.items()}, {'ti-0001': CONFIRMADA, 'ajena': RECHAZADA})
+
+    def test_conciliar_no_degrada_un_resultado_que_otro_proceso_ya_anoto(self):
+        o = orden()
+        otro = modulo.Diario(self.diario)
+
+        class ResuelveDuranteConsulta(Falso):
+            def __call__(self, metodo, url, cabeceras, timeout):
+                if metodo == 'GET' and url.split('?')[0].endswith('/order'):
+                    with otro.exclusivo():
+                        ordenes = otro.leer()
+                        ordenes['ti-0001'].update(estado=CONFIRMADA, order_id=55, estado_exchange='FILLED')
+                        otro.guardar(ordenes)
+                return super().__call__(metodo, url, cabeceras, timeout)
+
+        falso = ResuelveDuranteConsulta(POST_order=[TimeoutError('t')], GET_order=[respuesta({}, 500)])
+        cliente = self.cliente(falso)
+        cliente.enviar(o)
+        self.assertEqual(cliente.conciliar(), {'ti-0001': CONFIRMADA})
+        self.assertEqual(self.registro()['order_id'], 55)
+
+    def test_si_no_se_obtiene_el_bloqueo_del_diario_no_se_envia(self):
+        falso = Falso(POST_order=[aceptada(orden())])
+        cliente = self.cliente(falso)
+        objetivo = 'msvcrt.locking' if os.name == 'nt' else 'fcntl.flock'
+        with patch(objetivo, side_effect=OSError('ocupado')), self.assertRaises(DiarioInconsistente):
+            cliente.enviar(orden())
+        self.assertEqual(falso.de('POST'), [])
+        self.assertFalse(self.diario.exists())
 
     # --- restricciones y redacción ---
 
