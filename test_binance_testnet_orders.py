@@ -401,6 +401,50 @@ class TestnetOrdenesTests(unittest.TestCase):
         self.assertEqual(cliente.conciliar(), {'ti-0001': CONFIRMADA})
         self.assertEqual(self.registro()['order_id'], 55)
 
+    def test_envio_incierto_no_degrada_lo_que_un_conciliador_ya_anoto(self):
+        # Carrera emisor-conciliador: A suelta el bloqueo durante un POST lento; B concilia y anota
+        # el resultado definitivo; después A recibe un timeout. El diario conserva lo definitivo.
+        o = orden()
+        for definitiva, esperado in ((aceptada(o, order_id=91), CONFIRMADA),
+                                     (respuesta({'code': -2013, 'msg': 'x'}, 400), NO_ENCONTRADA)):
+            with self.subTest(esperado=esperado):
+                self.diario.unlink(missing_ok=True)
+                conciliado = {}
+
+                class PostLento(Falso):
+                    def __call__(falso, metodo, url, cabeceras, timeout):
+                        if metodo == 'POST':
+                            falso.llamadas.append(('POST', modulo.RUTA_ORDEN, urllib.parse.urlsplit(url).query,
+                                                   dict(cabeceras), url))
+                            self.ahora += 60
+                            conciliado.update(self.cliente(falso).conciliar())
+                            raise TimeoutError('respuesta perdida')
+                        return super().__call__(metodo, url, cabeceras, timeout)
+
+                falso = PostLento(GET_order=[definitiva])
+                registro = self.cliente(falso).enviar(o)
+                self.assertEqual(conciliado, {'ti-0001': esperado})
+                self.assertEqual(registro['estado'], esperado)
+                self.assertEqual(self.registro()['estado'], esperado)
+                self.assertEqual(len(falso.de('POST')), 1)
+                self.assertEqual(self.cliente(falso).sin_conciliar(), [])
+
+    def test_las_transiciones_del_diario_son_monotonas(self):
+        cliente = self.cliente(Falso())
+        base = {'simbolo': 'BTCUSDT', 'creado_epoch': 1.0}
+        for definitivo in (CONFIRMADA, RECHAZADA, NO_ENCONTRADA):
+            for intento in (INCIERTA, PENDIENTE_ENVIO, CONFIRMADA, RECHAZADA, NO_ENCONTRADA):
+                with self.subTest(definitivo=definitivo, intento=intento):
+                    modulo.Diario(self.diario).guardar({'x': {**base, 'estado': definitivo, 'marca': 'original'}})
+                    vigente = cliente._actualizar('x', {**base, 'estado': intento})
+                    self.assertEqual((vigente['estado'], vigente.get('marca')), (definitivo, 'original'))
+                    self.assertEqual(self.registro('x')['marca'], 'original')
+        for previo in (PENDIENTE_ENVIO, INCIERTA):
+            for nuevo in (INCIERTA, CONFIRMADA, RECHAZADA, NO_ENCONTRADA):
+                modulo.Diario(self.diario).guardar({'x': {**base, 'estado': previo}})
+                self.assertEqual(cliente._actualizar('x', {**base, 'estado': nuevo})['estado'], nuevo)
+                self.assertEqual(self.registro('x')['estado'], nuevo)
+
     def test_si_no_se_obtiene_el_bloqueo_del_diario_no_se_envia(self):
         falso = Falso(POST_order=[aceptada(orden())])
         cliente = self.cliente(falso)

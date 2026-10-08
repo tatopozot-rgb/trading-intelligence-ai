@@ -284,12 +284,18 @@ class ClienteTestnet:
         if any(o['estado'] in SIN_CONCILIAR for o in ordenes.values()):
             raise ConciliacionPendiente('Hay una orden sin conciliar; no se envía otra hasta resolverla.')
 
-    def _actualizar(self, client_order_id: str, registro: Mapping[str, object]) -> None:
-        """Guarda UN registro sobre el diario releído bajo bloqueo: nunca pisa lo que otro escribió."""
+    def _actualizar(self, client_order_id: str, registro: Mapping[str, object]) -> dict:
+        """Único punto de escritura de un resultado, sobre el diario releído bajo bloqueo.
+        La transición es monótona: un estado definitivo (CONFIRMADA, RECHAZADA, NO_ENCONTRADA)
+        que otro proceso ya anotó no se sustituye ni se degrada. Devuelve el registro vigente."""
         with self._diario.exclusivo():
             ordenes = self._diario.leer()
+            actual = ordenes.get(client_order_id)
+            if actual is not None and actual['estado'] not in SIN_CONCILIAR:
+                return dict(actual)
             ordenes[client_order_id] = dict(registro)
             self._diario.guardar(ordenes)
+            return dict(registro)
 
     def enviar(self, orden: OrdenTestnet) -> dict:
         """Un único POST. Devuelve el registro del diario; INCIERTA exige conciliar()."""
@@ -316,9 +322,9 @@ class ClienteTestnet:
         else:
             # Timeout, corte, 5xx, restricción o respuesta que no se entiende: estado desconocido.
             registro.update(estado=INCIERTA, http=None if respuesta is None else respuesta.status)
-        self._actualizar(orden.client_order_id, registro)
+        registro = self._actualizar(orden.client_order_id, registro)
         logger.info('Orden Testnet %s: %s', orden.client_order_id, registro['estado'])
-        return dict(registro)
+        return registro
 
     def conciliar(self) -> dict[str, str]:
         """Consulta por newClientOrderId cada orden sin conciliar. Nunca reenvía."""
@@ -339,15 +345,7 @@ class ClienteTestnet:
                 registro['estado'] = NO_ENCONTRADA
             else:
                 registro['estado'] = INCIERTA
-            with self._diario.exclusivo():
-                ordenes = self._diario.leer()
-                actual = ordenes.get(client_order_id)
-                # Un resultado definitivo que otro proceso ya anotó no se degrada.
-                if actual is not None and actual['estado'] in SIN_CONCILIAR:
-                    ordenes[client_order_id] = registro
-                    self._diario.guardar(ordenes)
-                elif actual is not None:
-                    registro = actual
+            registro = self._actualizar(client_order_id, registro)
             resultado[client_order_id] = registro['estado']
             if respuesta is not None and respuesta.status in ESTADOS_RESTRICCION:
                 break
