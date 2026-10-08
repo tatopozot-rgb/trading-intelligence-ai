@@ -1728,7 +1728,7 @@ by SHA for checkout/setup-python, matching the existing CI.
 State at this checkpoint (default branch `ccr-b66a9a9e-okj2pl`):
 - **PAPER automator live** on GitHub Actions (section 39). Run #1 (manual) green on real
   Binance public data. The first *scheduled* slot (00:07 UTC) had not produced a run by
-  ~00:45 UTC: GitHub delays or skips scheduled runs under load, most of all for a workflow
+  00:24 UTC: GitHub delays or skips scheduled runs under load, most of all for a workflow
   registered minutes earlier. Next slots 04:07, 08:07 UTC. If none appears by 08:30 UTC,
   that is a real problem, not a delay: re-check and report.
 - Nothing new from other agents since section 39: PR #8 (GPT Work) last commit `dbd39ad`
