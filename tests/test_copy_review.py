@@ -98,7 +98,7 @@ class TestReview:
         (folder / "scraped.json").write_text(json.dumps({"source": "leaderboard_scraper",
                                                          "captured_at": "2026-10-08T00:00:00+00:00"}))
         snaps, skipped = review.load_snapshots(folder)
-        assert len(snaps) == 1 and any("scraped.json" in s for s in skipped)
+        assert len(snaps) == 1 and any("scraped.json" in s and "not an official" in s for s in skipped)
 
     def test_no_snapshots_yet(self, tmp_path, capsys):
         assert review.main(["--snapshots", str(tmp_path / "none"), "--out", str(tmp_path / "o")]) == 0
@@ -119,7 +119,7 @@ def _rec(tid, *, daily=(), roi=None, active=True, when=NOW, mdd="10", lead=300):
 
 class TestLearning:
     def test_forward_return_from_a_daily_series_is_exact(self):
-        r = _rec("x", daily=[0.0] * 100 + [0.01, 0.02])
+        r = _rec("x", daily=[0.003] * 100 + [0.01, 0.02])  # only the last 2 days may count
         value, basis = forward_return(r, 2)
         assert basis == "daily_series" and value == pytest.approx(1.01 * 1.02 - 1)
 
