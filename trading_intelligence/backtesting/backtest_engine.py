@@ -183,6 +183,7 @@ class BacktestEngine:
         slippage_factor: Decimal = SLIPPAGE_FACTOR,
         router: Optional[StrategyRouter] = None,
         regime_kwargs: Optional[dict] = None,
+        history_bars: Optional[int] = None,
     ):
         """
         Exactly one of `strategy` (the original, fixed-strategy mode every
@@ -190,9 +191,16 @@ class BacktestEngine:
         strategy, if any, should see each bar via `detect_regime()` +
         `StrategyRouter.route()` — NO_TRADE when the router routes to no
         strategy for the current regime) must be given.
+
+        `history_bars` (default None = all bars so far) limits the trailing
+        window the regime detector and strategies see at each bar, as
+        PaperTradingRunner does with its own `history_bars` (500).
         """
         if (strategy is None) == (router is None):
             raise ValueError("Pass exactly one of `strategy` or `router`, not both or neither.")
+        if history_bars is not None and history_bars < 2:
+            raise ValueError("history_bars must be >= 2")
+        self.history_bars = history_bars
         self.strategy = strategy
         self.router = router
         self.regime_kwargs = regime_kwargs or {}
@@ -232,7 +240,8 @@ class BacktestEngine:
         for i in range(1, len(data)):
             current_bar = data.iloc[i]
             bar_time = data.index[i]
-            historical = data.iloc[: i + 1]  # up to and including current bar
+            start = 0 if self.history_bars is None else max(0, i + 1 - self.history_bars)
+            historical = data.iloc[start : i + 1]  # up to and including current bar
 
             # --- Evaluate open position at this bar's open ---
             if open_trade is not None:

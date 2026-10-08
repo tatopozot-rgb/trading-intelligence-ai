@@ -444,3 +444,47 @@ class TestSharpeAnnualizationMatchesBarFrequency:
         # sqrt(365) formula would put the 4h Sharpe at roughly 1/sqrt(6)
         # (~41%) of the correct value instead.
         assert result_4h.sharpe_ratio == pytest.approx(result_daily.sharpe_ratio, rel=0.5)
+
+
+class _WindowRecordingStrategy(AbstractStrategy):
+    """Records the length of every window it is shown; never trades."""
+
+    def __init__(self):
+        super().__init__(strategy_id="window_recorder", symbol="TESTUSDT", timeframe="1h", params={})
+        self.seen: list[int] = []
+
+    def on_bar(self, data: pd.DataFrame) -> Optional[TradeProposal]:
+        self.seen.append(len(data))
+        return None
+
+    def on_exit_signal(self, data: pd.DataFrame, entry_price: Decimal) -> bool:
+        return False
+
+
+class TestHistoryBarsWindow:
+    def test_strategy_never_sees_more_than_history_bars(self):
+        data = _make_trending_ohlcv(n=120)
+        strat = _WindowRecordingStrategy()
+        BacktestEngine(strat, history_bars=30).run(data)
+        assert max(strat.seen) == 30
+        assert strat.seen[:3] == [2, 3, 4]  # grows until the window is full
+
+    def test_default_sees_full_history(self):
+        data = _make_trending_ohlcv(n=120)
+        strat = _WindowRecordingStrategy()
+        BacktestEngine(strat).run(data)
+        assert max(strat.seen) == 120
+
+    def test_window_at_least_data_length_matches_default_exactly(self):
+        data = _make_trending_ohlcv(n=400, seed=3)
+        params = {"fast_period": 10, "slow_period": 30, "trend_filter_period": 0}
+        full = BacktestEngine(DualMACrossover("TESTUSDT", "1d", params=params)).run(data)
+        windowed = BacktestEngine(
+            DualMACrossover("TESTUSDT", "1d", params=params), history_bars=len(data)
+        ).run(data)
+        assert windowed.final_equity == full.final_equity
+        assert len(windowed.trades) == len(full.trades)
+
+    def test_rejects_window_below_two(self):
+        with pytest.raises(ValueError, match="history_bars"):
+            BacktestEngine(_WindowRecordingStrategy(), history_bars=1)
