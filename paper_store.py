@@ -269,8 +269,9 @@ def ejecutar_respuesta(respuesta, autorizacion, precio_actual=None, automatico=F
 
 
 def _abrir_validado(con, fila, plan, respuesta, precio_actual, automatico,
-                    sesion_activa, autorizacion, origen, evidencia_fill=None):
-    """Controles financieros y apertura atómica comunes a ambos modos PAPER."""
+                    sesion_activa, autorizacion, origen, evidencia_fill=None, *, confirmar_valoracion=True):
+    """Controles financieros y apertura atómica comunes a ambos modos PAPER.
+    confirmar_valoracion=False (sólo SHADOW): nunca confirma nada; el llamante lo revierte todo."""
     entrada, stop, objetivo, posicion, riesgo = validar_plan(plan)
     precio_actual = numero(precio_actual)
     if abs(precio_actual/entrada-1)*100 > config.DESVIACION_MAXIMA_PRECIO_PCT:
@@ -285,7 +286,8 @@ def _abrir_validado(con, fila, plan, respuesta, precio_actual, automatico,
             # Retorno normal: la activación se confirma aunque la entrada quede rechazada.
             return {'registrada': False, 'motivo': motivo}
         # Halt ya activo o pausa: la valoración recién registrada (si la hubo) se confirma igualmente.
-        con.commit()
+        if confirmar_valoracion:
+            con.commit()
         raise ValueError(motivo)
     # La valoración válida (ultimo_ok, muestra y pico) debe sobrevivir al rechazo de ESTA orden por un
     # control posterior; si no, el watchdog mediría el hueco desde una valoración más antigua. La orden
@@ -297,7 +299,8 @@ def _abrir_validado(con, fila, plan, respuesta, precio_actual, automatico,
     except Exception:
         con.execute('ROLLBACK TO apertura')
         con.execute('RELEASE apertura')
-        con.commit()
+        if confirmar_valoracion:
+            con.commit()
         raise
     con.execute('RELEASE apertura')
     return resultado
@@ -360,22 +363,60 @@ def ejecutar_reglas(identidad, digest, precio_actual, sesion_activa, *, evidenci
     caducar_solicitudes()
     with conectar() as con:
         con.execute('BEGIN IMMEDIATE')
-        fila = con.execute('SELECT * FROM paper_requests WHERE id=?', (identidad,)).fetchone()
-        if fila is None or fila['estado'] != 'PENDIENTE':
-            raise ValueError('Solicitud desconocida o consumida.')
-        if ahora() >= datetime.fromisoformat(fila['expira']):
-            raise ValueError('Solicitud caducada.')
-        plan = json.loads(fila['plan'])
-        if not fila['ejecutable'] or plan.get('origen_revision') != 'REGLAS_PAPER_V1':
-            raise ValueError('Solicitud no pertenece al modo de reglas PAPER.')
-        if fila['plan_hash'] != digest or huella(plan) != digest:
-            raise ValueError('Propuesta de reglas alterada.')
-        if plan.get('consenso') != 'ALCISTA' or plan.get('estado') != 'ALCISTA MOMENTUM SANO':
-            raise ValueError('No cumple las reglas de la estrategia vigente.')
-        decision = {'origen_revision': 'REGLAS_PAPER_V1', 'request_id': identidad,
-                    'plan_hash': digest, 'simbolo': plan['simbolo'], 'decision': 'EJECUTAR_REGLAS_PAPER'}
-        return _abrir_validado(con, fila, plan, decision, precio_actual, True,
-                              sesion_activa, '', 'REGLAS_PAPER_V1', evidencia_fill)
+        return _decidir_reglas(con, identidad, digest, precio_actual, sesion_activa, evidencia_fill, True)
+
+
+def _decidir_reglas(con, identidad, digest, precio_actual, sesion_activa, evidencia_fill, confirmar_valoracion):
+    """Decisión por reglas dentro de la transacción del llamante. Única para PAPER y SHADOW."""
+    fila = con.execute('SELECT * FROM paper_requests WHERE id=?', (identidad,)).fetchone()
+    if fila is None or fila['estado'] != 'PENDIENTE':
+        raise ValueError('Solicitud desconocida o consumida.')
+    if ahora() >= datetime.fromisoformat(fila['expira']):
+        raise ValueError('Solicitud caducada.')
+    plan = json.loads(fila['plan'])
+    if not fila['ejecutable'] or plan.get('origen_revision') != 'REGLAS_PAPER_V1':
+        raise ValueError('Solicitud no pertenece al modo de reglas PAPER.')
+    if fila['plan_hash'] != digest or huella(plan) != digest:
+        raise ValueError('Propuesta de reglas alterada.')
+    if plan.get('consenso') != 'ALCISTA' or plan.get('estado') != 'ALCISTA MOMENTUM SANO':
+        raise ValueError('No cumple las reglas de la estrategia vigente.')
+    decision = {'origen_revision': 'REGLAS_PAPER_V1', 'request_id': identidad,
+                'plan_hash': digest, 'simbolo': plan['simbolo'], 'decision': 'EJECUTAR_REGLAS_PAPER'}
+    return _abrir_validado(con, fila, plan, decision, precio_actual, True, sesion_activa, '',
+                           'REGLAS_PAPER_V1', evidencia_fill, confirmar_valoracion=confirmar_valoracion)
+
+
+def ejecutar_reglas_shadow(identidad, digest, precio_actual, sesion_activa, *, evidencia_fill=None):
+    """SHADOW: el veredicto que daría ejecutar_reglas, con su mismo código, sin efecto sobre PAPER.
+
+    La decisión completa (halt, pausa, watchdog, límites e inserción) se ejecuta de verdad y se
+    revierte entera: no queda operación, saldo, solicitud consumida, activación de halt, pico ni
+    muestra de equity. Sólo se registra un evento SHADOW_ABRIRIA o SHADOW_RECHAZADA.
+    Un halt que SHADOW "activaría" tampoco se activa aquí: eso corresponde a evaluar_riesgo."""
+    validar_paper()
+    if sesion_activa is None or not sesion_activa():
+        raise ValueError('Sesión de reglas ausente, detenida o caducada.')
+    caducar_solicitudes()
+    with conectar() as con:
+        con.execute('BEGIN IMMEDIATE')
+        try:
+            resultado = _decidir_reglas(con, identidad, digest, precio_actual, sesion_activa, evidencia_fill, False)
+            abriria, motivo = resultado.get('registrada') is True, str(resultado.get('motivo', ''))
+        except ValueError as error:
+            abriria, motivo = False, str(error)
+        finally:
+            con.rollback()
+        con.execute('BEGIN IMMEDIATE')
+        fila = con.execute('SELECT plan FROM paper_requests WHERE id=?', (identidad,)).fetchone()
+        plan = json.loads(fila['plan']) if fila is not None else {}
+        halt = con.execute('SELECT activo FROM paper_halt WHERE id=1').fetchone()
+        datos = {'request_id': identidad if fila is not None else None, 'simbolo': plan.get('simbolo'),
+                 'lado': 'BUY', 'precio': precio_actual if isinstance(precio_actual, (int, float)) else None,
+                 'stop_precio': plan.get('stop_precio'), 'objetivo_precio': plan.get('objetivo_precio'),
+                 'tamano_posicion': plan.get('tamano_posicion'), 'motivo': motivo[:300],
+                 'halt_activo': None if halt is None else halt['activo']}
+        evento(con, 'SHADOW_ABRIRIA' if abriria else 'SHADOW_RECHAZADA', datos)
+    return {'registrada': False, 'sombra': True, 'abriria': abriria, 'motivo': motivo, 'request_id': identidad}
 
 
 def comprobar_fill(plan, evidencia_fill, *, lado, monto, precio, comision_pct):
