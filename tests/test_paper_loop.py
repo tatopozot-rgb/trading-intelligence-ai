@@ -440,3 +440,56 @@ class TestFeedOrigin:
         del data["feed_origin"]  # a state file written before this check existed
         (tmp_path / "loop.json").write_text(json.dumps(data))
         _build(tmp_path, flat_feed, entry_at=10**9)
+
+
+class TestDecisionJournal:
+    """What the loop decided and why survives across runs (each GitHub Actions run is
+    a fresh process), so the owner can read it in the run summary."""
+
+    def test_every_decision_fill_and_closed_trade_is_journaled_across_restarts(self, tmp_path):
+        feed = TestCatchUpAfterAnOutage()._crash_feed()
+        loop = _build(tmp_path, feed)
+        _at(feed, WARMUP + 1)
+        loop.tick()  # entry approved
+        _at(feed, WARMUP + 2)
+        loop.tick()  # entry filled
+        restarted = _build(tmp_path, feed)  # a new process, as on every scheduled run
+        _at(feed, WARMUP + 6)
+        restarted.tick()  # the stop is crossed on bar 63
+        saved = json.loads((tmp_path / "loop.json").read_text())
+        actions = [e["action"] for e in saved["journal"]]
+        assert actions[0] == "ENTRY_SUBMITTED"
+        assert [e["bar"] for e in saved["journal"]] == [_ts(i) for i in range(WARMUP, WARMUP + 6)]
+        fills = [(e["bar"], f["side"]) for e in saved["journal"] for f in e["fills"] if f["status"] == "FILLED"]
+        assert fills[0] == (_ts(WARMUP + 1), "BUY") and fills[-1][1] == "SELL"
+        assert len(saved["trades"]) == 1 and saved["trades"][0]["exit_reason"] == EXIT_STOP
+        assert Decimal(saved["trades"][0]["pnl"]) < 0
+        assert [h["bar"] for h in saved["equity_history"]] == [_ts(i) for i in range(WARMUP, WARMUP + 6)]
+        assert saved["journal"][-1]["close"] is not None and saved["journal"][-1]["regime"] is not None
+
+    def test_the_journal_is_bounded(self, tmp_path, flat_feed, monkeypatch):
+        from trading_intelligence.execution import paper_loop
+
+        monkeypatch.setattr(paper_loop, "JOURNAL_MAX", 3)
+        monkeypatch.setattr(paper_loop, "EQUITY_HISTORY_MAX", 2)
+        loop = _build(tmp_path, flat_feed, entry_at=10**9)
+        for h in range(WARMUP + 1, WARMUP + 7):
+            _at(flat_feed, h)
+            loop.tick()
+        saved = json.loads((tmp_path / "loop.json").read_text())
+        assert [e["bar"] for e in saved["journal"]] == [_ts(i) for i in range(WARMUP + 3, WARMUP + 6)]
+        assert len(saved["equity_history"]) == 2
+
+    def test_old_state_files_without_a_journal_still_load(self, tmp_path, flat_feed):
+        loop = _build(tmp_path, flat_feed, entry_at=10**9)
+        _at(flat_feed, WARMUP + 1)
+        loop.tick()
+        path = tmp_path / "loop.json"
+        data = json.loads(path.read_text())
+        for key in ("journal", "trades", "equity_history"):
+            data.pop(key)
+        path.write_text(json.dumps(data))
+        resumed = _build(tmp_path, flat_feed, entry_at=10**9)
+        _at(flat_feed, WARMUP + 2)
+        resumed.tick()
+        assert len(json.loads(path.read_text())["journal"]) == 1

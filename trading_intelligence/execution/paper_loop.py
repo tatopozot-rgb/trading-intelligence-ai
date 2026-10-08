@@ -40,9 +40,15 @@ import pandas as pd
 
 from trading_intelligence.execution.base import AbstractExchangeAdapter
 from trading_intelligence.execution.paper import PaperAdapter
-from trading_intelligence.execution.paper_runner import PaperTradingRunner
+from trading_intelligence.execution.paper_runner import PaperTradingRunner, RunnerStep
 
 logger = logging.getLogger(__name__)
+
+# Bounded history kept in the state file so the owner can see what the loop decided
+# and why (the GitHub Actions summary renders it). Older entries are dropped.
+JOURNAL_MAX = 300
+TRADES_MAX = 200
+EQUITY_HISTORY_MAX = 500
 
 INTERVAL_SECONDS = {
     "1m": 60, "3m": 180, "5m": 300, "15m": 900, "30m": 1800,
@@ -105,6 +111,10 @@ class PaperLoop:
         self.last_processed: Optional[datetime] = None
         self.consecutive_fetch_errors = 0
         self.feed_origin = _feed_origin(market_data)
+        self.journal: list[dict] = []
+        self.trades: list[dict] = []
+        self.equity_history: list[dict] = []
+        self._trades_seen = len(runner.closed_trades)
         self._load_state()
 
     # ------------------------------------------------------------------
@@ -154,12 +164,47 @@ class PaperLoop:
             window = {sym: frame[frame.index <= pd.Timestamp(ts)] for sym, frame in frames.items()}
             for step in self.runner.process_bars(window):
                 report.actions.append(f"{step.symbol}@{step.bar_time}:{step.action}")
+                self._journal_step(step, window.get(step.symbol))
+            self._record_closed_trades()
+            self.equity_history.append({"bar": ts.isoformat(), "equity": str(self.runner.paper.last_known_equity())})
+            del self.equity_history[:-EQUITY_HISTORY_MAX]
             self.last_processed = ts
             report.processed.append(ts.isoformat())
             self._save_state(now, report)  # progress survives a crash mid catch-up
         if not pending:
             self._save_state(now, report)
         return report
+
+    def _journal_step(self, step: RunnerStep, frame: Optional[pd.DataFrame]) -> None:
+        close = None
+        if frame is not None and not frame.empty:
+            close = str(frame["close"].iloc[-1])
+        self.journal.append({
+            "bar": step.bar_time,
+            "symbol": step.symbol,
+            "action": step.action,
+            "regime": step.regime,
+            "close": close,
+            "equity": str(step.equity) if step.equity is not None else None,
+            "fills": [
+                {"side": f.side, "status": f.status,
+                 "qty": str(f.filled_quantity), "price": str(f.fill_price) if f.fill_price is not None else None,
+                 "fee": str(f.fee)}
+                for f in step.fills
+            ],
+            "notes": list(step.notes),
+        })
+        del self.journal[:-JOURNAL_MAX]
+
+    def _record_closed_trades(self) -> None:
+        for trade in self.runner.closed_trades[self._trades_seen:]:
+            self.trades.append({
+                "symbol": trade.symbol, "quantity": str(trade.quantity),
+                "entry_price": str(trade.entry_price), "exit_price": str(trade.exit_price),
+                "pnl": str(trade.pnl), "exit_reason": trade.exit_reason, "closed_at": trade.closed_at,
+            })
+        self._trades_seen = len(self.runner.closed_trades)
+        del self.trades[:-TRADES_MAX]
 
     def _fetch_closed(self, now: datetime, report: TickReport) -> Optional[dict[str, pd.DataFrame]]:
         # Retried within the tick: with polls hours apart, one transient failure
@@ -277,6 +322,9 @@ class PaperLoop:
             )
         last = data.get("last_processed")
         self.last_processed = datetime.fromisoformat(last) if last else None
+        self.journal = list(data.get("journal", []))
+        self.trades = list(data.get("trades", []))
+        self.equity_history = list(data.get("equity_history", []))
 
     def _save_state(self, now: datetime, report: TickReport) -> None:
         paper, risk = self.runner.paper, self.runner.risk_engine
@@ -299,6 +347,9 @@ class PaperLoop:
             "feed_origin": self.feed_origin,
             "last_processed": self.last_processed.isoformat() if self.last_processed else None,
             "status": status,
+            "journal": self.journal,
+            "trades": self.trades,
+            "equity_history": self.equity_history,
         }
         self.state_path.parent.mkdir(parents=True, exist_ok=True)
         tmp = self.state_path.with_suffix(self.state_path.suffix + ".tmp")

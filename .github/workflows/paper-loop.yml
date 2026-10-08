@@ -6,7 +6,8 @@ name: PAPER loop (public Binance data, no account)
 # - Data: data-api.binance.vision public klines. No account, no API key, no orders:
 #   PaperAdapter never forwards anything and the feed has no order endpoint.
 # - State: carried between runs in the Actions cache (no commits).
-# - Visibility: each run writes a summary (Actions tab) and turns RED when the loop
+# - Visibility: each run writes a summary (Actions tab: latest decision per symbol and
+#   why, simulated fills, closed trades, equity) and turns RED when the loop
 #   reports a fetch error, stale data, a data gap, the kill switch, or books that
 #   disagree. Download the "paper-state" artifact for the full state.
 # Stop it: disable this workflow in the Actions tab (or delete this file).
@@ -57,33 +58,9 @@ jobs:
         with:
           path: ${{ env.STATE_DIR }}
           key: paper-state-${{ github.run_id }}
-      - name: Report (summary; red if anything needs attention)
+      - name: Report (decisions, fills, trades, equity; red if anything needs attention)
         if: always()
-        run: |
-          python - <<'PY'
-          import json, os, pathlib, sys
-          path = pathlib.Path(os.environ["STATE_DIR"]) / "loop.json"
-          out = open(os.environ["GITHUB_STEP_SUMMARY"], "a")
-          if not path.exists():
-              out.write("## PAPER loop\n\nNo state written: the loop did not run. See the step logs.\n")
-              sys.exit(1)
-          data = json.loads(path.read_text())
-          st = data.get("status", {})
-          problems = []
-          if st.get("last_fetch_error"): problems.append(f"fetch error: {st['last_fetch_error']}")
-          if st.get("stale_symbols"): problems.append(f"stale data: {', '.join(st['stale_symbols'])}")
-          if st.get("last_gap_halt"): problems.append(f"data gap: {st['last_gap_halt']}")
-          if st.get("kill_switch"): problems.append(f"kill switch: {st.get('kill_switch_reason')}")
-          if st.get("books_disagree"): problems.append(f"books disagree: {st['books_disagree'][0]}")
-          out.write("## PAPER loop (no account, no real orders)\n\n")
-          out.write(f"- feed: `{data.get('feed_origin')}` · symbols: `{' '.join(data.get('symbols', []))}` · {data.get('timeframe')}\n")
-          out.write(f"- last bar processed: `{data.get('last_processed')}`\n")
-          out.write(f"- equity: **{st.get('equity')}** · cash: {st.get('cash')} · open: {st.get('open_positions')}\n")
-          out.write(f"- kill switch: {st.get('kill_switch')}\n\n")
-          out.write("**Needs attention:**\n" + "".join(f"- {p}\n" for p in problems) if problems else "All checks clean.\n")
-          print(json.dumps(data, indent=2))
-          sys.exit(1 if problems else 0)
-          PY
+        run: python -m trading_intelligence.execution.paper_report --state-dir "$STATE_DIR"
       - name: Keep the full state as an artifact
         if: always()
         uses: actions/upload-artifact@v4
