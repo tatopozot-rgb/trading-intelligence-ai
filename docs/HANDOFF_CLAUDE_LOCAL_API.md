@@ -46,6 +46,27 @@ Pruebas en este PC tras el merge:
   de verdad fallan igual antes y después. **No ejecutado aquí:** `tests/` de `trading_intelligence`
   (pandas real), mypy, ni el `check_repository.py` en Linux.
 
+## Binance Spot conectado desde Claude Code local (2026-10-08, ruta B)
+
+El dueño confirmó la ruta B directamente en la sesión local y guardó él mismo la clave de trading
+en variables de entorno de usuario de Windows (`BINANCE_TRADE_API_KEY`, `BINANCE_TRADE_SECRET_KEY`).
+Ningún agente vio sus valores.
+
+| Paso de `docs/prompts/CLAUDE_LOCAL_LIVE_OPERATOR.md` | Resultado |
+|---|---|
+| 1. Python con pandas | PASS sin WSL: entorno aparte con pandas 2.2.3, numpy 2.2.6 y scipy 1.18.1 (Smart App Control los permite; pandas 3.0.6 sigue bloqueado). `tests/test_live_operator.py`: 32 passed en `feccf8b`. |
+| 2. Clave de trading | PASS. Lectura firmada de `/sapi/v1/account/apiRestrictions` con el cliente del operador (`SpotTrader.verify_key`, sin modificar): lectura SI, Spot trading SI, retiros NO, restricción de IP SI. También respondió `/api/v3/account`. |
+| 3. SHADOW | PASS: 3 iteraciones, exit 0, en 1h (`b69892a`) y en 4h por defecto (`c6bcba7`); sin posiciones ni decisiones en ese intervalo. |
+
+- **No se envió ninguna orden.** Solo lecturas firmadas. El operador real no se ha arrancado.
+- Un primer intento con una clave anterior falló con HTTP 400, código -1022 (firma no válida);
+  el dueño creó otra clave y esa conectó.
+- La sesión local arrancó antes de que existieran las variables, así que no están en su entorno
+  de proceso: el operador real debe lanzarse desde una terminal nueva.
+- Los saldos de la cuenta no se registran en este repositorio.
+- Sigue en pie: nada con `--real` sin una frase explícita del dueño con el capital; solo 4h; y el
+  resultado de la sección 45 (ninguna configuración pasa el criterio GO) se le recuerda antes.
+
 ## Revisión de GPT Work sobre `3ec14f5` (comentario 6059998935)
 
 Hallazgo aceptado: en H2 la secuencia leer diario -> comprobar -> anotar -> POST no era atómica entre
