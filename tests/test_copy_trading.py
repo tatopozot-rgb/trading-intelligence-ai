@@ -309,6 +309,16 @@ class TestFollower:
         f.on_mark(NOW + timedelta(hours=3))  # -40% on 150 = -60 > 5% of 1000
         assert f.blocked.get("t") == "TRADER_LOSS_BUDGET" and "t" not in f.followed
 
+    def test_a_blocked_trader_is_never_followed_again(self, tmp_path):
+        f = _follower(tmp_path, {"BTCUSDT": [(0, 100)]})
+        f.blocked["t"] = "LEADER_MARTINGALE"
+        f.followed.discard("t")
+        f.apply_selection(NOW, [E.SelectionDecision("t", "ADD", ["ELIGIBLE"], Decimal("9"))])
+        assert "t" not in f.followed and f.journal[-1]["reason"] == "STILL_BLOCKED:LEADER_MARTINGALE"
+        f.followed.add("t")  # even if something re-adds it, the policy still refuses new risk
+        f.on_event(_event(fraction="0.4"))
+        assert not f.positions and f.journal[-1]["reason"] == "TRADER_BLOCKED"
+
     def test_emergency_stop_blocks_entries_and_flattens_only_with_owner_confirmation(self, tmp_path):
         f = _follower(tmp_path, {"BTCUSDT": [(0, 100)]})
         f.on_event(_event(fraction="0.4"))

@@ -142,6 +142,12 @@ class CopyFollower:
     def apply_selection(self, ts: datetime, decisions: list) -> None:
         for d in decisions:
             if d.decision in ("ADD", "KEEP"):
+                # A block (martingale, loss budget) outlives any later ranking: a good-looking
+                # record is exactly what a martingale trader shows until it blows up.
+                if d.trader_id in self.blocked:
+                    self._log(ts, d.trader_id, "*", "selection",
+                              CopyDecision(R.NO_TRADE, f"STILL_BLOCKED:{self.blocked[d.trader_id]}"))
+                    continue
                 self.followed.add(d.trader_id)
             elif d.decision.startswith("REMOVE") or d.decision in ("REJECT", "NOT_SELECTED"):
                 self.followed.discard(d.trader_id)
