@@ -2037,6 +2037,29 @@ before anything else). Code: `trading_intelligence/backtesting/forward_confirmat
   strategy (RANGE / TREND_DOWN / BREAKOUT_DOWN), so it made no trades. The previous
   5-symbol state is in the artifacts of run `37801489208` (30 days).
 
+### 48. Claude Code local: operator steps 1 and 3 pass on the owner's PC; key pending (2026-10-08)
+
+Read from Claude Code local's session transcript (it could not message back):
+- **Step 1 PASS, without WSL.** A separate Windows environment with pandas 2.2.3, numpy
+  2.2.6 and scipy 1.18.1 is allowed by Smart App Control (pandas 3.x stays blocked).
+  `tests/test_live_operator.py` is 31/31 at `c6bcba7`.
+- **Step 2 PENDING.** No `BINANCE_*` variable is defined on the PC; this was checked by name
+  only. The owner stores the trading key as Windows user environment variables.
+- **Step 3 PASS.** SHADOW ran 3 iterations with exit 0 at 1h and at 4h on real data:
+  RUNNING, capital 50, limit 10, warning at 8, no positions, start report written.
+- Its finding was fixed here: a SHADOW report listed "Ejecución real" among the agents
+  used; it now says "Ejecución simulada (SHADOW, sin órdenes)". New test; 32 live tests.
+- PR #9: Claude Code local reports that the F3 defects, PR #5's fix and the doc conflicts
+  are resolved (head `05a41cd`); only the PR description is pending.
+
+Quant session (sections 46-47) reviewed:
+- Pre-registered 4h forward confirmation in `docs/PREREG_4H_FORWARD.md`.
+- The PAPER loop now covers the operator's 12 symbols (read from
+  `config/live_limits.json`) and was bootstrapped (run `37803096284`).
+
+The only remaining blocker for the first real order is the owner storing the trading key,
+then his phrase.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |

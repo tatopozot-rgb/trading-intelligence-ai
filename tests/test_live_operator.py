@@ -408,3 +408,10 @@ def test_real_orders_are_refused_at_a_timeframe_proven_to_lose(tmp_path, capsys)
         O.main(["--dir", str(tmp_path), "iniciar", "--capital", "50", "--temporalidad", "1h", "--real"])
     assert "lost money after fees" in capsys.readouterr().err
     assert not (tmp_path / "session.json").exists()
+
+
+def test_a_shadow_report_never_claims_real_execution(tmp_path):
+    op = _operator(tmp_path, FakeTrader({"BTCUSDT": Decimal("100")}))
+    text = op.write_report("inicio").read_text(encoding="utf-8")
+    used = next(line for line in text.splitlines() if line.startswith("Usados:"))
+    assert "SHADOW" in text and "Ejecución real" not in used and "Ejecución simulada" in used

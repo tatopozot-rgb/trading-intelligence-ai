@@ -60,7 +60,9 @@ AGENTS_BY_PROFILE = {
     "copiar": ["Revisión de top traders", "Posiciones del líder leídas en la app", "Guardia de pérdida del dueño",
                "Ejecución real (Binance Spot)"],
 }
-ALL_AGENTS = sorted({a for v in AGENTS_BY_PROFILE.values() for a in v} | {"Seguidor de copias (simulación)"})
+EXEC_REAL = "Ejecución real (Binance Spot)"
+EXEC_SHADOW = "Ejecución simulada (SHADOW, sin órdenes)"
+ALL_AGENTS = sorted({a for v in AGENTS_BY_PROFILE.values() for a in v} | {"Seguidor de copias (simulación)", EXEC_SHADOW})
 
 
 class ShadowTrader:
@@ -266,7 +268,9 @@ class Operator:
             decisions = json.loads(self.loop.state_path.read_text(encoding="utf-8")).get("journal", [])
         prices = {sym: self.trader.price(sym) for sym in self.session.holdings}
         text = render_report(stage, self.session, prices, self.limits, real=self.real, profile=self.profile,
-                             agents_used=AGENTS_BY_PROFILE[self.profile], all_agents=ALL_AGENTS,
+                             agents_used=[a if self.real or a != EXEC_REAL else EXEC_SHADOW
+                                          for a in AGENTS_BY_PROFILE[self.profile]],
+                             all_agents=ALL_AGENTS,
                              decisions=decisions, timeframe=self.timeframe, symbols=self.symbols)
         path = self.dir / f"reporte_{stage}_{self.clock().strftime('%Y%m%dT%H%M')}.md"
         path.write_text(text, encoding="utf-8")
