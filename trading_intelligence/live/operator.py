@@ -512,7 +512,7 @@ def _launch(d: Path, limits: OwnerLimits, meta: dict, engine_equity: str, max_it
     target = Decimal(meta["profit_target_pct"]) if meta.get("profit_target_pct") is not None else None
     op = Operator(d, trader, limits, profile=meta["profile"], timeframe=meta["timeframe"], symbols=meta["symbols"],
                   loop=loop, real=meta["real"], end_at=end_at, profit_target_pct=target,
-                  notify=telegram_notify.make_notify(print, telegram_notify.from_env()),
+                  notify=telegram_notify.make_notify(telegram_notify.console, telegram_notify.from_env()),
                   trailing_pct=Decimal(str(meta.get("trailing_pct", DEFAULT_TRAILING_PCT))))
     op.run(max_iterations=max_iterations, start_report=True)
 

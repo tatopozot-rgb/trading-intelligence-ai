@@ -2469,6 +2469,106 @@ committed with that registration (`f679012`) governs, and no rule changes.
   - Real futures still need three things: the owner's phrase to Claude local, Futures enabled
     on the key, and a quoted change to `config/live_limits.json`. `DECISION_SHORTS.md` updated.
 
+### 64. 4h monitor: the watcher works live on the owner's PC; Windows console fix (2026-10-09)
+
+- Claude local pulled to `8f45c93`; 95 tests pass on the PC.
+  - The watcher's first live read worked: market quiet and mostly TREND_DOWN; BTC, DOT and
+    PAXG in TREND_UP.
+  - The real session is unchanged: RUNNING, 38 USDT, no positions, still at the 45% it was
+    started with.
+  - Claude local did not restart the operator: the restart moves the loss limit to 35%, and
+    it asked the owner first. Telegram is not configured yet; Local is guiding him step by step.
+- **Defect found and fixed.** On Windows, redirected output (a scheduled task, Claude local's
+  shell) uses cp1252.
+  - Seen as "r�gimen" in Local's capture.
+  - There, `print()` of an alert with an emoji (📈/📉) raises UnicodeEncodeError, before
+    the alert reaches Telegram.
+  - Fix: `telegram_notify.console()` never raises (unencodable characters become "?"; a
+    missing or broken console is ignored).
+  - `make_notify` now sends to Telegram first, then writes to the console. Both the operator
+    and the watcher use it.
+  - 3 new tests; the 3 mutants (order, encoding fallback, broken console) are killed.
+- GitHub: all research test runs green. The two-way momentum study (Quant) is running.
+
+### 65. Two-way time-series momentum: GO at 1x by the pre-registered rule, but the short side does not pay (2026-10-09)
+
+Quant/Strategy session, at the leader's request for the owner's futures idea ("long or short,
+good over weeks"). Research only: public data, no key, no orders. `live/` and
+`config/live_limits.json` were not touched.
+
+**Pre-registration:** `docs/PREREG_TWO_WAY.md`, commit `288398d`, pushed before any result.
+- **Strategy:** time-series momentum (Moskowitz–Ooi–Pedersen 2012; Liu–Tsyvinski 2021
+  for crypto), chosen over Donchian because it is structurally different from the
+  EMA-cross family of sections 45/61.
+  - Sign of the past 28-day return, long or short, rebalanced weekly.
+  - Size: 40% target volatility (60-day estimate), capped at 1× the symbol's equal-weight
+    allocation.
+  - No stops. All parameters come from convention, not from data.
+- **Costs:** 0.05% per side + 5 bps. Funding: **real historical rates** for all 13 symbols
+  (data.binance.vision public files; fapi was not reachable). Longs pay positive rates.
+  Before each perpetual existed, 0.01%/8h is charged to both sides.
+- **Data:** daily spot prices as the perpetual proxy (basis not modelled), and intraday
+  extremes are not modelled.
+  - Primary: 2019-01 → 2022-10, never used before.
+  - Secondary: 2022-10 → 2026-10, already seen in sections 45/61 and decides nothing.
+  - 5 calendar folds, each starting at 10,000.
+  - The verdict uses weekly portfolio returns, because symbols move together.
+- **Code and runs:**
+  - `trading_intelligence/backtesting/two_way_momentum.py`, 12 tests.
+  - Workflow `two-way-momentum.yml`, run `37932958855`.
+  - Reproduced by run `37934190119` after a report-only fix: the gap count had included
+    days before each symbol listed. The true count is 0 gaps on all 13 symbols, and every
+    other number is identical.
+
+**Primary period 2019-01 → 2022-10 (decides):**
+
+| | Verdict | Weeks | Mean/week | Median | PF | p | Folds + | Worst fold DD | Folds ≤−20% / −35% / −50% |
+|---|---|---|---|---|---|---|---|---|---|
+| **1x** | **GO** | 194 | +0.60% | +0.64% | 1.57 | 0.022 | 4/5 | −19.8% | 0% / 0% / 0% |
+| 2x (sensitivity) | — | 194 | +1.20% | +1.28% | 1.59 | 0.022 | 4/5 | −36.8% | 100% / 20% / 0% |
+| 3x (sensitivity) | — | 194 | +1.79% | +1.93% | 1.62 | 0.022 | 4/5 | −51.2% | 100% / 100% / 20% |
+| Buy & hold (benchmark) | — | 194 | +2.30% | +2.00% | 2.30 | 0.007 | 4/5 | −65.0% | 100% / 80% / 80% |
+| 1x **long side** only | | | +0.70% | | 1.96 | 0.005 | | | |
+| 1x **short side** only | | | **−0.10%** | | **0.85** | 0.586 | | | |
+
+- Folds at 1x: +12.9%, −2.2%, +77.9%, +25.0%, +13.9%.
+- 10 of 13 symbols were positive. DOT, PAXG and TRX were negative.
+
+**Secondary period 2022-10 → 2026-10 (already seen; decides nothing):**
+- 1x: +0.29% per week, median −0.07%, PF 1.29, p = 0.24, 3/5 folds positive.
+- Worst fold drawdown −24.0%; **60% of folds reached −20%**.
+- Long side: +0.44% per week (p = 0.048). **Short side: −0.15% per week, PF 0.86.**
+- Buy-and-hold: +0.79% per week, worst drawdown −46%.
+
+**Reading it honestly:**
+1. **By the rule fixed in advance, the 1x strategy is GO on the unseen period.** The
+   numbers: p = 0.022, PF 1.57, 4/5 folds positive, worst drawdown −19.8%, inside the
+   owner's 35% limit in every fold.
+2. **The two-way part did not work.** Every bit of the edge comes from the long side. The
+   short side lost in both periods (PF 0.85 and 0.86). That matches section 61: on this
+   data, systematic shorting of crypto has not paid. What was validated is a
+   volatility-targeted trend strategy that is mostly long. It is not a way to profit when
+   markets fall.
+3. **It did not beat buy-and-hold on return.** Buy-and-hold made +2.30% per week against
+   +0.60% in the primary period. What the strategy offers is risk control: its worst fold
+   drawdown was −19.8% against −65% for buy-and-hold. The primary period also contains the
+   2020–21 bull market (fold 3: +77.9%).
+4. **The already-seen period is weaker:** p = 0.24, and 3 of 5 folds dipped to −20%. GO
+   here is a single period's evidence, not a proven edge.
+5. **Leverage:** at 2x, 20% of the primary folds and 60% of the secondary folds reach the
+   owner's 35% limit. At 3x, every primary fold does. **Only 1x is compatible with the
+   owner's loss margin.**
+
+**Next step under the pre-registered plan (only because the verdict is GO):**
+- 12 weeks of forward PAPER with this exact code: two-way, 1x, signals each Monday.
+- PAPER stops at −20% drawdown, or if costs or funding are off by more than 2× the model.
+- Real money only afterwards, with the owner's written authorization, at 1×. Size
+  increases only after ≥ 52 forward weeks.
+- Recommended to the leader and owner, not done here: decide before PAPER starts whether
+  the short leg is kept as registered. It cost money in both periods. Dropping it would
+  be a **new** hypothesis that needs its own pre-registration and evidence; it cannot be
+  concluded from this data.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |

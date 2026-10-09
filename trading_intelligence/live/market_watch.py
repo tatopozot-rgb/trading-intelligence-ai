@@ -194,7 +194,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     from trading_intelligence.data.binance_public_feed import BinancePublicKlines
 
-    notify = telegram_notify.make_notify(print, telegram_notify.from_env())
+    notify = telegram_notify.make_notify(telegram_notify.console, telegram_notify.from_env())
     watch = MarketWatch(BinancePublicKlines(), watched_symbols(), args.estado, notify)
     if args.cmd == "resumen":
         notify(watch.summary())
