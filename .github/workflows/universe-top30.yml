@@ -1,0 +1,51 @@
+name: Universe top-30 scan + section-45 check (research only)
+
+# Public Binance Spot endpoints (exchangeInfo, ticker/24hr, klines): no account, no key,
+# no orders. Ranks USDT pairs by 24h quote volume, then re-runs the section-45 walk-forward
+# of the live 4h tendencia_rango rule on the top 30 (an existing rule, no retuning).
+# Commits only docs/universe/.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write   # only to commit docs/universe/
+
+concurrency:
+  group: universe-top30
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+      - run: pip install "pandas>=2.0" "numpy>=1.24" "scipy>=1.11"
+      - name: Scan, walk-forward, compare
+        shell: bash
+        run: |
+          SYMBOLS=$(python -m trading_intelligence.backtesting.universe_scan scan --out docs/universe)
+          echo "Top 30: $SYMBOLS" | tee -a "$GITHUB_STEP_SUMMARY"
+          DAY=$(date -u +%Y-%m-%d)
+          python -m trading_intelligence.backtesting.universe_scan walk --symbols $SYMBOLS --workers "$(nproc)" \
+            --out "docs/universe/walkforward_top30_${DAY}.json"
+          python -m trading_intelligence.backtesting.universe_scan compare \
+            --results "docs/universe/walkforward_top30_${DAY}.json" --out "docs/universe/compare_top30_${DAY}.json" \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Commit docs/universe
+        shell: bash
+        run: |
+          git config user.name "universe-scan[bot]"
+          git config user.email "universe-scan@users.noreply.github.com"
+          git add docs/universe
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Universe top-30 scan and section-45 check $(date -u +%Y-%m-%d)"
+          for i in 1 2 3 4; do
+            git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" && exit 0
+            sleep $((2 ** i))
+          done
+          exit 1
