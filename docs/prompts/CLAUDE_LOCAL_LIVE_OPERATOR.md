@@ -191,6 +191,39 @@ Todo el detalle está en `docs/AUTOMATIZACION.md`.
    - la publicación de reportes (cada hora).
    Si alguno falta, créalo según 4b–4e, con permiso del dueño.
 
+## 4g. XM / MetaTrader 5: segundo bróker, mismo automatizador (fase 1: solo lectura y SHADOW)
+
+Orden del dueño, 2026-10-09: "conectemos nuestro automatizador a XM, no reestructurar todo, solo
+cambiar de bróker"; "que el bot lea spread, tamaño mínimo, margen y swap de cada instrumento antes de
+autorizar una entrada". Código: `trading_intelligence/live/xm_mt5.py`. **No envía órdenes**: la
+conexión solo deja pasar funciones de lectura, y el operador rechaza `--broker xm --real`.
+
+1. **Preparación**:
+   - `..\venv-live\Scripts\python.exe -m pip install MetaTrader5`. Si Smart App Control lo bloquea,
+     **no desactives protecciones**: avisa al líder.
+   - El dueño abre MT5 e inicia sesión **él mismo** en su cuenta XM. Mejor una cuenta **DEMO** para
+     las fases 1 y 2. El código nunca recibe usuario, contraseña ni servidor.
+2. **Cuenta**: `python -m trading_intelligence.live.xm_mt5 cuenta`. Muestra si la cuenta es
+   DEMO o REAL, la divisa, el apalancamiento que permite XM (p. ej. 1:1000; el automatizador usa como
+   máximo 2x), el balance, la equity y el margen libre.
+3. **Fichas**: `... xm_mt5 fichas GOLD EURUSD US30Cash OILCash BTCUSD`. Los nombres exactos se ven en
+   la Observación del Mercado de MT5 y cambian según el tipo de cuenta. Por cada instrumento muestra:
+   - spread;
+   - lote mínimo, paso y tamaño de contrato;
+   - cuánto expone el lote mínimo y cuánto margen pide;
+   - el swap por noche;
+   - si hoy se **autorizaría** una compra y una venta, y por qué no.
+   Pégale el resultado al líder: con eso se eligen los instrumentos que caben en la cuenta.
+4. **SHADOW con el motor real** (sin órdenes, en carpeta aparte):
+   `python -m trading_intelligence.live.operator --dir live_runs/xm_shadow iniciar --broker xm
+   --simbolos GOLD EURUSD --capital 100 --temporalidad 20m --perfil tendencia_rango --max-iteraciones 3`.
+   - Usa las velas de MT5 y los mismos detectores y estrategias que en Binance.
+   - Agrupa instrumentos con horarios parecidos (forex y oro juntos; índices aparte): el motor solo
+     procesa las velas en que **todos** los símbolos cotizan.
+   - Que el mercado cierre los fines de semana no detiene el motor.
+5. **Fase 2 (después)**: órdenes en la cuenta DEMO, siempre con SL y TP y con tope de apalancamiento.
+   **Fase 3**: dinero real, solo con la frase del dueño y con límites XM aprobados por él por escrito.
+
 ## 5. Nunca
 
 Retiros, transferencias, margen, futuros o apalancamiento; reenviar una orden incierta (el

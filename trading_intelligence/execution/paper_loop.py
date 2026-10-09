@@ -83,6 +83,7 @@ class PaperLoop:
         max_lag_bars: int = 1,
         fetch_attempts: int = 3,
         retry_backoff_seconds: float = 2.0,
+        continuous_market: bool = True,
     ):
         if not isinstance(runner.paper, PaperAdapter):
             raise TypeError("PaperLoop only drives a PaperAdapter (PAPER only)")
@@ -108,6 +109,10 @@ class PaperLoop:
         self.max_lag_bars = max_lag_bars
         self.fetch_attempts = fetch_attempts
         self.retry_backoff_seconds = retry_backoff_seconds
+        # False for markets with sessions (XM CFDs: forex closes at weekends, indices daily). Their
+        # bars come from the broker's server history, so a missing bar means the market was closed,
+        # not that the loop missed it: no gap halt, and an old last bar is not a dead feed.
+        self.continuous_market = continuous_market
         self.last_processed: Optional[datetime] = None
         self.consecutive_fetch_errors = 0
         self.feed_origin = _feed_origin(market_data)
@@ -135,7 +140,8 @@ class PaperLoop:
             # A feed that answers but serves old bars is not a working market view:
             # protective STOPs cannot see prices it does not deliver. Report it to the
             # connectivity watchdog exactly like a failed fetch.
-            risk.check_connectivity(frames is not None and not report.stale_symbols, now=now)
+            risk.check_connectivity(frames is not None and (not report.stale_symbols or not self.continuous_market),
+                                    now=now)
         except Exception:
             logger.exception("RiskEngine connectivity watchdog failed")
         if frames is None:
@@ -147,7 +153,7 @@ class PaperLoop:
             pending = common[-1:]  # first run: start now, do not replay history as live
         else:
             pending = [t for t in common if t > self.last_processed]
-            missing = self._missing_bars(self.last_processed, pending)
+            missing = self._missing_bars(self.last_processed, pending) if self.continuous_market else []
             if missing:
                 # Any bar that should exist between what was processed and what is
                 # about to be processed (before the first, or BETWEEN two of them) is a
@@ -387,6 +393,7 @@ def build_loop(
     trailing_stop_pct: Optional[float] = None,
     stop_file: Optional[Path] = None,
     router_factory: Optional[Callable[[str], object]] = None,
+    continuous_market: bool = True,
 ) -> PaperLoop:
     """Wires the real RiskEngine, PaperAdapter and the default router (per symbol,
     at this timeframe) into a PaperLoop whose state lives in `state_dir`.
@@ -408,7 +415,8 @@ def build_loop(
         trailing_stop_pct=trailing_stop_pct,
         state_path=state_dir / "runner.json",
     )
-    return PaperLoop(runner, market_data, symbols, timeframe, state_dir / "loop.json", stop_file=stop_file)
+    return PaperLoop(runner, market_data, symbols, timeframe, state_dir / "loop.json", stop_file=stop_file,
+                     continuous_market=continuous_market)
 
 
 def _binance_market_data(allow_testnet_data: bool) -> AbstractExchangeAdapter:
