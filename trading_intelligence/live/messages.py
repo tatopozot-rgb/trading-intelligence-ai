@@ -125,6 +125,17 @@ def finished(why: str, capital: Decimal, equity: Decimal) -> str:
     return f"🏁 Sesión terminada: {reason(why)}. Empezaste con {usdt(capital)} y terminaste con {usdt(equity)}: {result}."
 
 
+def window_open(windows: list[str]) -> str:
+    hours = " y ".join(w.replace("-", ":00 a ") + ":00" for w in windows)
+    return (f"🕖 Empezó tu horario de trading ({hours}, hora de Ecuador). Reviso el mercado cada 20 minutos "
+            f"y compro o vendo cuando hay señal. {NOTHING_TO_DO}")
+
+
+def window_closed() -> str:
+    return ("🕙 Terminó tu horario de trading. Hasta el próximo horario no compro nada; si hay algo abierto, "
+            f"sigue protegido por su stop y lo vendo si la estrategia da señal de salida. {NOTHING_TO_DO}")
+
+
 def error(detail: str) -> str:
     return (f"⚠️ Hubo un problema al hablar con Binance ({detail}). El sistema lo reintenta solo en la "
             "próxima vuelta y no repite órdenes dudosas. Si este aviso se repite, díselo a Claude local.")

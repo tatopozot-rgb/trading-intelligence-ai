@@ -422,7 +422,7 @@ def test_the_real_engine_drives_the_real_account_end_to_end(tmp_path):
 def test_real_orders_are_refused_at_a_timeframe_proven_to_lose(tmp_path, capsys):
     from trading_intelligence.live import operator as O
 
-    assert O.DEFAULT_TIMEFRAME == "4h" and O.REAL_TIMEFRAMES == {"4h"}
+    assert O.DEFAULT_TIMEFRAME == "4h" and O.REAL_TIMEFRAMES == {"4h", "20m"}  # 20m: owner's written choice
     with pytest.raises(SystemExit):
         O.main(["--dir", str(tmp_path), "iniciar", "--capital", "50", "--temporalidad", "1h", "--real"])
     assert "lost money after fees" in capsys.readouterr().err
@@ -1351,3 +1351,76 @@ class TestCommissions:
         assert lines[1] == ("ETH: comisión 0.100% (órdenes a mercado), 0.100% (órdenes límite); "
                             "pagando con BNB baja un 25%.")
         assert all("signature=" in c[1] for c in fake.calls if "commission" in c[1])
+
+
+# --- 20-minute decisions inside the owner's windows (owner, 2026-10-09: "Todo a 20 min") ----
+
+
+class TestTradingWindows:
+    def test_ecuador_windows_map_to_utc(self):
+        from trading_intelligence.live import operator as O
+
+        w = O.parse_windows(list(O.OWNER_WINDOWS))
+        assert w == [(12 * 60, 180), (22 * 60, 120)]  # 07-10 and 17-19 Ecuador = 12-15 and 22-24 UTC
+        at = lambda h, m=0: datetime(2026, 10, 9, h, m, tzinfo=timezone.utc)  # noqa: E731
+        assert O.in_windows(w, at(12)) and O.in_windows(w, at(14, 59)) and not O.in_windows(w, at(15))
+        assert O.in_windows(w, at(23, 59)) and not O.in_windows(w, at(0)) and not O.in_windows(w, at(11, 59))
+        for bad in (["7"], ["10-07"], ["07-25"], ["a-b"]):
+            with pytest.raises(ValueError):
+                O.parse_windows(bad)
+
+    def _op(self, tmp_path, now, sent):
+        from trading_intelligence.execution.order_models import OrderRequest, Position
+
+        trader = FakeTrader({"BTCUSDT": Decimal("100")})
+        loop = FakeLoop(tmp_path)
+        loop.runner.paper.positions["BTCUSDT"] = Position("BTCUSDT", Decimal("0.1"), Decimal("100"), Decimal("0"))
+        loop.runner.paper._last_price["BTCUSDT"] = Decimal("100")
+        loop.runner.paper.pending_orders.append(OrderRequest("BTCUSDT", "SELL", "STOP", Decimal("0.1"),
+                                                             stop_price=Decimal("95")))
+        Session("s1", "tendencia", "t", Decimal("50")).save(tmp_path / "session.json")
+        op = Operator(tmp_path, trader, LIMITS, profile="tendencia", timeframe="20m", symbols=["BTCUSDT"], loop=loop,
+                      clock=lambda: now[0], notify=sent.append, windows=["07-10", "17-19"])
+        return op, trader, loop
+
+    def test_outside_the_windows_it_never_buys_inside_it_does(self, tmp_path):
+        now, sent = [datetime(2026, 10, 9, 11, 40, 30, tzinfo=timezone.utc)], []
+        op, trader, loop = self._op(tmp_path, now, sent)
+        op.step(decide=True)  # 06:40 Ecuador: the engine still decides (it stays continuous)...
+        assert loop.ticks == 1 and not trader.orders and not sent  # ...but nothing is bought, no window message
+        now[0] = datetime(2026, 10, 9, 12, 0, 30, tzinfo=timezone.utc)
+        op.step(decide=True)  # 07:00 Ecuador
+        assert sent[0].startswith("🕖 Empezó tu horario de trading (07:00 a 10:00 y 17:00 a 19:00")
+        assert trader.orders[0][:2] == ("BTCUSDT", "BUY") and sent[1].startswith("🟢 Compré BTC")
+
+    def test_outside_the_windows_exits_and_stops_still_work(self, tmp_path):
+        now, sent = [datetime(2026, 10, 9, 14, 40, 30, tzinfo=timezone.utc)], []
+        op, trader, loop = self._op(tmp_path, now, sent)
+        op.step(decide=True)
+        assert "BTCUSDT" in op.session.holdings
+        now[0] = datetime(2026, 10, 9, 15, 0, 30, tzinfo=timezone.utc)  # 10:00 Ecuador: the window ends
+        loop.runner.paper.positions.clear()  # the engine's exit signal
+        loop.runner.paper.pending_orders.clear()
+        op.step(decide=True)
+        assert sent[-2].startswith("🕙 Terminó tu horario") and sent[-1].startswith("🔴 Vendí BTC")
+        assert not op.session.holdings  # selling with logic never waits for the window
+
+    def test_outside_the_windows_a_held_coin_is_not_added_to(self, tmp_path):
+        from trading_intelligence.live.operator import sell_only
+
+        s = _s()
+        s.record_buy("BTCUSDT", Decimal("0.05"), Decimal("5"), Decimal("0"), "t")
+        prices = {"BTCUSDT": Decimal("100"), "ETHUSDT": Decimal("10")}
+        out = sell_only({"BTCUSDT": Decimal("0.4"), "ETHUSDT": Decimal("0.4")}, s, prices)
+        assert out == {"BTCUSDT": Decimal("5") / s.equity(prices)}  # no ETH buy, BTC kept, not grown
+
+    def test_a_20m_real_session_starts_with_the_owners_windows(self, tmp_path, monkeypatch):
+        from trading_intelligence.live import operator as O
+
+        launched = []
+        monkeypatch.setattr(O, "_trader", lambda real, journal: FakeTrader({"BTCUSDT": Decimal("100")}))
+        monkeypatch.setattr(O, "_launch", lambda d, limits, meta, eq, it: launched.append(meta))
+        O.main(["--dir", str(tmp_path), "iniciar", "--capital", "37.77", "--temporalidad", "20m", "--real",
+                "--perfil", "tendencia_rango"])
+        assert launched[0]["timeframe"] == "20m" and launched[0]["windows"] == ["07-10", "17-19"]
+        assert json.loads((tmp_path / "meta.json").read_text())["windows"] == ["07-10", "17-19"]

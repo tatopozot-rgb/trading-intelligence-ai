@@ -153,3 +153,43 @@ def test_an_impossible_ticker_price_is_an_error(price):
     feed = BinancePublicKlines(fetch=FakeHttp({"/api/v3/ticker/price": {"symbol": "BTCUSDT", "price": price}}))
     with pytest.raises(ValueError, match="impossible price"):
         feed.get_current_price("BTCUSDT")
+
+
+class Paged5m:
+    """Binance /api/v3/klines at 5m: newest `limit` klines up to endTime, like the exchange."""
+
+    def __init__(self, n: int):
+        self.n, self.calls = n, []
+
+    def __call__(self, url: str, timeout: float) -> bytes:
+        from urllib.parse import parse_qs, urlparse
+
+        q = {k: v[0] for k, v in parse_qs(urlparse(url).query).items()}
+        assert q["interval"] == "5m"
+        self.calls.append(q)
+        five = 300_000
+        rows = [[START_MS + i * five, f"{100 + i}", f"{100 + i + 0.5}", f"{100 + i - 0.5}", f"{100 + i + 0.25}", "1",
+                 START_MS + (i + 1) * five - 1, "1", 1, "1", "1", "0"] for i in range(self.n)]
+        if "endTime" in q:
+            rows = [r for r in rows if r[0] <= int(q["endTime"])]
+        return json.dumps(rows[-int(q["limit"]):]).encode()
+
+
+def test_20m_bars_are_built_from_5m_klines_at_00_20_40():
+    http = Paged5m(4 * 600 + 2)  # 600 full 20m bars plus a forming one with 2 klines
+    frame = BinancePublicKlines(fetch=http).get_ohlcv("BTCUSDT", "20m", limit=500)
+    assert len(frame) == 500 and len(http.calls) == 3 and "endTime" in http.calls[1]  # paged past 1000
+    assert all(t.minute in (0, 20, 40) for t in frame.index)
+    last_full = frame.iloc[-2]  # 20m bar n = 5m klines 4n..4n+3
+    i = 4 * 599
+    assert (last_full["open"], last_full["high"], last_full["low"], last_full["close"], last_full["volume"]) == (
+        100 + i, 100 + i + 3 + 0.5, 100 + i - 0.5, 100 + i + 3 + 0.25, 4.0)
+    assert frame.index[-1] - frame.index[-2] == timedelta(minutes=20)  # the forming bar is kept; PaperLoop drops it
+
+
+def test_20m_runs_through_the_paper_loop_interval():
+    from trading_intelligence.execution.paper_loop import INTERVAL_SECONDS
+
+    assert INTERVAL_SECONDS["20m"] == 1200
+    with pytest.raises(ValueError):
+        BinancePublicKlines(fetch=Paged5m(1)).get_ohlcv("BTCUSDT", "7m")
