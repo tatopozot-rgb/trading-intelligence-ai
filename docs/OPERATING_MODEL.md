@@ -28,7 +28,7 @@ cualquier orden y, por encima de todo, la guardia de pérdida del dueño.
                                                                                          │
  operador: tamaño = fracción × capital de la sesión, máx. 40% por posición, 3 posiciones ─► orden MARKET real en Binance Spot
                                                                                          │
- stop protector vigilado cada minuto · diario de órdenes · reportes inicio / medio / final
+ stop protector: vigilado cada minuto Y puesto en Binance (funciona con el PC apagado) · diario · reportes
 ```
 
 - **Varios mercados a la vez** (12 monedas aprobadas). Si un mercado no da señal o está en

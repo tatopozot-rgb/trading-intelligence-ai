@@ -2221,6 +2221,37 @@ va de largo y perdemos".
     longer biases every timestamp late.
   - 48 live tests (2 new); 3/3 mutants killed; ruff and mypy clean.
 
+### 55. Guard stops resting on Binance (2026-10-09)
+
+Owner: "debes estar atento al cierre… se va de largo y perdemos". The last gap from section
+53: with the PC off, stops were not watched. Every real position now also has a **STOP_LOSS
+SELL order resting on Binance** at the engine's protective stop, for the whole quantity held.
+Binance executes it whether or not the PC is on.
+
+- **Transport (`binance_live.py`):**
+  - `SymbolRules` now reads `tickSize` and whether the symbol accepts `STOP_LOSS`.
+  - New `place_stop`, `stop_status` and `cancel_stop`, all journaled as kind `STOP`.
+  - A stop never blocks market orders and never counts as "unresolved".
+  - An unclear placement is looked up later. A cancel of an order that already executed returns
+    that fill.
+- **Mirror (`mirror.py`):**
+  - `place_guards` keeps one guard per held symbol (tick-floored stop, whole quantity). It
+    re-places only when the stop or the quantity changes, and never when the stop is at or above
+    the price (it would fire at once).
+  - `sync_guards` records a guard that Binance executed while the PC was off.
+  - `sell()` cancels the guard first. If Binance already executed it, the sale is recorded and
+    nothing is sent. If the answer is unclear, nothing is sold that pass (never a double sale).
+    If it executed only partly, the rest is sold.
+- **Operator:** sync each pass, then place guards after stops and targets. "parar" without
+  "cerrar" cancels the session's guards, so coins the owner keeps are never sold by this
+  session. Sessions saved before this change still load.
+- **Not covered:** the `copiar` profile has no stops by the owner's rule, so it has no guards.
+- A placement Binance refuses is remembered with its stop and quantity, so it is not re-sent
+  every minute. A new stop or quantity tries again, and the refusal never blocks a sale.
+- 64 live tests (16 new); 16/16 mutants killed (two survivors led to the partial-execution
+  fix and to stricter fakes); full research suite 702 passed; ruff and mypy clean; guard 0
+  findings.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |

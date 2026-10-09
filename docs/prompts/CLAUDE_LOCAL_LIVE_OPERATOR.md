@@ -95,9 +95,11 @@ de Claude. Lo que sí lo detiene es que el proceso muera, el PC se reinicie o el
 2. **Que el PC no se suspenda:** pide permiso al dueño y luego ejecuta
    `powercfg /change standby-timeout-ac 0` (nunca suspender enchufado). Apagar la pantalla
    sí está permitido.
-3. **Si el PC se apaga o pierde internet:** al volver, el vigilante reanuda solo. Mientras el PC
-   está apagado, los stops **no** se vigilan (son del operador, no órdenes en Binance). Por
-   eso el tamaño máximo es 40 USDT por moneda y el límite total es del 20%.
+3. **Si el PC se apaga o pierde internet:** cada posición tiene además un **stop puesto en
+   Binance** (orden STOP_LOSS al precio del stop del motor), que Binance ejecuta aunque el PC
+   esté apagado. Al volver, el operador ve que se ejecutó y lo registra, sin volver a vender.
+   Lo único que no corre con el PC apagado son las decisiones nuevas, es decir, las compras.
+   Si el dueño ve órdenes "Stop-Loss" abiertas en Binance, son estas; no hay que tocarlas.
 
 ## 5. Nunca
 

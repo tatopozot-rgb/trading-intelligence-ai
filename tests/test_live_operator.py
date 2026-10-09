@@ -221,6 +221,17 @@ class FakeTrader:
         p = self.prices[symbol]
         return B.Fill("x", symbol, side, "FILLED", qty, qty * p, qty * p * Decimal("0.001"), p)
 
+    def place_stop(self, symbol, qty, stop):
+        self.orders.append((symbol, "STOP_LOSS", qty))
+        return f"stop-{len(self.orders)}"
+
+    def stop_status(self, symbol, cid, fp):
+        return B.StopState("NEW")
+
+    def cancel_stop(self, symbol, cid, fp):
+        self.orders.append((symbol, "CANCEL", cid))
+        return B.StopState("CANCELED")
+
 
 def _s(capital="50"):
     return Session("s", "tendencia", "t", Decimal(capital))
@@ -593,3 +604,262 @@ class TestClockSync:
         t = B.SpotTrader(B.Credentials(KEY, KEY), tmp_path / "o.json", transport=transport, clock=lambda: next(ticks))
         t._sync_time()
         assert t._offset_ms == 0  # the server's 1001.000 s is the midpoint of 1000-1002, not 1 s behind
+
+
+# ------------------------------------------------------------------ guard stops on Binance
+
+
+class StopBinance(FakeBinance):
+    """FakeBinance plus exchangeInfo, STOP_LOSS orders resting on the book, and DELETE."""
+
+    def __init__(self):
+        super().__init__()
+        self.stops = {}  # cid -> body
+        self.stop_mode = "ok"
+
+    def __call__(self, method, url, headers, timeout):
+        path = url.split("api.binance.com")[1].split("?")[0]
+        query = dict(p.split("=", 1) for p in url.split("?", 1)[1].split("&")) if "?" in url else {}
+        if path == "/api/v3/exchangeInfo":
+            self.calls.append((method, url, dict(headers)))
+            return _resp(200, {"symbols": [{"status": "TRADING", "quoteAsset": "USDT",
+                                            "orderTypes": ["LIMIT", "MARKET", "STOP_LOSS"],
+                                            "filters": [{"filterType": "LOT_SIZE", "stepSize": "0.0001", "minQty": "0.0001"},
+                                                        {"filterType": "NOTIONAL", "minNotional": "5"},
+                                                        {"filterType": "PRICE_FILTER", "tickSize": "0.01"}]}]})
+        if path == "/api/v3/order" and method == "POST" and query.get("type") == "STOP_LOSS":
+            self.calls.append((method, url, dict(headers)))
+            cid = query["newClientOrderId"]
+            if self.stop_mode == "reject":
+                return _resp(400, {"code": -2010, "msg": "Stop price would trigger immediately."})
+            self.stops[cid] = {"symbol": query["symbol"], "side": "SELL", "orderId": 9, "clientOrderId": cid,
+                               "status": "NEW", "executedQty": "0", "cummulativeQuoteQty": "0",
+                               "qty": query["quantity"], "stopPrice": query["stopPrice"]}
+            if self.stop_mode == "timeout":
+                raise TimeoutError("read timed out")
+            return _resp(200, self.stops[cid])
+        cid = query.get("origClientOrderId")
+        if path == "/api/v3/order" and cid in self.stops:
+            self.calls.append((method, url, dict(headers)))
+            body = self.stops[cid]
+            if method == "DELETE":
+                if body["status"] != "NEW":
+                    return _resp(400, {"code": -2011, "msg": "Unknown order sent."})
+                body["status"] = "CANCELED"
+            return _resp(200, body)
+        if path == "/api/v3/myTrades" and any(b["status"] == "FILLED" for b in self.stops.values()):
+            self.calls.append((method, url, dict(headers)))
+            b = next(b for b in self.stops.values() if b["status"] == "FILLED")
+            return _resp(200, [{"price": "90", "qty": b["executedQty"], "commission": "0.009",
+                                "commissionAsset": "USDT", "orderId": 9}])
+        return super().__call__(method, url, headers, timeout)
+
+    def trigger(self, cid, price="90"):
+        b = self.stops[cid]
+        b.update(status="FILLED", executedQty=b["qty"], cummulativeQuoteQty=str(Decimal(b["qty"]) * Decimal(price)))
+
+
+class TestGuardStopTransport:
+    def _t(self, tmp_path):
+        fake = StopBinance()
+        t = B.SpotTrader(B.Credentials(KEY, KEY), tmp_path / "orders.json", transport=fake, clock=lambda: 1_800_000_000.0)
+        t.verify_key()
+        return t, fake
+
+    def test_rules_know_tick_size_and_stop_support(self, tmp_path):
+        t, _ = self._t(tmp_path)
+        r = t.rules("BTCUSDT")
+        assert r.stop_loss and r.tick == Decimal("0.01") and r.floor_price(Decimal("94.567")) == Decimal("94.56")
+
+    def test_a_resting_stop_never_blocks_market_orders(self, tmp_path):
+        t, fake = self._t(tmp_path)
+        cid = t.place_stop("BTCUSDT", Decimal("0.1"), Decimal("95"))
+        method, url, _ = fake.calls[-1]
+        assert method == "POST" and "type=STOP_LOSS" in url and "side=SELL" in url and "stopPrice=95" in url
+        assert t.unresolved() == [] and json.loads((tmp_path / "orders.json").read_text())["orders"][cid]["state"] == "RESTING"
+        t.market_order("ETHUSDT", "BUY", Decimal("0.1"), lambda s: Decimal("1"))  # not blocked
+        fake.stop_mode = "timeout"
+        cid2 = t.place_stop("BTCUSDT", Decimal("0.1"), Decimal("95"))  # unclear: looked up later, no raise
+        assert t.unresolved() == [] and t.stop_status("BTCUSDT", cid2, lambda s: Decimal("1")).status == "NEW"
+
+    def test_a_rejected_stop_raises(self, tmp_path):
+        t, fake = self._t(tmp_path)
+        fake.stop_mode = "reject"
+        with pytest.raises(B.LiveError, match="-2010"):
+            t.place_stop("BTCUSDT", Decimal("0.1"), Decimal("95"))
+
+    def test_cancel_reports_an_execution_instead_of_hiding_it(self, tmp_path):
+        t, fake = self._t(tmp_path)
+        cid = t.place_stop("BTCUSDT", Decimal("0.1"), Decimal("95"))
+        assert t.cancel_stop("BTCUSDT", cid, lambda s: Decimal("1")).status == "CANCELED"
+        cid = t.place_stop("BTCUSDT", Decimal("0.1"), Decimal("95"))
+        fake.trigger(cid)
+        state = t.cancel_stop("BTCUSDT", cid, lambda s: Decimal("1"))
+        assert state.status == "FILLED" and state.fill.side == "SELL" and state.fill.executed_qty == Decimal("0.1")
+        assert state.fill.quote_qty == Decimal("8.991")  # 9 USDT minus the USDT commission
+
+    def test_a_vanished_stop_reads_not_found(self, tmp_path):
+        t, _ = self._t(tmp_path)
+        assert t.stop_status("BTCUSDT", "ts-unknown", lambda s: Decimal("1")).status == "NOT_FOUND"
+
+
+GUARD_RULES = B.SymbolRules(step=Decimal("0.0001"), min_qty=Decimal("0.0001"), min_notional=Decimal("5"),
+                            tick=Decimal("0.01"), stop_loss=True)
+
+
+class GuardTrader(FakeTrader):
+    """FakeTrader whose exchange can execute a resting stop on its own (the PC may be off)."""
+
+    def __init__(self, prices):
+        super().__init__(prices)
+        self.resting, self.executed, self.unclear = {}, set(), False
+
+    def rules(self, s):
+        return GUARD_RULES
+
+    def place_stop(self, symbol, qty, stop):
+        cid = f"stop-{len(self.orders)}"
+        self.orders.append((symbol, "STOP_LOSS", qty, stop))
+        self.resting[cid] = (symbol, qty, stop)
+        return cid
+
+    def _state(self, cid):
+        symbol, qty, stop = self.resting[cid]
+        if cid in self.executed:
+            return B.StopState("FILLED", B.Fill(cid, symbol, "SELL", "FILLED", qty, qty * stop, Decimal("0"), stop))
+        return B.StopState("NEW")
+
+    def stop_status(self, symbol, cid, fp):
+        assert cid is not None, "a refused guard has no order on Binance to ask about"
+        return self._state(cid)
+
+    def cancel_stop(self, symbol, cid, fp):
+        assert cid is not None, "a refused guard has no order on Binance to cancel"
+        self.orders.append((symbol, "CANCEL", cid))
+        if self.unclear:
+            return B.StopState("UNKNOWN")
+        return self._state(cid) if cid in self.executed else B.StopState("CANCELED")
+
+
+class TestGuardStops:
+    def _op(self, tmp_path, trader):
+        from trading_intelligence.execution.order_models import OrderRequest, Position
+
+        loop = FakeLoop(tmp_path)
+        loop.runner.paper.positions["BTCUSDT"] = Position("BTCUSDT", Decimal("0.1"), Decimal("100"), Decimal("0"))
+        loop.runner.paper._last_price["BTCUSDT"] = Decimal("100")
+        loop.runner.paper.pending_orders.append(OrderRequest("BTCUSDT", "SELL", "STOP", Decimal("0.1"),
+                                                             stop_price=Decimal("95.009")))
+        return _operator(tmp_path, trader, loop), loop
+
+    def test_every_position_gets_a_stop_resting_on_binance(self, tmp_path):
+        trader = GuardTrader({"BTCUSDT": Decimal("100")})
+        op, loop = self._op(tmp_path, trader)
+        op.step(decide=True)
+        held = op.session.holdings["BTCUSDT"].qty
+        assert trader.orders[0][:2] == ("BTCUSDT", "BUY")
+        assert trader.orders[1] == ("BTCUSDT", "STOP_LOSS", held, Decimal("95.00"))  # whole qty, tick-floored
+        op.step(decide=False)
+        assert sum(1 for o in trader.orders if o[1] == "STOP_LOSS") == 1  # unchanged: not re-sent
+        assert Session.load(tmp_path / "session.json").guard_stops["BTCUSDT"]["stop"] == "95.00"
+        loop.runner.paper.pending_orders[0].stop_price = Decimal("97")  # the engine raised its stop
+        op.step(decide=True)
+        assert ("BTCUSDT", "CANCEL", "stop-1") in trader.orders and trader.orders[-1][3] == Decimal("97.00")
+
+    def test_a_stop_executed_while_the_pc_was_off_is_recorded_not_repeated(self, tmp_path):
+        trader = GuardTrader({"BTCUSDT": Decimal("100")})
+        op, _ = self._op(tmp_path, trader)
+        op.step(decide=True)
+        trader.executed.add("stop-1")
+        trader.prices["BTCUSDT"] = Decimal("94")
+        sent_before = sum(1 for o in trader.orders if o[1] == "SELL")
+        op.step(decide=False)
+        assert "BTCUSDT" not in op.session.holdings and op.session.trades[-1]["reason"].startswith("EXCHANGE_STOP")
+        assert sum(1 for o in trader.orders if o[1] == "SELL") == sent_before  # no second sale
+        assert op.session.guard_stops == {}
+
+    def test_the_operator_cancels_the_guard_before_selling(self, tmp_path):
+        trader = GuardTrader({"BTCUSDT": Decimal("100")})
+        op, _ = self._op(tmp_path, trader)
+        op.step(decide=True)
+        trader.prices["BTCUSDT"] = Decimal("94.5")  # below the 95 stop: the operator sells itself
+        op.step(decide=False)
+        kinds = [o[1] for o in trader.orders]
+        assert kinds.index("CANCEL") < len(kinds) - 1 and kinds[-1] == "SELL" and "BTCUSDT" not in op.session.holdings
+
+    def test_an_unclear_cancel_never_risks_a_double_sale(self, tmp_path):
+        trader = GuardTrader({"BTCUSDT": Decimal("100")})
+        op, _ = self._op(tmp_path, trader)
+        op.step(decide=True)
+        trader.unclear = True
+        a = mirror.sell(op.session, trader, "BTCUSDT", "TEST")
+        assert a.kind == "SKIP" and "UNCLEAR" in a.reason and trader.orders[-1][1] == "CANCEL"
+        assert "BTCUSDT" in op.session.holdings
+
+    def test_the_cancel_reveals_an_execution_so_nothing_more_is_sold(self, tmp_path):
+        trader = GuardTrader({"BTCUSDT": Decimal("100")})
+        op, _ = self._op(tmp_path, trader)
+        op.step(decide=True)
+        trader.executed.add("stop-1")
+        a = mirror.sell(op.session, trader, "BTCUSDT", "TEST")
+        assert a.reason == "EXCHANGE_STOP_ALREADY_EXECUTED" and trader.orders[-1][1] == "CANCEL"
+
+    @pytest.mark.parametrize("price,rules", [(Decimal("94"), GUARD_RULES),  # stop at/above price: would fire now
+                                             (Decimal("100"), RULES)])  # symbol without STOP_LOSS
+    def test_no_guard_where_binance_cannot_hold_one(self, tmp_path, price, rules):
+        trader = GuardTrader({"BTCUSDT": Decimal("100")})
+        trader.rules = lambda s: rules
+        s = Session("s", "tendencia", "t", Decimal("50"))
+        s.record_buy("BTCUSDT", Decimal("0.1"), Decimal("10"), Decimal("0"), "t")
+        assert mirror.place_guards(s, trader, {"BTCUSDT": Decimal("95")}, {"BTCUSDT": price}) == []
+        assert s.guard_stops == {}
+
+    def test_coins_kept_with_parar_lose_the_sessions_guard(self, tmp_path):
+        trader = GuardTrader({"BTCUSDT": Decimal("100")})
+        op, _ = self._op(tmp_path, trader)
+        op.step(decide=True)
+        (tmp_path / "STOP").write_text("parar")
+        op.run(poll_seconds=0, sleep=lambda s: None, max_iterations=1)
+        s = Session.load(tmp_path / "session.json")
+        assert "BTCUSDT" in s.holdings and s.guard_stops == {} and trader.orders[-1][1] == "CANCEL"
+
+    def test_sessions_saved_before_guards_still_load(self, tmp_path):
+        s = Session("s", "tendencia", "t", Decimal("50"))
+        s.save(tmp_path / "s.json")
+        data = json.loads((tmp_path / "s.json").read_text())
+        del data["guard_stops"]
+        (tmp_path / "s.json").write_text(json.dumps(data))
+        assert Session.load(tmp_path / "s.json").guard_stops == {}
+
+
+def test_a_partly_executed_guard_leaves_only_the_rest_to_sell(tmp_path):
+    trader = GuardTrader({"BTCUSDT": Decimal("100")})
+    s = Session("s", "tendencia", "t", Decimal("50"))
+    s.record_buy("BTCUSDT", Decimal("0.2"), Decimal("20"), Decimal("0"), "t")
+    s.guard_stops["BTCUSDT"] = {"id": "g1", "qty": "0.2", "stop": "95"}
+    part = B.Fill("g1", "BTCUSDT", "SELL", "EXPIRED", Decimal("0.05"), Decimal("4.75"), Decimal("0"), Decimal("95"))
+    trader.cancel_stop = lambda sym, cid, fp: B.StopState("EXPIRED", part)
+    a = mirror.sell(s, trader, "BTCUSDT", "CLOSE")
+    assert a.kind == "SELL" and trader.orders[-1] == ("BTCUSDT", "SELL", Decimal("0.1500"))
+    assert "BTCUSDT" not in s.holdings and s.guard_stops == {}
+
+
+def test_a_refused_guard_is_not_resent_every_minute(tmp_path):
+    trader = GuardTrader({"BTCUSDT": Decimal("100")})
+    calls = []
+
+    def refuse(sym, qty, stop):
+        calls.append(stop)
+        raise B.LiveError("Binance rejected the protective stop (code -2010)")
+
+    trader.place_stop = refuse
+    s = Session("s", "tendencia", "t", Decimal("50"))
+    s.record_buy("BTCUSDT", Decimal("0.1"), Decimal("10"), Decimal("0"), "t")
+    prices = {"BTCUSDT": Decimal("100")}
+    assert mirror.place_guards(s, trader, {"BTCUSDT": Decimal("95")}, prices)[0].kind == "SKIP"
+    assert mirror.place_guards(s, trader, {"BTCUSDT": Decimal("95")}, prices) == [] and len(calls) == 1
+    assert mirror.sync_guards(s, trader) == []  # nothing rests on Binance: nothing to ask
+    mirror.place_guards(s, trader, {"BTCUSDT": Decimal("96")}, prices)  # a new stop tries again
+    assert len(calls) == 2
+    a = mirror.sell(s, trader, "BTCUSDT", "CLOSE")  # a refused guard never blocks the sale
+    assert a.kind == "SELL" and "BTCUSDT" not in s.holdings
