@@ -2442,6 +2442,33 @@ committed with that registration (`f679012`) governs, and no rule changes.
   transport is built. The owner's "go with the fall" is answered for now by stepping aside:
   the trend profile stays flat in TREND_DOWN, and every position has stops on Binance.
 
+### 63. Market watcher; Claude local's status read; owner's futures request (2026-10-09)
+
+- **Claude local's status read** (branch `claude-code/live-report-20261009T032517`, merged in
+  be39fbf).
+  - Real session 20261009T032517: RUNNING with 38 USDT, no trades, no positions.
+  - 8 of 12 coins in TREND_DOWN; the operator is still on `9556b00`.
+  - Asked Claude local to pull and restart while the session holds nothing. On resume the
+    session gets: the 35% standard (meta has no `loss_limit_pct`), the trailing stop, guard
+    stops on Binance and Telegram.
+- **Market watcher** (`trading_intelligence/live/market_watch.py`): public klines only, no key,
+  no orders.
+  - Watches the 12 approved symbols plus PAXGUSDT (watch only).
+  - Alerts on moves of at least 2.5%/1h, 4%/4h or 7%/24h, in either direction. The same move
+    is alerted once, again only if it doubles or after 4 h.
+  - Alerts on a regime change into TREND_UP, TREND_DOWN, BREAKOUT_UP or BREAKOUT_DOWN, read on
+    the last CLOSED 4h bar only; the first pass only records regimes.
+  - Atomic state file; one coin's failure does not stop the others; `resumen` table.
+  - Runs from Task Scheduler every 15 min on the owner's PC (section 4e). The cloud container
+    cannot reach Binance (network policy), so the live check is on the PC.
+  - 10 tests; 8/8 mutants killed.
+- **Owner on futures:** he wants a two-way logic, and to trade by his own order with a loss
+  margin.
+  - Commissioned from Quant: a pre-registered two-way study (momentum or Donchian+ATR) on
+    unused 2019-2022 data, 1x primary, 2x/3x sensitivity.
+  - Real futures still need three things: the owner's phrase to Claude local, Futures enabled
+    on the key, and a quoted change to `config/live_limits.json`. `DECISION_SHORTS.md` updated.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |

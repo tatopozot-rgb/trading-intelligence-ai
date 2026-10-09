@@ -137,6 +137,27 @@ log**: lo guarda el propio dueño.
 
 Si Telegram falla, el operador lo anota y sigue operando: una alerta nunca detiene un stop.
 
+## 4e. Vigilante del mercado (avisos de movimientos fuertes; nunca opera)
+
+`trading_intelligence/live/market_watch.py` lee velas públicas de Binance de las 12 monedas
+aprobadas y de PAXG (oro, solo vigilado). Avisa por Telegram y en consola cuando una moneda se
+mueve al menos 2,5% en ~1h, 4% en ~4h o 7% en ~24h, en cualquier dirección. También avisa cuando
+el régimen de 4h cambia a tendencia alcista o bajista, o a ruptura. No usa claves ni envía
+órdenes. Cada movimiento se avisa una vez; vuelve a avisar solo si el movimiento se duplica o si
+pasan 4 horas.
+
+1. Prueba: `python -m trading_intelligence.live.market_watch resumen` muestra la tabla de todas
+   las monedas y la envía a Telegram si está configurado.
+2. Con permiso del dueño, crea una tarea del Programador de tareas,
+   `TradingIntelligence-Vigilante`, que corra **cada 15 minutos** desde `live-operator`:
+   ```
+   ..\venv-live\Scripts\python.exe -m trading_intelligence.live.market_watch
+   ```
+   Su estado queda en `live_runs/market_watch.json`. Sin tarea, también sirve dejarlo abierto
+   con `--continuo` (revisa cada 5 minutos).
+3. Las alertas son información para el dueño. Una orden suya ("corto en BTC con 20") sigue el
+   camino normal: confirmación del dueño a Claude Code local, límites y stops.
+
 ## 5. Nunca
 
 Retiros, transferencias, margen, futuros o apalancamiento; reenviar una orden incierta (el
