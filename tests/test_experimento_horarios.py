@@ -163,13 +163,18 @@ def test_selection_uses_weekday_scope_and_calendar_halves():
 
 
 def test_owner_pooled_test_is_planned_at_bonferroni_alpha():
-    rows = [_row(eh.FORWARD_START + timedelta(days=i), "dueno", s, "baseline", [0.2 + 0.01 * i], family="dueno")
-            for i in range(14) for s in ("BTCUSDT", "ETHUSDT")]
+    syms = ("BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT")  # 4 x 5 weekdays = 20 >= 15 per half
+    rows = [_row(eh.FORWARD_START + timedelta(days=i), "dueno", s, strat, [0.2 + 0.01 * i], family="dueno")
+            for i in range(14) for s in syms for strat in ("baseline", "ruptura")]
+    rows += [_row(eh.FORWARD_START + timedelta(days=i), "dueno", "BTCUSDT", "tendencia", [0.5], family="dueno")
+             for i in range(14)]  # only 5 per half: insufficient for a pooled test
     out = eh.evaluate(rows)["lun-vie"]
     pooled = {tuple(c["cell"]): c for c in out["dueno_pooled"]}
-    assert pooled[("dueno", "TODOS", "baseline")]["qualifies"]
-    assert pooled[("dueno", "TODOS", "baseline")]["p"] < eh.OWNER_ALPHA
-    assert len(out["dueno_por_simbolo"]) == 2
+    assert eh.OWNER_ALPHA == pytest.approx(0.0125)
+    assert pooled[("dueno", "TODOS", "baseline")]["qualifies"] and pooled[("dueno", "TODOS", "ruptura")]["qualifies"]
+    assert not pooled[("dueno", "TODOS", "tendencia")]["qualifies"]
+    assert pooled[("dueno", "TODOS", "tendencia")]["insufficient"]
+    assert len(out["dueno_baseline_por_simbolo"]) == 4  # baseline only
 
 
 def test_run_days_writes_reports_with_ecuador_time_first(tmp_path):
@@ -179,7 +184,7 @@ def test_run_days_writes_reports_with_ecuador_time_first(tmp_path):
     eh.run_days([date(2026, 9, 30)], tmp_path, fetch)
     day = json.loads((tmp_path / "2026-09-30.json").read_text())
     assert day["label"].startswith("miércoles; referencia: datos pasados")
-    assert len(day["rows"]) == len(eh.WINDOWS) * 13 * 3
+    assert len(day["rows"]) == len(eh.WINDOWS) * 13 * 4
     md = (tmp_path / "2026-09-30.md").read_text()
     assert "Ecuador (UTC−5)" in md and "07–10 Ecuador (12–15 UTC) — ventana del dueño" in md
     summary = (tmp_path / "resumen.md").read_text()
@@ -190,3 +195,39 @@ def test_main_refuses_incomplete_days(tmp_path):
     today = datetime.now(timezone.utc).date().isoformat()
     with pytest.raises(SystemExit):
         eh.main(["--start", today, "--out", str(tmp_path)])
+
+
+def _breakout_data(break_up: bool, hit_stop: bool = False):
+    m1, bars = _data(seed=6)
+    first = bars.loc[START]
+    t = START + eh.BAR  # second bar: closes above (or below) the range
+    sl = slice(t, t + pd.Timedelta(minutes=19))
+    level = first["high"] * 1.01 if break_up else first["low"] * 1.001
+    m1.loc[sl, ["open", "high", "low", "close"]] = level
+    m1.loc[sl, "high"] = level * 1.0001
+    later = slice(t + eh.BAR, START + pd.Timedelta(hours=2) - pd.Timedelta(minutes=1))
+    m1.loc[later, ["open", "close"]] = level
+    m1.loc[later, "high"] = level * 1.0001
+    m1.loc[later, "low"] = level * 0.9999
+    if hit_stop:
+        m1.loc[t + eh.BAR + pd.Timedelta(minutes=5), "low"] = first["low"] * 0.99
+    return m1, eh.to_20m(m1)[0], first
+
+
+def test_ruptura_enters_once_on_a_close_above_the_opening_range_and_holds_to_the_end():
+    m1, bars, first = _breakout_data(True)
+    (t,) = eh.run_window(m1, bars, START, 2, "ruptura", "BTCUSDT")
+    assert t.entry_time == START + 2 * eh.BAR  # decided on bar 2's close, filled at the next open
+    assert t.entry == pytest.approx(m1.at[t.entry_time, "open"] * (1 + eh.SLIP))
+    assert t.reason == "fin de ventana" and t.exit_time == START + pd.Timedelta(hours=2)
+
+
+def test_ruptura_stop_is_the_range_low():
+    m1, bars, first = _breakout_data(True, hit_stop=True)
+    (t,) = eh.run_window(m1, bars, START, 2, "ruptura", "BTCUSDT")
+    assert t.reason == "stop" and t.exit == pytest.approx(first["low"] * (1 - 2 * eh.SLIP))
+
+
+def test_ruptura_does_nothing_without_a_breakout():
+    m1, bars, _ = _breakout_data(False)
+    assert eh.run_window(m1, bars, START, 2, "ruptura", "BTCUSDT") == []

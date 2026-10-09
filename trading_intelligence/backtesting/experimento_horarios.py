@@ -14,6 +14,7 @@ fixed 10 USDT per trade, reported as net % per trade.
 
 Windows: the 12 two-hour UTC windows (exploratory search, BH) plus the owner's own
 window, 07:00-10:00 Ecuador = 12:00-15:00 UTC (primary planned hypothesis).
+Amendment 2 adds "ruptura" (opening-range breakout) and makes strategy tests pooled.
 """
 from __future__ import annotations
 
@@ -36,7 +37,8 @@ from trading_intelligence.strategy.strategies.bollinger_reversion import Bolling
 
 SYMBOLS = ("BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT",
            "LINKUSDT", "AVAXUSDT", "LTCUSDT", "TRXUSDT", "DOTUSDT", "PAXGUSDT")
-STRATEGIES = ("tendencia", "rango", "baseline")
+STRATEGIES = ("tendencia", "rango", "ruptura", "baseline")
+STRATEGY_FAMILY = ("tendencia", "rango", "ruptura")  # pooled tests only (Amendment 2)
 BAR = pd.Timedelta(minutes=20)
 MINUTE = pd.Timedelta(minutes=1)
 CHECK_EVERY = pd.Timedelta(minutes=3)
@@ -53,7 +55,8 @@ HALF2_START = date(2026, 10, 17)
 SCOPES = {"lun-vie": (0, 1, 2, 3, 4), "lun-sab": (0, 1, 2, 3, 4, 5)}
 PRIMARY_SCOPE = "lun-vie"
 BH_Q = 0.10
-OWNER_ALPHA = 0.05 / 3
+OWNER_ALPHA = 0.05 / 4  # Amendment 2: four strategies
+MIN_POOLED_PER_HALF = 15
 WEEKDAYS_ES = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
 OUT_DIR = Path("docs/experimento_horarios")
 
@@ -130,9 +133,11 @@ def run_window(m1: pd.DataFrame, bars: pd.DataFrame, start: pd.Timestamp, hours:
     if strategy == "baseline":
         return [Trade(start, float(minutes["open"].iloc[0]) * (1 + SLIP), end,
                       float(minutes["close"].iloc[-1]) * (1 - SLIP), "fin de ventana")]
+    opens, lows = minutes["open"], minutes["low"]
+    if strategy == "ruptura":
+        return _ruptura(window, bars, opens, lows, minutes, start, end)
     router = router_for(strategy, symbol)
     assert router is not None
-    opens, lows = minutes["open"], minutes["low"]
     trades: list[Trade] = []
     t = start
     while t < end:
@@ -166,6 +171,32 @@ def run_window(m1: pd.DataFrame, bars: pd.DataFrame, start: pd.Timestamp, hours:
         trades.append(exited)
         t = exited.exit_time.floor("20min") + BAR  # next entry decision: the next 20-minute boundary
     return trades
+
+
+def _ruptura(window: pd.DataFrame, bars: pd.DataFrame, opens: pd.Series, lows: pd.Series,
+             minutes: pd.DataFrame, start: pd.Timestamp, end: pd.Timestamp) -> list[Trade]:
+    """Opening-range breakout (Amendment 2): range = the window's first 20-minute bar; one long
+    entry at the first decision whose last completed close is above the range high; stop at
+    the range low (1-minute lows); otherwise forced close at the window's end."""
+    high, low = float(window["high"].iloc[0]), float(window["low"].iloc[0])
+    t = start + BAR
+    while t < end:
+        if float(bars.at[t - BAR, "close"]) > high:
+            entry_open = float(opens.at[t])
+            if entry_open <= low:
+                return []
+            entry = entry_open * (1 + SLIP)
+            m = t
+            while m < end:
+                o, lo = float(opens.at[m]), float(lows.at[m])
+                if o < low:
+                    return [Trade(t, entry, m, o * (1 - SLIP), "stop")]
+                if lo <= low:
+                    return [Trade(t, entry, m, low * (1 - 2 * SLIP), "stop")]
+                m += MINUTE
+            return [Trade(t, entry, end, float(minutes["close"].iloc[-1]) * (1 - SLIP), "fin de ventana")]
+        t += BAR
+    return []
 
 
 def run_day(day: date, data: dict[str, tuple[pd.DataFrame, pd.DataFrame]]) -> list[dict]:
@@ -224,10 +255,10 @@ def min_trades(scope: str) -> int:
 
 
 def select(rows: list[dict], key: Callable[[dict], tuple], scope: str, *, denominator: str = "candidates",
-           alpha: Optional[float] = None) -> list[dict]:
+           alpha: Optional[float] = None, min_n: Optional[int] = None) -> list[dict]:
     """Split-half: candidates (half-1 mean > 0, n >= min) -> half-2 one-sided t-test ->
     BH at q over the candidates (or over all cells), or a fixed alpha for planned tests."""
-    n_min = min_trades(scope)
+    n_min = min_n if min_n is not None else min_trades(scope)
     tested = []
     for k, (h1, h2) in halves(rows, key, scope).items():
         candidate = len(h1) >= n_min and float(np.mean(h1)) > 0
@@ -236,30 +267,44 @@ def select(rows: list[dict], key: Callable[[dict], tuple], scope: str, *, denomi
     pvals = [p for *_, p in tested]
     passed = [p < alpha for p in pvals] if alpha is not None else bh(pvals)
     return [{"cell": list(k), "half1_n": len(h1), "half1_mean": float(np.mean(h1)) if h1 else None,
-             "half2_n": len(h2), "half2_mean": float(np.mean(h2)) if h2 else None, "p": p, "qualifies": bool(ok)}
+             "half2_n": len(h2), "half2_mean": float(np.mean(h2)) if h2 else None, "p": p, "qualifies": bool(ok),
+             "insufficient": len(h1) < n_min or len(h2) < n_min}
             for (k, h1, h2, p), ok in zip(tested, passed)]
 
 
-SELECTIONS = {
-    "dueno_pooled": "Ventana del dueño, todos los símbolos (principal, α = 0.0167)",
-    "dueno_por_simbolo": "Ventana del dueño, por símbolo (BH q = 0.10 sobre 39)",
-    "celdas": "Búsqueda: ventana × símbolo × estrategia (BH)",
-    "por_ventana": "Búsqueda: por ventana (BH)",
-    "por_simbolo": "Búsqueda: por símbolo (BH)",
-}
+def selection_labels() -> dict[str, str]:
+    labels = {"dueno_pooled": "PRINCIPAL — ventana del dueño, todos los símbolos, por estrategia (α = 0.0125)",
+              "dueno_baseline_por_simbolo": "Ventana del dueño, baseline por símbolo (BH q = 0.10 sobre 13)",
+              "baseline_celdas": "Búsqueda: baseline ventana × símbolo (BH sobre candidatas)"}
+    for s in STRATEGIES:
+        labels[f"por_ventana_{s}"] = f"Búsqueda: {s} por ventana, todos los símbolos (BH sobre 12)"
+        labels[f"por_simbolo_{s}"] = f"Búsqueda: {s} por símbolo, todas las ventanas (BH sobre 13)"
+    return labels
 
 
 def evaluate(rows: list[dict]) -> dict:
+    """Amendment 2 families: pooled strategy tests (min 15 per half), baseline cell rule."""
     expl = [r for r in rows if r["family"] == "exploratoria"]
     owner = [r for r in rows if r["family"] == "dueno"]
-    return {scope: {
-        "dueno_pooled": select(owner, lambda r: ("dueno", "TODOS", r["strategy"]), scope, denominator="all",
-                               alpha=OWNER_ALPHA),
-        "dueno_por_simbolo": select(owner, lambda r: ("dueno", r["symbol"], r["strategy"]), scope, denominator="all"),
-        "celdas": select(expl, lambda r: (r["window"], r["symbol"], r["strategy"]), scope),
-        "por_ventana": select(expl, lambda r: (r["window"], "TODOS", r["strategy"]), scope),
-        "por_simbolo": select(expl, lambda r: ("TODAS", r["symbol"], r["strategy"]), scope),
-    } for scope in SCOPES}
+    out: dict = {}
+    for scope in SCOPES:
+        fam: dict = {
+            "dueno_pooled": select(owner, lambda r: ("dueno", "TODOS", r["strategy"]), scope, denominator="all",
+                                   alpha=OWNER_ALPHA, min_n=MIN_POOLED_PER_HALF),
+            "dueno_baseline_por_simbolo": select([r for r in owner if r["strategy"] == "baseline"],
+                                                 lambda r: ("dueno", r["symbol"], "baseline"), scope,
+                                                 denominator="all"),
+            "baseline_celdas": select([r for r in expl if r["strategy"] == "baseline"],
+                                      lambda r: (r["window"], r["symbol"], "baseline"), scope),
+        }
+        for s in STRATEGIES:
+            sub = [r for r in expl if r["strategy"] == s]
+            fam[f"por_ventana_{s}"] = select(sub, lambda r: (r["window"], "TODOS", r["strategy"]), scope,
+                                             denominator="all", min_n=MIN_POOLED_PER_HALF)
+            fam[f"por_simbolo_{s}"] = select(sub, lambda r: ("TODAS", r["symbol"], r["strategy"]), scope,
+                                             denominator="all", min_n=MIN_POOLED_PER_HALF)
+        out[scope] = fam
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -335,7 +380,7 @@ INTRO = ("Simulación con datos públicos (PAPER): **sin cuenta, sin claves, sin
          "Entradas cada 20 min (velas de 20 min); con posición abierta se revisa la salida cada 3 min "
          "(velas de 1 min): stop de la estrategia, su condición de salida y cierre forzado al final de la ventana. "
          "10 USDT por operación, comisión 0.1% por lado + 5 bps. Horas en **Ecuador (UTC−5)**, UTC entre paréntesis. "
-         "Reglas en `docs/PREREG_HORARIOS.md` (con la Enmienda 1).")
+         "Reglas en `docs/PREREG_HORARIOS.md` (con las Enmiendas 1 y 2).")
 
 
 def render_day(d: date, rows: list[dict], gaps: dict[str, int]) -> str:
@@ -375,9 +420,11 @@ def render_summary(all_rows: list[dict]) -> tuple[str, dict]:
         for scope in SCOPES:
             lines.append(f"### Alcance {scope}" + (" (decide)" if scope == PRIMARY_SCOPE
                                                    else " (alternativa, a elegir por el dueño)"))
-            for k, label in SELECTIONS.items():
+            for k, label in selection_labels().items():
                 ok = [c for c in result[scope][k] if c["qualifies"]]
-                lines.append(f"- **{label}:** {len(ok)} califican")
+                short = sum(c["insufficient"] for c in result[scope][k])
+                lines.append(f"- **{label}:** {len(ok)} califican"
+                             + (f" · {short} sin operaciones suficientes" if short else ""))
                 for c in ok:
                     lines.append(f"  - {c['cell']}: mitad 1 {c['half1_mean']:+.3f}% (n={c['half1_n']}), "
                                  f"mitad 2 {c['half2_mean']:+.3f}% (n={c['half2_n']}), p={c['p']:.4f}")
