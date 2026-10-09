@@ -1,0 +1,59 @@
+{
+ "pooled": {
+  "top-30 (all)": {
+   "go": false,
+   "reasons": [
+    "mean net return/trade +4.0909% (p=0.069) not significantly > 0",
+    "only 0/30 symbols GO under the framework"
+   ],
+   "oos_trades": 425,
+   "win_rate": 0.35764705882352943,
+   "mean_net_return_per_trade": 0.040909349216804905,
+   "median_net_return_per_trade": -0.0270500392741138,
+   "profit_factor": 1.925315622776352,
+   "p_value": 0.06858356741471155,
+   "worst_oos_fold_max_dd_pct": -5.618731230987269,
+   "symbols_go": 0,
+   "symbols": 30,
+   "oos_fees": 1507.2597508680635,
+   "mean_buy_hold_oos_return": 1.7566241407324605
+  },
+  "top-30 \u2229 12 live": {
+   "go": false,
+   "reasons": [
+    "mean net return/trade +3.8450% (p=0.099) not significantly > 0",
+    "only 0/9 symbols GO under the framework"
+   ],
+   "oos_trades": 174,
+   "win_rate": 0.3735632183908046,
+   "mean_net_return_per_trade": 0.03845047420470434,
+   "median_net_return_per_trade": -0.023725081854500688,
+   "profit_factor": 2.1090808221385875,
+   "p_value": 0.09901411952028874,
+   "worst_oos_fold_max_dd_pct": -5.618731230987269,
+   "symbols_go": 0,
+   "symbols": 9,
+   "oos_fees": 651.3396069543884,
+   "mean_buy_hold_oos_return": 0.10341503374105154
+  },
+  "top-30 new (not in the 12)": {
+   "go": false,
+   "reasons": [
+    "mean net return/trade +4.2614% (p=0.217) not significantly > 0",
+    "only 0/21 symbols GO under the framework"
+   ],
+   "oos_trades": 251,
+   "win_rate": 0.3466135458167331,
+   "mean_net_return_per_trade": 0.04261390799013358,
+   "median_net_return_per_trade": -0.03140548685259685,
+   "profit_factor": 1.793800341012494,
+   "p_value": 0.2166884021125276,
+   "worst_oos_fold_max_dd_pct": -5.136660916368546,
+   "symbols_go": 0,
+   "symbols": 21,
+   "oos_fees": 855.9201439136754,
+   "mean_buy_hold_oos_return": 2.465142329443064
+  }
+ },
+ "excluded": {}
+}

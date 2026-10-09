@@ -49,13 +49,16 @@ Debe imprimir el reporte de inicio, decidir sobre datos reales y escribir
 | "usa también mercados en rango" | perfil `tendencia_rango` |
 | "revisa top traders" | con el dueño frente a la app: capturas los líderes (plantilla CSV) → `python -m trading_intelligence.copy_trading.review` → le dices quién está apto y por qué |
 | "copia al trader X con 50" | perfil `copiar` + escribes `live_runs/current/leader_positions.json` con las posiciones que el líder muestra en la app (`{"read_at": "<hora con zona>", "trader": "X", "positions": {"BTCUSDT": 0.4}}`) y lo refrescas cuando el dueño lo pida; si pasan 6 h sin refrescar, el operador deja de abrir posiciones nuevas |
-| "continúa" (después del aviso de 2 USD) | `python -m trading_intelligence.live.operator continuar` |
-| "agrega 20" / "usa 1000" | `... agregar --capital 20` (solo después de que el dueño depositó) |
+| "continúa" (después del aviso de 2 USD) | `python -m trading_intelligence.live.operator continuar`. Con el operador en marcha, la orden va a su buzón (`ORDENES.jsonl`) y él la aplica en su próxima vuelta (menos de 1 minuto) y avisa por Telegram. Antes se escribía `session.json`, y el operador en marcha lo sobrescribía. |
+| "agrega 20" / "usa 1000" | `... agregar --capital 20` (solo después de que el dueño depositó); también por el buzón |
+| "usa también mi BTC" / "trabaja con todo lo que tengo" | `... adoptar --simbolo BTCUSDT`: suma a la sesión las monedas que ya están en Spot, a su valor actual (sube el capital, no es ganancia). Desde ahí las manejan la estrategia, los stops y el límite. Requiere el operador en marcha |
+| "pasa ese BTC a USDT" | `... pasar-a-usdt --simbolo BTCUSDT`: vende todo lo libre de esa moneda. Si vale menos que el mínimo de Binance (5 USDT), primero compra lo justo para pasarlo (máximo 10 USDT). No toca una moneda que la sesión esté operando |
+| "¿hay promociones de comisión?" | `... comisiones` (solo lectura): la comisión de esta cuenta en cada moneda, según Binance, con promociones y descuento BNB |
 | "para" / "para y cierra todo" | `... parar` / `... parar --cerrar` |
 | (si el operador se cayó o el PC se reinició) | `... reanudar`; el vigilante lo hace solo cada 5 min |
 | "cómo vamos" | `... estado` y `... reporte --etapa medio` |
 | "haz una prueba a ver si funciona" | `... prueba` (por defecto BTCUSDT por unos 6 USDT; `--simbolo ETHUSDT` para otra moneda). **No mueve dinero:** Binance valida la clave, la firma y la orden con su endpoint de prueba, sin ejecutarla. Usa su propio diario (`live_runs/prueba/`) y no toca la sesión |
-| "haz la prueba real" | `... prueba --real` (máximo 10 USDT; por defecto 6 en BTCUSDT): valida la orden, compra a mercado y vende exactamente lo que esa compra entregó, nunca otras monedas del dueño. Cuesta unos centavos de comisión. Es dinero real: solo con esa frase del dueño escrita aquí |
+| "haz la prueba real" | `... prueba --real` (máximo 10 USDT): valida la orden, compra lo justo para que la venta supere el mínimo de Binance tras la comisión, y vende exactamente lo que esa compra entregó, nunca otras monedas del dueño. Cuesta unos centavos de comisión. Es dinero real: solo con esa frase del dueño escrita aquí |
 
 Antes de un `--real` que no salga de una frase explícita del dueño: no lo ejecutes.
 
@@ -159,6 +162,33 @@ pasan 4 horas.
    con `--continuo` (revisa cada 5 minutos).
 3. Las alertas son información para el dueño. Una orden suya ("corto en BTC con 20") sigue el
    camino normal: confirmación del dueño a Claude Code local, límites y stops.
+
+## 4f. Memoria en Obsidian y automatización (orden del dueño, 2026-10-09)
+
+"Que siempre actualicen toda la memoria con Obsidian, así no gastan recursos recordando."
+Todo el detalle está en `docs/AUTOMATIZACION.md`.
+
+1. **Al empezar**, lee `C:\Users\tatop\TATO\09 Checkpoints\Memoria viva.md` y después
+   `docs/CHECKPOINT.md`. Si la nota no existe, créala.
+2. **Al terminar cada bloque**, escribe en esa nota:
+   - la fecha;
+   - qué hiciste;
+   - qué decidió el dueño, con sus palabras;
+   - el estado de la sesión real (saldo y operaciones; aquí sí puede ir, porque el vault es privado);
+   - lo que queda pendiente.
+3. **Copia de la nube:**
+   - Con permiso del dueño, crea la tarea `TradingIntelligence-Memoria`, que corra todos los
+     días a las 20:00 de Ecuador.
+   - La tarea hace `git pull` y copia a `Memoria viva.md` las secciones nuevas de
+     `docs/CHECKPOINT.md`. Ahí escriben el líder, Quant y GPT Work.
+   - Hazlo también cuando un agente te lo pida.
+4. **Nunca** escribas claves, tokens ni códigos en el vault.
+5. **Ya corren solos:**
+   - el operador (24 h);
+   - `reanudar` (cada 5 min);
+   - el vigilante del mercado (cada 15 min);
+   - la publicación de reportes (cada hora).
+   Si alguno falta, créalo según 4b–4e, con permiso del dueño.
 
 ## 5. Nunca
 

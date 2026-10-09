@@ -2742,6 +2742,181 @@ nothing alone**. The variants were also defined after seeing the short leg lose
 - Tests: 11 new; 5/5 mutants killed (2 survivors led to new tests: `prueba` without `--real`
   never buys, and the stop message at the limit). 118 live/Telegram/watcher tests pass.
 
+### 71. Experimento horarios: pre-registered, amended, runner live; backfill green (2026-10-09)
+
+Quant/Strategy session, at the owner's request via the leader. PAPER/research only: public
+klines, no account, no key, no orders; `live/` and `config/live_limits.json` untouched.
+
+- **Pre-registration:** `docs/PREREG_HORARIOS.md` (`7d8c9ae`), plus **Amendment 1**
+  (`03ac626`), written before any result:
+  - Mon–Fri decides; Saturday is reported separately; Sunday is recorded but excluded.
+  - The owner's window, **07–10 Ecuador (12–15 UTC)**, is the primary planned test: pooled
+    per strategy at α = 0.05/3, plus per symbol under its own BH.
+  - The 12 two-hour windows are the exploratory search, under BH q = 0.10.
+  - Entries every 20 minutes; exits checked every 3 minutes on 1-minute klines. The forming
+    20-minute bar is built only from already-closed minutes (tested).
+  - Ecuador time first in all reports.
+  - Disclosure: one original-design backfill run (`37949279922`) was cancelled about 10
+    seconds in and produced nothing.
+- **Code:** `trading_intelligence/backtesting/experimento_horarios.py`, 15 tests; 801/801 in
+  the full suite.
+- **Workflow:** `experimento-horarios.yml`, daily at 00:20 UTC, replaying the previous UTC
+  day. It commits only `docs/experimento_horarios/`.
+- **Backfill (reference only, decides nothing):** run `37949990464` on `3e407a5`, green.
+  It covers the 14 days 2026-09-25 → 10-08, with daily `.md`/`.json` reports and `resumen.md`.
+- **Forward:** 2026-10-10 → 10-23 (10 weekdays) decides. The first forward report arrives
+  2026-10-11 00:20 UTC.
+
+**What the reference data already shows (descriptive; it changes no rule):**
+- Over the 10 reference weekdays, `tendencia` made only **33 trades**, at −0.55% per trade.
+  `rango` made **9**, at −0.22%. No window × symbol cell had more than 2 `tendencia`
+  trades. At this rate, **no strategy cell can reach the 5-trades-per-half minimum**, so
+  the pre-registered tests can in practice only qualify **baseline** cells, or perhaps
+  pooled rows.
+- **Baseline** (pure time-of-day drift) lost −0.41% per trade over 1,690 trades. The
+  owner's 3-hour window lost **−0.91% per trade** (130 trades). Costs alone are about 0.3%
+  per round trip (0.2% fee + 0.1% slippage). Any "good hour" therefore needs drift above
+  that just to break even.
+- Expect the honest outcome to be "no hour or market better than chance" unless the
+  forward fortnight differs markedly. This is said now, before any forward data.
+- **Amendment 2** (`b0af04b`, written after the reference data, before any forward day) adds
+  strategy **ruptura** (opening-range breakout) and makes the strategy tests pooled:
+  - the owner's window, pooled per strategy, is primary at α = 0.0125;
+  - pooled by window and by symbol use BH;
+  - every pooled test needs at least 15 trades per half.
+  - Code `026c7a4`, 18 tests.
+  - The reference backfill was re-run (`6e077cb`), labeled reference.
+- **Reference results with ruptura (Mon–Fri, descriptive):**
+  - ruptura made 721 trades in the 2-hour windows: −0.41% per trade, 17% winners.
+  - ruptura in the owner's window: 60 trades, **−1.18% per trade, 5% winners**.
+  - baseline: −0.37% per trade (2-hour windows) and −0.91% per trade (owner's window).
+  - tendencia made 29 + 4 trades; rango made 9.
+
+### 72. Real test left BTC unsold; owner orders lost by a running operator; trading with all holdings (2026-10-09)
+
+- **Bug 1 (mine).** `prueba --real` bought 0.00007 BTC (about 5.80 USDT) and received
+  0.00006993 after the coin fee. That rounds down to 0.00006 = 4.97 USDT, under the 5 USDT
+  minimum, so Binance refused the sale (-1013) and the BTC stayed in Spot.
+  - Claude local restarted the session with capital 32 (the free USDT), at 45% and meta 58.
+  - Fix: `sellable_buy_qty` buys the smallest lot whose fee-net, rounded remainder still sells
+    at ≥ 1.05 × the minimum. Above the 10 USDT cap it refuses. The sell uses min(executed,
+    real free balance). Regression test at BTC's real step and price.
+- **Bug 2 (pre-existing, found while adding commands).** `continuar` and `agregar` wrote
+  `session.json`, but the running operator keeps the session in memory and rewrites the file
+  every pass. The owner's "continúa" after the warning would have been silently lost.
+  - Fix: an inbox `ORDENES.jsonl`. The CLI queues the order when an operator is alive
+    (lock + heartbeat). The operator takes the inbox atomically each pass, applies the
+    orders, and confirms on Telegram; refused orders are noted and notified, never crash.
+  - With no operator running, `continuar` and `agregar` apply directly as before.
+- **Owner: "trabaja con todo lo que tengamos" / "usa ese BTC en las operaciones".**
+  - `adoptar --simbolo X`: free coins in Spot join the session at current value. Capital rises
+    by the same amount (not a gain) and available USDT is unchanged. Approved symbols only,
+    and not a symbol the session already holds.
+  - Below Binance's minimum the coin is sold together with the next buy of that symbol, or
+    with `pasar-a-usdt`.
+- **`pasar-a-usdt --simbolo X`.** Sells all free units of a coin. Under the minimum it first
+  buys the smallest top-up (≤ 10 USDT) and re-reads the exchange balance before selling. It
+  refuses a symbol the session holds.
+- **`comisiones`.** Read-only `GET /api/v3/account/commission` for each symbol: this account's
+  real fees, promotions and the BNB discount. The owner asked about fee promotions.
+- Tests: 19 new; 127 live/Telegram/watcher tests pass; ruff and mypy are clean.
+- Owner, same day:
+  - "puede operar con todo el mercado — lo mío son solo preferencias" (BTC, ETH, gold, oil);
+  - GPT Work has no credits until 10-14, so the leader covers the daily review;
+  - economize tokens: bots trade, LLM routines only supervise.
+  The universe expansion needs a concrete symbol list in `config/live_limits.json`, built from
+  official volume data (in progress).
+
+### 73. Obsidian memory rule, automation map, and the "decide every 20 min with real money" request (2026-10-09)
+
+Owner, ~19:00 UTC: everyone must keep their memory in Obsidian; automate the three agents (Local,
+GPT Work, leader). He also asked for decisions every 20 minutes instead of every 4 hours,
+nonstop and trading, in 07–10 and 17–19 Ecuador. "If it doesn't trade it makes no sense"; going
+against the market is allowed; selling logically matters too.
+
+**Memory and automation**
+- **Obsidian memory rule:** added to `AGENTS.md` (Coordination). It did not exist before; the
+  old text only said "Obsidian is planned".
+- **`docs/AUTOMATIZACION.md`** is the single map of what runs by itself and who does what:
+  - on the PC: operator 24 h; `reanudar` every 5 min; watcher every 15 min; hourly reports;
+    new daily memory copy at 20:00 Ecuador;
+  - GitHub Actions: the hours experiment daily, the two-way strategy on Mondays, the top-30
+    universe;
+  - leader routines;
+  - GPT Work from 10-14.
+- **Prompts:** Local's prompt has a new section 4f; GPT Work's prompt has a "Memoria" section.
+- **Also fixed:** the inverted BNB discount display in `comisiones` (35cfd7b).
+
+**Leader's decision on real-money 20-minute decisions: not now.**
+- The owner delegated the call ("te lo dejo").
+- **Real money stays on 4h.** It runs 24/7, so it already covers both windows, and stops are
+  checked every minute. Its sells follow logic: exit signal, stop loss, trailing stop. This is
+  unchanged.
+- **20-minute trading in both windows starts 10-10 in the pre-registered experiment** (PAPER,
+  real public prices, every day). It covers his 07–10 window and the 17–19 window (22–00 UTC).
+  It runs four strategies, including **rango** (Bollinger), the "against the move" one:
+  buy the dip, sell at the mean.
+- **What changes 10-23:** whatever passes the pre-registered rule goes to real money in its
+  window.
+- **Why not now:**
+  - 1h real trading lost after fees (section 45: −0.80% and −0.67% per trade, p < 0.01).
+  - The 14-day 20-minute reference backfill loses for every strategy on every weekday. The
+    owner's own 07–10 window: tendencia −6.94% cumulative; ruptura about −0.4 to −0.5% per
+    trade; baseline about −0.3 to −0.5% per trade.
+  - Trading every 20 minutes for its own sake would turn the account into fees. That is the
+    opposite of the owner's goal ("si no ganas…").
+- **Shorts** remain NO-GO in Spot (three studies). "Against the market" in Spot means selling
+  before falls, plus range buying of dips.
+- **Override:** if the owner still wants real money at 20 minutes before 10-23, he says so to
+  Claude local in writing. The leader then builds it with a small capped budget inside the
+  current limits. `REAL_TIMEFRAMES` (4h only) is unchanged until then.
+
+### 74. Binance Spot top-30 universe and section-45 check of the live 4h rule (2026-10-09)
+
+Quant/Strategy session, at the owner's request via the leader ("puede operar con todo el
+mercado"). Research only; `live/` and `config/live_limits.json` untouched.
+
+- **Code:** `trading_intelligence/backtesting/universe_scan.py` (3 tests).
+- **Run:** workflow `universe-top30.yml`, run `37971859157` on `922fa64`, green.
+- **Output:** `docs/universe/`:
+  - `top30_2026-10-09.json`: symbol, 24h quote volume, min notional;
+  - `walkforward_top30_…json`;
+  - `compare_top30_…json`.
+- **Universe at 2026-10-09 18:14 UTC.** 496 eligible USDT pairs: TRADING, not
+  stablecoin/fiat, not leveraged. The top 30 by 24h quote volume are:
+  BTC ETH SOL ZEC NEAR XRP BNB SUI UNI STRK DOGE RLC RLUSD XAUT ENA ADA OGN ONDO AVAX SPCXB QNT
+  TAO HYPE PUMP CRCLB KAIA U WLD PEPE LINK.
+  - Min notional is 5 USDT, except DOGE and PEPE at 1.
+  - **XAUTUSDT exists and is TRADING**: rank 14, data from 2026-03-26.
+  - **PAXGUSDT ranks 34th.**
+- **Filter caveats.** These need a human check before going into any limits file:
+  - **RLUSD is a stablecoin** that my list missed. It is now added to the exclusion list
+    for future runs.
+  - **SPCXB, CRCLB and U** look like tokenized or new assets with very short history
+    (2–4 months). They should be verified, not assumed to be crypto.
+- **Check of the existing rule** (section 45 walk-forward, `tendencia_rango` 4h,
+  2022-10 → 2026-10, same costs and folds, no retuning; not a new pre-registration):
+
+| Set | Symbols | OOS trades | Mean net/trade | Median | PF | p | Worst fold DD |
+|---|---|---|---|---|---|---|---|
+| 12 live (section 45) | 12 | 235 | +3.06% | −2.33% | 1.90 | 0.090 | −5.6% |
+| Top-30, all | 30 | 425 | +4.09% | −2.71% | 1.93 | 0.069 | −5.6% |
+| Top-30 ∩ the 12 live | 9 | 174 | +3.85% | −2.37% | 2.11 | 0.099 | −5.6% |
+| Top-30 new (not in the 12) | 21 | 251 | +4.26% | −3.14% | 1.79 | 0.217 | −5.1% |
+| Top-30 new, without ZEC | 20 | 232 | **+0.99%** | | 1.24 | 0.368 | |
+
+**Reading:**
+- **Widening the universe does not change the verdict.** The rule is nominally positive and
+  still NO-GO everywhere (p > 0.05, median trade negative).
+- The new symbols look as good only because of **ZEC** (+44% per trade over 19 trades).
+  Without ZEC, the 20 new symbols give +0.99% per trade, PF 1.24, p 0.37: weaker than the
+  12 live symbols.
+- **Selection bias:** ranking by *today's* volume favours coins that just had a large move
+  (ZEC). A list chosen this way flatters any backtest on the past that produced the ranking.
+- **Recommendation:** widening the universe is not a source of edge. If the owner wants more
+  markets, prefer liquid, long-history coins, verify the doubtful entries above, and do not
+  pick symbols by recent volume alone.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |

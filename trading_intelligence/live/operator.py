@@ -209,9 +209,63 @@ class Operator:
 
     # --- one pass ------------------------------------------------------------------
 
+    def _apply_owner_orders(self) -> None:
+        """The owner's commands (continuar / agregar / adoptar) reach the RUNNING operator
+        through its inbox. Writing session.json from another process does not work: this
+        process keeps the session in memory and saves it every pass."""
+        inbox = self.dir / INBOX
+        if not inbox.exists():
+            return
+        taken = inbox.with_suffix(".taken")
+        os.replace(inbox, taken)  # atomic: an order written meanwhile goes to a fresh inbox
+        s = self.session
+        for line in taken.read_text(encoding="utf-8").splitlines():
+            try:
+                order = json.loads(line)
+                cmd = order["cmd"]
+                if cmd == "continuar":
+                    s.owner_continue()
+                    self.notify("✅ Entendido: sigo operando hasta el límite de pérdida.")
+                elif cmd == "agregar":
+                    amount = Decimal(order["capital"])
+                    s.add_capital(amount)
+                    self.notify(f"✅ Sumé {messages.usdt(amount)} a la sesión. Capital ahora: {messages.usdt(s.capital)}.")
+                elif cmd == "adoptar":
+                    self.notify(self._adopt(order["simbolo"]))
+                else:
+                    s.note("OWNER", f"orden desconocida ignorada: {cmd}")
+            except (ValueError, KeyError, TypeError, LiveError) as error:
+                s.note("OWNER", f"orden no aplicada ({line[:80]}): {error}")
+                self.notify(f"⚠️ No pude aplicar tu orden: {error}")
+        taken.unlink()
+
+    def _adopt(self, symbol: str) -> str:
+        """Owner: "vas a trabajar con todo lo que tengamos": coins already in Spot join the
+        session at their current value (capital grows by the same amount, so it is not a
+        gain); from then on the strategy, the stops and the loss guard manage them."""
+        s = self.session
+        if symbol not in self.limits.allowed_symbols:
+            return f"⚠️ {messages.coin(symbol)} no está entre las monedas aprobadas; no la sumé."
+        if symbol in s.holdings:
+            return f"La sesión ya opera {messages.coin(symbol)}; no hace falta sumarla."
+        qty = self.trader.free_balance(symbol[:-4])
+        price = self.trader.price(symbol)
+        value = (qty * price).quantize(Decimal("0.01"))
+        if qty <= 0:
+            return f"No tienes {messages.coin(symbol)} libre en Spot para sumar."
+        s.add_capital(value)
+        s.record_buy(symbol, qty, value, Decimal("0"), "ADOPTED")
+        rules = self.trader.rules(symbol)
+        small = rules.floor_qty(qty) * price < rules.min_notional
+        tail = (" Es menos del mínimo de venta de Binance (5 USDT): se venderá junto con la próxima compra de "
+                f"{messages.coin(symbol)}, o con el comando pasar-a-usdt.") if small else ""
+        return (f"✅ Sumé a la sesión tu {messages.coin(symbol)} ({qty}, unos {messages.usdt(value)}). Desde ahora "
+                f"lo maneja el operador con sus reglas y stops.{tail}")
+
     def step(self, decide: bool) -> list[mirror.Action]:
         s = self.session
         actions: list[mirror.Action] = []
+        self._apply_owner_orders()
         guarded_before = set(s.guard_stops)
         for fill in self.trader.reconcile(self.trader.price):
             mirror._apply_fill(s, fill, "RECONCILED")
@@ -467,6 +521,25 @@ class AlreadyRunning(SystemExit):
     pass
 
 
+INBOX = "ORDENES.jsonl"  # the owner's commands for a running operator, applied each pass
+
+
+def operator_running(state_dir: Path, now: Optional[datetime] = None) -> bool:
+    """A live operator holds the lock and keeps beating (status.json every pass)."""
+    lock = state_dir / "OPERATOR.lock"
+    if not lock.exists():
+        return False
+    status = state_dir / "status.json"
+    beat = datetime.fromtimestamp(max(lock.stat().st_mtime, status.stat().st_mtime if status.exists() else 0),
+                                  tz=timezone.utc)
+    return (now or datetime.now(timezone.utc)) - beat < STALE_LOCK_AFTER
+
+
+def queue_owner_order(state_dir: Path, order: dict) -> None:
+    with open(state_dir / INBOX, "a", encoding="utf-8") as inbox:
+        inbox.write(json.dumps(order) + "\n")
+
+
 def _lock(state_dir: Path, now: Optional[datetime] = None) -> Path:
     lock = state_dir / "OPERATOR.lock"
     now = now or datetime.now(timezone.utc)
@@ -504,6 +577,50 @@ def check_connection(trader, limits: OwnerLimits, symbol: str, usdt: Decimal) ->
 
 
 TEST_TRADE_MAX_USDT = Decimal("10")  # a check of the order path, never a position
+COIN_FEE = Decimal("0.001")  # Binance Spot taker fee when it is charged in the bought coin
+SELL_MARGIN = Decimal("1.05")  # stay clear of the exchange minimum after small price moves
+
+
+def sellable_buy_qty(rules, price: Decimal, usdt: Decimal) -> Decimal:
+    """Smallest lot-aligned quantity worth at least `usdt` whose fee-net, rounded remainder
+    can still be sold above the exchange minimum."""
+    qty = max(rules.floor_qty(usdt / price), rules.min_qty)
+    while rules.floor_qty(qty * (1 - COIN_FEE)) * price < rules.min_notional * SELL_MARGIN:
+        qty += rules.step if rules.step > 0 else qty
+    return qty
+
+
+def to_usdt(trader, limits: OwnerLimits, symbol: str, session_holdings: set[str]) -> list[str]:
+    """Owner: "transformar" a coin left in Spot (e.g. the test remainder) back to USDT.
+    Sells all free units; if they are worth less than Binance's minimum sale, first buys the
+    smallest top-up that makes the whole amount sellable. Never touches a coin the running
+    session holds (its ledger would break)."""
+    if symbol not in limits.allowed_symbols:
+        return [f"{symbol} no está entre las monedas aprobadas; no se hizo nada"]
+    if symbol in session_holdings:
+        return [f"la sesión está operando {symbol}: se vende con sus reglas (o con 'parar --cerrar'); no se hizo nada"]
+    asset, rules, price = symbol[:-4], trader.rules(symbol), trader.price(symbol)
+    held = trader.free_balance(asset)
+    lines = []
+    if rules.floor_qty(held) * price < rules.min_notional * SELL_MARGIN:
+        top_up = Decimal("0")
+        while rules.floor_qty(held + top_up * (1 - COIN_FEE)) * price < rules.min_notional * SELL_MARGIN:
+            top_up += rules.step if rules.step > 0 else max(held, rules.min_qty)
+        top_up = max(top_up, rules.min_qty)
+        while top_up * price < rules.min_notional:  # the top-up buy itself must clear the minimum
+            top_up += rules.step if rules.step > 0 else top_up
+        if top_up * price > TEST_TRADE_MAX_USDT:
+            return [f"completar {asset} hasta el mínimo de venta costaría {top_up * price:.2f} USDT; no se hizo nada"]
+        if trader.free_balance("USDT") < top_up * price * Decimal("1.01"):
+            return ["USDT libre insuficiente para completar el mínimo de venta; no se hizo nada"]
+        buy = trader.market_order(symbol, "BUY", top_up, trader.price)
+        lines.append(f"compré {buy.executed_qty} {asset} (pagado {buy.quote_qty:.4f} USDT) para llegar al mínimo de venta")
+        held = trader.free_balance(asset)  # the exchange's own number after the buy
+    sell_qty = rules.floor_qty(held)
+    sell = trader.market_order(symbol, "SELL", sell_qty, trader.price)
+    lines.append(f"vendí {sell.executed_qty} {asset} y recibí {sell.quote_qty:.4f} USDT")
+    lines.append(f"listo: tu {asset} pasó a USDT (queda un resto mínimo de {held - sell_qty} {asset} por redondeo)")
+    return lines
 
 
 def real_test_trade(trader, limits: OwnerLimits, symbol: str, usdt: Decimal) -> list[str]:
@@ -513,14 +630,20 @@ def real_test_trade(trader, limits: OwnerLimits, symbol: str, usdt: Decimal) -> 
     lines = check_connection(trader, limits, symbol, usdt)
     if not lines[-1].startswith("conexión lista"):
         return lines
-    if trader.free_balance("USDT") < usdt:
+    rules, price = trader.rules(symbol), trader.price(symbol)
+    # The coin fee and the lot rounding shrink what can be sold back: buy enough that the sale
+    # still clears Binance's minimum (2026-10-09: 6 USDT of BTC left 4.97 to sell, refused -1013).
+    qty = sellable_buy_qty(rules, price, usdt)
+    if qty * price > TEST_TRADE_MAX_USDT:
+        return lines + [f"para que la venta supere el mínimo de Binance harían falta {qty * price:.2f} USDT, más "
+                        f"que el tope de la prueba ({TEST_TRADE_MAX_USDT}); no se compró nada"]
+    if trader.free_balance("USDT") < qty * price * Decimal("1.01"):
         return lines + ["USDT libre insuficiente para la prueba real; no se compró nada"]
-    rules = trader.rules(symbol)
-    qty = rules.floor_qty(usdt / trader.price(symbol))
     buy = trader.market_order(symbol, "BUY", qty, trader.price)
     lines.append(f"COMPRA real: {buy.executed_qty} {symbol} a {buy.avg_price} "
                  f"(pagado {buy.quote_qty:.4f} USDT, comisión {buy.fee_usdt:.4f} USDT)")
-    sell_qty = rules.floor_qty(buy.executed_qty)  # net of the fee taken in the coin
+    # Net of the fee taken in the coin, and never more than Spot really holds.
+    sell_qty = rules.floor_qty(min(buy.executed_qty, trader.free_balance(symbol[:-4])))
     try:
         sell = trader.market_order(symbol, "SELL", sell_qty, trader.price)
     except LiveError as error:
@@ -530,6 +653,29 @@ def real_test_trade(trader, limits: OwnerLimits, symbol: str, usdt: Decimal) -> 
     lines.append(f"costo de la prueba: {buy.quote_qty - sell.quote_qty:.4f} USDT (comisiones y diferencia de "
                  f"precio); quedó sin vender por redondeo: {buy.executed_qty - sell_qty} {symbol}")
     lines.append("prueba real completa: el sistema compra y vende en tu cuenta")
+    return lines
+
+
+def fee_lines(trader, symbols: list[str]) -> list[str]:
+    """Owner: "revisa cuando tengan todos los mercados promos de comisiones". Binance's own
+    answer for THIS account (GET /api/v3/account/commission), promotions included."""
+    lines = []
+    for sym in symbols:
+        try:
+            data = trader.commission(sym)
+        except LiveError as error:
+            lines.append(f"{messages.coin(sym)}: no se pudo leer ({error})")
+            continue
+        std = data.get("standardCommission") or {}
+        taker, maker = Decimal(str(std.get("taker", "0"))), Decimal(str(std.get("maker", "0")))
+        disc = data.get("discount") or {}
+        # Binance reports the multiplier paid with BNB (0.75 = you pay 75%, i.e. 25% off), not the discount.
+        paid = Decimal(str(disc.get("discount", "1")))
+        bnb = (f"; pagando con {disc.get('discountAsset')} baja un {(1 - paid) * 100:.0f}%"
+               if disc.get("enabledForAccount") and disc.get("enabledForSymbol") and paid < 1 else "")
+        promo = " ¡PROMOCIÓN: sin comisión!" if taker == 0 else ""
+        lines.append(f"{messages.coin(sym)}: comisión {taker * 100:.3f}% (órdenes a mercado), "
+                     f"{maker * 100:.3f}% (órdenes límite){bnb}.{promo}")
     return lines
 
 
@@ -607,6 +753,12 @@ def main(argv: Optional[list[str]] = None) -> int:
     probe.add_argument("--usdt", default="6")
     probe.add_argument("--real", action="store_true",
                        help=f"real round trip (at most {TEST_TRADE_MAX_USDT} USDT): buy, then sell what was bought")
+    adopt = sub.add_parser("adoptar", help="add a coin already in Spot to the running session (it then manages it)")
+    adopt.add_argument("--simbolo", required=True)
+    convert = sub.add_parser("pasar-a-usdt", help="sell a coin left in Spot back to USDT (tops up to the minimum)")
+    convert.add_argument("--simbolo", required=True)
+    fees = sub.add_parser("comisiones", help="read-only: this account's commission per symbol, promotions included")
+    fees.add_argument("--simbolos", nargs="+")
     resume = sub.add_parser("reanudar", help="resume the open session after a crash or reboot (safe to repeat)")
     resume.add_argument("--max-iteraciones", type=int)
     args = parser.parse_args(argv)
@@ -618,7 +770,23 @@ def main(argv: Optional[list[str]] = None) -> int:
     if args.cmd == "estado":
         print((d / "status.json").read_text(encoding="utf-8") if (d / "status.json").exists() else "sin sesión")
         return 0
-    if args.cmd in ("continuar", "agregar"):
+    if args.cmd in ("continuar", "agregar", "adoptar"):
+        order: dict = {"cmd": args.cmd}
+        if args.cmd == "agregar":
+            amount = Decimal(args.capital)
+            if not amount.is_finite() or amount <= 0:
+                parser.error("--capital must be positive")
+            order["capital"] = str(amount)
+        if args.cmd == "adoptar":
+            order["simbolo"] = args.simbolo
+        if operator_running(d):
+            # The running operator owns session.json (it saves it every pass): it applies the order.
+            queue_owner_order(d, order)
+            print("orden registrada: el operador la aplica en su próxima vuelta (menos de 1 minuto) y te avisa")
+            return 0
+        if args.cmd == "adoptar":
+            print("no hay operador en marcha: inicia o reanuda la sesión y repite 'adoptar'")
+            return 1
         s = Session.load(session_path)
         s.owner_continue() if args.cmd == "continuar" else s.add_capital(Decimal(args.capital))
         s.save(session_path)
@@ -641,6 +809,19 @@ def main(argv: Optional[list[str]] = None) -> int:
         run_probe = real_test_trade if args.real else check_connection
         for line in run_probe(trader, limits, args.simbolo, usdt):
             telegram_notify.console(line)  # never crashes on a Windows cp1252 console
+        return 0
+    if args.cmd in ("pasar-a-usdt", "comisiones"):
+        probe_dir = d.parent / "prueba"  # its own journal, never a session's
+        probe_dir.mkdir(parents=True, exist_ok=True)
+        trader = SpotTrader(Credentials.from_env(), probe_dir / "orders.json")
+        trader.verify_key()
+        if args.cmd == "comisiones":
+            for line in fee_lines(trader, args.simbolos or sorted(limits.allowed_symbols)):
+                telegram_notify.console(line)
+            return 0
+        held = set(Session.load(session_path).holdings) if session_path.exists() else set()
+        for line in to_usdt(trader, limits, args.simbolo, held):
+            telegram_notify.console(line)
         return 0
     if args.cmd == "reporte":
         meta = json.loads((d / "meta.json").read_text(encoding="utf-8"))
