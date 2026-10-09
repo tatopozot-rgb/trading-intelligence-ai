@@ -70,7 +70,7 @@ def preparar():
         logger.addHandler(logging.StreamHandler())
 
 
-def escanear(prueba=False, sesion_activa=None, reglas=False, profundidad=False):
+def escanear(prueba=False, sesion_activa=None, reglas=False, profundidad=False, sombra=False):
     resultados = []
     cancelado = False
     solicitud = None
@@ -81,8 +81,11 @@ def escanear(prueba=False, sesion_activa=None, reglas=False, profundidad=False):
         if reglas:
             if prueba:
                 raise ValueError('Prueba Claude incompatible con reglas.')
-            decisiones_reglas = (procesar_candidatos(resultados, sesion_activa, profundidad=True)
-                                 if profundidad else procesar_candidatos(resultados, sesion_activa))
+            if sombra:
+                decisiones_reglas = procesar_candidatos(resultados, sesion_activa, profundidad=profundidad, sombra=True)
+            else:
+                decisiones_reglas = (procesar_candidatos(resultados, sesion_activa, profundidad=True)
+                                     if profundidad else procesar_candidatos(resultados, sesion_activa))
         else:
             solicitud = crear_solicitud_claude(resultados, prueba, sesion_activa)
     except store.SesionFinalizada:
@@ -90,6 +93,8 @@ def escanear(prueba=False, sesion_activa=None, reglas=False, profundidad=False):
     resumen = {'fecha': store.ahora().isoformat(), 'analizados': len(resultados),
         'errores': sum('error' in r for r in resultados), 'solicitud': solicitud,
         'cancelado':cancelado, 'reglas_paper':reglas, 'decisiones_reglas':decisiones_reglas}
+    if sombra:
+        resumen['sombra_paper'] = True
     with store.conectar() as con:
         store.evento(con, 'CICLO', resumen)
     logging.info('Escaneo: %s', resumen)
@@ -175,7 +180,7 @@ def proteger_apagado():
             signal.signal(signal.SIGINT, anterior)
 
 
-def finalizar_trabajadores(parar, monitor, pool, futuro, salud, estado_final, sesion_id=None):
+def finalizar_trabajadores(parar, monitor, pool, futuro, salud, estado_final, sesion_id=None, modo='PAPER'):
     """Retorna solo tras terminar trabajadores; errores de estado no omiten cleanup."""
     with proteger_apagado():
         parar.set()
@@ -187,7 +192,7 @@ def finalizar_trabajadores(parar, monitor, pool, futuro, salud, estado_final, se
             nonlocal error_escritura, fallos_escritura
             try:
                 guardar_atomico(ESTADO, store.serializar({'pid':os.getpid(), 'parent_pid':os.getppid(),
-                    'estado':estado, 'fecha':store.ahora().isoformat(), 'modo':'PAPER', 'sesion_id':sesion_id,
+                    'estado':estado, 'fecha':store.ahora().isoformat(), 'modo':modo, 'sesion_id':sesion_id,
                     'espera_apagado_seg':round(time.monotonic()-inicio_apagado,3),
                     'fallos_escritura_apagado':fallos_escritura,
                     'salud':salud.snapshot(), 'monitor_vivo':monitor.is_alive(),
@@ -225,11 +230,16 @@ def finalizar_trabajadores(parar, monitor, pool, futuro, salud, estado_final, se
             raise error_escritura
 
 
-def ejecutar_continuo(horas=8, automatico=False, intervalo_scanner=None, intervalo_monitor=None, reglas=False, sesion_id=None, profundidad=False):
-    if type(profundidad) is not bool or (profundidad and not reglas):
+def ejecutar_continuo(horas=8, automatico=False, intervalo_scanner=None, intervalo_monitor=None, reglas=False, sesion_id=None, profundidad=False, sombra=False):
+    if type(sombra) is not bool or (sombra and (reglas or automatico)):
+        raise ValueError('SHADOW es un modo propio: excluye reglas PAPER y Claude.')
+    if type(profundidad) is not bool or (profundidad and not (reglas or sombra)):
         raise ValueError('Profundidad sólo disponible como selección explícita por reglas PAPER.')
     if reglas and automatico:
         raise ValueError('Modos Claude y reglas mutuamente excluyentes.')
+    # SHADOW recorre el mismo camino que las reglas PAPER; sólo cambia el paso que abriría la operación.
+    por_reglas = reglas or sombra
+    modo = 'SHADOW_PAPER' if sombra else 'PAPER'
     validar_horas(horas)
     sesion_id = validar_id(sesion_id) if sesion_id is not None else uuid.uuid4().hex
     cancelacion = cancelacion_sesion(config.DIRECTORIO, sesion_id)
@@ -268,17 +278,19 @@ def ejecutar_continuo(horas=8, automatico=False, intervalo_scanner=None, interva
                 siguiente = time.monotonic()+intervalo_scanner
             if futuro is None and time.monotonic() >= siguiente:
                 salud.iniciar('scanner')
-                if reglas:
-                    futuro = pool.submit(escanear, sesion_activa=sesion_activa, reglas=True, profundidad=profundidad)
+                if por_reglas:
+                    futuro = pool.submit(escanear, sesion_activa=sesion_activa, reglas=True, profundidad=profundidad,
+                                         sombra=sombra)
                 else:
                     futuro = pool.submit(escanear, sesion_activa=sesion_activa)
-            for ruta in (() if reglas else bandeja.glob('*.json')):
+            for ruta in (() if por_reglas else bandeja.glob('*.json')):
                 if not sesion_activa():
                     break
                 procesar_entrada_bandeja(ruta,procesadas,vistas,salud,automatico,
                     sesion_activa)
-            guardar_atomico(ESTADO, store.serializar({'pid': os.getpid(), 'parent_pid':os.getppid(), 'modo': 'PAPER', 'sesion_id':sesion_id,
-                'autorizacion': 'REGLAS_PAPER' if reglas else 'AUTO_PAPER' if automatico else 'MANUAL', 'estado': 'ACTIVO',
+            guardar_atomico(ESTADO, store.serializar({'pid': os.getpid(), 'parent_pid':os.getppid(), 'modo': modo, 'sesion_id':sesion_id,
+                'autorizacion': ('SHADOW_PAPER' if sombra else 'REGLAS_PAPER' if reglas else
+                                 'AUTO_PAPER' if automatico else 'MANUAL'), 'estado': 'ACTIVO',
                 'modelo_nuevas_entradas': 'PROFUNDIDAD_VISIBLE_FOK_PAPER_V1' if profundidad else 'TICKER_LEGADO',
                 'heartbeat_utc': store.ahora().isoformat(), 'scanner_en_curso': futuro is not None,
                 'salud':salud.snapshot(),
@@ -290,7 +302,7 @@ def ejecutar_continuo(horas=8, automatico=False, intervalo_scanner=None, interva
         estado_final = 'ERROR'
         raise
     finally:
-        finalizar_trabajadores(parar, monitor, pool, futuro, salud, estado_final, sesion_id)
+        finalizar_trabajadores(parar, monitor, pool, futuro, salud, estado_final, sesion_id, modo)
         logging.info('Sesión terminada. Posiciones PAPER pendientes requieren otro inicio del monitor.')
 
 
@@ -299,15 +311,18 @@ def main():
     parser.add_argument('--continuo', action='store_true')
     parser.add_argument('--auto-paper', action='store_true', help='Solo consume revisiones válidas; no consulta Claude por API.')
     parser.add_argument('--reglas-paper', action='store_true', help='Simulación autónoma por reglas, sin llamadas a IA; sesión explícita.')
-    parser.add_argument('--profundidad-paper', action='store_true', help='Fills PAPER FOK con profundidad visible y evidencia; requiere --reglas-paper.')
+    parser.add_argument('--sombra-paper', action='store_true', help='SHADOW: mismo recorrido y veredicto que las reglas PAPER, sin abrir operaciones.')
+    parser.add_argument('--profundidad-paper', action='store_true', help='Fills PAPER FOK con profundidad visible y evidencia; requiere --reglas-paper o --sombra-paper.')
     parser.add_argument('--horas', type=float, default=8)
     parser.add_argument('--prueba-claude', action='store_true')
     parser.add_argument('--detener', action='store_true')
     parser.add_argument('--reanudar', action='store_true')
     parser.add_argument('--sesion-id', help='Identificador técnico del intento explícito del panel.')
     args = parser.parse_args()
-    if args.profundidad_paper and not args.reglas_paper:
-        parser.error('--profundidad-paper requiere --reglas-paper')
+    if args.profundidad_paper and not (args.reglas_paper or args.sombra_paper):
+        parser.error('--profundidad-paper requiere --reglas-paper o --sombra-paper')
+    if args.sombra_paper and (not args.continuo or args.auto_paper or args.prueba_claude or args.reglas_paper):
+        parser.error('--sombra-paper requiere --continuo y excluye --auto-paper/--reglas-paper/--prueba-claude')
     if args.reglas_paper and (not args.continuo or args.auto_paper or args.prueba_claude):
         parser.error('--reglas-paper requiere --continuo y excluye --auto-paper/--prueba-claude')
     if args.detener:
@@ -323,7 +338,7 @@ def main():
             validar_horas(args.horas)
         if args.sesion_id is not None:
             validar_id(args.sesion_id)
-            if not args.continuo or not args.reglas_paper:
+            if not args.continuo or not (args.reglas_paper or args.sombra_paper):
                 raise ValueError('--sesion-id requiere sesión continua PAPER por reglas.')
         store.validar_paper()
     except ValueError as error:
@@ -337,7 +352,7 @@ def main():
             PARADA.unlink(missing_ok=True)
         if args.continuo:
             ejecutar_continuo(args.horas, args.auto_paper, reglas=args.reglas_paper, sesion_id=args.sesion_id,
-                              profundidad=args.profundidad_paper)
+                              profundidad=args.profundidad_paper, sombra=args.sombra_paper)
         else:
             print(ejecutar_ciclo(args.prueba_claude))
 
