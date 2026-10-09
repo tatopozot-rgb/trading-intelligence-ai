@@ -319,6 +319,16 @@ class SpotTrader:
         self.key_checked = True
         return ip_restricted
 
+    def commission(self, symbol: str) -> dict:
+        """This account's commission for a symbol, as Binance reports it (promotions and the
+        BNB discount included): GET /api/v3/account/commission. Read-only."""
+        if not _SYMBOL.match(symbol):
+            raise ValueError(f"invalid symbol {symbol!r}")
+        data = self._signed_read("/api/v3/account/commission", {"symbol": symbol})
+        if not isinstance(data, dict):
+            raise LiveError(f"unexpected commission answer for {symbol}")
+        return data
+
     def free_balance(self, asset: str) -> Decimal:
         data = self._signed_read("/api/v3/account", {"omitZeroBalances": "true"})
         for b in data.get("balances", []) if isinstance(data, dict) else []:

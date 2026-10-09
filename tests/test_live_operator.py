@@ -1187,3 +1187,167 @@ def test_the_owner_hears_plain_words_at_the_warning_and_at_the_stop(tmp_path):
     trader.prices["BTCUSDT"] = Decimal("49")
     op.step(decide=False)
     assert any(m.startswith("🛑 Se alcanzó tu límite de pérdida") for m in sent)
+
+
+# ------------------------------------------------------------------ owner orders, adopting coins, back to USDT, fees
+
+BTC_RULES = B.SymbolRules(step=Decimal("0.00001"), min_qty=Decimal("0.00001"), min_notional=Decimal("5"))
+
+
+class Wallet(FakeTrader):
+    """FakeTrader with real per-asset balances that market orders move (fee taken in the coin on buys)."""
+
+    def __init__(self, prices, balances, rules=RULES):
+        super().__init__(prices)
+        self.balances, self._rules = dict(balances), rules
+
+    def rules(self, s):
+        return self._rules
+
+    def free_balance(self, a):
+        return self.balances.get(a, Decimal("0"))
+
+    def test_order(self, symbol, side, qty):
+        pass
+
+    def market_order(self, symbol, side, qty, fp):
+        p, coin = self.prices[symbol], symbol[:-4]
+        if qty * p < self._rules.min_notional:
+            raise B.LiveError("Binance rejected the order (code -1013)")
+        self.orders.append((symbol, side, qty))
+        if side == "BUY":
+            got = qty * Decimal("0.999")
+            self.balances["USDT"] -= qty * p
+            self.balances[coin] = self.balances.get(coin, Decimal("0")) + got
+            return B.Fill("x", symbol, side, "FILLED", got, qty * p, qty * p * Decimal("0.001"), p)
+        self.balances[coin] -= qty
+        self.balances["USDT"] += qty * p * Decimal("0.999")
+        return B.Fill("x", symbol, side, "FILLED", qty, qty * p * Decimal("0.999"), qty * p * Decimal("0.001"), p)
+
+
+class TestRealTestTradeMinimum:
+    def test_the_sale_always_clears_the_exchange_minimum(self):
+        """2026-10-09 on the owner's PC: 6 USDT of BTC left 0.00006993 BTC, i.e. 0.00006 after
+        rounding = 4.97 USDT, and Binance refused the sale (-1013). The buy now covers that."""
+        from trading_intelligence.live.operator import real_test_trade, sellable_buy_qty
+
+        price = Decimal("82857")
+        qty = sellable_buy_qty(BTC_RULES, price, Decimal("6"))
+        assert BTC_RULES.floor_qty(qty * Decimal("0.999")) * price >= Decimal("5.25")
+        w = Wallet({"BTCUSDT": price}, {"USDT": Decimal("32")}, BTC_RULES)
+        lines = real_test_trade(w, LIMITS, "BTCUSDT", Decimal("6"))
+        assert [o[1] for o in w.orders] == ["BUY", "SELL"] and lines[-1].startswith("prueba real completa")
+
+    def test_a_cap_too_low_for_a_sellable_round_trip_buys_nothing(self):
+        from trading_intelligence.live import operator as O
+
+        w = Wallet({"BTCUSDT": Decimal("82857")}, {"USDT": Decimal("32")},
+                   B.SymbolRules(step=Decimal("0.0001"), min_qty=Decimal("0.0001"), min_notional=Decimal("5")))
+        # 9 USDT buys 0.0001 BTC, but after the coin fee 0.00009 rounds down to 0: selling needs 0.0002 = 16.57 > 10
+        assert "tope de la prueba" in O.real_test_trade(w, LIMITS, "BTCUSDT", Decimal("9"))[-1] and w.orders == []
+
+
+class TestToUsdt:
+    def test_a_leftover_below_the_minimum_is_topped_up_then_sold_whole(self):
+        from trading_intelligence.live.operator import to_usdt
+
+        w = Wallet({"BTCUSDT": Decimal("82857")}, {"USDT": Decimal("32"), "BTC": Decimal("0.00006993")}, BTC_RULES)
+        lines = to_usdt(w, LIMITS, "BTCUSDT", set())
+        sides = [o[1] for o in w.orders]
+        assert sides == ["BUY", "SELL"] and w.orders[0][2] * Decimal("82857") >= 5
+        assert w.balances["BTC"] < BTC_RULES.step  # only rounding dust stays
+        assert lines[-1].startswith("listo: tu BTC pasó a USDT")
+
+    def test_a_sellable_amount_is_sold_without_buying(self):
+        from trading_intelligence.live.operator import to_usdt
+
+        w = Wallet({"BTCUSDT": Decimal("82857")}, {"USDT": Decimal("1"), "BTC": Decimal("0.0002")}, BTC_RULES)
+        to_usdt(w, LIMITS, "BTCUSDT", set())
+        assert [o[1] for o in w.orders] == ["SELL"] and w.orders[0][2] == Decimal("0.0002")
+
+    def test_never_touches_what_the_session_trades_or_unapproved_coins(self):
+        from trading_intelligence.live.operator import to_usdt
+
+        w = Wallet({"BTCUSDT": Decimal("82857")}, {"USDT": Decimal("32"), "BTC": Decimal("0.001")}, BTC_RULES)
+        assert "la sesión está operando" in to_usdt(w, LIMITS, "BTCUSDT", {"BTCUSDT"})[0]
+        assert "no está entre las monedas aprobadas" in to_usdt(w, LIMITS, "DOGEUSDT", set())[0]
+        assert w.orders == []
+
+
+class TestOwnerOrders:
+    """continuar / agregar / adoptar must reach the RUNNING operator: it owns session.json."""
+
+    def test_continue_written_while_running_is_not_lost(self, tmp_path):
+        from trading_intelligence.live import operator as O
+
+        sent = []
+        trader = FakeTrader({"BTCUSDT": Decimal("100")})
+        op = _operator(tmp_path, trader)
+        op.notify = sent.append
+        op.session.record_buy("BTCUSDT", Decimal("0.2"), Decimal("20"), Decimal("0"), "t")
+        trader.prices["BTCUSDT"] = Decimal("60")
+        op.step(decide=False)
+        assert op.session.status == WAITING_OWNER
+        (tmp_path / "OPERATOR.lock").write_text("1")  # this operator is alive
+        assert O.main(["--dir", str(tmp_path), "continuar"]) == 0
+        assert Session.load(tmp_path / "session.json").status == WAITING_OWNER  # the CLI did not write it
+        op.step(decide=False)
+        assert op.session.status == RUNNING and not (tmp_path / O.INBOX).exists()
+        assert Session.load(tmp_path / "session.json").status == RUNNING  # and the running operator kept it
+        assert any("sigo operando" in m for m in sent)
+
+    def test_add_and_adopt_go_through_the_inbox(self, tmp_path):
+        from trading_intelligence.live import operator as O
+
+        sent = []
+        w = Wallet({"BTCUSDT": Decimal("100")}, {"USDT": Decimal("50"), "BTC": Decimal("0.3")})
+        op = _operator(tmp_path, w)
+        op.notify = sent.append
+        O.queue_owner_order(tmp_path, {"cmd": "agregar", "capital": "10"})
+        O.queue_owner_order(tmp_path, {"cmd": "adoptar", "simbolo": "BTCUSDT"})
+        O.queue_owner_order(tmp_path, {"cmd": "adoptar", "simbolo": "DOGEUSDT"})
+        O.queue_owner_order(tmp_path, {"cmd": "agregar", "capital": "-5"})  # refused, never crashes
+        equity_before = op.session.equity({"BTCUSDT": Decimal("100")})
+        op.step(decide=False)
+        s = op.session
+        assert s.capital == Decimal("90") and s.holdings["BTCUSDT"].qty == Decimal("0.3")
+        assert s.equity({"BTCUSDT": Decimal("100")}) - equity_before == Decimal("40")  # added, not a gain
+        assert s.available == Decimal("60")  # adopting spends no USDT
+        assert any("Sumé a la sesión tu BTC" in m for m in sent) and any("DOGE no está" in m for m in sent)
+        assert any("No pude aplicar tu orden" in m for m in sent)
+
+    def test_without_a_running_operator_continue_is_applied_directly_and_adopt_refuses(self, tmp_path):
+        from trading_intelligence.live import operator as O
+
+        s = Session("s1", "tendencia", "t", Decimal("50"))
+        s.status = WAITING_OWNER
+        s.save(tmp_path / "session.json")
+        assert O.main(["--dir", str(tmp_path), "continuar"]) == 0
+        assert Session.load(tmp_path / "session.json").status == RUNNING
+        assert O.main(["--dir", str(tmp_path), "adoptar", "--simbolo", "BTCUSDT"]) == 1
+        assert not (tmp_path / O.INBOX).exists()
+
+
+class TestCommissions:
+    def test_reads_this_accounts_fees_and_flags_promotions(self, tmp_path):
+        from trading_intelligence.live.operator import fee_lines
+
+        class FeeFake(FakeBinance):
+            def __call__(self, method, url, headers, timeout):
+                if "/api/v3/account/commission" in url:
+                    self.calls.append((method, url, dict(headers)))
+                    zero = "symbol=BTCUSDT" in url
+                    return _resp(200, {"symbol": "X", "standardCommission": {
+                        "maker": "0" if zero else "0.001", "taker": "0" if zero else "0.001"},
+                        "discount": {"enabledForAccount": True, "enabledForSymbol": True,
+                                     "discountAsset": "BNB", "discount": "0.25"}})
+                return super().__call__(method, url, headers, timeout)
+
+        fake = FeeFake()
+        t, _ = _trader(tmp_path, fake)
+        t.verify_key()
+        lines = fee_lines(t, ["BTCUSDT", "ETHUSDT"])
+        assert "PROMOCIÓN: sin comisión" in lines[0] and "PROMOCIÓN" not in lines[1]
+        assert lines[1] == ("ETH: comisión 0.100% (órdenes a mercado), 0.100% (órdenes límite); "
+                            "pagando con BNB baja un 25%.")
+        assert all("signature=" in c[1] for c in fake.calls if "commission" in c[1])

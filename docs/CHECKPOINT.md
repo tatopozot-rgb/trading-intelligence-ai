@@ -2780,6 +2780,41 @@ klines, no account, no key, no orders; `live/` and `config/live_limits.json` unt
 - Expect the honest outcome to be "no hour or market better than chance" unless the
   forward fortnight differs markedly. This is said now, before any forward data.
 
+### 72. Real test left BTC unsold; owner orders lost by a running operator; trading with all holdings (2026-10-09)
+
+- **Bug 1 (mine).** `prueba --real` bought 0.00007 BTC (about 5.80 USDT) and received
+  0.00006993 after the coin fee. That rounds down to 0.00006 = 4.97 USDT, under the 5 USDT
+  minimum, so Binance refused the sale (-1013) and the BTC stayed in Spot.
+  - Claude local restarted the session with capital 32 (the free USDT), at 45% and meta 58.
+  - Fix: `sellable_buy_qty` buys the smallest lot whose fee-net, rounded remainder still sells
+    at ≥ 1.05 × the minimum. Above the 10 USDT cap it refuses. The sell uses min(executed,
+    real free balance). Regression test at BTC's real step and price.
+- **Bug 2 (pre-existing, found while adding commands).** `continuar` and `agregar` wrote
+  `session.json`, but the running operator keeps the session in memory and rewrites the file
+  every pass. The owner's "continúa" after the warning would have been silently lost.
+  - Fix: an inbox `ORDENES.jsonl`. The CLI queues the order when an operator is alive
+    (lock + heartbeat). The operator takes the inbox atomically each pass, applies the
+    orders, and confirms on Telegram; refused orders are noted and notified, never crash.
+  - With no operator running, `continuar` and `agregar` apply directly as before.
+- **Owner: "trabaja con todo lo que tengamos" / "usa ese BTC en las operaciones".**
+  - `adoptar --simbolo X`: free coins in Spot join the session at current value. Capital rises
+    by the same amount (not a gain) and available USDT is unchanged. Approved symbols only,
+    and not a symbol the session already holds.
+  - Below Binance's minimum the coin is sold together with the next buy of that symbol, or
+    with `pasar-a-usdt`.
+- **`pasar-a-usdt --simbolo X`.** Sells all free units of a coin. Under the minimum it first
+  buys the smallest top-up (≤ 10 USDT) and re-reads the exchange balance before selling. It
+  refuses a symbol the session holds.
+- **`comisiones`.** Read-only `GET /api/v3/account/commission` for each symbol: this account's
+  real fees, promotions and the BNB discount. The owner asked about fee promotions.
+- Tests: 19 new; 127 live/Telegram/watcher tests pass; ruff and mypy are clean.
+- Owner, same day:
+  - "puede operar con todo el mercado — lo mío son solo preferencias" (BTC, ETH, gold, oil);
+  - GPT Work has no credits until 10-14, so the leader covers the daily review;
+  - economize tokens: bots trade, LLM routines only supervise.
+  The universe expansion needs a concrete symbol list in `config/live_limits.json`, built from
+  official volume data (in progress).
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
