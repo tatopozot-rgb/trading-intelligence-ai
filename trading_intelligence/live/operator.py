@@ -29,7 +29,7 @@ from decimal import ROUND_DOWN, Decimal
 from pathlib import Path
 from typing import Callable, Optional
 
-from trading_intelligence.live import mirror
+from trading_intelligence.live import mirror, telegram_notify
 from trading_intelligence.live.binance_live import (
     Credentials,
     Fill,
@@ -56,6 +56,7 @@ DEFAULT_TIMEFRAME = "4h"
 DEFAULT_TRAILING_PCT = Decimal("3")
 DEFAULT_TRAIL_AFTER_PCT = Decimal("2")
 MID_REPORT_EVERY = timedelta(hours=12)
+SUMMARY_EVERY = timedelta(hours=4)  # short status line to the owner (console and Telegram)
 
 AGENTS_BY_PROFILE = {
     "tendencia": ["Detector de régimen", "Estrategia de tendencia (cruce de medias)", "Motor de riesgo (veto)",
@@ -204,12 +205,14 @@ class Operator:
         self.trail_after_pct = trail_after_pct
         self.session = Session.load(self.dir / "session.json")
         self.last_mid_report = self.clock()
+        self.last_summary = self.clock()
 
     # --- one pass ------------------------------------------------------------------
 
     def step(self, decide: bool) -> list[mirror.Action]:
         s = self.session
         actions: list[mirror.Action] = []
+        guarded_before = set(s.guard_stops)
         for fill in self.trader.reconcile(self.trader.price):
             mirror._apply_fill(s, fill, "RECONCILED")
             s.note("RECONCILED", f"{fill.side} {fill.symbol} {fill.executed_qty}")
@@ -265,6 +268,14 @@ class Operator:
         for a in actions:
             if a.kind == "SKIP":
                 s.note("SKIP", f"{a.symbol}: {a.reason}")
+            elif a.kind in ("BUY", "SELL"):
+                self.notify(f"{self._tag()} {'COMPRA' if a.kind == 'BUY' else 'VENTA'} {a.symbol} "
+                            f"{a.usdt:.2f} USDT ({a.reason})")
+            elif a.kind == "GUARD" and a.symbol not in guarded_before:
+                self.notify(f"{self._tag()} stop puesto en Binance: {a.symbol} {a.reason.split(':', 1)[-1]}")
+        if self.clock() - self.last_summary >= SUMMARY_EVERY:
+            self.notify(self.summary(prices))
+            self.last_summary = self.clock()
         if self.clock() - self.last_mid_report >= MID_REPORT_EVERY:
             self.write_report("medio")
             self.last_mid_report = self.clock()
@@ -302,6 +313,19 @@ class Operator:
             if rules.floor_qty(h.qty) * self.trader.price(sym) >= rules.min_notional:
                 return False
         return True
+
+    def _tag(self) -> str:
+        return "[REAL]" if self.real else "[SHADOW]"
+
+    def summary(self, prices: dict[str, Decimal]) -> str:
+        s = self.session
+        held = {sym: prices.get(sym) or self.trader.price(sym) for sym in s.holdings}
+        equity = s.equity(held)
+        result = equity - s.capital
+        positions = ", ".join(f"{sym} {held[sym]}" for sym in sorted(held)) or "sin posiciones"
+        return (f"{self._tag()} resumen: {s.status}, capital {s.capital:.2f}, valor {equity:.2f} USDT "
+                f"({'+' if result >= 0 else ''}{result:.2f}); límite de pérdida "
+                f"{self.limits.loss_limit_usd(s.capital):.2f}; {positions}")
 
     def _save(self) -> None:
         self.session.save(self.dir / "session.json")
@@ -488,6 +512,7 @@ def _launch(d: Path, limits: OwnerLimits, meta: dict, engine_equity: str, max_it
     target = Decimal(meta["profit_target_pct"]) if meta.get("profit_target_pct") is not None else None
     op = Operator(d, trader, limits, profile=meta["profile"], timeframe=meta["timeframe"], symbols=meta["symbols"],
                   loop=loop, real=meta["real"], end_at=end_at, profit_target_pct=target,
+                  notify=telegram_notify.make_notify(print, telegram_notify.from_env()),
                   trailing_pct=Decimal(str(meta.get("trailing_pct", DEFAULT_TRAILING_PCT))))
     op.run(max_iterations=max_iterations, start_report=True)
 
