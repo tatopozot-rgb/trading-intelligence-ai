@@ -90,3 +90,62 @@ A **cell** is one window × symbol × strategy: 12 × 13 × 3 = 468 cells.
   - top and bottom 5 cells in plain Spanish.
 - `docs/experimento_horarios/resumen.md` and `.json`: the cumulative view. After
   2026-10-23 it also carries the selection-rule outcome.
+
+---
+
+## Amendment 1 (2026-10-09 ~15:15 UTC, before any result was computed)
+
+**Reason:** the owner clarified the design through the leader. A backfill under the original
+design had been dispatched (run `37949279922`). It was cancelled about 10 seconds in, while
+still fetching data. It produced and committed no result (verified: `docs/experimento_horarios/`
+does not exist on the branch). Nothing below was chosen with any result in view. Where this
+amendment conflicts with the text above, the amendment governs.
+
+1. **Trading days.** Every day is computed and stored. The decision scope changes:
+   - **Monday–Friday** is the primary decision scope.
+   - **Saturday** is reported separately, so the owner can choose Mon–Fri or Mon–Sat. The
+     Mon–Sat variant runs through the same rule as an alternative. This choice is a
+     disclosed fork, not a hidden one.
+   - **Sunday** is recorded and excluded from every decision.
+   - A **per-weekday breakdown** (mean net % per trade, per strategy) is added to the daily
+     and cumulative reports.
+2. **Halves count trading days.** The forward period stays **2026-10-10 → 2026-10-23**.
+   - It contains the 10 weekdays 2026-10-12 → 10-16 and 10-19 → 10-23, plus Saturdays
+     10-10 and 10-17.
+   - **Half 1** is the days up to 2026-10-16; **half 2** is 2026-10-17 → 10-23, each
+     filtered to the scope.
+   - The minimum trades per half equals the number of scope days in that half: **5**
+     (Mon–Fri) or **6** (Mon–Sat). That is the most a baseline cell can reach (one trade
+     per day).
+3. **The owner's window, a PRIMARY planned hypothesis:** **07:00–10:00 Ecuador = 12:00–15:00
+   UTC (3 hours, 9 twenty-minute bars)**. It is simulated separately, with the same
+   strategies, costs and rules, and kept outside the exploratory BH family.
+   - **Primary test (3 tests, Bonferroni α = 0.05/3):** for each strategy, pooled over the
+     13 symbols, on the Mon–Fri scope. It passes if:
+     - half-1 mean > 0;
+     - half-2 mean > 0;
+     - a one-sided t-test on half-2 trades gives p < 0.0167;
+     - each half has at least 5 trades.
+   - **Per symbol within the owner's window:** 13 × 3 = 39 tests, under their own BH at
+     q = 0.10, with the same split-half conditions.
+   - The 12 two-hour windows remain the **exploratory search**, under BH as registered above.
+4. **Monitoring like a trader.**
+   - Entries are still decided on completed 20-minute bars at :00/:20/:40. They fill at the
+     next minute's open × (1 + 5 bps).
+   - Once a position is open, its exit is checked **every 3 minutes on 1-minute klines**:
+     - **Stop:** hit when any 1-minute low reaches it. The fill is at the stop × (1 − 10
+       bps), the touch slippage `BacktestEngine` uses (kept for conservatism). If that
+       minute opened below the stop, the fill is at its open × (1 − 5 bps).
+     - **Exit condition:** the strategy's own `on_exit_signal`, evaluated at each 3-minute
+       check on the 20-minute series whose last bar is the **in-progress** 20-minute bar
+       built from the 1-minute data so far, which is what a trader watching live sees.
+       Fill at the next minute's open × (1 − 5 bps).
+     - **Forced close** at the window's last minute close × (1 − 5 bps).
+   - **Data:** public **1-minute** Binance spot klines, from which the 20-minute bars are
+     built. A 20-minute bar missing any minute is dropped; a window with a missing bar is
+     skipped and counted.
+5. **Ecuador time (UTC−5) first in every report**, UTC in brackets. The owner confirmed
+   Ecuador.
+6. **Unchanged:** universe, strategies, costs (0.1% per side + 5 bps, 10 USDT per trade),
+   the 12 two-hour windows, the backfill (14 days before 2026-10-09, reference only), the
+   forward dates, BH q = 0.10 for the exploratory family, and the PAPER-only scope.
