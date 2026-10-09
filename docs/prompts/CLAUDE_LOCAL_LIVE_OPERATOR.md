@@ -102,6 +102,18 @@ de Claude. Lo que sí lo detiene es que el proceso muera, el PC se reinicie o el
    Lo único que no corre con el PC apagado son las decisiones nuevas, es decir, las compras.
    Si el dueño ve órdenes "Stop-Loss" abiertas en Binance, son estas; no hay que tocarlas.
 
+## 4c. Publicar los reportes para que el líder y GPT Work vigilen
+
+El operador corre aparte y nadie en la nube puede leer `live_runs/` directamente. Una tarea
+del Programador de tareas, creada por el dueño o con su permiso, ejecuta **cada hora** desde
+`live-operator`:
+```
+..\venv-live\Scripts\python.exe tools\publish_live_reports.py --state live_runs\current --repo ..\live-reports-repo
+```
+Copia solo `status.json`, los `reporte_*.md` y `AVISO.txt` a `docs/live_reports/<sesión>/` en
+un clon aparte, en la rama `live-reports`, y hace push. Nunca copia el diario de órdenes, la
+sesión, el motor ni nada con claves, y no toca el checkout del operador.
+
 ## 5. Nunca
 
 Retiros, transferencias, margen, futuros o apalancamiento; reenviar una orden incierta (el
