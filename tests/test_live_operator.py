@@ -460,3 +460,19 @@ class TestOwnerExits:
         with pytest.raises(SystemExit):
             O.main(["--dir", str(tmp_path), "iniciar", "--capital", "50", *flag])
         assert not (tmp_path / "session.json").exists()
+
+
+def test_the_start_report_shows_the_first_market_read(tmp_path):
+    """Pre-flight finding: the start report was written before the first decision, so the
+    owner's rehearsal showed no regime per coin. It now follows the first decision pass."""
+    trader = FakeTrader({"BTCUSDT": Decimal("100")})
+    loop = FakeLoop(tmp_path)
+    loop.tick = lambda: (setattr(loop, "ticks", loop.ticks + 1),
+                         loop.state_path.write_text(json.dumps({"journal": [
+                             {"bar": "b1", "symbol": "BTCUSDT", "action": "NO_STRATEGY_FOR_REGIME",
+                              "regime": "TREND_DOWN"}]})))
+    op = _operator(tmp_path, trader, loop)
+    op.run(poll_seconds=0, sleep=lambda s: None, max_iterations=1, start_report=True)
+    start = next(tmp_path.glob("reporte_inicio_*.md")).read_text(encoding="utf-8")
+    assert loop.ticks == 1 and "TREND_DOWN" in start and "BTCUSDT" in start
+    assert list(tmp_path.glob("reporte_final_*.md"))  # a bounded rehearsal leaves its summary

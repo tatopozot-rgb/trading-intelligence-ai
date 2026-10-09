@@ -309,7 +309,9 @@ class Operator:
         self.write_report("final")
 
     def run(self, poll_seconds: float = 60.0, sleep: Callable[[float], None] = time.sleep,
-            max_iterations: Optional[int] = None) -> None:
+            max_iterations: Optional[int] = None, start_report: bool = False) -> None:
+        """start_report: write the start report right after the first decision pass, so it
+        shows the market read (regime and decision per coin), not an empty page."""
         from trading_intelligence.execution.paper_loop import INTERVAL_SECONDS
 
         interval = INTERVAL_SECONDS[self.timeframe]
@@ -329,10 +331,15 @@ class Operator:
             decide = bar != last_bar
             self.step(decide)
             last_bar = bar
+            if start_report and n == 0:
+                self.notify(str(self.write_report("inicio")))
             if self.session.status == STOPPED and self.only_dust_left():
                 self.write_report("final")
                 return
             n += 1
+            if max_iterations is not None and n >= max_iterations:
+                self.write_report("final")  # a bounded run (rehearsal) still leaves its summary
+                return
             sleep(poll_seconds)
 
 
@@ -450,8 +457,7 @@ def main(argv: Optional[list[str]] = None) -> int:
                               router_factory=router_factory(args.perfil, args.temporalidad))
         op = Operator(d, trader, limits, profile=args.perfil, timeframe=args.temporalidad, symbols=symbols,
                       loop=loop, real=args.real, end_at=end_at, profit_target_pct=target)
-        print(op.write_report("inicio"))
-        op.run(max_iterations=args.max_iteraciones)
+        op.run(max_iterations=args.max_iteraciones, start_report=True)
     finally:
         lock.unlink(missing_ok=True)
     return 0
