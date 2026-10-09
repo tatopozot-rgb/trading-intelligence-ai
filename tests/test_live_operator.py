@@ -460,3 +460,136 @@ class TestOwnerExits:
         with pytest.raises(SystemExit):
             O.main(["--dir", str(tmp_path), "iniciar", "--capital", "50", *flag])
         assert not (tmp_path / "session.json").exists()
+
+
+def test_the_start_report_shows_the_first_market_read(tmp_path):
+    """Pre-flight finding: the start report was written before the first decision, so the
+    owner's rehearsal showed no regime per coin. It now follows the first decision pass."""
+    trader = FakeTrader({"BTCUSDT": Decimal("100")})
+    loop = FakeLoop(tmp_path)
+    loop.tick = lambda: (setattr(loop, "ticks", loop.ticks + 1),
+                         loop.state_path.write_text(json.dumps({"journal": [
+                             {"bar": "b1", "symbol": "BTCUSDT", "action": "NO_STRATEGY_FOR_REGIME",
+                              "regime": "TREND_DOWN"}]})))
+    op = _operator(tmp_path, trader, loop)
+    op.run(poll_seconds=0, sleep=lambda s: None, max_iterations=1, start_report=True)
+    start = next(tmp_path.glob("reporte_inicio_*.md")).read_text(encoding="utf-8")
+    assert loop.ticks == 1 and "TREND_DOWN" in start and "BTCUSDT" in start
+    assert list(tmp_path.glob("reporte_final_*.md"))  # a bounded rehearsal leaves its summary
+
+
+class TestResume:
+    """Owner: "estar atento al cierre". If the operator dies (crash, reboot, power cut), the
+    open session must be resumable, so its stops and loss guard are watched again."""
+
+    def _session(self, d, status="RUNNING", holdings=True):
+        s = Session("s1", "tendencia", "t", Decimal("100"))
+        if holdings:
+            s.record_buy("BTCUSDT", Decimal("0.1"), Decimal("10"), Decimal("0"), "t")
+        s.status = status
+        s.save(d / "session.json")
+        (d / "meta.json").write_text(json.dumps({"profile": "tendencia", "timeframe": "4h", "symbols": ["BTCUSDT"],
+                                                 "real": True, "end_at": None, "profit_target_pct": None}))
+
+    def test_a_fresh_lock_means_running_and_a_stale_one_is_replaced(self, tmp_path):
+        import os
+
+        from trading_intelligence.live import operator as O
+
+        lock = O._lock(tmp_path)
+        with pytest.raises(O.AlreadyRunning):
+            O._lock(tmp_path)
+        old = (datetime.now(timezone.utc) - timedelta(minutes=30)).timestamp()
+        os.utime(lock, (old, old))
+        assert O._lock(tmp_path).exists()  # dead operator: its lock no longer blocks
+
+    def test_resume_relaunches_the_open_session_once(self, tmp_path, monkeypatch, capsys):
+        from trading_intelligence.live import operator as O
+
+        self._session(tmp_path)
+        launched = []
+        monkeypatch.setattr(O, "_launch", lambda d, limits, meta, eq, it: launched.append((meta["real"], eq)))
+        assert O.main(["--dir", str(tmp_path), "reanudar"]) == 0
+        assert launched == [(True, "100")] and not (tmp_path / "OPERATOR.lock").exists()
+        assert Session.load(tmp_path / "session.json").events[-1]["kind"] == "RESUMED"
+        O._lock(tmp_path)  # now a live operator holds it
+        assert O.main(["--dir", str(tmp_path), "reanudar"]) == 0
+        assert len(launched) == 1 and "ya está corriendo" in capsys.readouterr().out
+
+    @pytest.mark.parametrize("status,holdings", [("STOPPED", False), (None, None)])
+    def test_nothing_to_resume(self, tmp_path, monkeypatch, status, holdings):
+        from trading_intelligence.live import operator as O
+
+        if status:
+            self._session(tmp_path, status, holdings)
+        monkeypatch.setattr(O, "_launch", lambda *a: pytest.fail("must not launch"))
+        assert O.main(["--dir", str(tmp_path), "reanudar"]) == 0
+
+    def test_a_stopped_session_with_positions_is_resumed_to_close_them(self, tmp_path, monkeypatch):
+        from trading_intelligence.live import operator as O
+
+        self._session(tmp_path, "STOPPED", holdings=True)
+        launched = []
+        monkeypatch.setattr(O, "_launch", lambda *a: launched.append(1))
+        O.main(["--dir", str(tmp_path), "reanudar"])
+        assert launched == [1]  # step() flattens a STOPPED session that still holds coins
+
+    def test_a_new_session_never_inherits_the_previous_engine(self, tmp_path, monkeypatch):
+        from trading_intelligence.live import operator as O
+
+        self._session(tmp_path, "STOPPED", holdings=False)
+        (tmp_path / "engine").mkdir()
+        (tmp_path / "engine" / "paper.json").write_text("{}")
+        seen = []
+        monkeypatch.setattr(O, "_trader", lambda real, journal: None)
+        monkeypatch.setattr(O, "_launch", lambda d, limits, meta, eq, it: seen.append((d / "engine").exists()))
+        O.main(["--dir", str(tmp_path), "iniciar", "--capital", "100"])
+        assert seen == [False] and Session.load(tmp_path / "session.json").capital == Decimal("100")
+
+
+def test_resume_never_sells_what_the_owner_kept_with_parar(tmp_path, monkeypatch):
+    from trading_intelligence.live import operator as O
+
+    TestResume()._session(tmp_path, "STOPPED", holdings=True)
+    s = Session.load(tmp_path / "session.json")
+    s.note("FIN", "OWNER_STOP: parada ordenada por el dueño")
+    s.save(tmp_path / "session.json")
+    monkeypatch.setattr(O, "_launch", lambda *a: pytest.fail("a finished session is never reopened"))
+    assert O.main(["--dir", str(tmp_path), "reanudar"]) == 0
+
+
+class TestClockSync:
+    """Claude Code local saw a -1021 (timestamp outside recvWindow) on the owner's PC. With one
+    sync per process, a drifting clock would make Binance refuse every later signed call,
+    protective sells included."""
+
+    def _count_time_calls(self, fake):
+        return sum(1 for c in fake.calls if "/api/v3/time" in c[1])
+
+    def test_resyncs_periodically_and_right_after_a_1021(self, tmp_path):
+        now = [1_800_000_000.0]
+        fake = FakeBinance()
+        t = B.SpotTrader(B.Credentials(KEY, KEY), tmp_path / "o.json", transport=fake, clock=lambda: now[0])
+        t.verify_key()
+        t.free_balance("USDT")
+        assert self._count_time_calls(fake) == 1  # fresh offset reused
+        now[0] += B.TIME_RESYNC_SECONDS
+        t.free_balance("USDT")
+        assert self._count_time_calls(fake) == 2  # stale offset re-read
+        original = fake.restrictions
+        fake.restrictions = {"code": -1021, "msg": "Timestamp for this request is outside of the recvWindow."}
+        with pytest.raises(B.LiveError, match="-1021"):
+            t.verify_key()
+        fake.restrictions = original
+        assert t.verify_key() is True and self._count_time_calls(fake) == 3  # resynced at once
+
+    def test_offset_uses_the_middle_of_the_round_trip(self, tmp_path):
+        ticks = iter([1000.0, 1002.0] + [1002.0] * 20)  # the time request took 2 s
+        server_ms = 1_001_000
+
+        def transport(method, url, headers, timeout):
+            return _resp(200, {"serverTime": server_ms}) if "/api/v3/time" in url else _resp(200, FakeBinance().restrictions)
+
+        t = B.SpotTrader(B.Credentials(KEY, KEY), tmp_path / "o.json", transport=transport, clock=lambda: next(ticks))
+        t._sync_time()
+        assert t._offset_ms == 0  # the server's 1001.000 s is the midpoint of 1000-1002, not 1 s behind

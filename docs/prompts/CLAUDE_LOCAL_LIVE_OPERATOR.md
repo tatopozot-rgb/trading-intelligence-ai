@@ -49,6 +49,7 @@ Debe imprimir el reporte de inicio, decidir sobre datos reales y escribir
 | "continúa" (después del aviso de 2 USD) | `python -m trading_intelligence.live.operator continuar` |
 | "agrega 20" / "usa 1000" | `... agregar --capital 20` (solo después de que el dueño depositó) |
 | "para" / "para y cierra todo" | `... parar` / `... parar --cerrar` |
+| (si el operador se cayó o el PC se reinició) | `... reanudar`; el vigilante lo hace solo cada 5 min |
 | "cómo vamos" | `... estado` y `... reporte --etapa medio` |
 
 Antes de un `--real` que no salga de una frase explícita del dueño: no lo ejecutes.
@@ -72,6 +73,31 @@ saldo es 0, el operador no compra nada; díselo al dueño antes de arrancar.
   `reporte_final_*.md` en `live_runs/current/`. Cópialos a `docs/live_reports/<sesión>/`
   en tu rama y haz push. Así GPT Work los lee para su informe y el líder los revisa.
   No contienen claves.
+
+## 4b. Que nada quede sin vigilar (antes de la primera sesión real)
+
+El operador es un proceso de Python en este PC. Sigue funcionando aunque las sesiones de Claude
+se queden sin créditos o se cierren: los stops, la guardia de pérdida y los reportes no dependen
+de Claude. Lo que sí lo detiene es que el proceso muera, el PC se reinicie o el PC se suspenda.
+
+1. **Vigilante:** crea una tarea en el Programador de tareas de Windows que ejecute cada
+   **5 minutos** y **al iniciar sesión**, desde `live-operator`:
+   ```
+   python -m trading_intelligence.live.operator reanudar
+   ```
+   Si el operador está vivo, `reanudar` sale sin hacer nada. Si murió, retoma la misma sesión,
+   con el mismo capital, límites y motor, y vuelve a vigilar stops y pérdida. Un lock sin
+   latido durante 10 minutos se considera de un proceso muerto.
+   - Nunca reabre una sesión terminada (por "para", plazo o meta).
+   - Nunca vende las monedas que el dueño se quedó con "para" sin "cierra".
+   - La tarea debe usar la terminal con las variables de entorno del dueño (usuario del dueño,
+     "ejecutar solo cuando el usuario haya iniciado sesión").
+2. **Que el PC no se suspenda:** pide permiso al dueño y luego ejecuta
+   `powercfg /change standby-timeout-ac 0` (nunca suspender enchufado). Apagar la pantalla
+   sí está permitido.
+3. **Si el PC se apaga o pierde internet:** al volver, el vigilante reanuda solo. Mientras el PC
+   está apagado, los stops **no** se vigilan (son del operador, no órdenes en Binance). Por
+   eso el tamaño máximo es 40 USDT por moneda y el límite total es del 20%.
 
 ## 5. Nunca
 

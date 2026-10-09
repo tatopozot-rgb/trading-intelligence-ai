@@ -2099,6 +2099,128 @@ Who receives the owner's orders: Claude Code local (on the owner's PC, opened fr
 Claude phone app). It holds the key and runs the operator. Claude Leader relays when the
 owner writes here instead.
 
+### 50. Pull requests resolved (2026-10-08, owner: "soluciona los pull request")
+
+- PR #9 (Claude Code local: real PAPER system #3 -> #4 -> F3 + read-only API H1-H3) merged
+  into the default branch, `15255f1`. Only conflict: `.gitignore` (kept both sides).
+  - Research suite: 677 passed; ruff and mypy clean.
+  - Root PAPER unittest suite: 660/662; the 2 errors need `tkinter`, which is absent in the
+    cloud container and present on the owner's PC.
+  - Repository guard: 0 findings.
+- PR #8 (GPT Work cross-review harness) merged, `4130970`. All of its reproduction suites
+  pass against the code; the findings were fixed in sections 31-37 and 40.
+  - Synthetic key literals were shortened so the guard stays at 0 findings.
+- PR #3: closed by the merge. PRs #4 and #5: closed as superseded (their content is in #9).
+- PR #1 merged: `main` is now in sync with the default branch, which stays
+  `ccr-b66a9a9e-okj2pl`.
+- No open PRs remain. Claude Code local should work from the default branch from now on.
+
+### 51. 8h review (2026-10-09 00:12Z): Windows suite green, SHADOW branch approved, market in downtrend
+
+- **Root PAPER suite on the owner's PC (Claude Code local, default branch `7bcc1b3`): 671/671
+  OK** with real pandas and tkinter. That closes the 2 tkinter errors seen in the cloud. (The cloud
+  counts 662 because `test_paper_ui_controls` fails to import there.)
+- **`main` CI after the PR merges:** research-tests run `37855295310` green (ruff, mypy, pytest).
+- **`claude-code/shadow-mode` (`fe56c78`, Claude Code local, SHADOW on the root runtime):** reviewed
+  and approved by the cloud.
+  - It merges cleanly into the default branch; `test_paper_shadow` 13/13.
+  - The merged root suite is 674 with only the cloud's tkinter error.
+  - 3 extra mutants killed: rollback→commit, forcing the valuation commit, dropping the audit
+    event.
+  - The design reuses the real decision code and rolls the whole transaction back, so SHADOW
+    cannot drift from PAPER's controls.
+  - Its documented limits are accurate. In particular, a symbol SHADOW "would open" keeps being
+    reported every scan, because SHADOW never holds it.
+  - No PR exists yet: Claude Code local opens it.
+- **PAPER automator:** last scheduled run `37845436206` (21:15Z) is green with state restored.
+  11 of 12 symbols are in `TREND_DOWN`/`NO_EDGE` and TRX is in `RANGE`, so there are no entries
+  (long-only Spot: correct).
+  - **Implication for the owner:** a real `tendencia` session started in this market would mostly
+    stay in USDT until an uptrend or breakout appears. That is the system protecting capital, not
+    a fault. `tendencia_rango` could act on ranging symbols such as TRX.
+  - GitHub ran only one scheduled tick in about 8h. Scheduled runs are best-effort; the state is
+    preserved and each run catches up all closed bars, so a skipped tick loses no data.
+- **AGENT_COORDINATION rows updated:** operator ready, key done, pilot approved, PR #9 merged, SHADOW
+  reviewed.
+- **Still waiting on the owner:** free USDT in Spot, then the phrase to Claude Code local.
+
+### 52. Pre-flight 100 USDT; pending branches integrated (2026-10-09 ~02:00Z)
+
+- **Owner, before starting:** "arregla los pull". No PR was open. Three finished branches had
+  never been opened as PRs; all three were merged into the default branch after verification:
+  - `claude-code/preflight-100` (`bb60f46`): Claude Code local's rehearsal results in
+    `docs/live_reports/preflight/`.
+  - `claude-code/shadow-mode` (`fe56c78`, `2a685c7`): SHADOW on the root runtime, approved in
+    section 51. It now also records its first real-data `--sombra-paper` session.
+    `test_paper_shadow` OK.
+  - `claude-code/agent-city-3d-mvp` (23 commits, the visual app, read-only):
+    - model tests 17/17;
+    - GPT Work's `agent_city_acceptance.test.mjs` 4/4, including the "documented-only WORKING"
+      finding, now fixed;
+    - repository guard 0 findings.
+- **Pre-flight finding, fixed:** the operator wrote the start report BEFORE the first decision,
+  so the rehearsal showed no regime or decision per coin. The start report now follows the
+  first decision pass, and a bounded run (`--max-iteraciones`) ends with a final report.
+  39 live tests, 2/2 mutants killed.
+- **Pre-flight results (Claude Code local, `docs/live_reports/preflight/README.md`):**
+  - key OK;
+  - **free USDT in Spot >= 100: NO** at check time;
+  - SHADOW rehearsal exit 0 with the exact config (100, `tendencia_rango`, 4h, 12 coins,
+    18/20/40%/3);
+  - live top-trader review not done: it needs the owner's permission for the local session to
+    read his open Binance.
+- **Market read** (PAPER loop run `37871548069`, bar 2026-10-08 20:00Z): 9 coins `TREND_DOWN`,
+  ADA and AVAX `NO_EDGE`, TRX `RANGE`.
+  - `tendencia` buys nothing in this market.
+  - `tendencia_rango` would only consider a TRX rebound, and only on an oversold signal.
+  - Expect the first real session to hold USDT until the market turns.
+
+### 53. Nothing left unwatched: `reanudar` and a watchdog (2026-10-09)
+
+Owner: "debes estar atento al cierre… pendiente de cuando te vayas a quedar sin créditos xq se
+va de largo y perdemos".
+- **Claude credits:** the operator does not depend on Claude sessions. Stops, the loss guard and
+  the reports run in the operator's own Python process on the owner's PC.
+- **Real gap found and fixed:** if that process died (crash, reboot, power cut), there was no way
+  to resume the open session. `iniciar` refused ("a session is already open"), the lock stayed,
+  and the session's coins would sit with no stop watched.
+  - New `reanudar`: it resumes the same session (same capital, limits, engine state, time box and
+    target) and is safe to repeat. While a live operator holds the lock it exits at once.
+  - A lock is stale after 10 minutes without a heartbeat (`status.json` is rewritten every
+    60 s). A heartbeat is used instead of a PID check, because `os.kill(pid, 0)` terminates
+    the process on Windows.
+  - It never reopens a finished session (owner stop, time box, target) and never sells coins
+    kept with "parar" without "cerrar". It does resume a loss-limit stop interrupted mid-close,
+    to finish closing.
+- **Also fixed:** a new `iniciar` reused the previous session's engine state in `engine/`. The
+  engine would have believed in the old positions and equity. It now starts clean.
+- 46 live tests (7 new); ruff and mypy clean; 5/5 mutants killed.
+- **Claude Code local** (prompt section 4b):
+  - a Windows Task Scheduler entry runs `reanudar` every 5 minutes and at logon;
+  - with the owner's permission, the PC never sleeps on AC power.
+- **Known limit, told to the owner:** while the PC is off, stops are not watched, because they
+  are the operator's, not orders resting on Binance. Exposure is bounded by 40 USDT per coin and
+  the 20% session limit. Exchange-side protective stops are the next improvement.
+
+### 54. Second rehearsal merged; Binance clock resync (2026-10-09 ~02:30Z)
+
+- Owner: "soluciona pulls". No PR was open. Claude Code local's new branch
+  `claude-code/preflight-100b` (`d098bdc`) was merged.
+  - Second SHADOW rehearsal on `35a78d7`: 46 live tests; the start report now shows each coin.
+    10 coins `TREND_DOWN`, ADA and AVAX `NO_EDGE` (NO_TRADE), TRX `RANGE` with no signal.
+    No simulated buy.
+  - Free USDT in Spot >= 100: **NO**, so the real session was not started.
+  - Watchdog, `powercfg` and the top-trader review still wait for the owner's permission in
+    the local session.
+- **Its finding, fixed:** a signed read failed with -1021 (timestamp outside `recvWindow`). The
+  transport synced Binance time once per process and never again. Over a weekend the PC clock
+  drift would make Binance refuse every signed call, protective sells included.
+  - The offset is now re-read every 10 minutes and immediately after any -1021. A -1021 is
+    refused before processing, so nothing executed.
+  - The offset now uses the midpoint of the time request's round trip, so a slow network no
+    longer biases every timestamp late.
+  - 48 live tests (2 new); 3/3 mutants killed; ruff and mypy clean.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |

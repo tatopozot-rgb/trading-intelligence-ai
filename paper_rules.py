@@ -6,8 +6,10 @@ import paper_store as store
 from paper_monitor import obtener_precio_actual
 
 
-def procesar_candidatos(resultados, sesion_activa, *, profundidad=False):
+def procesar_candidatos(resultados, sesion_activa, *, profundidad=False, sombra=False):
+    """sombra=True: mismo recorrido y mismo veredicto, pero sin abrir operaciones (SHADOW)."""
     store.validar_paper()
+    ejecutar = store.ejecutar_reglas_shadow if sombra else store.ejecutar_reglas
     if sesion_activa is None:
         raise ValueError('El modo por reglas exige una sesión explícita.')
     store.comprobar_sesion(sesion_activa)
@@ -37,14 +39,16 @@ def procesar_candidatos(resultados, sesion_activa, *, profundidad=False):
                 if fill['resultado']['estado'] != 'COMPLETO':
                     raise ValueError('PROFUNDIDAD_VISIBLE_INSUFICIENTE: FOK PAPER no registrado.')
                 precio = float(fill['resultado']['precio_medio'])
-                decision = store.ejecutar_reglas(identidad, digest, precio, sesion_activa, evidencia_fill=fill)
+                decision = ejecutar(identidad, digest, precio, sesion_activa, evidencia_fill=fill)
             else:
                 precio = obtener_precio_actual(plan['simbolo'])
-                decision = store.ejecutar_reglas(identidad, digest, precio, sesion_activa)
+                decision = ejecutar(identidad, digest, precio, sesion_activa)
         except store.SesionFinalizada:
             raise
         except ValueError as error:
-            store.registrar_rechazo('reglas_paper', {'request_id': identidad}, error)
+            store.registrar_rechazo('shadow_paper' if sombra else 'reglas_paper', {'request_id': identidad}, error)
             decision = {'registrada': False, 'motivo': str(error), 'request_id': identidad}
+            if sombra:
+                decision.update(sombra=True, abriria=False)
         decisiones.append(decision)
     return decisiones
