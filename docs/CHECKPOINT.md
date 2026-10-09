@@ -2469,6 +2469,27 @@ committed with that registration (`f679012`) governs, and no rule changes.
   - Real futures still need three things: the owner's phrase to Claude local, Futures enabled
     on the key, and a quoted change to `config/live_limits.json`. `DECISION_SHORTS.md` updated.
 
+### 64. 4h monitor: the watcher works live on the owner's PC; Windows console fix (2026-10-09)
+
+- Claude local pulled to `8f45c93`; 95 tests pass on the PC.
+  - The watcher's first live read worked: market quiet and mostly TREND_DOWN; BTC, DOT and
+    PAXG in TREND_UP.
+  - The real session is unchanged: RUNNING, 38 USDT, no positions, still at the 45% it was
+    started with.
+  - Claude local did not restart the operator: the restart moves the loss limit to 35%, and
+    it asked the owner first. Telegram is not configured yet; Local is guiding him step by step.
+- **Defect found and fixed.** On Windows, redirected output (a scheduled task, Claude local's
+  shell) uses cp1252.
+  - Seen as "r�gimen" in Local's capture.
+  - There, `print()` of an alert with an emoji (📈/📉) raises UnicodeEncodeError, before
+    the alert reaches Telegram.
+  - Fix: `telegram_notify.console()` never raises (unencodable characters become "?"; a
+    missing or broken console is ignored).
+  - `make_notify` now sends to Telegram first, then writes to the console. Both the operator
+    and the watcher use it.
+  - 3 new tests; the 3 mutants (order, encoding fallback, broken console) are killed.
+- GitHub: all research test runs green. The two-way momentum study (Quant) is running.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |

@@ -140,3 +140,44 @@ def test_a_launched_session_alerts_by_telegram_when_configured(tmp_path, monkeyp
     O._launch(tmp_path, load_limits(), meta, "100", 1)
     assert post.calls and post.calls[0][1] == {"chat_id": "42", "text": "AVISO de prueba",
                                                "disable_web_page_preview": True}
+
+
+def test_an_emoji_on_a_windows_redirected_console_never_stops_an_alert(monkeypatch):
+    import io
+
+    out = io.TextIOWrapper(io.BytesIO(), encoding="cp1252")  # what python.exe gets when redirected
+    monkeypatch.setattr("sys.stdout", out)
+    post = FakePost()
+    T.make_notify(T.console, T.TelegramNotifier(TOKEN, "42", post))("📉 BTCUSDT -4.5% en 4h · régimen")
+    out.flush()
+    assert post.calls[0][1]["text"] == "📉 BTCUSDT -4.5% en 4h · régimen"  # the phone gets it intact
+    assert out.buffer.getvalue().decode("cp1252") == "? BTCUSDT -4.5% en 4h · régimen\n"
+    monkeypatch.setattr("sys.stdout", None)
+    T.console("sin consola")  # pythonw / detached: nothing to write to, no error
+
+
+def test_a_broken_console_does_not_lose_the_alert(monkeypatch):
+    class Broken:
+        encoding = "utf-8"
+
+        def write(self, s):
+            raise OSError("console gone")
+
+        def flush(self):
+            pass
+
+    monkeypatch.setattr("sys.stdout", Broken())
+    post = FakePost()
+    T.make_notify(T.console, T.TelegramNotifier(TOKEN, "42", post))("AVISO")
+    assert post.calls[0][1]["text"] == "AVISO"
+
+
+def test_telegram_goes_before_the_console():
+    post = FakePost()
+
+    def failing_console(message):
+        raise RuntimeError("console failed")
+
+    with pytest.raises(RuntimeError):
+        T.make_notify(failing_console, T.TelegramNotifier(TOKEN, "42", post))("STOP")
+    assert post.calls and post.calls[0][1]["text"] == "STOP"

@@ -22,6 +22,7 @@ import json
 import logging
 import os
 import re
+import sys
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -114,15 +115,33 @@ def from_env(env: Optional[Mapping[str, str]] = None, post: Optional[Post] = Non
         return None
 
 
-def make_notify(base: Callable[[str], None] = print, notifier: Optional[TelegramNotifier] = None,
+def console(message: str) -> None:
+    """print() that never raises. On Windows, redirected output (a scheduled task, Claude Code
+    local's shell) is cp1252: an emoji there would raise UnicodeEncodeError and stop the alert."""
+    stream = sys.stdout
+    if stream is None:
+        return
+    try:
+        try:
+            stream.write(message + "\n")
+        except UnicodeEncodeError:
+            encoding = getattr(stream, "encoding", None) or "ascii"
+            stream.write(message.encode(encoding, errors="replace").decode(encoding) + "\n")
+        stream.flush()
+    except (OSError, ValueError):
+        pass  # a closed or broken console must never stop trading or alerts
+
+
+def make_notify(base: Callable[[str], None] = console, notifier: Optional[TelegramNotifier] = None,
                 prefix: str = "") -> Callable[[str], None]:
-    """The operator's notify: always the console, plus Telegram when configured."""
+    """The operator's notify: always the console, plus Telegram when configured. Telegram goes
+    first, so nothing that happens on the console can keep an alert from the owner's phone."""
     if notifier is None:
         return base
 
     def notify(message: str) -> None:
-        base(message)
         notifier.send(f"{prefix}{message}")
+        base(message)
 
     return notify
 
