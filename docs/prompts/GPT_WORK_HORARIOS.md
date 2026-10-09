@@ -21,7 +21,7 @@ GPT Work, lo revisa el líder y, al final, se decide con la regla registrada de 
   - **tendencia**: cruce de medias;
   - **rango**: bandas de Bollinger;
   - **base**: comprar al inicio de la ventana y vender al final.
-- Cada operación se cierra como máximo al terminar su ventana de 2 horas.
+- Cada operación se cierra como máximo al terminar su ventana (3 horas la del dueño, 2 horas las demás).
 - Costos reales de Spot: 0,1% por lado y deslizamiento. Datos públicos de Binance.
 - **Es con dinero simulado (PAPER).** No usa claves ni manda órdenes. La sesión real del dueño
   sigue aparte, sin cambios.
@@ -50,7 +50,7 @@ El dueño te pega este texto:
 >    no cuadran entre el `.md` y el `.json`.
 > 5. Una frase honesta: ¿hay ventaja después de costos o todavía es ruido?
 >
-> No recomiendes operar con dinero real antes del día 14. Un buen día suelto no prueba nada.
+> No recomiendes operar con dinero real antes del final de las 2 semanas. Un buen día suelto no prueba nada.
 > No ejecutas órdenes ni tocas claves.
 
 ## Al final (día 14)
