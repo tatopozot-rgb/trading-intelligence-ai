@@ -125,15 +125,15 @@ def finished(why: str, capital: Decimal, equity: Decimal) -> str:
     return f"🏁 Sesión terminada: {reason(why)}. Empezaste con {usdt(capital)} y terminaste con {usdt(equity)}: {result}."
 
 
-def window_open(windows: list[str]) -> str:
+def window_open(windows: list[str], every_min: int) -> str:
     hours = " y ".join(w.replace("-", ":00 a ") + ":00" for w in windows)
-    return (f"🕖 Empezó tu horario de trading ({hours}, hora de Ecuador). Reviso el mercado cada 20 minutos "
-            f"y compro o vendo cuando hay señal. {NOTHING_TO_DO}")
+    return (f"🕖 Empezó tu horario de trading ({hours}, hora de Ecuador). Ahora opero sin parar: decido cada "
+            f"{every_min} minutos y vigilo los stops cada minuto. {NOTHING_TO_DO}")
 
 
-def window_closed() -> str:
-    return ("🕙 Terminó tu horario de trading. Hasta el próximo horario no compro nada; si hay algo abierto, "
-            f"sigue protegido por su stop y lo vendo si la estrategia da señal de salida. {NOTHING_TO_DO}")
+def window_closed(every_min: int) -> str:
+    return (f"🕙 Terminó tu horario intenso. Sigo operando: reviso el mercado y decido cada {every_min} minutos "
+            f"hasta tu próximo horario. Los stops se vigilan cada minuto. {NOTHING_TO_DO}")
 
 
 def error(detail: str) -> str:

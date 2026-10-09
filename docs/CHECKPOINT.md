@@ -2968,6 +2968,42 @@ mercado"). Research only; `live/` and `config/live_limits.json` untouched.
 running session: `parar`, then `iniciar --temporalidad 20m` with the same flags, then
 `adoptar BTCUSDT`.
 
+### 76. Owner's windows are "sin parar"; outside them, every 20 minutes (2026-10-09)
+
+**Owner's correction** after section 75 went live:
+- the real 20m session started at 20:16 UTC: capital 32, `tendencia_rango`, meta 58, loss limit 45, BTC re-adopted;
+- his words: "No, dentro de esos horarios es sin parar y fuera de esos horarios cada 20 minutos";
+- so he wants trading outside his windows too, not sell-only.
+
+**What changed:**
+- **Removed** `sell_only()`. Buying is allowed at any hour.
+- **New:** `Operator.decision_due()` and `OUTSIDE_WINDOW_EVERY = 20 min`.
+  - Inside a window, every new bar is a decision.
+  - Outside, at most one decision per 20-minute slot.
+  - Skipped bars are not lost: the next tick replays them through PaperLoop's catch-up, so engine state, gap checks and the kill switch stay intact.
+- **5m allowed for real money.** `REAL_TIMEFRAMES = {"4h", "20m", "5m"}`, with the same written-choice comment as before.
+  - A 5m session decides at every 5m bar inside the windows ("sin parar") and every 20 minutes outside them.
+  - Stops, guard stops, trailing and the loss guard run every minute, all day.
+  - Binance serves 5m natively; 700 bars per symbol is one request.
+- **Telegram messages:**
+  - window start: "opero sin parar: decido cada N minutos";
+  - window end: "sigo operando … cada 20 minutos".
+
+**Tests:**
+- Window tests rewritten:
+  - buys happen outside a window;
+  - a 60-minute run inside a window makes 12 decisions;
+  - the same run outside makes 3;
+  - stops still fire between decisions;
+  - the CLI defaults windows for both 5m and 20m.
+- 190 feed, operator, Telegram and paper_loop tests pass. ruff and mypy are clean.
+- **Offline replay** (real engine, fake Binance, 25 h at 5m, `tendencia_rango`):
+  - 60 decisions inside the windows and 60 outside;
+  - continuous engine, kill switch off;
+  - one buy and one sell outside the windows.
+
+**Switch for the running session:** Claude local runs `parar`, then `iniciar` with `--temporalidad 5m` and the same flags, then `adoptar BTCUSDT`. This needs the owner's phrase written to Local.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |

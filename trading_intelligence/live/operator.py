@@ -47,12 +47,15 @@ DEFAULT_DIR = Path("live_runs/current")
 PROFILES = ("tendencia", "tendencia_rango", "copiar")
 # Real-data walk-forward (CHECKPOINT section 45): at 1h both profiles LOSE after fees
 # (-0.80% / -0.67% per trade, p < 0.01). 4h is positive but not proven (p ~ 0.09).
-# Real orders are allowed only at a timeframe that has not been shown to lose, plus 20m:
-# the owner chose it in writing on 2026-10-09 ("Todo a 20 min"), after being shown that the
-# 20-minute reference backfill (docs/experimento_horarios/resumen.md) lost ~0.3-0.5% per
-# trade after fees for every strategy. Only inside his trading windows (TRADING_WINDOWS).
-REAL_TIMEFRAMES = frozenset({"4h", "20m"})
-WINDOWED_TIMEFRAMES = frozenset({"20m"})
+# Real orders are allowed only at a timeframe that has not been shown to lose, plus 20m and
+# 5m: the owner chose them in writing on 2026-10-09 ("Todo a 20 min"; then "dentro de esos
+# horarios es sin parar y fuera de esos horarios cada 20 minutos"), after being shown that
+# the 20-minute reference backfill (docs/experimento_horarios/resumen.md) lost ~0.3-0.5% per
+# trade after fees for every strategy. With windows, a 5m session decides at every 5m bar
+# inside them and every OUTSIDE_WINDOW_EVERY outside them; stops are checked every minute.
+REAL_TIMEFRAMES = frozenset({"4h", "20m", "5m"})
+WINDOWED_TIMEFRAMES = frozenset({"5m", "20m"})
+OUTSIDE_WINDOW_EVERY = timedelta(minutes=20)
 ECUADOR_UTC_OFFSET_H = -5
 # The owner's windows, Ecuador time, every day: his 07-10 and the 17-19 one he gave the leader.
 OWNER_WINDOWS = ("07-10", "17-19")
@@ -140,17 +143,6 @@ def parse_windows(spec: list[str]) -> list[tuple[int, int]]:
 def in_windows(windows: list[tuple[int, int]], now: datetime) -> bool:
     m = now.astimezone(timezone.utc).hour * 60 + now.astimezone(timezone.utc).minute
     return any((m - start) % 1440 < length for start, length in windows)
-
-
-def sell_only(targets: dict[str, Decimal], session: Session, prices: dict[str, Decimal]) -> dict[str, Decimal]:
-    """Outside the owner's windows: never buy or add; exits (CLOSE / REDUCE) still follow the
-    strategy, and stops work all day."""
-    equity = session.equity(prices)
-    out: dict[str, Decimal] = {}
-    for sym, held in session.holdings.items():
-        current = held.qty * prices[sym] / equity if equity > 0 else Decimal("0")
-        out[sym] = min(targets.get(sym, Decimal("0")), current)
-    return out
 
 
 def engine_risk_overrides(limits: OwnerLimits) -> dict:
@@ -244,6 +236,7 @@ class Operator:
         self.window_spec = list(windows or [])
         self.windows = parse_windows(self.window_spec)  # empty: decide at every bar, all day
         self._was_in_window: Optional[bool] = None
+        self._last_slow_slot: Optional[int] = None
         self.session = Session.load(self.dir / "session.json")
         self.last_mid_report = self.clock()
         self.last_summary = self.clock()
@@ -343,10 +336,9 @@ class Operator:
             inside = in_windows(self.windows, self.clock())
             if inside != self._was_in_window:
                 if self._was_in_window is not None or inside:
-                    self.notify(messages.window_open(self.window_spec) if inside else messages.window_closed())
+                    self.notify(messages.window_open(self.window_spec, self._bar_minutes()) if inside
+                                else messages.window_closed(int(OUTSIDE_WINDOW_EVERY.total_seconds() // 60)))
                 self._was_in_window = inside
-            if targets is not None and not inside:
-                targets = sell_only(targets, s, prices)
         stops = self._with_trailing(stops, prices)
         message = s.evaluate(prices, self.limits)
         if message:
@@ -390,6 +382,23 @@ class Operator:
             self.last_mid_report = self.clock()
         self._save()
         return actions
+
+    def _bar_minutes(self) -> int:
+        from trading_intelligence.execution.paper_loop import INTERVAL_SECONDS
+
+        return INTERVAL_SECONDS[self.timeframe] // 60
+
+    def decision_due(self) -> bool:
+        """Owner: inside his windows "sin parar" (every bar), outside them every 20 minutes.
+        Skipped bars are not lost: the engine replays them at its next tick."""
+        now = self.clock()
+        if not self.windows or in_windows(self.windows, now):
+            return True
+        slot = int((now.timestamp() - 30) // OUTSIDE_WINDOW_EVERY.total_seconds())
+        if slot == self._last_slow_slot:
+            return False
+        self._last_slow_slot = slot
+        return True
 
     def _with_trailing(self, stops: dict[str, Decimal], prices: dict[str, Decimal]) -> dict[str, Decimal]:
         """Owner: "estar en revisión continua hasta cumplir la meta de esa transacción". Every
@@ -528,7 +537,7 @@ class Operator:
                 return
             # 30 s after a bar closes, so the exchange has published it.
             bar = int((self.clock().timestamp() - 30) // interval)
-            decide = bar != last_bar
+            decide = bar != last_bar and self.decision_due()
             self.step(decide)
             last_bar = bar
             if start_report and n == 0:
@@ -788,8 +797,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     start.add_argument("--trailing", default=str(DEFAULT_TRAILING_PCT),
                        help="trailing stop in %% below the peak once a position is up 2%%; 0 = off")
     start.add_argument("--ventanas", nargs="+",
-                       help=f"trading windows in Ecuador hours, e.g. 07-10 17-19 (20m default: {' '.join(OWNER_WINDOWS)}); "
-                            "outside them it only sells")
+                       help=f"trading windows in Ecuador hours, e.g. 07-10 17-19 (5m/20m default: {' '.join(OWNER_WINDOWS)}); "
+                            "inside them it decides at every bar, outside them every 20 minutes")
     start.add_argument("--convertir-usd", action="store_true",
                        help="(with --real) first convert fiat USD in Spot to the USDT the capital needs")
     sub.add_parser("estado")
