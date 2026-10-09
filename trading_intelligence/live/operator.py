@@ -47,8 +47,15 @@ DEFAULT_DIR = Path("live_runs/current")
 PROFILES = ("tendencia", "tendencia_rango", "copiar")
 # Real-data walk-forward (CHECKPOINT section 45): at 1h both profiles LOSE after fees
 # (-0.80% / -0.67% per trade, p < 0.01). 4h is positive but not proven (p ~ 0.09).
-# Real orders are allowed only at a timeframe that has not been shown to lose.
-REAL_TIMEFRAMES = frozenset({"4h"})
+# Real orders are allowed only at a timeframe that has not been shown to lose, plus 20m:
+# the owner chose it in writing on 2026-10-09 ("Todo a 20 min"), after being shown that the
+# 20-minute reference backfill (docs/experimento_horarios/resumen.md) lost ~0.3-0.5% per
+# trade after fees for every strategy. Only inside his trading windows (TRADING_WINDOWS).
+REAL_TIMEFRAMES = frozenset({"4h", "20m"})
+WINDOWED_TIMEFRAMES = frozenset({"20m"})
+ECUADOR_UTC_OFFSET_H = -5
+# The owner's windows, Ecuador time, every day: his 07-10 and the 17-19 one he gave the leader.
+OWNER_WINDOWS = ("07-10", "17-19")
 DEFAULT_TIMEFRAME = "4h"
 # Trailing stop defaults (owner may change per session with --trailing; 0 turns it off).
 # Chosen, not validated by walk-forward: the research engine's opt-in trailing stop cut the
@@ -114,6 +121,36 @@ class ShadowTrader:
 
     def cancel_stop(self, symbol: str, client_id: str, fee_price: Callable[[str], Decimal]) -> StopState:
         return StopState("CANCELED")
+
+
+def parse_windows(spec: list[str]) -> list[tuple[int, int]]:
+    """"07-10" (Ecuador hours) -> (start, length) in minutes of the UTC day."""
+    out = []
+    for item in spec:
+        try:
+            a, b = (int(x) for x in item.split("-"))
+        except ValueError:
+            raise ValueError(f"window {item!r}: use Ecuador hours like 07-10") from None
+        if not (0 <= a <= 23 and 1 <= b <= 24 and a < b):
+            raise ValueError(f"window {item!r}: hours 0-24, start before end")
+        out.append((((a - ECUADOR_UTC_OFFSET_H) * 60) % 1440, (b - a) * 60))
+    return out
+
+
+def in_windows(windows: list[tuple[int, int]], now: datetime) -> bool:
+    m = now.astimezone(timezone.utc).hour * 60 + now.astimezone(timezone.utc).minute
+    return any((m - start) % 1440 < length for start, length in windows)
+
+
+def sell_only(targets: dict[str, Decimal], session: Session, prices: dict[str, Decimal]) -> dict[str, Decimal]:
+    """Outside the owner's windows: never buy or add; exits (CLOSE / REDUCE) still follow the
+    strategy, and stops work all day."""
+    equity = session.equity(prices)
+    out: dict[str, Decimal] = {}
+    for sym, held in session.holdings.items():
+        current = held.qty * prices[sym] / equity if equity > 0 else Decimal("0")
+        out[sym] = min(targets.get(sym, Decimal("0")), current)
+    return out
 
 
 def engine_risk_overrides(limits: OwnerLimits) -> dict:
@@ -188,7 +225,8 @@ class Operator:
                  symbols: list[str], loop=None, clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
                  notify: Callable[[str], None] = print, real: bool = False,
                  end_at: Optional[datetime] = None, profit_target_pct: Optional[Decimal] = None,
-                 trailing_pct: Decimal = DEFAULT_TRAILING_PCT, trail_after_pct: Decimal = DEFAULT_TRAIL_AFTER_PCT) -> None:
+                 trailing_pct: Decimal = DEFAULT_TRAILING_PCT, trail_after_pct: Decimal = DEFAULT_TRAIL_AFTER_PCT,
+                 windows: Optional[list[str]] = None) -> None:
         self.dir = Path(state_dir)
         self.trader = trader
         self.limits = limits
@@ -203,6 +241,9 @@ class Operator:
         self.profit_target_pct = profit_target_pct  # owner's "hasta ganar N%": take the gain and finish
         self.trailing_pct = trailing_pct  # 0 = off
         self.trail_after_pct = trail_after_pct
+        self.window_spec = list(windows or [])
+        self.windows = parse_windows(self.window_spec)  # empty: decide at every bar, all day
+        self._was_in_window: Optional[bool] = None
         self.session = Session.load(self.dir / "session.json")
         self.last_mid_report = self.clock()
         self.last_summary = self.clock()
@@ -298,6 +339,14 @@ class Operator:
 
         needed = sorted(set(s.holdings) | set(targets or {}))
         prices = {sym: self.trader.price(sym) for sym in needed}
+        if self.windows:
+            inside = in_windows(self.windows, self.clock())
+            if inside != self._was_in_window:
+                if self._was_in_window is not None or inside:
+                    self.notify(messages.window_open(self.window_spec) if inside else messages.window_closed())
+                self._was_in_window = inside
+            if targets is not None and not inside:
+                targets = sell_only(targets, s, prices)
         stops = self._with_trailing(stops, prices)
         message = s.evaluate(prices, self.limits)
         if message:
@@ -717,7 +766,8 @@ def _launch(d: Path, limits: OwnerLimits, meta: dict, engine_equity: str, max_it
     op = Operator(d, trader, limits, profile=meta["profile"], timeframe=meta["timeframe"], symbols=meta["symbols"],
                   loop=loop, real=meta["real"], end_at=end_at, profit_target_pct=target,
                   notify=telegram_notify.make_notify(telegram_notify.console, telegram_notify.from_env()),
-                  trailing_pct=Decimal(str(meta.get("trailing_pct", DEFAULT_TRAILING_PCT))))
+                  trailing_pct=Decimal(str(meta.get("trailing_pct", DEFAULT_TRAILING_PCT))),
+                  windows=meta.get("windows"))
     op.run(max_iterations=max_iterations, start_report=True)
 
 
@@ -737,6 +787,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     start.add_argument("--limite-perdida", help="this session's loss limit in %% (inside the owner's approved range)")
     start.add_argument("--trailing", default=str(DEFAULT_TRAILING_PCT),
                        help="trailing stop in %% below the peak once a position is up 2%%; 0 = off")
+    start.add_argument("--ventanas", nargs="+",
+                       help=f"trading windows in Ecuador hours, e.g. 07-10 17-19 (20m default: {' '.join(OWNER_WINDOWS)}); "
+                            "outside them it only sells")
     start.add_argument("--convertir-usd", action="store_true",
                        help="(with --real) first convert fiat USD in Spot to the USDT the capital needs")
     sub.add_parser("estado")
@@ -867,6 +920,12 @@ def main(argv: Optional[list[str]] = None) -> int:
         parser.error(f"real orders at {args.temporalidad} refused: on real Binance data this configuration lost "
                      f"money after fees (CHECKPOINT section 45). Allowed for real: {sorted(REAL_TIMEFRAMES)}; "
                      "any timeframe is allowed without --real (SHADOW).")
+    windows = args.ventanas or (list(OWNER_WINDOWS) if args.temporalidad in WINDOWED_TIMEFRAMES else None)
+    if windows:
+        try:
+            parse_windows(windows)
+        except ValueError as error:
+            parser.error(str(error))
     if args.horas is not None and args.horas <= 0:
         parser.error("--horas must be positive")
     target = Decimal(args.meta) if args.meta is not None else None
@@ -898,7 +957,8 @@ def main(argv: Optional[list[str]] = None) -> int:
         end_at = now + timedelta(hours=args.horas) if args.horas is not None else None
         meta = {"profile": args.perfil, "timeframe": args.temporalidad, "symbols": symbols, "real": args.real,
                 "end_at": end_at.isoformat() if end_at else None, "profit_target_pct": args.meta,
-                "loss_limit_pct": str(session_loss) if session_loss is not None else None, "trailing_pct": str(trailing)}
+                "loss_limit_pct": str(session_loss) if session_loss is not None else None, "trailing_pct": str(trailing),
+                "windows": windows}
         trader = _trader(args.real, d / "orders.json")  # verify the key before any session state is written
         if args.convertir_usd:
             print(convert_for_capital(trader, capital))

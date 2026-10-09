@@ -27,6 +27,9 @@ from trading_intelligence.execution.base import AbstractExchangeAdapter
 DEFAULT_BASE_URL = "https://data-api.binance.vision"
 _SYMBOL = re.compile(r"^[A-Z0-9]{2,20}$")
 _INTERVALS = {"1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d", "3d", "1w", "1M"}
+# Intervals Binance does not serve, built from one it does: name -> (base interval, base bars per bar).
+# 20m: the owner's decision cadence (2026-10-09), same bars as docs/PREREG_HORARIOS.md.
+AGGREGATED = {"20m": ("5m", 4)}
 
 
 def _check_kline(symbol: str, row: dict) -> None:
@@ -78,11 +81,47 @@ class BinancePublicKlines(AbstractExchangeAdapter):
     def get_ohlcv(self, symbol: str, timeframe: str, limit: int = 500) -> pd.DataFrame:
         if not _SYMBOL.match(symbol):
             raise ValueError(f"invalid symbol {symbol!r}")
-        if timeframe not in _INTERVALS:
+        if timeframe not in _INTERVALS and timeframe not in AGGREGATED:
             raise ValueError(f"invalid interval {timeframe!r}")
         if not 1 <= limit <= 1000:
             raise ValueError("limit must be in [1, 1000]")
+        if timeframe in AGGREGATED:
+            return self._aggregated(symbol, timeframe, limit)
         payload = self._get("/api/v3/klines", {"symbol": symbol, "interval": timeframe, "limit": limit})
+        return self._frame(symbol, payload)
+
+    def _aggregated(self, symbol: str, timeframe: str, limit: int) -> pd.DataFrame:
+        """Bars Binance does not serve (20m), built from its own smaller klines, newest
+        pages first (one request returns at most 1000). Bars open at :00/:20/:40 UTC; the
+        still-forming last bar is kept, like the exchange's own, and PaperLoop drops it."""
+        base, per_bar = AGGREGATED[timeframe]
+        need = (limit + 1) * per_bar
+        pages: list[pd.DataFrame] = []
+        end: Optional[int] = None
+        while need > 0:
+            n = min(1000, need)
+            params: dict = {"symbol": symbol, "interval": base, "limit": n}
+            if end is not None:
+                params["endTime"] = end
+            page = self._frame(symbol, self._get("/api/v3/klines", params))
+            if page.empty:
+                break
+            pages.insert(0, page)
+            need -= len(page)
+            if len(page) < n:
+                break
+            end = int(page.index[0].timestamp() * 1000) - 1
+        if not pages:
+            return self._frame(symbol, [])
+        small = pd.concat(pages).sort_index()
+        small = small[~small.index.duplicated(keep="last")]
+        g = small.resample(timeframe.replace("m", "min"), origin="epoch", label="left", closed="left")
+        bars = pd.DataFrame({"open": g["open"].first(), "high": g["high"].max(), "low": g["low"].min(),
+                             "close": g["close"].last(), "volume": g["volume"].sum()}).dropna(subset=["close"])
+        bars.index.name = "open_time"
+        return bars.tail(limit)
+
+    def _frame(self, symbol: str, payload: object) -> pd.DataFrame:
         if not isinstance(payload, list):
             raise ValueError(f"unexpected klines payload for {symbol}: {str(payload)[:200]}")
         rows = []

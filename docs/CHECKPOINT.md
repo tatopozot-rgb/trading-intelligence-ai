@@ -2917,6 +2917,57 @@ mercado"). Research only; `live/` and `config/live_limits.json` untouched.
   markets, prefer liquid, long-history coins, verify the doubtful entries above, and do not
   pick symbols by recent volume alone.
 
+### 75. Real 20-minute decisions inside the owner's windows (2026-10-09)
+
+**Owner's decision.**
+- First he asked: "Esta mal esas horas yo quiero que opere cada 20 minutos".
+- The leader then showed him the data: the 20-minute reference backfill loses about 0.3–0.5%
+  per trade after fees, for every strategy (section 73 and `docs/experimento_horarios/`).
+- The leader offered three options: 10 USDT at 20 min, everything at 20 min, or wait for
+  10-23. He chose **"Todo a 20 min"**.
+- That supersedes section 73's "not now". Real money still moves only when he writes it to
+  Claude local.
+
+**Code.**
+- **`binance_public_feed`: `20m` bars.**
+  - Binance serves no 20m interval, so bars are built from 5m klines, paged with `endTime`
+    (at most 1000 per request).
+  - Bars open at :00/:20/:40 UTC, the same bars as PREREG_HORARIOS.
+  - Empty groups are dropped, so a real data gap still trips the PaperLoop gap check.
+- **`paper_loop.INTERVAL_SECONDS["20m"] = 1200`.**
+- **Operator:**
+  - `REAL_TIMEFRAMES = {"4h", "20m"}`; the comment cites the owner's written choice.
+  - New `--ventanas` flag, in Ecuador hours. A 20m session defaults to the owner's windows,
+    07–10 and 17–19 every day (12–15 and 22–24 UTC).
+  - The engine ticks on every 20m bar, all day, so its state stays continuous and gap checks
+    keep working.
+  - Real-money gating per pass: inside a window, targets apply normally. Outside, `sell_only()`
+    allows CLOSE/REDUCE toward the engine's targets but never a buy or an add.
+  - Stops, the Binance guard stops, the trailing stop and the loss guard run every minute, all
+    day.
+  - Telegram tells the owner when a window starts and when it ends.
+- **Known simplification:** an engine position opened outside a window is mirrored at the next
+  window's first decision, if the engine still holds it.
+
+**Tests.**
+- New tests: 2 feed tests (aggregation, paging, :00/:20/:40) and 5 operator tests (UTC mapping,
+  no buy outside a window, exits and stops outside a window, no add outside a window, 20m CLI
+  default windows).
+- 188 tests pass across the feed, operator, Telegram and paper_loop suites. ruff and mypy are
+  clean.
+- **Offline replay** with the real engine and a fake 5m Binance (36 h, 3 symbols,
+  tendencia_rango):
+  - 225 bars processed continuously, kill switch off;
+  - the engine's one entry, at 03:00 UTC (outside the windows), produced no real order;
+  - window messages fired at 12:00 and 15:00 UTC.
+- **Not run against live Binance:** this container cannot reach `data-api.binance.vision`.
+  Claude local should start with a few minutes of SHADOW (`--temporalidad 20m` without
+  `--real`) before the real switch.
+
+**Local's command table** (prompt section 3) has the new row and the switch steps for the
+running session: `parar`, then `iniciar --temporalidad 20m` with the same flags, then
+`adoptar BTCUSDT`.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
