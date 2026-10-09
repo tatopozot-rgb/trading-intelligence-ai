@@ -2307,6 +2307,34 @@ Binance executes it whether or not the PC is on.
   - 3 tests, including a real git round trip to a bare repo.
 - The 4-hourly Leader monitor reads that branch.
 
+### 59. 8h review (2026-10-09 08:11Z): real session running blind, publisher awaits the owner
+
+- **Real session:** launched by Claude Code local around 03:25Z (process 52056; 38 USDT,
+  `tendencia_rango`, 4h, `--meta 58`, loss limit 45%). Since then:
+  - **no confirmation of its health**: Claude Code local's permission system blocks reading its
+    state;
+  - the owner has not pasted `estado`;
+  - nothing is published.
+
+  The operator's own guards run without Claude: the loss guard every minute, guard stops on
+  Binance, and the `reanudar` watchdog.
+- **Publisher (`tools/publish_live_reports.py`, section 58):** Claude Code local declined to
+  create the hourly task itself, correctly, because that would route around its own block. It
+  gave the owner the `schtasks` command and two caveats:
+  - the repository is **public**, so capital, equity and coins would be visible;
+  - the `live-operator` checkout must be updated to get the tool.
+
+  Both caveats are accurate. The decision is the owner's.
+- **Market** (PAPER loop run `37891052920`, scheduled, green, bar 2026-10-09 00:00Z):
+  - DOT turned `TREND_UP` (strategy active, no signal yet);
+  - TRX turned `BREAKOUT_DOWN`;
+  - the rest are mostly `TREND_DOWN`.
+
+  So a real buy was unlikely at the 04:00 bar, and the owner's screenshot (38 USDT, no coins) is
+  consistent with that.
+- **CI** green on `main` and the default branch; no open PRs; `main` is level with the default
+  branch.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
