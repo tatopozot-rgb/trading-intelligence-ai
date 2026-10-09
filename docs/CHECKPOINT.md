@@ -2659,6 +2659,89 @@ nothing alone**. The variants were also defined after seeing the short leg lose
 - **Nothing here validates real money.**
 - The registered forward PAPER (section 66) continues unchanged.
 
+### 68. Owner: find the best hours and markets in 2 weeks (2-hour windows, decisions every 20 min) (2026-10-09)
+
+- The owner rejected weekly momentum ("de lunes a lunes no tiene sentido"). He wants:
+  - operations and analysis every 20 minutes, in sessions of about 2 hours;
+  - daily reports, reviewed by GPT Work and by the leader;
+  - a decision after 2 weeks on the best hours to trade and in which markets.
+- Plan ("experimento horarios"), delegated to Quant as PAPER/research only:
+  - 12 two-hour windows per UTC day, on the 12 symbols plus PAXG, with 20-minute decisions on
+    public 5m data;
+  - strategies: trend, range, and a buy-at-start/sell-at-end baseline; long-only Spot with
+    real costs; every position closed at the end of its window;
+  - a daily replay workflow writes `docs/experimento_horarios/`;
+  - forward days 2026-10-10 → 2026-10-23 decide; a 14-day backfill is labeled as reference only.
+- Multiple-comparison guard, pre-registered in `docs/PREREG_HORARIOS.md` before results:
+  - week 1 selects, week 2 confirms;
+  - a cell qualifies only if net-positive in both halves, with enough trades, after a BH
+    adjustment;
+  - pooled-by-hour and pooled-by-symbol views are reported for power.
+- Why PAPER for the measurement: the real-data walk-forward showed 1h trading loses after
+  fees (section 45), and 20-minute trading pays even more fees.
+  - Measuring all 12 windows a day in PAPER gives 12× the data of one real 2-hour window, at
+    no cost.
+  - The real session keeps running unchanged.
+  - Real money moves to the winning hours/markets only after day 14, with the owner's written
+    authorization.
+- GPT Work's daily review prompt: `docs/prompts/GPT_WORK_HORARIOS.md`.
+- The momentum operator wiring stays shelved (draft kept outside the repo); the owner no
+  longer wants it.
+
+### 69. Owner wants a test trade on Binance: a no-money connection check (2026-10-09)
+
+- Owner: "quiero que inicie una operación de prueba en binance a ver si está funcionando".
+- Added `SpotTrader.test_order`, which calls Binance's official `POST /api/v3/order/test`.
+  - It checks signature, key permissions and the order's filters, and executes nothing.
+  - It is never journaled, and it refuses to send before the key's permissions are verified.
+- Added the operator command `prueba [--simbolo BTCUSDT] [--usdt 6]`.
+  - It verifies the key (withdrawals must be off), checks the symbol is approved and above
+    Binance's minimum, then sends the test order.
+  - It has its own `live_runs/prueba/` journal, so the running session is untouched.
+- A real buy-and-sell round trip was also attempted. This session's permission system
+  blocked that code (a new real-money path), so it is NOT built. The owner can authorize it,
+  or the running real session shows real execution with its first signal.
+- Tests: 3 new; 2 mutants killed; 111 live/Telegram/watcher tests pass.
+- Owner's market preferences: BTC, ETH, oil and gold.
+  - BTC and ETH are already traded.
+  - Gold (PAXGUSDT) is watched but needs the owner's written approval to be added to
+    `config/live_limits.json`.
+  - Oil is not on Binance Spot; it is on XM/MetaTrader, the secondary platform, which has no
+    adapter yet.
+
+### 70. Real test trade, friendly messages, two Windows fixes from Claude local (2026-10-09)
+
+- **Claude local's report.**
+  - The no-money `prueba` passed on the owner's PC: the key is verified, and Binance
+    validated a 0.00007 BTC order without executing it.
+  - Telegram is configured and tested.
+  - The owner chose 45% for today's session (inside the 20–50 band). Local stopped the old
+    session (no positions) and started a new one with `--limite-perdida 45 --meta 58` on
+    `6554dbb`.
+  - The `TradingIntelligence-Vigilante` task runs every 15 minutes.
+- **Fixed, both reported by Local:**
+  - `prueba` crashed on a cp1252 console on the "≈" sign. It now prints through
+    `telegram_notify.console` and the sign is gone.
+  - The cp1252 console test compared `\r\n` with `\n` on Windows. The test now uses
+    `newline="\n"`.
+- **Friendly messages.** Owner: "mensajes más amigables y fáciles de entender".
+  - New module `trading_intelligence/live/messages.py`: plain Spanish, the coin without
+    "USDT", money with a decimal comma, the result of each sale, the reason in words, and what
+    he has to do (usually nothing).
+  - It covers buy, sell, the guard stop, the 4h summary, the warning and the stop at the loss
+    limit, the session start and end, and errors. No internal codes reach the owner;
+    `AVISO.txt` and the session log keep the technical text.
+- **`prueba --real`.** The owner wrote "haz la prueba real"; the session was no longer in
+  auto mode, so its permission prompts went to him.
+  - It runs the no-money check first, then a market buy of at most 10 USDT (default 6 on
+    BTCUSDT), then a market sell of exactly what the buy delivered (net of the coin fee), so
+    it never sells other coins the owner holds.
+  - Insufficient USDT buys nothing. A failed sell tells the owner what is left. It has its own
+    journal. The CLI refuses more than 10 before building a trader.
+  - Real money: Claude local runs it only on the owner's phrase written there.
+- Tests: 11 new; 5/5 mutants killed (2 survivors led to new tests: `prueba` without `--real`
+  never buys, and the stop message at the limit). 118 live/Telegram/watcher tests pass.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
