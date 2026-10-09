@@ -38,6 +38,10 @@ BASE = f"https://{HOST}"
 KEY_VAR = "BINANCE_TRADE_API_KEY"
 SECRET_VAR = "BINANCE_TRADE_SECRET_KEY"
 RECV_WINDOW_MS = 5000
+# The PC clock drifts; a stale offset makes Binance refuse EVERY signed call (-1021),
+# protective sells included. Re-read the server time this often, and at once after a -1021.
+TIME_RESYNC_SECONDS = 600
+TIMESTAMP_REJECTED = -1021
 TIMEOUT = 15.0
 RESTRICTED = {403, 418, 429, 451}
 ALLOWED_TRUE_PERMISSIONS = frozenset({"enableReading", "enableSpotAndMarginTrading", "enableFixReadOnly"})
@@ -203,6 +207,7 @@ class SpotTrader:
         self._clock = clock
         self.journal = Journal(journal_path)
         self._offset_ms: Optional[int] = None
+        self._synced_at = 0.0
         self._cooldown_until = 0.0
         self._blocked = False
         self._rules: dict[str, SymbolRules] = {}
@@ -251,22 +256,33 @@ class SpotTrader:
         return data
 
     def _sync_time(self) -> None:
+        sent = self._clock()
         data = self._public("/api/v3/time", {})
+        received = self._clock()
         server = data.get("serverTime") if isinstance(data, dict) else None
         if not isinstance(server, int):
             raise LiveError("could not read Binance server time")
-        self._offset_ms = server - int(self._clock() * 1000)
+        # The server read its clock about half-way through the round trip: on a slow
+        # network, measuring against the arrival time alone biases every timestamp late.
+        self._offset_ms = server - int((sent + received) / 2 * 1000)
+        self._synced_at = received
 
     def _signed(self, method: str, path: str, params: Mapping[str, str]) -> Optional[HttpResponse]:
         if self._cred is None:
             raise LiveError("no credentials: this trader is public-data only")
-        if self._offset_ms is None:
+        if self._offset_ms is None or self._clock() - self._synced_at >= TIME_RESYNC_SECONDS:
             self._sync_time()
         assert self._offset_ms is not None
         query = urllib.parse.urlencode({**params, "recvWindow": str(RECV_WINDOW_MS),
                                         "timestamp": str(int(self._clock() * 1000) + self._offset_ms)})
         query = f"{query}&signature={self._cred.sign(query)}"
-        return self._send(method, path, query, self._cred.header())
+        resp = self._send(method, path, query, self._cred.header())
+        data = self._json(resp)
+        if isinstance(data, dict) and data.get("code") == TIMESTAMP_REJECTED:
+            # Refused before processing (nothing executed): resync before the next call.
+            logger.warning("Binance refused the timestamp (-1021): the clock offset is resynced")
+            self._offset_ms = None
+        return resp
 
     def _signed_read(self, path: str, params: Mapping[str, str]) -> object:
         resp = self._signed("GET", path, params)

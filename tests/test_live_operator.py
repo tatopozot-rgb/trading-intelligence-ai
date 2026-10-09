@@ -556,3 +556,40 @@ def test_resume_never_sells_what_the_owner_kept_with_parar(tmp_path, monkeypatch
     s.save(tmp_path / "session.json")
     monkeypatch.setattr(O, "_launch", lambda *a: pytest.fail("a finished session is never reopened"))
     assert O.main(["--dir", str(tmp_path), "reanudar"]) == 0
+
+
+class TestClockSync:
+    """Claude Code local saw a -1021 (timestamp outside recvWindow) on the owner's PC. With one
+    sync per process, a drifting clock would make Binance refuse every later signed call,
+    protective sells included."""
+
+    def _count_time_calls(self, fake):
+        return sum(1 for c in fake.calls if "/api/v3/time" in c[1])
+
+    def test_resyncs_periodically_and_right_after_a_1021(self, tmp_path):
+        now = [1_800_000_000.0]
+        fake = FakeBinance()
+        t = B.SpotTrader(B.Credentials(KEY, KEY), tmp_path / "o.json", transport=fake, clock=lambda: now[0])
+        t.verify_key()
+        t.free_balance("USDT")
+        assert self._count_time_calls(fake) == 1  # fresh offset reused
+        now[0] += B.TIME_RESYNC_SECONDS
+        t.free_balance("USDT")
+        assert self._count_time_calls(fake) == 2  # stale offset re-read
+        original = fake.restrictions
+        fake.restrictions = {"code": -1021, "msg": "Timestamp for this request is outside of the recvWindow."}
+        with pytest.raises(B.LiveError, match="-1021"):
+            t.verify_key()
+        fake.restrictions = original
+        assert t.verify_key() is True and self._count_time_calls(fake) == 3  # resynced at once
+
+    def test_offset_uses_the_middle_of_the_round_trip(self, tmp_path):
+        ticks = iter([1000.0, 1002.0] + [1002.0] * 20)  # the time request took 2 s
+        server_ms = 1_001_000
+
+        def transport(method, url, headers, timeout):
+            return _resp(200, {"serverTime": server_ms}) if "/api/v3/time" in url else _resp(200, FakeBinance().restrictions)
+
+        t = B.SpotTrader(B.Credentials(KEY, KEY), tmp_path / "o.json", transport=transport, clock=lambda: next(ticks))
+        t._sync_time()
+        assert t._offset_ms == 0  # the server's 1001.000 s is the midpoint of 1000-1002, not 1 s behind

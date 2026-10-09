@@ -2202,6 +2202,25 @@ va de largo y perdemos".
   are the operator's, not orders resting on Binance. Exposure is bounded by 40 USDT per coin and
   the 20% session limit. Exchange-side protective stops are the next improvement.
 
+### 54. Second rehearsal merged; Binance clock resync (2026-10-09 ~02:30Z)
+
+- Owner: "soluciona pulls". No PR was open. Claude Code local's new branch
+  `claude-code/preflight-100b` (`d098bdc`) was merged.
+  - Second SHADOW rehearsal on `35a78d7`: 46 live tests; the start report now shows each coin.
+    10 coins `TREND_DOWN`, ADA and AVAX `NO_EDGE` (NO_TRADE), TRX `RANGE` with no signal.
+    No simulated buy.
+  - Free USDT in Spot >= 100: **NO**, so the real session was not started.
+  - Watchdog, `powercfg` and the top-trader review still wait for the owner's permission in
+    the local session.
+- **Its finding, fixed:** a signed read failed with -1021 (timestamp outside `recvWindow`). The
+  transport synced Binance time once per process and never again. Over a weekend the PC clock
+  drift would make Binance refuse every signed call, protective sells included.
+  - The offset is now re-read every 10 minutes and immediately after any -1021. A -1021 is
+    refused before processing, so nothing executed.
+  - The offset now uses the midpoint of the time request's round trip, so a slow network no
+    longer biases every timestamp late.
+  - 48 live tests (2 new); 3/3 mutants killed; ruff and mypy clean.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
