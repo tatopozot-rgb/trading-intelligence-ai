@@ -1,7 +1,8 @@
 """
 Binance Spot REAL-money transport. Standard library only (the owner's PC blocks
-unsigned DLLs). Host fixed to api.binance.com; MARKET orders only; never a withdrawal,
-transfer, margin or futures path.
+unsigned DLLs). Host fixed to api.binance.com; MARKET orders, plus STOP_LOSS sell orders
+resting on Binance that protect a position even when the owner's PC is off; never a
+withdrawal, transfer, margin or futures path.
 
 Safety rules (same design as Claude Code local's Testnet transport, PR #9 H2):
 - The key must have Spot trading and reading, IP restriction, and NOTHING else:
@@ -49,6 +50,8 @@ _SYMBOL = re.compile(r"^[A-Z0-9]{5,20}$")
 
 PENDING, FILLED, REJECTED, UNCERTAIN, NOT_FOUND = "PENDING_SEND", "FILLED", "REJECTED", "UNCERTAIN", "NOT_FOUND"
 UNRESOLVED = frozenset({PENDING, UNCERTAIN})
+STOP_KIND = "STOP"  # journal records of resting stop orders; never part of UNRESOLVED
+UNKNOWN_ORDER = (-2011, -2013)  # cancel/query of an order that is gone (filled, cancelled) or never existed
 
 
 @dataclass(frozen=True)
@@ -153,11 +156,25 @@ class SymbolRules:
     step: Decimal
     min_qty: Decimal
     min_notional: Decimal
+    tick: Decimal = Decimal("0")  # PRICE_FILTER tickSize (0 = unknown)
+    stop_loss: bool = False  # the symbol accepts STOP_LOSS orders
 
     def floor_qty(self, qty: Decimal) -> Decimal:
         if self.step <= 0:
             return qty
         return (qty / self.step).to_integral_value(rounding=ROUND_DOWN) * self.step
+
+    def floor_price(self, price: Decimal) -> Decimal:
+        if self.tick <= 0:
+            return price
+        return (price / self.tick).to_integral_value(rounding=ROUND_DOWN) * self.tick
+
+
+@dataclass(frozen=True)
+class StopState:
+    """A resting stop as Binance reports it. fill is set when it executed (fully or partly)."""
+    status: str  # NEW | CANCELED | FILLED | EXPIRED | REJECTED | NOT_FOUND | UNKNOWN
+    fill: Optional["Fill"] = None
 
 
 @dataclass(frozen=True)
@@ -333,15 +350,19 @@ class SpotTrader:
             lot = filters.get("LOT_SIZE", {})
             step = Decimal(str(lot.get("stepSize", "0")))
         notional = filters.get("NOTIONAL") or filters.get("MIN_NOTIONAL") or {}
+        price_filter = filters.get("PRICE_FILTER") or {}
         rules = SymbolRules(step=step, min_qty=Decimal(str(lot.get("minQty", "0"))),
-                            min_notional=Decimal(str(notional.get("minNotional", "5"))))
+                            min_notional=Decimal(str(notional.get("minNotional", "5"))),
+                            tick=Decimal(str(price_filter.get("tickSize", "0"))),
+                            stop_loss="STOP_LOSS" in (info.get("orderTypes") or []))
         self._rules[symbol] = rules
         return rules
 
     # --- orders --------------------------------------------------------------
 
     def unresolved(self) -> list[str]:
-        return sorted(k for k, o in self.journal.read().items() if o["state"] in UNRESOLVED)
+        return sorted(k for k, o in self.journal.read().items()
+                      if o.get("kind") != STOP_KIND and o["state"] in UNRESOLVED)
 
     def market_order(self, symbol: str, side: str, quantity: Decimal, fee_price: Callable[[str], Decimal]) -> Fill:
         if not self.key_checked:
@@ -349,7 +370,7 @@ class SpotTrader:
         if side not in ("BUY", "SELL") or not _SYMBOL.match(symbol) or quantity <= 0:
             raise ValueError("invalid order")
         orders = self.journal.read()
-        if any(o["state"] in UNRESOLVED for o in orders.values()):
+        if any(o.get("kind") != STOP_KIND and o["state"] in UNRESOLVED for o in orders.values()):
             raise Unreconciled("an earlier order is unresolved: reconcile before sending another")
         client_id = f"ti-{uuid.uuid4().hex[:24]}"
         record = {"state": PENDING, "symbol": symbol, "side": side, "quantity": str(quantity),
@@ -379,7 +400,7 @@ class SpotTrader:
         """Looks up every unresolved order by client id. Returns the fills it confirms."""
         orders = self.journal.read()
         confirmed: list[Fill] = []
-        for client_id in sorted(k for k, o in orders.items() if o["state"] in UNRESOLVED):
+        for client_id in sorted(k for k, o in orders.items() if o.get("kind") != STOP_KIND and o["state"] in UNRESOLVED):
             record = orders[client_id]
             resp = self._signed("GET", "/api/v3/order", {"symbol": record["symbol"], "origClientOrderId": client_id})
             data = self._json(resp)
@@ -400,6 +421,84 @@ class SpotTrader:
                 record["state"] = NOT_FOUND
             self.journal.write(orders)
         return confirmed
+
+    # --- protective stops resting on Binance -----------------------------------------
+
+    def place_stop(self, symbol: str, quantity: Decimal, stop_price: Decimal) -> str:
+        """A STOP_LOSS SELL resting on Binance: when the last price reaches stop_price,
+        Binance sells `quantity` at market, whether or not the owner's PC is on. Returns
+        the client id. An unclear answer is not an error: the caller looks the id up."""
+        if not self.key_checked:
+            raise UnsafeKey("key permissions not verified in this process")
+        if not _SYMBOL.match(symbol) or quantity <= 0 or stop_price <= 0:
+            raise ValueError("invalid stop")
+        client_id = f"ts-{uuid.uuid4().hex[:24]}"
+        orders = self.journal.read()
+        orders[client_id] = {"kind": STOP_KIND, "state": PENDING, "symbol": symbol, "quantity": str(quantity),
+                             "stop": str(stop_price), "created": self._clock()}
+        self.journal.write(orders)
+        resp = self._signed("POST", "/api/v3/order", {
+            "symbol": symbol, "side": "SELL", "type": "STOP_LOSS", "quantity": format(quantity, "f"),
+            "stopPrice": format(stop_price, "f"), "newClientOrderId": client_id, "newOrderRespType": "RESULT"})
+        data = self._json(resp)
+        record = orders[client_id]
+        code = data.get("code") if isinstance(data, dict) else None
+        if resp is not None and 400 <= resp.status < 500 and resp.status not in RESTRICTED and isinstance(code, int):
+            record.update(state=REJECTED, code=code)
+            self.journal.write(orders)
+            raise LiveError(f"Binance rejected the protective stop (code {code})")
+        ok = resp is not None and resp.status == 200 and isinstance(data, dict) and data.get("clientOrderId") == client_id
+        record["state"] = "RESTING" if ok else UNCERTAIN
+        self.journal.write(orders)
+        return client_id
+
+    def _lookup(self, symbol: str, client_id: str, fee_price: Callable[[str], Decimal]) -> StopState:
+        resp = self._signed("GET", "/api/v3/order", {"symbol": symbol, "origClientOrderId": client_id})
+        data = self._json(resp)
+        if resp is not None and resp.status == 400 and isinstance(data, dict) and data.get("code") in UNKNOWN_ORDER:
+            return StopState("NOT_FOUND")
+        if not (resp is not None and resp.status == 200 and isinstance(data, dict)
+                and data.get("clientOrderId") == client_id):
+            return StopState("UNKNOWN")  # network or server trouble: ask again next pass
+        status = str(data.get("status"))
+        if Decimal(str(data.get("executedQty", "0"))) <= 0:
+            return StopState(status)
+        trades = self._signed_read("/api/v3/myTrades", {"symbol": symbol, "orderId": str(data["orderId"])})
+        if isinstance(trades, list):
+            data = {**data, "fills": [{"price": t["price"], "qty": t["qty"], "commission": t["commission"],
+                                       "commissionAsset": t["commissionAsset"]} for t in trades if isinstance(t, dict)]}
+        return StopState(status, self._fill_from(client_id, {**data, "side": "SELL"}, fee_price))
+
+    def stop_status(self, symbol: str, client_id: str, fee_price: Callable[[str], Decimal]) -> StopState:
+        state = self._lookup(symbol, client_id, fee_price)
+        self._close_stop_record(client_id, state)
+        return state
+
+    def cancel_stop(self, symbol: str, client_id: str, fee_price: Callable[[str], Decimal]) -> StopState:
+        """Cancels a resting stop before the operator sells. If Binance already executed it,
+        the returned state carries that fill, so the caller records it instead of selling again."""
+        resp = self._signed("DELETE", "/api/v3/order", {"symbol": symbol, "origClientOrderId": client_id})
+        data = self._json(resp)
+        if resp is not None and resp.status == 200 and isinstance(data, dict) and data.get("clientOrderId") == client_id \
+                and Decimal(str(data.get("executedQty", "0"))) <= 0:
+            state = StopState("CANCELED")
+        else:
+            state = self._lookup(symbol, client_id, fee_price)  # filled, partly filled, gone or unclear
+        self._close_stop_record(client_id, state)
+        return state
+
+    def _close_stop_record(self, client_id: str, state: StopState) -> None:
+        orders = self.journal.read()
+        record = orders.get(client_id)
+        if record is None or record.get("kind") != STOP_KIND:
+            return
+        if state.status in ("NEW", "PARTIALLY_FILLED", "PENDING_NEW"):
+            record["state"] = "RESTING"
+        elif state.status != "UNKNOWN":
+            record["state"] = state.status
+            if state.fill is not None:
+                record.update(executed=str(state.fill.executed_qty), quote=str(state.fill.quote_qty))
+        self.journal.write(orders)
 
     def _fill_from(self, client_id: str, data: dict, fee_price: Callable[[str], Decimal]) -> Fill:
         symbol, side = data["symbol"], data["side"]

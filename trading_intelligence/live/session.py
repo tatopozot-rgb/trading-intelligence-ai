@@ -50,6 +50,9 @@ class Session:
     events: list[dict] = field(default_factory=list)
     trades: list[dict] = field(default_factory=list)
     peak_equity: Decimal = Decimal("0")
+    # Protective stops resting on Binance: symbol -> {"id", "qty", "stop"}. They work even
+    # when the owner's PC is off; the operator cancels one before it sells that symbol.
+    guard_stops: dict[str, dict] = field(default_factory=dict)
 
     # --- accounting -----------------------------------------------------------
 
@@ -157,6 +160,7 @@ class Session:
             realized_pnl=Decimal(d["realized_pnl"]), fees=Decimal(d["fees"]),
             holdings={s: Holding(Decimal(h["qty"]), Decimal(h["cost"])) for s, h in d["holdings"].items()},
             events=d["events"], trades=d["trades"], peak_equity=Decimal(d["peak_equity"]),
+            guard_stops=dict(d.get("guard_stops", {})),  # absent in sessions saved before this field
         )
 
 

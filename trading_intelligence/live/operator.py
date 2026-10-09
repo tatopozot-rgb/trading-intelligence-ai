@@ -35,6 +35,7 @@ from trading_intelligence.live.binance_live import (
     Fill,
     LiveError,
     SpotTrader,
+    StopState,
     SymbolRules,
     Unreconciled,
 )
@@ -96,6 +97,17 @@ class ShadowTrader:
         self.sent.append((symbol, side, quantity))
         net_quote = quote + fee if side == "BUY" else quote - fee
         return Fill(f"shadow-{len(self.sent)}", symbol, side, "FILLED", quantity, net_quote, fee, p)
+
+    # Guard stops are only simulated: the operator's own one-minute stop does the selling.
+    def place_stop(self, symbol: str, quantity: Decimal, stop_price: Decimal) -> str:
+        self.sent.append((symbol, "STOP_LOSS", quantity))
+        return f"shadow-stop-{len(self.sent)}"
+
+    def stop_status(self, symbol: str, client_id: str, fee_price: Callable[[str], Decimal]) -> StopState:
+        return StopState("NEW")
+
+    def cancel_stop(self, symbol: str, client_id: str, fee_price: Callable[[str], Decimal]) -> StopState:
+        return StopState("CANCELED")
 
 
 def engine_risk_overrides(limits: OwnerLimits) -> dict:
@@ -197,6 +209,12 @@ class Operator:
             s.note("WAIT", "orden sin conciliar: no se envía nada hasta resolverla")
             self._save()
             return actions
+        try:
+            for a in mirror.sync_guards(s, self.trader):  # executed on Binance while we were away?
+                s.note("EXCHANGE_STOP", f"{a.symbol}: {a.reason}")
+                actions.append(a)
+        except LiveError as error:
+            s.note("ERROR", f"guard stop check: {error}")
 
         targets: Optional[dict[str, Decimal]] = None  # None: no new decision this pass
         stops: dict[str, Decimal] = {}
@@ -227,6 +245,9 @@ class Operator:
                 if targets is not None and s.status != STOPPED:
                     prices = {sym: self.trader.price(sym) for sym in sorted(set(s.holdings) | set(targets))}
                     actions += mirror.apply_targets(s, self.trader, targets, self.limits, prices, self.profile)
+                if s.holdings:
+                    held_prices = {sym: self.trader.price(sym) for sym in s.holdings}
+                    actions += mirror.place_guards(s, self.trader, stops, held_prices)
         except Unreconciled as error:
             s.note("UNCERTAIN", str(error))
         except LiveError as error:
@@ -293,6 +314,15 @@ class Operator:
         return None
 
     def _finish(self, reason: str, close: bool) -> None:
+        if not close:
+            # Coins the owner keeps are his: no stop of this session may sell them later.
+            for sym in sorted(self.session.guard_stops):
+                try:
+                    if not mirror.release_guard(self.session, self.trader, sym):
+                        self.session.note("WARN", f"{sym}: guard stop could not be confirmed cancelled; "
+                                                  "check open orders in Binance")
+                except LiveError as error:
+                    self.session.note("ERROR", f"{sym}: guard stop cancel failed: {error}")
         if close and self.session.holdings:
             try:
                 mirror.flatten(self.session, self.trader, reason.split(":")[0])
