@@ -41,7 +41,8 @@ the three agents above.
 ## Rules
 
 ### Coordination
-- GitHub is the single source of truth for all code and technical decisions. Notion is Mission Control (coordination view, not technical authority). Obsidian is planned as later technical memory.
+- GitHub is the single source of truth for all code and technical decisions. Notion is Mission Control (coordination view, not technical authority).
+- **Shared memory in Obsidian (owner's order, 2026-10-09).** Every agent (Claude local, Claude Leader, Quant, GPT Work) reads the vault note `09 Checkpoints/Memoria viva.md` and then `docs/CHECKPOINT.md` before starting. At the end of every work block it records what it did, what it decided and why, what is pending, and any new owner order. Claude local writes the vault directly; the cloud agents write `docs/CHECKPOINT.md`, and Claude local copies it into the vault daily. GitHub wins on any conflict. Never put secrets in the vault; balances may go there, never in the public repo. Details: `docs/AUTOMATIZACION.md`.
 - All three agents MUST read `docs/CHECKPOINT.md` and recent commits/PRs/issues before starting any work session.
 - Avoid modifying the same files simultaneously. Use `docs/AGENT_COORDINATION.md` to claim files and tasks. Check who holds a claim before editing.
 - When claiming a task, update `AGENT_COORDINATION.md` with: task, responsible agent, affected files, status.

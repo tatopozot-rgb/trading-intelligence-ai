@@ -2827,6 +2827,50 @@ klines, no account, no key, no orders; `live/` and `config/live_limits.json` unt
   The universe expansion needs a concrete symbol list in `config/live_limits.json`, built from
   official volume data (in progress).
 
+### 73. Obsidian memory rule, automation map, and the "decide every 20 min with real money" request (2026-10-09)
+
+Owner, ~19:00 UTC: everyone must keep their memory in Obsidian; automate the three agents (Local,
+GPT Work, leader). He also asked for decisions every 20 minutes instead of every 4 hours,
+nonstop and trading, in 07–10 and 17–19 Ecuador. "If it doesn't trade it makes no sense"; going
+against the market is allowed; selling logically matters too.
+
+**Memory and automation**
+- **Obsidian memory rule:** added to `AGENTS.md` (Coordination). It did not exist before; the
+  old text only said "Obsidian is planned".
+- **`docs/AUTOMATIZACION.md`** is the single map of what runs by itself and who does what:
+  - on the PC: operator 24 h; `reanudar` every 5 min; watcher every 15 min; hourly reports;
+    new daily memory copy at 20:00 Ecuador;
+  - GitHub Actions: the hours experiment daily, the two-way strategy on Mondays, the top-30
+    universe;
+  - leader routines;
+  - GPT Work from 10-14.
+- **Prompts:** Local's prompt has a new section 4f; GPT Work's prompt has a "Memoria" section.
+- **Also fixed:** the inverted BNB discount display in `comisiones` (35cfd7b).
+
+**Leader's decision on real-money 20-minute decisions: not now.**
+- The owner delegated the call ("te lo dejo").
+- **Real money stays on 4h.** It runs 24/7, so it already covers both windows, and stops are
+  checked every minute. Its sells follow logic: exit signal, stop loss, trailing stop. This is
+  unchanged.
+- **20-minute trading in both windows starts 10-10 in the pre-registered experiment** (PAPER,
+  real public prices, every day). It covers his 07–10 window and the 17–19 window (22–00 UTC).
+  It runs four strategies, including **rango** (Bollinger), the "against the move" one:
+  buy the dip, sell at the mean.
+- **What changes 10-23:** whatever passes the pre-registered rule goes to real money in its
+  window.
+- **Why not now:**
+  - 1h real trading lost after fees (section 45: −0.80% and −0.67% per trade, p < 0.01).
+  - The 14-day 20-minute reference backfill loses for every strategy on every weekday. The
+    owner's own 07–10 window: tendencia −6.94% cumulative; ruptura about −0.4 to −0.5% per
+    trade; baseline about −0.3 to −0.5% per trade.
+  - Trading every 20 minutes for its own sake would turn the account into fees. That is the
+    opposite of the owner's goal ("si no ganas…").
+- **Shorts** remain NO-GO in Spot (three studies). "Against the market" in Spot means selling
+  before falls, plus range buying of dips.
+- **Override:** if the owner still wants real money at 20 minutes before 10-23, he says so to
+  Claude local in writing. The leader then builds it with a small capped budget inside the
+  current limits. `REAL_TIMEFRAMES` (4h only) is unchanged until then.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |

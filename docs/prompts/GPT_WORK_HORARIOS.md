@@ -53,6 +53,17 @@ El dueño te pega este texto:
 > No recomiendes operar con dinero real antes del final de las 2 semanas. Un buen día suelto no prueba nada.
 > No ejecutas órdenes ni tocas claves.
 
+## Memoria y automatización
+
+Orden del dueño (2026-10-09): cada agente deja su memoria escrita para no gastar recursos
+recordando.
+- Al terminar cada revisión, publica tu resumen en GitHub (comentario en un issue o en un PR).
+- Claude local lo copia a la nota de Obsidian `09 Checkpoints/Memoria viva.md`.
+- Al empezar, lee esa memoria a través de `docs/CHECKPOINT.md`.
+
+Detalle en `docs/AUTOMATIZACION.md`. Hasta el 2026-10-14 (sin créditos), el líder cubre la
+revisión diaria.
+
 ## Al final (día 14)
 
 El líder aplica la regla registrada y le presenta al dueño:

@@ -163,6 +163,33 @@ pasan 4 horas.
 3. Las alertas son información para el dueño. Una orden suya ("corto en BTC con 20") sigue el
    camino normal: confirmación del dueño a Claude Code local, límites y stops.
 
+## 4f. Memoria en Obsidian y automatización (orden del dueño, 2026-10-09)
+
+"Que siempre actualicen toda la memoria con Obsidian, así no gastan recursos recordando."
+Todo el detalle está en `docs/AUTOMATIZACION.md`.
+
+1. **Al empezar**, lee `C:\Users\tatop\TATO\09 Checkpoints\Memoria viva.md` y después
+   `docs/CHECKPOINT.md`. Si la nota no existe, créala.
+2. **Al terminar cada bloque**, escribe en esa nota:
+   - la fecha;
+   - qué hiciste;
+   - qué decidió el dueño, con sus palabras;
+   - el estado de la sesión real (saldo y operaciones; aquí sí puede ir, porque el vault es privado);
+   - lo que queda pendiente.
+3. **Copia de la nube:**
+   - Con permiso del dueño, crea la tarea `TradingIntelligence-Memoria`, que corra todos los
+     días a las 20:00 de Ecuador.
+   - La tarea hace `git pull` y copia a `Memoria viva.md` las secciones nuevas de
+     `docs/CHECKPOINT.md`. Ahí escriben el líder, Quant y GPT Work.
+   - Hazlo también cuando un agente te lo pida.
+4. **Nunca** escribas claves, tokens ni códigos en el vault.
+5. **Ya corren solos:**
+   - el operador (24 h);
+   - `reanudar` (cada 5 min);
+   - el vigilante del mercado (cada 15 min);
+   - la publicación de reportes (cada hora).
+   Si alguno falta, créalo según 4b–4e, con permiso del dueño.
+
 ## 5. Nunca
 
 Retiros, transferencias, margen, futuros o apalancamiento; reenviar una orden incierta (el
