@@ -17,6 +17,27 @@ transporte de Futuros. Cuando el mercado cae, el sistema hace lo que sí funcion
 tendencia bajista y sale con stops puestos en Binance. Otra estrategia de corto sería un estudio
 nuevo, registrado antes, con datos que no se usaron aquí; solo se activaría si pasa.
 
+## Lo que pidió el dueño después (2026-10-09)
+
+Cita: "en futuro solo quiero que tengas mi orden y estudies el mercado igual, no debes tener el
+miedo si tienes mi permiso podemos arriesgar con un margen de pérdida o buscar la lógica para
+en algunas semanas tanto en vender o comprar salga bueno".
+
+- **Estudio nuevo encargado a la sesión Quant:** lógica en los dos sentidos (comprar y vender)
+  para Futuros, de otra familia que la del corto que perdió: *momentum* temporal o ruptura de
+  Donchian con stop ATR. Se registra antes de ver resultados y se prueba con datos de 2019-2022,
+  que no se usaron. Resultado principal a 1x; 2x y 3x solo como sensibilidad, contra el límite
+  del 35%.
+- **Cortos por orden del dueño:** el camino queda abierto, pero el dinero real en Futuros
+  necesita tres cosas:
+  1. la frase escrita del dueño a Claude Code local;
+  2. Futuros activado en su cuenta y en la clave (retiros siempre apagados);
+  3. el cambio de `config/live_limits.json` con su cita: hoy dice SPOT y apalancamiento 1.
+
+  El transporte de Futuros se construye y se ensaya en SHADOW antes de la primera orden real.
+- **Mientras tanto**, el vigilante del mercado avisa al dueño por Telegram de cada caída o
+  subida fuerte.
+
 ## Por qué hoy no puede
 
 Hoy el sistema opera en **Spot**: compra una moneda y la vende después. En Spot solo se gana
