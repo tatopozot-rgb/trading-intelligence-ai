@@ -29,7 +29,7 @@ from decimal import ROUND_DOWN, Decimal
 from pathlib import Path
 from typing import Callable, Optional
 
-from trading_intelligence.live import mirror, telegram_notify
+from trading_intelligence.live import messages, mirror, telegram_notify
 from trading_intelligence.live.binance_live import (
     Credentials,
     Fill,
@@ -247,7 +247,8 @@ class Operator:
         stops = self._with_trailing(stops, prices)
         message = s.evaluate(prices, self.limits)
         if message:
-            self.notify(message)
+            loss, limit = s.capital - s.equity(prices), self.limits.loss_limit_usd(s.capital)
+            self.notify(messages.stopped(loss, limit) if s.status == STOPPED else messages.warning(loss, limit))
             (self.dir / "AVISO.txt").write_text(f"{self.clock().isoformat()} {message}\n", encoding="utf-8")
         try:
             if s.status == STOPPED and s.holdings:
@@ -264,15 +265,20 @@ class Operator:
             s.note("UNCERTAIN", str(error))
         except LiveError as error:
             s.note("ERROR", str(error))
-            self.notify(f"ERROR de ejecución: {error}")
+            self.notify(messages.error(str(error)))
         for a in actions:
             if a.kind == "SKIP":
                 s.note("SKIP", f"{a.symbol}: {a.reason}")
-            elif a.kind in ("BUY", "SELL"):
-                self.notify(f"{self._tag()} {'COMPRA' if a.kind == 'BUY' else 'VENTA'} {a.symbol} "
-                            f"{a.usdt:.2f} USDT ({a.reason})")
+            elif a.kind == "BUY":
+                trade = self._trade_for(a)
+                at = Decimal(trade["usdt"]) / Decimal(trade["qty"]) if trade and Decimal(trade["qty"]) > 0 else None
+                self.notify(messages.buy(a.symbol, a.usdt, at, a.reason, self.real))
+            elif a.kind == "SELL":
+                trade = self._trade_for(a)
+                pnl = Decimal(trade["pnl"]) if trade and trade.get("pnl") is not None else None
+                self.notify(messages.sell(a.symbol, a.usdt, pnl, a.reason, self.real))
             elif a.kind == "GUARD" and a.symbol not in guarded_before:
-                self.notify(f"{self._tag()} stop puesto en Binance: {a.symbol} {a.reason.split(':', 1)[-1]}")
+                self.notify(messages.guard(a.symbol, Decimal(a.reason.split(":", 1)[-1])))
         if self.clock() - self.last_summary >= SUMMARY_EVERY:
             self.notify(self.summary(prices))
             self.last_summary = self.clock()
@@ -314,18 +320,21 @@ class Operator:
                 return False
         return True
 
-    def _tag(self) -> str:
-        return "[REAL]" if self.real else "[SHADOW]"
+    def _trade_for(self, action: mirror.Action) -> Optional[dict]:
+        """The session's trade record behind an executed action (latest match), if any."""
+        side = "BUY" if action.kind == "BUY" else "SELL"
+        for trade in reversed(self.session.trades):
+            if trade["side"] == side and trade["symbol"] == action.symbol and \
+                    trade["reason"].split(":")[0] == action.reason.split(":")[0]:
+                return trade
+        return None
 
     def summary(self, prices: dict[str, Decimal]) -> str:
         s = self.session
         held = {sym: prices.get(sym) or self.trader.price(sym) for sym in s.holdings}
-        equity = s.equity(held)
-        result = equity - s.capital
-        positions = ", ".join(f"{sym} {held[sym]}" for sym in sorted(held)) or "sin posiciones"
-        return (f"{self._tag()} resumen: {s.status}, capital {s.capital:.2f}, valor {equity:.2f} USDT "
-                f"({'+' if result >= 0 else ''}{result:.2f}); límite de pérdida "
-                f"{self.limits.loss_limit_usd(s.capital):.2f}; {positions}")
+        change = {sym: (held[sym] / h.avg_cost - 1) * 100 if h.avg_cost > 0 else None
+                  for sym, h in s.holdings.items()}
+        return messages.summary(s.capital, s.equity(held), self.limits.loss_limit_usd(s.capital), change, self.real)
 
     def _save(self) -> None:
         self.session.save(self.dir / "session.json")
@@ -387,10 +396,11 @@ class Operator:
                 self.session.note("UNCERTAIN", str(error))
             except LiveError as error:
                 self.session.note("ERROR", str(error))
-                self.notify(f"ERROR de ejecución al cerrar: {error}")
+                self.notify(messages.error(f"al cerrar: {error}"))
         self.session.status = STOPPED  # a finished session never buys again; a new one can start
         self.session.note("FIN", reason)
-        self.notify(reason)
+        left = {sym: self.trader.price(sym) for sym in self.session.holdings}
+        self.notify(messages.finished(reason, self.session.capital, self.session.equity(left)))
         (self.dir / "AVISO.txt").write_text(f"{self.clock().isoformat()} {reason}\n", encoding="utf-8")
         self._save()
         self.write_report("final")
@@ -419,7 +429,10 @@ class Operator:
             self.step(decide)
             last_bar = bar
             if start_report and n == 0:
-                self.notify(str(self.write_report("inicio")))
+                path = self.write_report("inicio")
+                logger.info("start report: %s", path)
+                self.notify(messages.started(self.session.capital, self.limits.loss_limit_usd(self.session.capital),
+                                             self.symbols, self.real))
             if self.session.status == STOPPED and self.only_dust_left():
                 self.write_report("final")
                 return
@@ -486,8 +499,38 @@ def check_connection(trader, limits: OwnerLimits, symbol: str, usdt: Decimal) ->
         return [f"{usdt} USDT queda bajo el mínimo de Binance para {symbol} ({rules.min_notional} USDT)"]
     trader.test_order(symbol, "BUY", qty)
     return ["clave verificada: trading permitido y retiros apagados",
-            f"orden validada por Binance SIN ejecutarse: compra de {qty} {symbol} (≈ {qty * price:.2f} USDT)",
+            f"orden validada por Binance SIN ejecutarse: compra de {qty} {symbol} (unos {qty * price:.2f} USDT)",
             "conexión lista: no se movió dinero"]
+
+
+TEST_TRADE_MAX_USDT = Decimal("10")  # a check of the order path, never a position
+
+
+def real_test_trade(trader, limits: OwnerLimits, symbol: str, usdt: Decimal) -> list[str]:
+    """Owner, 2026-10-09: "haz la prueba real". The smallest real round trip: a market buy,
+    then a market sell of exactly what that buy delivered (never other coins the owner holds).
+    Journaled like every order: an unclear answer is looked up, never resent."""
+    lines = check_connection(trader, limits, symbol, usdt)
+    if not lines[-1].startswith("conexión lista"):
+        return lines
+    if trader.free_balance("USDT") < usdt:
+        return lines + ["USDT libre insuficiente para la prueba real; no se compró nada"]
+    rules = trader.rules(symbol)
+    qty = rules.floor_qty(usdt / trader.price(symbol))
+    buy = trader.market_order(symbol, "BUY", qty, trader.price)
+    lines.append(f"COMPRA real: {buy.executed_qty} {symbol} a {buy.avg_price} "
+                 f"(pagado {buy.quote_qty:.4f} USDT, comisión {buy.fee_usdt:.4f} USDT)")
+    sell_qty = rules.floor_qty(buy.executed_qty)  # net of the fee taken in the coin
+    try:
+        sell = trader.market_order(symbol, "SELL", sell_qty, trader.price)
+    except LiveError as error:
+        return lines + [f"ATENCIÓN: la venta no se completó ({error}). Quedaron {buy.executed_qty} {symbol} "
+                        "comprados: véndelos en la app de Binance o avisa a Claude local."]
+    lines.append(f"VENTA real: {sell.executed_qty} {symbol} a {sell.avg_price} (recibido {sell.quote_qty:.4f} USDT)")
+    lines.append(f"costo de la prueba: {buy.quote_qty - sell.quote_qty:.4f} USDT (comisiones y diferencia de "
+                 f"precio); quedó sin vender por redondeo: {buy.executed_qty - sell_qty} {symbol}")
+    lines.append("prueba real completa: el sistema compra y vende en tu cuenta")
+    return lines
 
 
 CONVERT_FEE_BUFFER = Decimal("1.003")  # USDTUSD trades near 0.999; 0.1% fee; a little slack
@@ -559,9 +602,11 @@ def main(argv: Optional[list[str]] = None) -> int:
     rep = sub.add_parser("reporte")
     rep.add_argument("--etapa", choices=("inicio", "medio", "final"), default="medio")
     probe = sub.add_parser("prueba", help="connection check with no money: Binance validates an order "
-                                           "without executing it")
+                                           "without executing it; --real does the smallest real buy+sell")
     probe.add_argument("--simbolo", default="BTCUSDT")
     probe.add_argument("--usdt", default="6")
+    probe.add_argument("--real", action="store_true",
+                       help=f"real round trip (at most {TEST_TRADE_MAX_USDT} USDT): buy, then sell what was bought")
     resume = sub.add_parser("reanudar", help="resume the open session after a crash or reboot (safe to repeat)")
     resume.add_argument("--max-iteraciones", type=int)
     args = parser.parse_args(argv)
@@ -587,14 +632,15 @@ def main(argv: Optional[list[str]] = None) -> int:
     limits = load_limits()
     if args.cmd == "prueba":
         usdt = Decimal(args.usdt)
-        if not usdt.is_finite() or usdt <= 0:
-            parser.error("--usdt must be positive")
+        if not usdt.is_finite() or usdt <= 0 or (args.real and usdt > TEST_TRADE_MAX_USDT):
+            parser.error(f"--usdt must be positive (at most {TEST_TRADE_MAX_USDT} with --real)")
         probe_dir = d.parent / "prueba"  # its own journal, never a session's
         probe_dir.mkdir(parents=True, exist_ok=True)
         trader = SpotTrader(Credentials.from_env(), probe_dir / "orders.json")
         trader.verify_key()
-        for line in check_connection(trader, limits, args.simbolo, usdt):
-            print(line)
+        run_probe = real_test_trade if args.real else check_connection
+        for line in run_probe(trader, limits, args.simbolo, usdt):
+            telegram_notify.console(line)  # never crashes on a Windows cp1252 console
         return 0
     if args.cmd == "reporte":
         meta = json.loads((d / "meta.json").read_text(encoding="utf-8"))

@@ -1105,3 +1105,85 @@ class TestConnectionCheck:
         assert check_connection(p, LIMITS, "DOGEUSDT", Decimal("6"))[0].startswith("DOGEUSDT no está")
         assert "mínimo" in check_connection(p, LIMITS, "BTCUSDT", Decimal("4"))[0]
         assert len(p.tested) == 1  # refused requests sent nothing
+
+
+class TestRealTestTrade:
+    """Owner: "haz la prueba real". Smallest real buy+sell, selling only what the buy delivered."""
+
+    class Probe(FakeTrader):
+        def __init__(self, free=Decimal("1000"), sell_fails=False):
+            super().__init__({"BTCUSDT": Decimal("100")}, free)
+            self.tested, self.sell_fails = [], sell_fails
+
+        def test_order(self, symbol, side, qty):
+            self.tested.append((symbol, side, qty))
+
+        def market_order(self, symbol, side, qty, fp):
+            if side == "SELL" and self.sell_fails:
+                raise B.LiveError("Binance rejected the order (code -2010)")
+            self.orders.append((symbol, side, qty))
+            p = self.prices[symbol]
+            net = qty * Decimal("0.999") if side == "BUY" else qty  # BUY fee taken in the coin
+            return B.Fill("x", symbol, side, "FILLED", net, qty * p, qty * p * Decimal("0.001"), p)
+
+    def test_buys_then_sells_exactly_what_the_buy_delivered(self):
+        from trading_intelligence.live.operator import real_test_trade
+
+        p = self.Probe()
+        lines = real_test_trade(p, LIMITS, "BTCUSDT", Decimal("6"))
+        assert p.tested == [("BTCUSDT", "BUY", Decimal("0.06"))]  # validated first
+        assert p.orders == [("BTCUSDT", "BUY", Decimal("0.06")), ("BTCUSDT", "SELL", Decimal("0.0599"))]
+        assert lines[-1] == "prueba real completa: el sistema compra y vende en tu cuenta"
+        assert any(line.startswith("costo de la prueba:") for line in lines)
+
+    def test_nothing_is_bought_without_money_or_on_a_refused_check(self):
+        from trading_intelligence.live.operator import real_test_trade
+
+        p = self.Probe(free=Decimal("5"))
+        assert "insuficiente" in real_test_trade(p, LIMITS, "BTCUSDT", Decimal("6"))[-1] and p.orders == []
+        p = self.Probe()
+        assert real_test_trade(p, LIMITS, "DOGEUSDT", Decimal("6"))[0].startswith("DOGEUSDT no está")
+        assert "mínimo" in real_test_trade(p, LIMITS, "BTCUSDT", Decimal("4"))[0] and p.orders == []
+
+    def test_a_failed_sell_tells_the_owner_what_is_left(self):
+        from trading_intelligence.live.operator import real_test_trade
+
+        p = self.Probe(sell_fails=True)
+        last = real_test_trade(p, LIMITS, "BTCUSDT", Decimal("6"))[-1]
+        assert last.startswith("ATENCIÓN: la venta no se completó") and "0.05994 BTCUSDT" in last
+        assert [o[1] for o in p.orders] == ["BUY"]
+
+    def test_the_cli_caps_the_real_test_before_touching_keys(self, tmp_path, monkeypatch):
+        from trading_intelligence.live import operator as O
+
+        monkeypatch.setattr(O, "SpotTrader", lambda *a, **k: pytest.fail("no trader for a refused amount"))
+        with pytest.raises(SystemExit):
+            O.main(["--dir", str(tmp_path / "current"), "prueba", "--real", "--usdt", "11"])
+
+    def test_without_real_the_cli_never_buys(self, tmp_path, monkeypatch, capsys):
+        from trading_intelligence.live import operator as O
+
+        probe = self.Probe()
+        probe.verify_key = lambda: True
+        monkeypatch.setattr(O, "SpotTrader", lambda *a, **k: probe)
+        monkeypatch.setattr(O.Credentials, "from_env", classmethod(lambda cls, env=None: None))
+        O.main(["--dir", str(tmp_path / "current"), "prueba", "--simbolo", "BTCUSDT"])
+        assert probe.orders == [] and probe.tested  # validated, nothing executed
+        assert "no se movió dinero" in capsys.readouterr().out
+        O.main(["--dir", str(tmp_path / "current"), "prueba", "--simbolo", "BTCUSDT", "--real"])
+        assert [o[1] for o in probe.orders] == ["BUY", "SELL"]
+        assert (tmp_path / "prueba").is_dir()  # its own journal folder, beside the session's
+
+
+def test_the_owner_hears_plain_words_at_the_warning_and_at_the_stop(tmp_path):
+    sent = []
+    trader = FakeTrader({"BTCUSDT": Decimal("100")})
+    op = _operator(tmp_path, trader)
+    op.notify = sent.append
+    op.session.record_buy("BTCUSDT", Decimal("0.2"), Decimal("20"), Decimal("0"), "t")
+    trader.prices["BTCUSDT"] = Decimal("60")  # loss 8 of the 10 limit: warning (2 USDT before)
+    op.step(decide=False)
+    assert sent[0].startswith("⚠️ Vas perdiendo 8,00 USDT y tu límite es 10,00 USDT") and "continúa" in sent[0]
+    trader.prices["BTCUSDT"] = Decimal("49")
+    op.step(decide=False)
+    assert any(m.startswith("🛑 Se alcanzó tu límite de pérdida") for m in sent)

@@ -2709,6 +2709,39 @@ nothing alone**. The variants were also defined after seeing the short leg lose
   - Oil is not on Binance Spot; it is on XM/MetaTrader, the secondary platform, which has no
     adapter yet.
 
+### 70. Real test trade, friendly messages, two Windows fixes from Claude local (2026-10-09)
+
+- **Claude local's report.**
+  - The no-money `prueba` passed on the owner's PC: the key is verified, and Binance
+    validated a 0.00007 BTC order without executing it.
+  - Telegram is configured and tested.
+  - The owner chose 45% for today's session (inside the 20–50 band). Local stopped the old
+    session (no positions) and started a new one with `--limite-perdida 45 --meta 58` on
+    `6554dbb`.
+  - The `TradingIntelligence-Vigilante` task runs every 15 minutes.
+- **Fixed, both reported by Local:**
+  - `prueba` crashed on a cp1252 console on the "≈" sign. It now prints through
+    `telegram_notify.console` and the sign is gone.
+  - The cp1252 console test compared `\r\n` with `\n` on Windows. The test now uses
+    `newline="\n"`.
+- **Friendly messages.** Owner: "mensajes más amigables y fáciles de entender".
+  - New module `trading_intelligence/live/messages.py`: plain Spanish, the coin without
+    "USDT", money with a decimal comma, the result of each sale, the reason in words, and what
+    he has to do (usually nothing).
+  - It covers buy, sell, the guard stop, the 4h summary, the warning and the stop at the loss
+    limit, the session start and end, and errors. No internal codes reach the owner;
+    `AVISO.txt` and the session log keep the technical text.
+- **`prueba --real`.** The owner wrote "haz la prueba real"; the session was no longer in
+  auto mode, so its permission prompts went to him.
+  - It runs the no-money check first, then a market buy of at most 10 USDT (default 6 on
+    BTCUSDT), then a market sell of exactly what the buy delivered (net of the coin fee), so
+    it never sells other coins the owner holds.
+  - Insufficient USDT buys nothing. A failed sell tells the owner what is left. It has its own
+    journal. The CLI refuses more than 10 before building a trader.
+  - Real money: Claude local runs it only on the owner's phrase written there.
+- Tests: 11 new; 5/5 mutants killed (2 survivors led to new tests: `prueba` without `--real`
+  never buys, and the stop message at the limit). 118 live/Telegram/watcher tests pass.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |

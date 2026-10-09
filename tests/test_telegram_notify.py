@@ -105,16 +105,37 @@ def test_the_operator_alerts_each_trade_each_new_guard_and_a_periodic_summary(tm
     op = Operator(tmp_path, trader, LIMITS, profile="tendencia", timeframe="1h", symbols=["BTCUSDT"], loop=loop,
                   clock=lambda: now[0], notify=sent.append, real=True, trailing_pct=Decimal("0"))
     op.step(decide=True)
-    assert sent[0].startswith("[REAL] COMPRA BTCUSDT") and sent[1] == "[REAL] stop puesto en Binance: BTCUSDT 95.00"
+    # Plain Spanish for a non-programmer: the coin, the money, why, and what to do (nothing).
+    assert sent[0].startswith("🟢 Compré BTC por 9,98 USDT a 100,00.") and "señal de compra" in sent[0]
+    assert "simulado" not in sent[0] and "No tienes que hacer nada." in sent[0]
+    assert sent[1].startswith("🛡️ Dejé un stop de protección en Binance para BTC en 95,00")
     loop.runner.paper.pending_orders[0].stop_price = Decimal("97")
     op.step(decide=True)  # the stop only moved: no new alert
     assert len(sent) == 2
     now[0] += SUMMARY_EVERY
     op.step(decide=False)
-    assert len(sent) == 3 and sent[2].startswith("[REAL] resumen:") and "BTCUSDT" in sent[2]
+    assert len(sent) == 3 and sent[2].startswith("📊 Resumen de tu sesión: empezaste con 50,00 USDT")
+    assert "BTC (+0,0%)" in sent[2] and "límite de pérdida es 10,00 USDT" in sent[2]
     trader.prices["BTCUSDT"] = Decimal("96")
     op.step(decide=False)
-    assert sent[-1].startswith("[REAL] VENTA BTCUSDT") and "STOP" in sent[-1]
+    assert sent[-1].startswith("🔴 Vendí BTC y recibí") and "perdiste" in sent[-1] and "stop loss" in sent[-1]
+    assert "STOP_HIT" not in " ".join(sent)  # no internal codes reach the owner
+
+
+def test_friendly_messages_read_like_a_person():
+    from trading_intelligence.live import messages as M
+
+    assert M.num(Decimal("61230.5")) == "61.230,50" and M.price(Decimal("0.123456")) == "0,1235"
+    assert M.sell("ETHUSDT", Decimal("15.4"), Decimal("0.4"), "tendencia:CLOSE", True) == (
+        "🔴 Vendí ETH y recibí 15,40 USDT. En esta operación ganaste 0,40 USDT ✅. "
+        "Motivo: la estrategia dio señal de salida. No tienes que hacer nada.")
+    assert "simulado, sin dinero real" in M.buy("BTCUSDT", Decimal("6"), None, "tendencia", False)
+    assert "vas perdiendo 1,50 USDT" in M.summary(Decimal("38"), Decimal("36.5"), Decimal("13.3"), {}, True)
+    assert "No tienes posiciones abiertas" in M.summary(Decimal("38"), Decimal("38"), Decimal("13.3"), {}, True)
+    assert "\"continúa\"" in M.warning(Decimal("11.3"), Decimal("13.3"))
+    assert M.finished("META_ALCANZADA: x", Decimal("38"), Decimal("40")).endswith("ganaste 2,00 USDT ✅.")
+    assert M.reason("EXCHANGE_STOP:95") == "se activó el stop de protección que estaba puesto en Binance"
+    assert M.reason("ALGO_NUEVO") == "ALGO_NUEVO"  # unknown codes are shown, never hidden
 
 
 def test_a_launched_session_alerts_by_telegram_when_configured(tmp_path, monkeypatch):
@@ -145,7 +166,8 @@ def test_a_launched_session_alerts_by_telegram_when_configured(tmp_path, monkeyp
 def test_an_emoji_on_a_windows_redirected_console_never_stops_an_alert(monkeypatch):
     import io
 
-    out = io.TextIOWrapper(io.BytesIO(), encoding="cp1252")  # what python.exe gets when redirected
+    # what python.exe gets when redirected; newline="\n" so the check is the same on Windows (no \r\n)
+    out = io.TextIOWrapper(io.BytesIO(), encoding="cp1252", newline="\n")
     monkeypatch.setattr("sys.stdout", out)
     post = FakePost()
     T.make_notify(T.console, T.TelegramNotifier(TOKEN, "42", post))("📉 BTCUSDT -4.5% en 4h · régimen")
