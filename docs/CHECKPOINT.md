@@ -2363,6 +2363,63 @@ also asked to watch every open trade continuously and to profit when markets fal
     GO/NO-GO. Nothing real is built until it reports.
 - 82 live tests (7 new); 10/10 mutants killed (two survivors led to new tests).
 
+### 61. Short side of the 4h trend logic on real data: NO-GO, and it loses significantly (2026-10-09)
+
+Quant/Strategy session, delegated in section 60. Research only: public klines, no key, no
+orders. `trading_intelligence/live/` and `config/live_limits.json` were not touched.
+
+**Pre-registered** in `docs/PREREG_SHORT_4H.md`, committed and pushed as `2dc24fc` before
+any result existed.
+- **Strategy:** the exact mirror of `tendencia` at 4h. It shorts when EMA20 crosses below
+  EMA50 in TREND_DOWN (confidence ≥ 0.5) or BREAKOUT_DOWN, with a stop at the highest high
+  of the previous 10 bars, and exits on the cross back up.
+  - Deviation from the request, decided and written before any result: a swing-high stop
+    rather than an ATR stop, because the long side uses a swing stop. An ATR multiple would
+    have added an unvalidated parameter.
+- **Costs:** futures-like. 0.05% fee per side, 5 bps slippage, and funding of 0.01% per 8h
+  charged to shorts.
+- **Walk-forward:** as section 45. 2022-10-01 → 2026-10-01, the second half out-of-sample
+  in 5 cold folds, pooled over the 12 live symbols plus PAXGUSDT (full data, 0 gaps).
+- **Harness:** `trading_intelligence/backtesting/short_side_validation.py` (13 tests). A test
+  proves its long mode reproduces `BacktestEngine` trade for trade.
+- **Run:** workflow `short-side-walk-forward.yml`, run `37927589566` on `7daa57f`, green.
+  Artifact `short-side-4h` (90 days).
+
+| Mode (futures costs) | Verdict | Trades | Win rate | Mean net/trade | Median | PF | p | Worst fold DD | OOS P&L | Funding |
+|---|---|---|---|---|---|---|---|---|---|---|
+| long only | INCONCLUSIVE | 222 | 33.3% | +3.42% | −2.33% | 2.10 | 0.074 | −5.6% | +11,219 | 0 |
+| **short only** | **NO-GO** | 194 | 23.2% | **−1.70%** | −2.72% | **0.48** | **0.001** | −5.5% | **−5,515** | 792 |
+| long + short | INCONCLUSIVE | 326 | 29.8% | +1.50% | −2.51% | 1.51 | 0.241 | −6.6% | +7,851 | 629 |
+
+(OOS P&L is summed over 13 symbols × 5 folds, each starting at 10,000 with 1% risk per trade.)
+
+**Reading it honestly:**
+1. **The short side has significantly negative expectancy.** It loses about 1.7% per trade
+   after costs, p = 0.001, and only 23% of trades win. It is not "unproven"; on this
+   evidence it is expected to lose money.
+2. **Funding is not the cause.** Funding is 792 of the 5,515 loss.
+3. **The loss is not one bad period.** The short side is negative in all 5 folds, including
+   folds 3 and 4, where the long side also lost. That is, it did not profit in the falling
+   markets either. Ten of 13 symbols are negative, and PAXGUSDT is −0.87% per trade.
+4. **Adding shorts makes the combined system worse than long-only:** +7,851 vs +11,219 OOS
+   P&L, with a lower mean, a lower PF and a larger worst drawdown.
+5. Long-only under futures costs comes out like section 45 (+3.42%, p = 0.074). It is still
+   not proven.
+6. The likely mechanism, stated as a hypothesis and not tested: crypto down-moves on 4h
+   arrive as fast drops followed by sharp short-covering bounces. A slow EMA cross enters
+   late and is stopped out by the bounce. This is a reason not to expect a re-tuned mirror
+   to work either. It is not a license to try one on this data.
+
+**Recommendation:** do not build real shorts on this logic. `docs/DECISION_SHORTS.md`
+should record this NO-GO. A different short strategy would be a new pre-registration, on a
+period not used here, or on forward PAPER data.
+
+**Erratum on `docs/PREREG_4H_FORWARD.md`** (that file stays frozen; noted here): its line
+"a trade still open at the look date is ignored, which is the section 45 rule" is wrong
+about both the code and section 45. `BacktestEngine` closes an open trade at the last
+close (`end_of_data`), and both section 45 and `forward_confirmation.py` count it. The code
+committed with that registration (`f679012`) governs, and no rule changes.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
