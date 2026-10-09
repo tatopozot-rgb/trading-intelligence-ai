@@ -475,6 +475,21 @@ def _lock(state_dir: Path, now: Optional[datetime] = None) -> Path:
     return lock
 
 
+def check_connection(trader, limits: OwnerLimits, symbol: str, usdt: Decimal) -> list[str]:
+    """Connection check with NO money: Binance's test endpoint validates the key, the
+    signature and the order's filters without executing anything. Returns lines for the owner."""
+    if symbol not in limits.allowed_symbols:
+        return [f"{symbol} no está entre las monedas aprobadas; no se envió nada"]
+    price, rules = trader.price(symbol), trader.rules(symbol)
+    qty = rules.floor_qty(usdt / price)
+    if qty <= 0 or qty < rules.min_qty or qty * price < rules.min_notional:
+        return [f"{usdt} USDT queda bajo el mínimo de Binance para {symbol} ({rules.min_notional} USDT)"]
+    trader.test_order(symbol, "BUY", qty)
+    return ["clave verificada: trading permitido y retiros apagados",
+            f"orden validada por Binance SIN ejecutarse: compra de {qty} {symbol} (≈ {qty * price:.2f} USDT)",
+            "conexión lista: no se movió dinero"]
+
+
 CONVERT_FEE_BUFFER = Decimal("1.003")  # USDTUSD trades near 0.999; 0.1% fee; a little slack
 MIN_CONVERSION_USD = Decimal("5")
 
@@ -543,6 +558,10 @@ def main(argv: Optional[list[str]] = None) -> int:
     stop.add_argument("--cerrar", action="store_true")
     rep = sub.add_parser("reporte")
     rep.add_argument("--etapa", choices=("inicio", "medio", "final"), default="medio")
+    probe = sub.add_parser("prueba", help="connection check with no money: Binance validates an order "
+                                           "without executing it")
+    probe.add_argument("--simbolo", default="BTCUSDT")
+    probe.add_argument("--usdt", default="6")
     resume = sub.add_parser("reanudar", help="resume the open session after a crash or reboot (safe to repeat)")
     resume.add_argument("--max-iteraciones", type=int)
     args = parser.parse_args(argv)
@@ -566,6 +585,17 @@ def main(argv: Optional[list[str]] = None) -> int:
         return 0
 
     limits = load_limits()
+    if args.cmd == "prueba":
+        usdt = Decimal(args.usdt)
+        if not usdt.is_finite() or usdt <= 0:
+            parser.error("--usdt must be positive")
+        probe_dir = d.parent / "prueba"  # its own journal, never a session's
+        probe_dir.mkdir(parents=True, exist_ok=True)
+        trader = SpotTrader(Credentials.from_env(), probe_dir / "orders.json")
+        trader.verify_key()
+        for line in check_connection(trader, limits, args.simbolo, usdt):
+            print(line)
+        return 0
     if args.cmd == "reporte":
         meta = json.loads((d / "meta.json").read_text(encoding="utf-8"))
         if meta.get("loss_limit_pct") is not None:

@@ -54,6 +54,7 @@ Debe imprimir el reporte de inicio, decidir sobre datos reales y escribir
 | "para" / "para y cierra todo" | `... parar` / `... parar --cerrar` |
 | (si el operador se cayó o el PC se reinició) | `... reanudar`; el vigilante lo hace solo cada 5 min |
 | "cómo vamos" | `... estado` y `... reporte --etapa medio` |
+| "haz una prueba a ver si funciona" | `... prueba` (por defecto BTCUSDT por unos 6 USDT; `--simbolo ETHUSDT` para otra moneda). **No mueve dinero:** Binance valida la clave, la firma y la orden con su endpoint de prueba, sin ejecutarla. Usa su propio diario (`live_runs/prueba/`) y no toca la sesión |
 
 Antes de un `--real` que no salga de una frase explícita del dueño: no lo ejecutes.
 

@@ -2688,6 +2688,27 @@ nothing alone**. The variants were also defined after seeing the short leg lose
 - The momentum operator wiring stays shelved (draft kept outside the repo); the owner no
   longer wants it.
 
+### 69. Owner wants a test trade on Binance: a no-money connection check (2026-10-09)
+
+- Owner: "quiero que inicie una operación de prueba en binance a ver si está funcionando".
+- Added `SpotTrader.test_order`, which calls Binance's official `POST /api/v3/order/test`.
+  - It checks signature, key permissions and the order's filters, and executes nothing.
+  - It is never journaled, and it refuses to send before the key's permissions are verified.
+- Added the operator command `prueba [--simbolo BTCUSDT] [--usdt 6]`.
+  - It verifies the key (withdrawals must be off), checks the symbol is approved and above
+    Binance's minimum, then sends the test order.
+  - It has its own `live_runs/prueba/` journal, so the running session is untouched.
+- A real buy-and-sell round trip was also attempted. This session's permission system
+  blocked that code (a new real-money path), so it is NOT built. The owner can authorize it,
+  or the running real session shows real execution with its first signal.
+- Tests: 3 new; 2 mutants killed; 111 live/Telegram/watcher tests pass.
+- Owner's market preferences: BTC, ETH, oil and gold.
+  - BTC and ETH are already traded.
+  - Gold (PAXGUSDT) is watched but needs the owner's written approval to be added to
+    `config/live_limits.json`.
+  - Oil is not on Binance Spot; it is on XM/MetaTrader, the secondary platform, which has no
+    adapter yet.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |

@@ -362,6 +362,21 @@ class SpotTrader:
 
     # --- orders --------------------------------------------------------------
 
+    def test_order(self, symbol: str, side: str, quantity: Decimal) -> None:
+        """Binance's official test endpoint: checks signature, key permissions and the order's
+        filters WITHOUT executing anything. Raises LiveError when Binance refuses it."""
+        if not self.key_checked:
+            raise UnsafeKey("key permissions not verified in this process")
+        if side not in ("BUY", "SELL") or not _SYMBOL.match(symbol) or quantity <= 0:
+            raise ValueError("invalid order")
+        resp = self._signed("POST", "/api/v3/order/test", {
+            "symbol": symbol, "side": side, "type": "MARKET", "quantity": format(quantity, "f")})
+        data = self._json(resp)
+        if resp is not None and resp.status == 200 and data == {}:
+            return
+        code = data.get("code") if isinstance(data, dict) else None
+        raise LiveError(f"Binance refused the test order (HTTP {None if resp is None else resp.status}, code {code})")
+
     def unresolved(self) -> list[str]:
         return sorted(k for k, o in self.journal.read().items()
                       if o.get("kind") is None and o["state"] in UNRESOLVED)
