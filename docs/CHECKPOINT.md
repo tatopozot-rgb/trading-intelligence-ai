@@ -2613,6 +2613,52 @@ modified. The runner reads `config/live_limits.json` once, to freeze its symbol 
   real one is published, and the replay then corrects them retroactively. Reports can
   shift slightly once a month; the report says so.
 
+### 67. EXPLORATORY spot long-only momentum variants for a small account (2026-10-09)
+
+Quant/Strategy session. This was an urgent request from the leader: the owner wants momentum
+on real Spot money, and the session has 38 USDT. Research only; `live/` was not touched.
+**Not pre-registered**, and run on data already used in sections 45/61/65, so it **decides
+nothing alone**. The variants were also defined after seeing the short leg lose
+(selection bias).
+
+- **Code:** `trading_intelligence/backtesting/spot_momentum_variants.py`, 4 tests.
+- **Run:** workflow `spot-variants.yml`, run `37939345207` on `73b44ad`, green.
+  Artifact `spot-variants`.
+- **Setup:** spot costs 0.1% per side + 5 bps, no funding. The 12 live symbols, weekly
+  Monday rebalance, 5 folds starting at 10,000 each.
+- **Variants:**
+  - **A:** registered TSMOM with shorts replaced by cash.
+  - **B:** top-3 long by r28/σ, each at min(40%, (40%/σ)/3).
+  - **C:** B with a 10% trailing stop on daily closes.
+  - **D:** B with a 15% trailing stop on daily closes.
+
+| Variant | Primary 2019-01→2022-10: mean/wk, PF, p, folds +, worst DD, ≤−20%, turnover/wk | Secondary 2022-10→2026-10 (seen): mean/wk, PF, p, folds +, worst DD, ≤−20%, turnover/wk |
+|---|---|---|
+| A | +0.85%, 2.30, 0.001, 4/5, −18.8%, 0%, 11% | +0.49%, 1.62, 0.045, 4/5, −18.6%, 0%, 18% |
+| B | +0.99%, 2.24, 0.004, 4/5, −25.8%, 80%, 27% | +0.59%, 1.44, 0.080, 3/5, −27.1%, 20%, 47% |
+| C | +0.69%, 1.70, 0.024, 4/5, −25.7%, 40%, 38% | +0.50%, 1.34, 0.125, 3/5, −24.1%, 20%, 55% |
+| D | +0.87%, 1.95, 0.007, 4/5, −25.4%, 40%, 33% | +0.43%, 1.26, 0.206, 3/5, −27.7%, 40%, 51% |
+
+- No fold of any variant reached −35%.
+- The median week is 0% for every variant (frequently all cash).
+- **Minimum equity for A** with every order ≥ 5 USDT:
+  - primary: median week 169, 90% of weeks 340, worst week 724 USDT;
+  - secondary: median 129, 90% 201, worst 294 USDT.
+  - **A cannot run at 38 USDT.**
+
+**Reading:**
+- **A is the most robust:** highest PF, worst drawdown above −20% in both periods, lowest
+  turnover. It beat the two-way version in both periods (+0.85 vs +0.60 and +0.49 vs
+  +0.29 per week), but this comparison is selection-biased.
+- **B** adds a little return for much more drawdown and 2–3× the turnover, and it is
+  weaker in the secondary period.
+- **Trailing stops (C, D) reduced return and PF in both periods without improving the
+  worst drawdown.**
+- At 38 USDT, only B-like sizing fits (about 5–15 USDT per order). Minimum-order rounding
+  and fees then dominate, so it is an untested deviation.
+- **Nothing here validates real money.**
+- The registered forward PAPER (section 66) continues unchanged.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |

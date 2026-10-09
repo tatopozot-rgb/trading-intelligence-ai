@@ -1,0 +1,36 @@
+name: EXPLORATORY spot momentum variants (public data, research only)
+
+# Not pre-registered: variants on already-used data (CHECKPOINT 65 follow-up). Decides nothing.
+# No account, no API key, no orders. Results: job summary + "spot-variants" artifact.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  study:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+      - run: pip install "pandas>=2.0" "numpy>=1.24" "scipy>=1.11"
+      - name: Spot variants
+        shell: bash
+        run: |
+          SYMBOLS=$(python -c "import json; print(' '.join(json.load(open('config/live_limits.json'))['allowed_symbols']))")
+          python -m trading_intelligence.backtesting.spot_momentum_variants --symbols $SYMBOLS --out results \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: spot-variants
+          path: results
+          retention-days: 90
+          if-no-files-found: ignore
