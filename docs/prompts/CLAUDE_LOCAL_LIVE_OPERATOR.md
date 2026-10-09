@@ -116,6 +116,27 @@ Copia solo `status.json`, los `reporte_*.md` y `AVISO.txt` a `docs/live_reports/
 un clon aparte, en la rama `live-reports`, y hace push. Nunca copia el diario de órdenes, la
 sesión, el motor ni nada con claves, y no toca el checkout del operador.
 
+## 4d. Alertas al celular por Telegram (privadas, sin publicar nada)
+
+El operador manda a Telegram cada compra y venta, cada stop puesto en Binance, el aviso de
+pérdida, el STOP, los errores, el cierre y un resumen cada 4 horas. Sin las dos variables no
+envía nada y funciona igual que antes. **El token nunca se escribe en el chat, el repo ni un
+log**: lo guarda el propio dueño.
+
+1. El dueño, en Telegram: @BotFather → `/newbot` → copia el token. En PowerShell, **él mismo**:
+   `setx TI_TELEGRAM_TOKEN "<token>"`
+2. El dueño le escribe "hola" a su bot. En una terminal nueva:
+   `python -m trading_intelligence.live.telegram_notify chat-id` → imprime el número del chat.
+   `setx TI_TELEGRAM_CHAT_ID "<número>"`
+3. Terminal nueva: `python -m trading_intelligence.live.telegram_notify prueba` → llega
+   "alertas de Telegram activas" al celular.
+4. Un operador que ya corre lee las variables solo al arrancar. Para que la sesión abierta
+   mande alertas, cierra la ventana del operador: el vigilante la reanuda en unos 15 minutos
+   con las variables nuevas, y mientras tanto los stops puestos en Binance siguen activos.
+   **No uses `parar` para esto**, porque termina la sesión.
+
+Si Telegram falla, el operador lo anota y sigue operando: una alerta nunca detiene un stop.
+
 ## 5. Nunca
 
 Retiros, transferencias, margen, futuros o apalancamiento; reenviar una orden incierta (el

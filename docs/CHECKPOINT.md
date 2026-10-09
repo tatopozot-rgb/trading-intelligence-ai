@@ -2363,6 +2363,26 @@ also asked to watch every open trade continuously and to profit when markets fal
     GO/NO-GO. Nothing real is built until it reports.
 - 82 live tests (7 new); 10/10 mutants killed (two survivors led to new tests).
 
+### 61. Telegram alerts; comparison with a basic bot package (2026-10-09)
+
+- The owner showed another AI's offer: RSI, EMA-cross and DCA bots, a simple backtest,
+  `estrategias.md`, and optional Telegram, trailing stop and grid.
+  - We already cover more: regime-routed trend and range strategies, a risk engine with veto,
+    real-data walk-forward with fees (which blocked 1h), PAPER/SHADOW, a real operator with
+    guard stops on Binance, the trailing stop, the loss guard, the watchdog and reports.
+  - Real gap: alerts. DCA (no edge by itself) and grid would need the same real-data
+    validation before any real money; not built.
+- **Telegram alerts** (`trading_intelligence/live/telegram_notify.py`, standard library only):
+  - token and chat id come from `TI_TELEGRAM_TOKEN` / `TI_TELEGRAM_CHAT_ID` on the owner's PC;
+    malformed values turn alerts off; the token never appears in a repr, log or exception;
+  - only `https://api.telegram.org`, no redirects; failures are logged and never stop the
+    operator; messages are cut to Telegram's limit;
+  - `chat-id` and `prueba` setup commands.
+- The operator now alerts each BUY/SELL, the first guard stop of each position (not every
+  trailing move), and a summary every 4 h, besides the existing warnings, errors and finish.
+  `_launch` wires it, so new and resumed sessions both use it.
+- 13 new tests; 7/7 mutants killed. Setup in `CLAUDE_LOCAL_LIVE_OPERATOR.md` section 4d.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
