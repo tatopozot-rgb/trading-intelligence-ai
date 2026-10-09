@@ -62,13 +62,21 @@ paso la orden a Claude Code local, pero es un paso más y más lento.
 
 ## 4. La regla de pérdida (la que usted pidió)
 
-- Límite: **45% del capital de la sesión** (aprobado por el dueño el 2026-10-09; su rango aceptado es 45-55%). Ejemplo: 38 → 17,1 USDT.
-- **2 USD antes del límite** (38 → a los 15,1 USDT de pérdida): no abre nada nuevo y le
+- Límite: **35% del capital de la sesión** por defecto. El dueño puede fijar otro por sesión entre **20% y 50%** (`--limite-perdida N`). Aprobado el 2026-10-09. Ejemplo: 38 → 13,3 USDT.
+- **2 USD antes del límite** (38 → a los 11,3 USDT de pérdida): no abre nada nuevo y le
   **pregunta** si continuar. Las salidas y los stops siguen funcionando.
 - Si dice "continúa", sigue hasta el límite. En el límite se detiene y cierra las
   posiciones de la sesión.
 - El sistema nunca agrega capital ni sube el riesgo para recuperar. Si usted agrega capital,
   el límite se recalcula sobre el nuevo total.
+
+## 4b. Vigilancia de cada operación abierta
+
+- Cada minuto: el stop del motor, el **stop móvil** (cuando una posición gana un 2%, su stop
+  sigue al precio máximo un 3% por debajo; `--trailing N`, 0 lo apaga) y la guardia de pérdida.
+- El stop efectivo (el mayor de los dos) queda además **puesto en Binance**, así que protege
+  aunque el PC esté apagado.
+- Ganar con la bajada (cortos) todavía no: ver `docs/DECISION_SHORTS.md`.
 
 ## 5. Lo que nunca pasa
 
@@ -99,4 +107,4 @@ La sesión Quant probó ambas estrategias con 1 a 4 años de datos reales de Bin
 Decisión del líder: **el operador no envía órdenes reales en 1 h**; solo en 4 h. En 4 h, la
 operación típica (la mediana) pierde, y el resultado depende de pocas ganancias grandes.
 Se esperan rachas de pérdidas pequeñas. Cada sesión real sigue siendo un experimento con la
-pérdida acotada por su regla del 45% y el aviso de 2 USD.
+pérdida acotada por su límite (35% estándar) y el aviso de 2 USD.

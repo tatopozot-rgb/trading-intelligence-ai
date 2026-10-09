@@ -372,13 +372,19 @@ class TestOperator:
 class TestLimits:
     def test_the_committed_limits_load(self):
         limits = load_limits()
-        # Owner, 2026-10-09: "apruebo el límite del 45 ... aceptaría entre 45 a 55".
-        assert limits.loss_limit_pct == Decimal("45") and limits.warn_before_usd == Decimal("2")
-        assert limits.loss_limit_usd(Decimal("38")) == Decimal("17.1") and limits.warn_at_usd(Decimal("38")) == Decimal("15.1")
+        # Owner, 2026-10-09: "un standard de 35% ... si algún día quiero arriesgarme más ... al 50 o un 20".
+        assert limits.loss_limit_pct == Decimal("35") and limits.warn_before_usd == Decimal("2")
+        assert limits.loss_band_pct == (Decimal("20"), Decimal("50"))
+        assert limits.loss_limit_usd(Decimal("38")) == Decimal("13.3") and limits.warn_at_usd(Decimal("38")) == Decimal("11.3")
+        assert limits.for_session(Decimal("50")).loss_limit_usd(Decimal("100")) == Decimal("50")
+        assert limits.for_session(None) is limits
+        for outside in (Decimal("19"), Decimal("51")):
+            with pytest.raises(LimitsNotApproved):
+                limits.for_session(outside)
 
     @pytest.mark.parametrize("change", [{"approved_by_owner": False}, {"withdrawals": True}, {"max_leverage": 3},
                                         {"market": "FUTURES"}, {"loss_limit_pct": 0}, {"loss_limit_pct": 60},
-                                        {"loss_limit_pct": 40}, {"loss_limit_owner_range_pct": ["x"]}])
+                                        {"loss_limit_pct": 19}, {"loss_limit_owner_range_pct": ["x"]}])
     def test_unapproved_or_unsafe_limits_refuse(self, tmp_path, change):
         data = json.loads((Path(__file__).resolve().parents[1] / "config/live_limits.json").read_text())
         (tmp_path / "l.json").write_text(json.dumps({**data, **change}))
@@ -955,3 +961,90 @@ class TestUsdConversion:
         with pytest.raises(SystemExit):
             O.main(["--dir", str(tmp_path), "iniciar", "--capital", "38", "--convertir-usd"])
         assert "--real" in capsys.readouterr().err and not (tmp_path / "session.json").exists()
+
+
+class TestTrailingStop:
+    """Owner: watch an open trade continuously until its goal; let the stop follow the gain."""
+
+    def _op(self, tmp_path, trader, **kw):
+        op = _operator(tmp_path, trader)
+        for k, v in kw.items():
+            setattr(op, k, v)
+        op.session.record_buy("BTCUSDT", Decimal("0.1"), Decimal("10"), Decimal("0"), "t")  # cost 100
+        return op
+
+    def test_the_stop_follows_the_peak_once_in_profit(self, tmp_path):
+        trader = FakeTrader({"BTCUSDT": Decimal("101")})
+        op = self._op(tmp_path, trader)
+        assert op._with_trailing({"BTCUSDT": Decimal("95")}, {"BTCUSDT": Decimal("101")}) == {"BTCUSDT": Decimal("95")}
+        stops = op._with_trailing({"BTCUSDT": Decimal("95")}, {"BTCUSDT": Decimal("110")})  # +10%: trailing on
+        assert stops["BTCUSDT"] == Decimal("106.70")  # 3% under the 110 peak
+        stops = op._with_trailing({"BTCUSDT": Decimal("95")}, {"BTCUSDT": Decimal("107")})  # peak is remembered
+        assert stops["BTCUSDT"] == Decimal("106.70")
+
+    def test_a_pullback_from_the_peak_sells_within_a_minute(self, tmp_path):
+        trader = FakeTrader({"BTCUSDT": Decimal("110")})
+        op = self._op(tmp_path, trader)
+        op._last_stops = {"BTCUSDT": Decimal("95")}
+        op.step(decide=False)
+        assert "BTCUSDT" in op.session.holdings and op.session.trail_peaks["BTCUSDT"] == Decimal("110")
+        trader.prices["BTCUSDT"] = Decimal("106.5")  # 3.2% off the peak, still +6.5% on cost
+        op.step(decide=False)
+        assert "BTCUSDT" not in op.session.holdings and op.session.trades[-1]["reason"].startswith("STOP_HIT:106.70")
+        assert op.session.realized_pnl > 0 and op.session.trail_peaks == {}
+        op.session.record_buy("BTCUSDT", Decimal("0.1"), Decimal("10"), Decimal("0"), "again")
+        assert "BTCUSDT" not in op.session.trail_peaks  # a re-entry never inherits the old peak
+
+    def test_never_lowers_the_engine_stop_and_can_be_turned_off(self, tmp_path):
+        trader = FakeTrader({"BTCUSDT": Decimal("110")})
+        op = self._op(tmp_path, trader)
+        assert op._with_trailing({"BTCUSDT": Decimal("108")}, {"BTCUSDT": Decimal("110")})["BTCUSDT"] == Decimal("108")
+        op.trailing_pct = Decimal("0")
+        assert op._with_trailing({"BTCUSDT": Decimal("95")}, {"BTCUSDT": Decimal("150")}) == {"BTCUSDT": Decimal("95")}
+
+    def test_peaks_survive_a_restart(self, tmp_path):
+        trader = FakeTrader({"BTCUSDT": Decimal("110")})
+        op = self._op(tmp_path, trader)
+        op.step(decide=False)
+        assert Session.load(tmp_path / "session.json").trail_peaks == {"BTCUSDT": Decimal("110")}
+
+
+def test_the_session_loss_limit_is_chosen_at_start_inside_the_owners_range(tmp_path, monkeypatch, capsys):
+    from trading_intelligence.live import operator as O
+
+    seen = []
+    monkeypatch.setattr(O, "_trader", lambda real, journal: None)
+    monkeypatch.setattr(O, "_launch", lambda d, limits, meta, eq, it: seen.append(meta))
+    O.main(["--dir", str(tmp_path), "iniciar", "--capital", "100", "--limite-perdida", "50", "--trailing", "4"])
+    assert seen[0]["loss_limit_pct"] == "50" and seen[0]["trailing_pct"] == "4"
+    with pytest.raises(SystemExit):
+        O.main(["--dir", str(tmp_path / "b"), "iniciar", "--capital", "100", "--limite-perdida", "60"])
+    assert "outside the owner's approved range" in capsys.readouterr().err
+
+
+def test_a_leftover_peak_never_reaches_a_new_position():
+    s = Session("s", "tendencia", "t", Decimal("50"))
+    s.trail_peaks["BTCUSDT"] = Decimal("200")  # left by an older position (e.g. closed while the PC was off)
+    s.record_buy("BTCUSDT", Decimal("0.1"), Decimal("10"), Decimal("0"), "new")
+    assert "BTCUSDT" not in s.trail_peaks
+
+
+def test_a_launched_session_runs_with_its_own_loss_limit(tmp_path, monkeypatch):
+    from trading_intelligence.live import operator as O
+
+    used = []
+
+    class Spy:
+        def __init__(self, d, trader, limits, **kw):
+            used.append((limits.loss_limit_pct, kw["trailing_pct"]))
+
+        def run(self, **kw):
+            pass
+
+    monkeypatch.setattr(O, "_trader", lambda real, journal: None)
+    monkeypatch.setattr(O, "Operator", Spy)
+    meta = {"profile": "copiar", "timeframe": "4h", "symbols": ["BTCUSDT"], "real": True,
+            "loss_limit_pct": "20", "trailing_pct": "2.5"}
+    O._launch(tmp_path, load_limits(), meta, "100", 1)
+    O._launch(tmp_path, load_limits(), {**meta, "loss_limit_pct": None}, "100", 1)  # older sessions: default
+    assert used == [(Decimal("20"), Decimal("2.5")), (Decimal("35"), Decimal("2.5"))]

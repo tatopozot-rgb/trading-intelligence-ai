@@ -39,7 +39,7 @@ from trading_intelligence.live.binance_live import (
     SymbolRules,
     Unreconciled,
 )
-from trading_intelligence.live.limits import OwnerLimits, load_limits
+from trading_intelligence.live.limits import LimitsNotApproved, OwnerLimits, load_limits
 from trading_intelligence.live.session import STOPPED, Session
 
 logger = logging.getLogger(__name__)
@@ -50,6 +50,11 @@ PROFILES = ("tendencia", "tendencia_rango", "copiar")
 # Real orders are allowed only at a timeframe that has not been shown to lose.
 REAL_TIMEFRAMES = frozenset({"4h"})
 DEFAULT_TIMEFRAME = "4h"
+# Trailing stop defaults (owner may change per session with --trailing; 0 turns it off).
+# Chosen, not validated by walk-forward: the research engine's opt-in trailing stop cut the
+# survival bench's mean max drawdown from 34.7% to 23.0% (CHECKPOINT section 30).
+DEFAULT_TRAILING_PCT = Decimal("3")
+DEFAULT_TRAIL_AFTER_PCT = Decimal("2")
 MID_REPORT_EVERY = timedelta(hours=12)
 
 AGENTS_BY_PROFILE = {
@@ -181,7 +186,8 @@ class Operator:
     def __init__(self, state_dir: Path, trader, limits: OwnerLimits, *, profile: str, timeframe: str,
                  symbols: list[str], loop=None, clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
                  notify: Callable[[str], None] = print, real: bool = False,
-                 end_at: Optional[datetime] = None, profit_target_pct: Optional[Decimal] = None) -> None:
+                 end_at: Optional[datetime] = None, profit_target_pct: Optional[Decimal] = None,
+                 trailing_pct: Decimal = DEFAULT_TRAILING_PCT, trail_after_pct: Decimal = DEFAULT_TRAIL_AFTER_PCT) -> None:
         self.dir = Path(state_dir)
         self.trader = trader
         self.limits = limits
@@ -194,6 +200,8 @@ class Operator:
         self.real = real
         self.end_at = end_at  # owner's "por N horas": close the session's positions and finish
         self.profit_target_pct = profit_target_pct  # owner's "hasta ganar N%": take the gain and finish
+        self.trailing_pct = trailing_pct  # 0 = off
+        self.trail_after_pct = trail_after_pct
         self.session = Session.load(self.dir / "session.json")
         self.last_mid_report = self.clock()
 
@@ -233,6 +241,7 @@ class Operator:
 
         needed = sorted(set(s.holdings) | set(targets or {}))
         prices = {sym: self.trader.price(sym) for sym in needed}
+        stops = self._with_trailing(stops, prices)
         message = s.evaluate(prices, self.limits)
         if message:
             self.notify(message)
@@ -261,6 +270,30 @@ class Operator:
             self.last_mid_report = self.clock()
         self._save()
         return actions
+
+    def _with_trailing(self, stops: dict[str, Decimal], prices: dict[str, Decimal]) -> dict[str, Decimal]:
+        """Owner: "estar en revisión continua hasta cumplir la meta de esa transacción". Every
+        pass (each minute) the highest price since entry is tracked; once a position is up
+        trail_after_pct, its stop follows that peak at trailing_pct below it. The effective stop
+        is never lower than the engine's, and it also moves the guard stop resting on Binance."""
+        out = dict(stops)
+        s = self.session
+        for sym in list(s.trail_peaks):
+            if sym not in s.holdings:
+                del s.trail_peaks[sym]
+        if self.trailing_pct <= 0:
+            return out
+        for sym, held in s.holdings.items():
+            price = prices.get(sym)
+            if price is None:
+                continue
+            peak = max(s.trail_peaks.get(sym, price), price)
+            s.trail_peaks[sym] = peak
+            if held.avg_cost > 0 and peak >= held.avg_cost * (1 + self.trail_after_pct / 100):
+                trail = peak * (1 - self.trailing_pct / 100)
+                if trail > out.get(sym, Decimal("0")):
+                    out[sym] = trail
+        return out
 
     def only_dust_left(self) -> bool:
         """Nothing sellable remains (holdings under the exchange minimum cannot be sold)."""
@@ -440,6 +473,7 @@ def convert_for_capital(trader, capital: Decimal) -> str:
 
 def _launch(d: Path, limits: OwnerLimits, meta: dict, engine_equity: str, max_iterations: Optional[int]) -> None:
     """Runs the operator for the session described by meta.json (new or resumed)."""
+    limits = limits.for_session(Decimal(str(meta["loss_limit_pct"])) if meta.get("loss_limit_pct") is not None else None)
     trader = _trader(meta["real"], d / "orders.json")
     loop = None
     if meta["profile"] != "copiar":
@@ -453,7 +487,8 @@ def _launch(d: Path, limits: OwnerLimits, meta: dict, engine_equity: str, max_it
     end_at = datetime.fromisoformat(meta["end_at"]) if meta.get("end_at") else None
     target = Decimal(meta["profit_target_pct"]) if meta.get("profit_target_pct") is not None else None
     op = Operator(d, trader, limits, profile=meta["profile"], timeframe=meta["timeframe"], symbols=meta["symbols"],
-                  loop=loop, real=meta["real"], end_at=end_at, profit_target_pct=target)
+                  loop=loop, real=meta["real"], end_at=end_at, profit_target_pct=target,
+                  trailing_pct=Decimal(str(meta.get("trailing_pct", DEFAULT_TRAILING_PCT))))
     op.run(max_iterations=max_iterations, start_report=True)
 
 
@@ -470,6 +505,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     start.add_argument("--max-iteraciones", type=int)
     start.add_argument("--horas", type=float, help="finish after N hours, closing the session's positions")
     start.add_argument("--meta", help="finish when the session gains N%% of its capital, closing its positions")
+    start.add_argument("--limite-perdida", help="this session's loss limit in %% (inside the owner's approved range)")
+    start.add_argument("--trailing", default=str(DEFAULT_TRAILING_PCT),
+                       help="trailing stop in %% below the peak once a position is up 2%%; 0 = off")
     start.add_argument("--convertir-usd", action="store_true",
                        help="(with --real) first convert fiat USD in Spot to the USDT the capital needs")
     sub.add_parser("estado")
@@ -505,6 +543,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     limits = load_limits()
     if args.cmd == "reporte":
         meta = json.loads((d / "meta.json").read_text(encoding="utf-8"))
+        if meta.get("loss_limit_pct") is not None:
+            limits = limits.for_session(Decimal(str(meta["loss_limit_pct"])))
         op = Operator(d, _trader(False, d / "orders.json"), limits, profile=meta["profile"],
                       timeframe=meta["timeframe"], symbols=meta["symbols"])
         print(op.write_report(args.etapa))
@@ -550,6 +590,14 @@ def main(argv: Optional[list[str]] = None) -> int:
     target = Decimal(args.meta) if args.meta is not None else None
     if target is not None and (not target.is_finite() or target <= 0):
         parser.error("--meta must be a positive percentage")
+    session_loss = Decimal(args.limite_perdida) if args.limite_perdida is not None else None
+    try:
+        limits.for_session(session_loss)
+    except LimitsNotApproved as error:
+        parser.error(str(error))
+    trailing = Decimal(args.trailing)
+    if not trailing.is_finite() or not 0 <= trailing < 50:
+        parser.error("--trailing must be between 0 and 50")
     if args.convertir_usd and not args.real:
         parser.error("--convertir-usd only makes sense with --real")
     symbols = args.simbolos or sorted(limits.allowed_symbols)
@@ -567,7 +615,8 @@ def main(argv: Optional[list[str]] = None) -> int:
         now = datetime.now(timezone.utc)
         end_at = now + timedelta(hours=args.horas) if args.horas is not None else None
         meta = {"profile": args.perfil, "timeframe": args.temporalidad, "symbols": symbols, "real": args.real,
-                "end_at": end_at.isoformat() if end_at else None, "profit_target_pct": args.meta}
+                "end_at": end_at.isoformat() if end_at else None, "profit_target_pct": args.meta,
+                "loss_limit_pct": str(session_loss) if session_loss is not None else None, "trailing_pct": str(trailing)}
         trader = _trader(args.real, d / "orders.json")  # verify the key before any session state is written
         if args.convertir_usd:
             print(convert_for_capital(trader, capital))
