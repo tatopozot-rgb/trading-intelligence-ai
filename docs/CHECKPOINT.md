@@ -2742,6 +2742,44 @@ nothing alone**. The variants were also defined after seeing the short leg lose
 - Tests: 11 new; 5/5 mutants killed (2 survivors led to new tests: `prueba` without `--real`
   never buys, and the stop message at the limit). 118 live/Telegram/watcher tests pass.
 
+### 71. Experimento horarios: pre-registered, amended, runner live; backfill green (2026-10-09)
+
+Quant/Strategy session, at the owner's request via the leader. PAPER/research only: public
+klines, no account, no key, no orders; `live/` and `config/live_limits.json` untouched.
+
+- **Pre-registration:** `docs/PREREG_HORARIOS.md` (`7d8c9ae`), plus **Amendment 1**
+  (`03ac626`), written before any result:
+  - Mon–Fri decides; Saturday is reported separately; Sunday is recorded but excluded.
+  - The owner's window, **07–10 Ecuador (12–15 UTC)**, is the primary planned test: pooled
+    per strategy at α = 0.05/3, plus per symbol under its own BH.
+  - The 12 two-hour windows are the exploratory search, under BH q = 0.10.
+  - Entries every 20 minutes; exits checked every 3 minutes on 1-minute klines. The forming
+    20-minute bar is built only from already-closed minutes (tested).
+  - Ecuador time first in all reports.
+  - Disclosure: one original-design backfill run (`37949279922`) was cancelled about 10
+    seconds in and produced nothing.
+- **Code:** `trading_intelligence/backtesting/experimento_horarios.py`, 15 tests; 801/801 in
+  the full suite.
+- **Workflow:** `experimento-horarios.yml`, daily at 00:20 UTC, replaying the previous UTC
+  day. It commits only `docs/experimento_horarios/`.
+- **Backfill (reference only, decides nothing):** run `37949990464` on `3e407a5`, green.
+  It covers the 14 days 2026-09-25 → 10-08, with daily `.md`/`.json` reports and `resumen.md`.
+- **Forward:** 2026-10-10 → 10-23 (10 weekdays) decides. The first forward report arrives
+  2026-10-11 00:20 UTC.
+
+**What the reference data already shows (descriptive; it changes no rule):**
+- Over the 10 reference weekdays, `tendencia` made only **33 trades**, at −0.55% per trade.
+  `rango` made **9**, at −0.22%. No window × symbol cell had more than 2 `tendencia`
+  trades. At this rate, **no strategy cell can reach the 5-trades-per-half minimum**, so
+  the pre-registered tests can in practice only qualify **baseline** cells, or perhaps
+  pooled rows.
+- **Baseline** (pure time-of-day drift) lost −0.41% per trade over 1,690 trades. The
+  owner's 3-hour window lost **−0.91% per trade** (130 trades). Costs alone are about 0.3%
+  per round trip (0.2% fee + 0.1% slippage). Any "good hour" therefore needs drift above
+  that just to break even.
+- Expect the honest outcome to be "no hour or market better than chance" unless the
+  forward fortnight differs markedly. This is said now, before any forward data.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
