@@ -2144,6 +2144,37 @@ owner writes here instead.
   reviewed.
 - **Still waiting on the owner:** free USDT in Spot, then the phrase to Claude Code local.
 
+### 52. Pre-flight 100 USDT; pending branches integrated (2026-10-09 ~02:00Z)
+
+- **Owner, before starting:** "arregla los pull". No PR was open. Three finished branches had
+  never been opened as PRs; all three were merged into the default branch after verification:
+  - `claude-code/preflight-100` (`bb60f46`): Claude Code local's rehearsal results in
+    `docs/live_reports/preflight/`.
+  - `claude-code/shadow-mode` (`fe56c78`, `2a685c7`): SHADOW on the root runtime, approved in
+    section 51. It now also records its first real-data `--sombra-paper` session.
+    `test_paper_shadow` OK.
+  - `claude-code/agent-city-3d-mvp` (23 commits, the visual app, read-only):
+    - model tests 17/17;
+    - GPT Work's `agent_city_acceptance.test.mjs` 4/4, including the "documented-only WORKING"
+      finding, now fixed;
+    - repository guard 0 findings.
+- **Pre-flight finding, fixed:** the operator wrote the start report BEFORE the first decision,
+  so the rehearsal showed no regime or decision per coin. The start report now follows the
+  first decision pass, and a bounded run (`--max-iteraciones`) ends with a final report.
+  39 live tests, 2/2 mutants killed.
+- **Pre-flight results (Claude Code local, `docs/live_reports/preflight/README.md`):**
+  - key OK;
+  - **free USDT in Spot >= 100: NO** at check time;
+  - SHADOW rehearsal exit 0 with the exact config (100, `tendencia_rango`, 4h, 12 coins,
+    18/20/40%/3);
+  - live top-trader review not done: it needs the owner's permission for the local session to
+    read his open Binance.
+- **Market read** (PAPER loop run `37871548069`, bar 2026-10-08 20:00Z): 9 coins `TREND_DOWN`,
+  ADA and AVAX `NO_EDGE`, TRX `RANGE`.
+  - `tendencia` buys nothing in this market.
+  - `tendencia_rango` would only consider a TRX rebound, and only on an oversold signal.
+  - Expect the first real session to hold USDT until the market turns.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
