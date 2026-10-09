@@ -1,0 +1,219 @@
+{
+ "generated": "2026-10-09T18:14:31.077447+00:00",
+ "source": "https://data-api.binance.vision",
+ "eligible_pairs": 496,
+ "top": [
+  {
+   "symbol": "BTCUSDT",
+   "base": "BTC",
+   "quote_volume_24h": 1047882456.0915755,
+   "min_notional": 5.0,
+   "rank": 1
+  },
+  {
+   "symbol": "ETHUSDT",
+   "base": "ETH",
+   "quote_volume_24h": 556947343.022566,
+   "min_notional": 5.0,
+   "rank": 2
+  },
+  {
+   "symbol": "SOLUSDT",
+   "base": "SOL",
+   "quote_volume_24h": 243758343.61099,
+   "min_notional": 5.0,
+   "rank": 3
+  },
+  {
+   "symbol": "ZECUSDT",
+   "base": "ZEC",
+   "quote_volume_24h": 208838571.59612,
+   "min_notional": 5.0,
+   "rank": 4
+  },
+  {
+   "symbol": "NEARUSDT",
+   "base": "NEAR",
+   "quote_volume_24h": 160195941.0888,
+   "min_notional": 5.0,
+   "rank": 5
+  },
+  {
+   "symbol": "XRPUSDT",
+   "base": "XRP",
+   "quote_volume_24h": 142607572.01579,
+   "min_notional": 5.0,
+   "rank": 6
+  },
+  {
+   "symbol": "BNBUSDT",
+   "base": "BNB",
+   "quote_volume_24h": 72165239.82765,
+   "min_notional": 5.0,
+   "rank": 7
+  },
+  {
+   "symbol": "SUIUSDT",
+   "base": "SUI",
+   "quote_volume_24h": 61093730.93799,
+   "min_notional": 5.0,
+   "rank": 8
+  },
+  {
+   "symbol": "UNIUSDT",
+   "base": "UNI",
+   "quote_volume_24h": 59359547.97567,
+   "min_notional": 5.0,
+   "rank": 9
+  },
+  {
+   "symbol": "STRKUSDT",
+   "base": "STRK",
+   "quote_volume_24h": 57562966.9336087,
+   "min_notional": 5.0,
+   "rank": 10
+  },
+  {
+   "symbol": "DOGEUSDT",
+   "base": "DOGE",
+   "quote_volume_24h": 47196909.57146,
+   "min_notional": 1.0,
+   "rank": 11
+  },
+  {
+   "symbol": "RLCUSDT",
+   "base": "RLC",
+   "quote_volume_24h": 45331252.40559,
+   "min_notional": 5.0,
+   "rank": 12
+  },
+  {
+   "symbol": "RLUSDUSDT",
+   "base": "RLUSD",
+   "quote_volume_24h": 44135752.0245,
+   "min_notional": 5.0,
+   "rank": 13
+  },
+  {
+   "symbol": "XAUTUSDT",
+   "base": "XAUT",
+   "quote_volume_24h": 43082409.821434,
+   "min_notional": 5.0,
+   "rank": 14
+  },
+  {
+   "symbol": "ENAUSDT",
+   "base": "ENA",
+   "quote_volume_24h": 42873581.229682,
+   "min_notional": 5.0,
+   "rank": 15
+  },
+  {
+   "symbol": "ADAUSDT",
+   "base": "ADA",
+   "quote_volume_24h": 36705214.19895,
+   "min_notional": 5.0,
+   "rank": 16
+  },
+  {
+   "symbol": "OGNUSDT",
+   "base": "OGN",
+   "quote_volume_24h": 35930263.12195,
+   "min_notional": 5.0,
+   "rank": 17
+  },
+  {
+   "symbol": "ONDOUSDT",
+   "base": "ONDO",
+   "quote_volume_24h": 35434430.47153,
+   "min_notional": 5.0,
+   "rank": 18
+  },
+  {
+   "symbol": "AVAXUSDT",
+   "base": "AVAX",
+   "quote_volume_24h": 32797243.76845,
+   "min_notional": 5.0,
+   "rank": 19
+  },
+  {
+   "symbol": "SPCXBUSDT",
+   "base": "SPCXB",
+   "quote_volume_24h": 30433708.32892,
+   "min_notional": 5.0,
+   "rank": 20
+  },
+  {
+   "symbol": "QNTUSDT",
+   "base": "QNT",
+   "quote_volume_24h": 28985089.71692,
+   "min_notional": 5.0,
+   "rank": 21
+  },
+  {
+   "symbol": "TAOUSDT",
+   "base": "TAO",
+   "quote_volume_24h": 28463174.48269,
+   "min_notional": 5.0,
+   "rank": 22
+  },
+  {
+   "symbol": "HYPEUSDT",
+   "base": "HYPE",
+   "quote_volume_24h": 28336871.47047,
+   "min_notional": 5.0,
+   "rank": 23
+  },
+  {
+   "symbol": "PUMPUSDT",
+   "base": "PUMP",
+   "quote_volume_24h": 27767570.643146,
+   "min_notional": 5.0,
+   "rank": 24
+  },
+  {
+   "symbol": "CRCLBUSDT",
+   "base": "CRCLB",
+   "quote_volume_24h": 27264205.1334,
+   "min_notional": 5.0,
+   "rank": 25
+  },
+  {
+   "symbol": "KAIAUSDT",
+   "base": "KAIA",
+   "quote_volume_24h": 26900704.44469,
+   "min_notional": 5.0,
+   "rank": 26
+  },
+  {
+   "symbol": "UUSDT",
+   "base": "U",
+   "quote_volume_24h": 26173960.3538,
+   "min_notional": 5.0,
+   "rank": 27
+  },
+  {
+   "symbol": "WLDUSDT",
+   "base": "WLD",
+   "quote_volume_24h": 24227191.78295,
+   "min_notional": 5.0,
+   "rank": 28
+  },
+  {
+   "symbol": "PEPEUSDT",
+   "base": "PEPE",
+   "quote_volume_24h": 23860046.45654211,
+   "min_notional": 1.0,
+   "rank": 29
+  },
+  {
+   "symbol": "LINKUSDT",
+   "base": "LINK",
+   "quote_volume_24h": 23126726.03712,
+   "min_notional": 5.0,
+   "rank": 30
+  }
+ ],
+ "xautusdt": "TRADING",
+ "paxgusdt_rank": 34
+}
