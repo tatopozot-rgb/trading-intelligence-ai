@@ -358,15 +358,53 @@ def _trader(real: bool, journal: Path):
     return ShadowTrader(feed.get_current_price, public.rules)
 
 
-def _lock(state_dir: Path) -> Path:
+# A running operator rewrites status.json every poll (60 s). A lock whose status is older
+# than this was left by a process that died (crash, reboot, power cut).
+STALE_LOCK_AFTER = timedelta(minutes=10)
+
+
+class AlreadyRunning(SystemExit):
+    pass
+
+
+def _lock(state_dir: Path, now: Optional[datetime] = None) -> Path:
     lock = state_dir / "OPERATOR.lock"
+    now = now or datetime.now(timezone.utc)
+    if lock.exists():
+        status = state_dir / "status.json"
+        beat = datetime.fromtimestamp(max(lock.stat().st_mtime, status.stat().st_mtime if status.exists() else 0),
+                                      tz=timezone.utc)
+        if now - beat < STALE_LOCK_AFTER:
+            raise AlreadyRunning(f"another operator is running ({lock}, last heartbeat {beat.isoformat()})")
+        logging.getLogger(__name__).warning("stale lock from a dead operator (last heartbeat %s): replacing it",
+                                            beat.isoformat())
+        lock.unlink()
     try:
         fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
     except FileExistsError:
-        raise SystemExit(f"another operator is running ({lock}); stop it first or delete the lock if it crashed")
+        raise AlreadyRunning(f"another operator is running ({lock})")
     os.write(fd, str(os.getpid()).encode())
     os.close(fd)
     return lock
+
+
+def _launch(d: Path, limits: OwnerLimits, meta: dict, engine_equity: str, max_iterations: Optional[int]) -> None:
+    """Runs the operator for the session described by meta.json (new or resumed)."""
+    trader = _trader(meta["real"], d / "orders.json")
+    loop = None
+    if meta["profile"] != "copiar":
+        from trading_intelligence.data.binance_public_feed import BinancePublicKlines
+        from trading_intelligence.execution.paper_loop import build_loop
+
+        # An existing engine state in d/engine is resumed (progress, positions, risk counters).
+        loop = build_loop(meta["symbols"], meta["timeframe"], d / "engine", market_data=BinancePublicKlines(),
+                          paper_equity=engine_equity, risk_overrides=engine_risk_overrides(limits),
+                          router_factory=router_factory(meta["profile"], meta["timeframe"]))
+    end_at = datetime.fromisoformat(meta["end_at"]) if meta.get("end_at") else None
+    target = Decimal(meta["profit_target_pct"]) if meta.get("profit_target_pct") is not None else None
+    op = Operator(d, trader, limits, profile=meta["profile"], timeframe=meta["timeframe"], symbols=meta["symbols"],
+                  loop=loop, real=meta["real"], end_at=end_at, profit_target_pct=target)
+    op.run(max_iterations=max_iterations, start_report=True)
 
 
 def main(argv: Optional[list[str]] = None) -> int:
@@ -390,6 +428,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     stop.add_argument("--cerrar", action="store_true")
     rep = sub.add_parser("reporte")
     rep.add_argument("--etapa", choices=("inicio", "medio", "final"), default="medio")
+    resume = sub.add_parser("reanudar", help="resume the open session after a crash or reboot (safe to repeat)")
+    resume.add_argument("--max-iteraciones", type=int)
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     d: Path = args.dir
@@ -418,6 +458,33 @@ def main(argv: Optional[list[str]] = None) -> int:
         print(op.write_report(args.etapa))
         return 0
 
+    if args.cmd == "reanudar":
+        # Same session, same owner authorization and limits: nothing new is decided here.
+        if not session_path.exists() or not (d / "meta.json").exists():
+            print("sin sesión que reanudar")
+            return 0
+        s = Session.load(session_path)
+        finished = any(e.get("kind") == "FIN" for e in s.events)  # owner stop, time box or target
+        if s.status == STOPPED and (finished or not s.holdings):
+            # A finished session is never reopened; coins kept by "parar" (without "cerrar")
+            # stay the owner's. Only a loss-limit stop interrupted mid-close is resumed, to close.
+            print("la sesión terminó; no hay nada que reanudar")
+            return 0
+        try:
+            lock = _lock(d)
+        except AlreadyRunning as running:
+            print(f"ya está corriendo: {running}")  # the watchdog calls this every few minutes
+            return 0
+        try:
+            s.note("RESUMED", "operador reanudado tras una interrupción")
+            s.save(session_path)
+            (d / "STOP").unlink(missing_ok=True)
+            _launch(d, limits, json.loads((d / "meta.json").read_text(encoding="utf-8")), str(s.capital),
+                    args.max_iteraciones)
+        finally:
+            lock.unlink(missing_ok=True)
+        return 0
+
     # iniciar
     capital = Decimal(args.capital)
     if capital <= 0:
@@ -439,25 +506,18 @@ def main(argv: Optional[list[str]] = None) -> int:
     lock = _lock(d)
     try:
         (d / "STOP").unlink(missing_ok=True)
-        trader = _trader(args.real, d / "orders.json")
-        now = datetime.now(timezone.utc)
-        Session(f"{now:%Y%m%dT%H%M%S}", args.perfil, now.isoformat(timespec="seconds"), capital).save(session_path)
-        end_at = now + timedelta(hours=args.horas) if args.horas is not None else None
-        (d / "meta.json").write_text(json.dumps({"profile": args.perfil, "timeframe": args.temporalidad,
-                                                 "symbols": symbols, "real": args.real,
-                                                 "end_at": end_at.isoformat() if end_at else None,
-                                                 "profit_target_pct": args.meta}), encoding="utf-8")
-        loop = None
-        if args.perfil != "copiar":
-            from trading_intelligence.data.binance_public_feed import BinancePublicKlines
-            from trading_intelligence.execution.paper_loop import build_loop
+        if (d / "engine").exists():  # a previous session's engine must not leak into this one
+            import shutil
 
-            loop = build_loop(symbols, args.temporalidad, d / "engine", market_data=BinancePublicKlines(),
-                              paper_equity=str(capital), risk_overrides=engine_risk_overrides(limits),
-                              router_factory=router_factory(args.perfil, args.temporalidad))
-        op = Operator(d, trader, limits, profile=args.perfil, timeframe=args.temporalidad, symbols=symbols,
-                      loop=loop, real=args.real, end_at=end_at, profit_target_pct=target)
-        op.run(max_iterations=args.max_iteraciones, start_report=True)
+            shutil.rmtree(d / "engine")
+        now = datetime.now(timezone.utc)
+        end_at = now + timedelta(hours=args.horas) if args.horas is not None else None
+        meta = {"profile": args.perfil, "timeframe": args.temporalidad, "symbols": symbols, "real": args.real,
+                "end_at": end_at.isoformat() if end_at else None, "profit_target_pct": args.meta}
+        _trader(args.real, d / "orders.json")  # verify the key before any session state is written
+        Session(f"{now:%Y%m%dT%H%M%S}", args.perfil, now.isoformat(timespec="seconds"), capital).save(session_path)
+        (d / "meta.json").write_text(json.dumps(meta), encoding="utf-8")
+        _launch(d, limits, meta, str(capital), args.max_iteraciones)
     finally:
         lock.unlink(missing_ok=True)
     return 0

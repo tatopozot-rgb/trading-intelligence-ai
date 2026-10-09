@@ -476,3 +476,83 @@ def test_the_start_report_shows_the_first_market_read(tmp_path):
     start = next(tmp_path.glob("reporte_inicio_*.md")).read_text(encoding="utf-8")
     assert loop.ticks == 1 and "TREND_DOWN" in start and "BTCUSDT" in start
     assert list(tmp_path.glob("reporte_final_*.md"))  # a bounded rehearsal leaves its summary
+
+
+class TestResume:
+    """Owner: "estar atento al cierre". If the operator dies (crash, reboot, power cut), the
+    open session must be resumable, so its stops and loss guard are watched again."""
+
+    def _session(self, d, status="RUNNING", holdings=True):
+        s = Session("s1", "tendencia", "t", Decimal("100"))
+        if holdings:
+            s.record_buy("BTCUSDT", Decimal("0.1"), Decimal("10"), Decimal("0"), "t")
+        s.status = status
+        s.save(d / "session.json")
+        (d / "meta.json").write_text(json.dumps({"profile": "tendencia", "timeframe": "4h", "symbols": ["BTCUSDT"],
+                                                 "real": True, "end_at": None, "profit_target_pct": None}))
+
+    def test_a_fresh_lock_means_running_and_a_stale_one_is_replaced(self, tmp_path):
+        import os
+
+        from trading_intelligence.live import operator as O
+
+        lock = O._lock(tmp_path)
+        with pytest.raises(O.AlreadyRunning):
+            O._lock(tmp_path)
+        old = (datetime.now(timezone.utc) - timedelta(minutes=30)).timestamp()
+        os.utime(lock, (old, old))
+        assert O._lock(tmp_path).exists()  # dead operator: its lock no longer blocks
+
+    def test_resume_relaunches_the_open_session_once(self, tmp_path, monkeypatch, capsys):
+        from trading_intelligence.live import operator as O
+
+        self._session(tmp_path)
+        launched = []
+        monkeypatch.setattr(O, "_launch", lambda d, limits, meta, eq, it: launched.append((meta["real"], eq)))
+        assert O.main(["--dir", str(tmp_path), "reanudar"]) == 0
+        assert launched == [(True, "100")] and not (tmp_path / "OPERATOR.lock").exists()
+        assert Session.load(tmp_path / "session.json").events[-1]["kind"] == "RESUMED"
+        O._lock(tmp_path)  # now a live operator holds it
+        assert O.main(["--dir", str(tmp_path), "reanudar"]) == 0
+        assert len(launched) == 1 and "ya está corriendo" in capsys.readouterr().out
+
+    @pytest.mark.parametrize("status,holdings", [("STOPPED", False), (None, None)])
+    def test_nothing_to_resume(self, tmp_path, monkeypatch, status, holdings):
+        from trading_intelligence.live import operator as O
+
+        if status:
+            self._session(tmp_path, status, holdings)
+        monkeypatch.setattr(O, "_launch", lambda *a: pytest.fail("must not launch"))
+        assert O.main(["--dir", str(tmp_path), "reanudar"]) == 0
+
+    def test_a_stopped_session_with_positions_is_resumed_to_close_them(self, tmp_path, monkeypatch):
+        from trading_intelligence.live import operator as O
+
+        self._session(tmp_path, "STOPPED", holdings=True)
+        launched = []
+        monkeypatch.setattr(O, "_launch", lambda *a: launched.append(1))
+        O.main(["--dir", str(tmp_path), "reanudar"])
+        assert launched == [1]  # step() flattens a STOPPED session that still holds coins
+
+    def test_a_new_session_never_inherits_the_previous_engine(self, tmp_path, monkeypatch):
+        from trading_intelligence.live import operator as O
+
+        self._session(tmp_path, "STOPPED", holdings=False)
+        (tmp_path / "engine").mkdir()
+        (tmp_path / "engine" / "paper.json").write_text("{}")
+        seen = []
+        monkeypatch.setattr(O, "_trader", lambda real, journal: None)
+        monkeypatch.setattr(O, "_launch", lambda d, limits, meta, eq, it: seen.append((d / "engine").exists()))
+        O.main(["--dir", str(tmp_path), "iniciar", "--capital", "100"])
+        assert seen == [False] and Session.load(tmp_path / "session.json").capital == Decimal("100")
+
+
+def test_resume_never_sells_what_the_owner_kept_with_parar(tmp_path, monkeypatch):
+    from trading_intelligence.live import operator as O
+
+    TestResume()._session(tmp_path, "STOPPED", holdings=True)
+    s = Session.load(tmp_path / "session.json")
+    s.note("FIN", "OWNER_STOP: parada ordenada por el dueño")
+    s.save(tmp_path / "session.json")
+    monkeypatch.setattr(O, "_launch", lambda *a: pytest.fail("a finished session is never reopened"))
+    assert O.main(["--dir", str(tmp_path), "reanudar"]) == 0

@@ -2175,6 +2175,33 @@ owner writes here instead.
   - `tendencia_rango` would only consider a TRX rebound, and only on an oversold signal.
   - Expect the first real session to hold USDT until the market turns.
 
+### 53. Nothing left unwatched: `reanudar` and a watchdog (2026-10-09)
+
+Owner: "debes estar atento al cierre… pendiente de cuando te vayas a quedar sin créditos xq se
+va de largo y perdemos".
+- **Claude credits:** the operator does not depend on Claude sessions. Stops, the loss guard and
+  the reports run in the operator's own Python process on the owner's PC.
+- **Real gap found and fixed:** if that process died (crash, reboot, power cut), there was no way
+  to resume the open session. `iniciar` refused ("a session is already open"), the lock stayed,
+  and the session's coins would sit with no stop watched.
+  - New `reanudar`: it resumes the same session (same capital, limits, engine state, time box and
+    target) and is safe to repeat. While a live operator holds the lock it exits at once.
+  - A lock is stale after 10 minutes without a heartbeat (`status.json` is rewritten every
+    60 s). A heartbeat is used instead of a PID check, because `os.kill(pid, 0)` terminates
+    the process on Windows.
+  - It never reopens a finished session (owner stop, time box, target) and never sells coins
+    kept with "parar" without "cerrar". It does resume a loss-limit stop interrupted mid-close,
+    to finish closing.
+- **Also fixed:** a new `iniciar` reused the previous session's engine state in `engine/`. The
+  engine would have believed in the old positions and equity. It now starts clean.
+- 46 live tests (7 new); ruff and mypy clean; 5/5 mutants killed.
+- **Claude Code local** (prompt section 4b):
+  - a Windows Task Scheduler entry runs `reanudar` every 5 minutes and at logon;
+  - with the owner's permission, the PC never sleeps on AC power.
+- **Known limit, told to the owner:** while the PC is off, stops are not watched, because they
+  are the operator's, not orders resting on Binance. Exposure is bounded by 40 USDT per coin and
+  the 20% session limit. Exchange-side protective stops are the next improvement.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |

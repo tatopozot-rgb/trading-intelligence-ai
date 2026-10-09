@@ -63,6 +63,13 @@ El dueño le pega este texto:
 - Revisa el reporte del ensayo y el de GPT Work.
 - Da el visto bueno técnico o corrige lo que falle.
 
+## Antes de "continúa": vigilante y energía
+
+Sigue la sección 4b de `CLAUDE_LOCAL_LIVE_OPERATOR.md`: crea la tarea del vigilante
+(`reanudar` cada 5 minutos y al iniciar sesión) y, con permiso del dueño, configura que el PC no
+se suspenda enchufado. Comprueba que `reanudar` sin sesión abierta responde "sin sesión que
+reanudar".
+
 ## Fase 1: el dueño dice "continúa" (a Claude Code local)
 
 Frase sugerida: **"continúa: trading sin parar con 100"**. Claude Code local ejecuta, desde una
