@@ -2115,6 +2115,35 @@ owner writes here instead.
   `ccr-b66a9a9e-okj2pl`.
 - No open PRs remain. Claude Code local should work from the default branch from now on.
 
+### 51. 8h review (2026-10-09 00:12Z): Windows suite green, SHADOW branch approved, market in downtrend
+
+- **Root PAPER suite on the owner's PC (Claude Code local, default branch `7bcc1b3`): 671/671
+  OK** with real pandas and tkinter. That closes the 2 tkinter errors seen in the cloud. (The cloud
+  counts 662 because `test_paper_ui_controls` fails to import there.)
+- **`main` CI after the PR merges:** research-tests run `37855295310` green (ruff, mypy, pytest).
+- **`claude-code/shadow-mode` (`fe56c78`, Claude Code local, SHADOW on the root runtime):** reviewed
+  and approved by the cloud.
+  - It merges cleanly into the default branch; `test_paper_shadow` 13/13.
+  - The merged root suite is 674 with only the cloud's tkinter error.
+  - 3 extra mutants killed: rollback→commit, forcing the valuation commit, dropping the audit
+    event.
+  - The design reuses the real decision code and rolls the whole transaction back, so SHADOW
+    cannot drift from PAPER's controls.
+  - Its documented limits are accurate. In particular, a symbol SHADOW "would open" keeps being
+    reported every scan, because SHADOW never holds it.
+  - No PR exists yet: Claude Code local opens it.
+- **PAPER automator:** last scheduled run `37845436206` (21:15Z) is green with state restored.
+  11 of 12 symbols are in `TREND_DOWN`/`NO_EDGE` and TRX is in `RANGE`, so there are no entries
+  (long-only Spot: correct).
+  - **Implication for the owner:** a real `tendencia` session started in this market would mostly
+    stay in USDT until an uptrend or breakout appears. That is the system protecting capital, not
+    a fault. `tendencia_rango` could act on ranging symbols such as TRX.
+  - GitHub ran only one scheduled tick in about 8h. Scheduled runs are best-effort; the state is
+    preserved and each run catches up all closed bars, so a skipped tick loses no data.
+- **AGENT_COORDINATION rows updated:** operator ready, key done, pilot approved, PR #9 merged, SHADOW
+  reviewed.
+- **Still waiting on the owner:** free USDT in Spot, then the phrase to Claude Code local.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
