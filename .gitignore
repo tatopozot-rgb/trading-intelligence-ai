@@ -66,6 +66,9 @@ htmlcov/
 *.tar.gz
 *.whl
 
+# Real-trading working state on the owner PC (reports are copied to docs/live_reports/)
+live_runs/
+
 # Operational state, historical data and future credentials stay local
 .env.*
 !.env.example

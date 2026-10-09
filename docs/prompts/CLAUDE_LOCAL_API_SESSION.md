@@ -126,3 +126,25 @@ de `docs/CHECKPOINT.md`. Cloud ya construyó y probó el pipeline de copy tradin
 
 Nada de esto autoriza dinero real: las decisiones de la sección 4 de `PILOT_30_USD.md`
 son del dueño.
+
+## 7. Actualización 2026-10-08 (tarde): empezar el ciclo real de revisión de traders
+
+El dueño pidió empezar ya. El modelo operativo completo está en `docs/OPERATING_MODEL.md`
+y la propuesta de piloto en `docs/PILOT_DECISION_FORM.md`. Tu parte, en este orden:
+
+1. **Permisos de la clave nueva** (sin cambios respecto a la sección 6): el dueño ejecuta el
+   verificador de GPT Work y tú registras solo el resultado.
+2. **Primera captura de líderes, hoy.** Con el dueño frente a la app (Copy Trading, pestaña
+   Spot), llena `docs/templates/copy_trading_capture.template.csv` con 10 a 20 líderes: los
+   mejores por ROI de 90 días, más al menos 3 que hayan dejado de liderar o estén muy en
+   negativo (`active = no` si ya no lideran). Columnas tal como las muestra la app; deja
+   vacío lo que la app no muestre. Convierte y sube en tu rama:
+   `python -m trading_intelligence.copy_trading.capture captura.csv --captured-at <hora con zona> --out docs/snapshots/binance_app_<fecha>.json`
+   El workflow "Trader review" la evalúa solo al hacer push (cualquier rama).
+3. **Confirma en la app** y anótalo en el PR: mínimo real por copia en Spot, si la copia
+   admite stop-loss o take-profit total, el profit share de los candidatos, y si el saldo del
+   portafolio de copia aparece en la API de solo lectura.
+4. **Nada de dinero real** hasta que el dueño escriba la frase de aprobación de
+   `docs/PILOT_DECISION_FORM.md`. Después de eso, la copia la hace el dueño en la app con
+   el monto aprobado; tú actualizas `docs/snapshots/followed.json`.
+5. Repetir la captura **cada semana**, el mismo día.

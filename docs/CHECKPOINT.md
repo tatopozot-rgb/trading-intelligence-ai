@@ -1845,6 +1845,305 @@ running GPT Work's one-shot permission probe with the new read-only key.
 Full research suite at `1aff32e`: see the commit's CI. Locally, PaperLoop + report tests
 45 passed, ruff and mypy clean.
 
+### 43. Ready to start: trader review cycle, operating model, pilot approval form (2026-10-08)
+
+The owner asked the Leader to put everything in order to start trading, with agents
+reviewing top traders, learning from them and copying them. Built and pushed
+(`ed83788`, `9c09919`, `4ebde00`):
+
+- `copy_trading/capture.py` + `docs/templates/copy_trading_capture.template.csv`: one
+  CSV row per lead trader as the app shows it -> validated `binance_app_manual`
+  snapshot. Errors name the line and column.
+- `copy_trading/review.py`: ranks every captured trader with plain-Spanish reasons.
+  For each trader the owner copies (`docs/snapshots/followed.json`) it says MANTENER /
+  DEJAR DE COPIAR YA / let it wind down. Exit 1 (red) when a copied trader must be
+  stopped now. Unofficial files are skipped and named.
+- `copy_trading/learning.py`: out-of-sample check across consecutive captures. It
+  reports the forward result of selected traders vs the rest, hit rate, disappearances
+  (counted, never dropped), rank stability and the effect of each criterion. Exact on
+  daily series; approximate on app windows, and says so.
+- `.github/workflows/copy-review.yml`: runs the review on every push touching
+  `docs/snapshots/` (any branch). Standard library only, no account, no key.
+- 18 tests; 10 mutants, 8 killed. The 2 survivors are equivalent because a later layer
+  rejects the same input.
+- `docs/OPERATING_MODEL.md`: roles (cloud brain, local hands, GPT Work auditor, owner
+  decides and clicks), the pilot trade flow, what runs by itself, what never happens.
+- `docs/PILOT_DECISION_FORM.md`: PROPOSED pilot values and the exact approval phrase:
+  route A native Spot Copy Trading, 30 USDT, 1 trader, 6 USDT max loss, 20% copy stop
+  if the app offers it, Spot only, no leverage, profit share <= 10%, 4 weeks. Nothing is
+  approved; nothing starts without the phrase.
+- Claude Code local prompt section 7: first real capture today with the owner (10-20
+  leaders including quitters), confirm the app facts, weekly cadence.
+
+Still blocking real money: the owner's approval phrase, the first real capture, and the
+read-only key check. Route B (own API execution) stays on Testnet: no own strategy has a
+proven edge.
+
+### 44. Route B authorized: real-money operator built; Claude Code local runs it (2026-10-08)
+
+**Owner decision (chat, 2026-10-08).** Route B: the system trades by itself through the
+official Binance Spot API, and every order comes from the project's operator. The pilot
+values are approved, with variable capital (the owner assigns per order: 50, 20, 1000...).
+Before stopping for loss, ask the owner 2 USD before the limit. Three continuous trading
+options that switch markets. The owner alone handles deposits and withdrawals. GPT Work
+reports at the start, middle and end. Encoded in `config/live_limits.json`:
+- Spot only, no leverage;
+- loss limit 20% of the session capital, warning 2 USD before it;
+- 40% max per position, 3 positions, 12 approved symbols;
+- withdrawals false.
+
+**Built** (`trading_intelligence/live/`, commits after `4ebde00`):
+- Spot transport: the key must be read + Spot trading + IP-restricted only.
+  Journal-before-send, reconcile and never resend, cooldowns, secrets redacted.
+- Session ledger and guard: warn 2 USD before the limit and pause buys, continue on the
+  owner's word, stop and close at the limit. It never sells coins the session did not buy.
+- Mirror from the PAPER engine (the real PaperLoop/runner/RiskEngine decide) onto the
+  account, with caps, exchange minimums, no adding to losers and live stop enforcement.
+- Operator CLI (iniciar/estado/continuar/agregar/parar/reporte), profiles tendencia /
+  tendencia_rango / copiar. SHADOW unless `--real`. Single-instance lock.
+- Inicio/medio/final reports.
+- 30 tests including the real engine end to end; 22/22 safety mutants killed. The suite
+  is 635 passed; ruff and mypy are clean.
+
+**Coordination:**
+- Claude Code local (session `session_011uxmHVkoAcPKwDWJ4tHxoA`, the owner's PC) was sent
+  `docs/prompts/CLAUDE_LOCAL_LIVE_OPERATOR.md`.
+- GPT Work's reports: `docs/prompts/GPT_WORK_TRADING_REPORTS.md`.
+- The Quant session (`session_013NRgckXg3s5ATkCcrUe6KN`) was tasked with a real-data
+  walk-forward of both profiles at 1h/4h after fees, via GitHub Actions.
+
+**Blocking the first real order:**
+1. Python with pandas on the owner's PC: Smart App Control blocks it. Recommended fix is
+   WSL2; the alternative is the owner disabling SAC, which is his decision.
+2. The trading key, created by the owner with 2FA: read + Spot trading + IP restriction,
+   no withdrawals.
+3. A SHADOW check, then the owner's phrase.
+
+**Honest risk:** no profile has a proven edge on real data yet; each session's loss is
+bounded by the owner's 20% rule.
+
+### 45. Real-data walk-forward of both live profiles: NO-GO at 1h and 4h; 1h loses money after fees (2026-10-08)
+
+Quant/Strategy session, tasked in section 44. Research only: public klines, no key,
+no orders; `trading_intelligence/live/` and `config/live_limits.json` untouched.
+
+**Method** (`trading_intelligence/backtesting/real_data_validation.py`, protocol and
+GO rule fixed in its docstring before any result; workflow
+`.github/workflows/real-data-walk-forward.yml`, dispatch-only, `contents: read`; run
+`37787747047` on commit `66bdce9`, all 4 jobs green):
+- Profiles exactly as `live/operator.py` builds them (a test proves the routers are
+  identical): `tendencia` = `default_router`, `tendencia_rango` = `router_with_range_reversion`.
+- The 12 symbols in `config/live_limits.json`; data-api.binance.vision klines checked with
+  the feed's impossible-bar guard; 0 gaps on every series. 1h: 2024-10-01 to 2026-10-01
+  (17,520 bars each). 4h: 2022-10-01 to 2026-10-01 (8,766 bars each).
+- Each decision sees the trailing 500 bars, as `PaperTradingRunner` does (new optional
+  `BacktestEngine.history_bars`; default unchanged). Fee 0.1% per side, slippage 5 bps.
+- Anchored walk-forward per symbol: IS = first 50%, then five consecutive 10% OOS windows,
+  so the whole second half is out-of-sample. Results below pool every OOS trade of every
+  symbol, with no IS gate. GO needs: ≥30 trades, profit factor ≥1.3, mean net
+  return per trade > 0 with p < 0.05, and at least half the symbols GO under the framework.
+
+| Profile @ TF | OOS trades | Win rate | Mean net/trade | Median | Profit factor | p | Worst fold DD | Verdict |
+|---|---|---|---|---|---|---|---|---|
+| tendencia @ 1h | 408 | 24.0% | **−0.80%** | −1.61% | 0.82 | 0.000 | −7.0% | **NO-GO (loses)** |
+| tendencia_rango @ 1h | 473 | 28.1% | **−0.67%** | −1.33% | 0.84 | 0.001 | −7.4% | **NO-GO (loses)** |
+| tendencia @ 4h | 206 | 33.0% | +3.51% | −2.72% | 1.99 | 0.088 | −5.6% | NO-GO (not significant) |
+| tendencia_rango @ 4h | 235 | 35.7% | +3.06% | −2.33% | 1.90 | 0.090 | −5.6% | NO-GO (not significant) |
+
+Drawdowns are per 10,000 with 1% risk per trade; they say nothing about the live sizing
+(40% max per position), under which the same trades would draw down far more.
+
+**Reading it honestly:**
+1. **1h, the operator's default timeframe, has significantly negative expectancy after
+   fees** on all evidence here: 10 of 12 symbols lose per trade, and the other two are
+   flat (ETH +0.02%, TRX +0.02% in `tendencia`). Running either profile at 1h is
+   expected to lose money, not merely "unproven".
+2. **4h is nominally positive but not proven.** p ≈ 0.09 misses 0.05. The median trade
+   loses, and the mean rests on a few large winners (XRPUSDT +15.0% per trade in
+   `tendencia`). That is the normal shape of trend-following, but it is also the shape a
+   lucky period produces.
+3. **Confound, not a timeframe finding:** the 1h OOS is the last 12 months (mean
+   buy-and-hold −42%), and the 4h OOS is the last 24 months (+11%). The two rows test
+   different markets, so "4h beats 1h" is not established by this run.
+4. **Adding RANGE coverage does not help:** `tendencia_rango` adds 65 (1h) and 29 (4h)
+   trades with about the same mean. This is consistent with section 28.
+5. "0/12 symbols GO under the framework" holds in all four runs, but it is structural at
+   this sample size. The framework counts a fold only if it alone has ≥30 OOS trades,
+   and each symbol has 12–50 OOS trades in total. The pooled test above is the
+   informative one.
+
+**Not done, deliberately:** no parameter was tuned and no rerun was made after seeing these
+numbers (STRATEGY_VALIDATION_FRAMEWORK.md). A 4h confirmation should be a new,
+pre-registered run on a period not used here, or forward PAPER/SHADOW evidence.
+
+**For the owner, before any real order:** the profiles as configured today (`tendencia`
+at 1h) lost about 0.8% per trade after fees out-of-sample on real Binance data. None of
+the four configurations clears the project's own GO bar. Results artifacts:
+`walk-forward-<profile>-<tf>` on run `37787747047` (90 days).
+
+### 46. Leader acts on section 45: no real orders at 1h; operator defaults to 4h (2026-10-08)
+
+Verified the Quant result (section 45, run `37787747047`): at 1h both profiles lose after
+fees with p < 0.01, so the operator's 1h default would have been expected to lose
+about 0.8% per trade. Changes:
+- `REAL_TIMEFRAMES = {"4h"}`: `--real` at any other timeframe is refused with the reason.
+  SHADOW still allows any timeframe.
+- The default timeframe is now 4h.
+- New test; the live suite has 31 tests.
+
+4h is NOT proven (p ≈ 0.09; the median trade loses). The owner is told this plainly in
+`docs/OPERATING_MODEL.md` section 7. Next evidence for 4h: a pre-registered forward test
+(Quant session) and the PAPER loop, which already runs `tendencia` at 4h on real data
+every 4 hours.
+
+### 47. 4h forward confirmation pre-registered; PAPER loop on the 12 live symbols (2026-10-08)
+
+Quant/Strategy session, tasked by the leader after section 46. Research and PAPER only:
+no key, no orders. `trading_intelligence/live/` and `config/live_limits.json` were not
+modified.
+
+**1. Pre-registration** (`docs/PREREG_4H_FORWARD.md`, commit `f679012`, pushed on its own
+before anything else). Code: `trading_intelligence/backtesting/forward_confirmation.py`
+(8 tests).
+- **Hypothesis:** net mean return per closed trade > 0 for `tendencia` (primary) and
+  `tendencia_rango` (secondary), at 4h, after fees and slippage.
+- **Data:** only bars from 2026-10-01 onward, with no warm-up from earlier. The 12 symbols
+  are frozen in the code.
+- **Looks:**
+  - 2027-04-01 is a futility look; it can only REFUTE.
+  - 2027-10-01 and 2028-10-01 can declare GO with ≥30 trades, PF ≥ 1.3, mean > 0 and
+    p < 0.025 (Bonferroni across the two GO looks).
+  - REFUTED means trades ≥ 30 and (mean ≤ 0 or PF < 1.0).
+  - Anything not GO at 2028-10-01 is NO-GO.
+- **Guards:** the code refuses early looks and unregistered dates.
+- **Stated in advance:** if the true edge equals the section 45 estimate, the power to GO
+  is only about 0.15 at 2027-10-01 and about 0.30 at 2028-10-01. The test is far better at
+  catching a losing 4h profile than at proving a winning one. "Not refuted" is not
+  "validated".
+
+**2. PAPER loop** (`.github/workflows/paper-loop.yml`):
+- The symbols are now read at run time from `config/live_limits.json` (`allowed_symbols`,
+  12 symbols, previously 5 hard-coded). `--require-state` is unchanged for scheduled runs.
+- A `bootstrap=true` dispatch now skips restoring the cache. Without that, the old
+  5-symbol state would be restored, and PaperLoop refuses to resume it with 12 symbols
+  (paper_loop.py `_load_state`), so no fresh start was possible.
+- The old 5-symbol state remains in the `paper-state-<run_id>` artifacts (30 days).
+- Scheduled runs between this push and the bootstrap dispatch turn red with the
+  symbol-set mismatch. That is intended (fail closed).
+- Bootstrap dispatch done: run `37803096284` on `785e9a8`, green. It ran on all 12 symbols
+  with a fresh 10,000 equity and no positions, and saved cache key
+  `paper-state-37803096284`, which scheduled runs now resume with `--require-state`.
+  First bar processed: 2026-10-08 08:00 UTC. On that bar no symbol had a regime with a
+  strategy (RANGE / TREND_DOWN / BREAKOUT_DOWN), so it made no trades. The previous
+  5-symbol state is in the artifacts of run `37801489208` (30 days).
+
+### 48. Claude Code local: operator steps 1 and 3 pass on the owner's PC; key pending (2026-10-08)
+
+Read from Claude Code local's session transcript (it could not message back):
+- **Step 1 PASS, without WSL.** A separate Windows environment with pandas 2.2.3, numpy
+  2.2.6 and scipy 1.18.1 is allowed by Smart App Control (pandas 3.x stays blocked).
+  `tests/test_live_operator.py` is 31/31 at `c6bcba7`.
+- **Step 2 PENDING.** No `BINANCE_*` variable is defined on the PC; this was checked by name
+  only. The owner stores the trading key as Windows user environment variables.
+- **Step 3 PASS.** SHADOW ran 3 iterations with exit 0 at 1h and at 4h on real data:
+  RUNNING, capital 50, limit 10, warning at 8, no positions, start report written.
+- Its finding was fixed here: a SHADOW report listed "Ejecución real" among the agents
+  used; it now says "Ejecución simulada (SHADOW, sin órdenes)". New test; 32 live tests.
+- PR #9: Claude Code local reports that the F3 defects, PR #5's fix and the doc conflicts
+  are resolved (head `05a41cd`); only the PR description is pending.
+
+Quant session (sections 46-47) reviewed:
+- Pre-registered 4h forward confirmation in `docs/PREREG_4H_FORWARD.md`.
+- The PAPER loop now covers the operator's 12 symbols (read from
+  `config/live_limits.json`) and was bootstrapped (run `37803096284`).
+
+The only remaining blocker for the first real order is the owner storing the trading key,
+then his phrase.
+
+### 49. Owner's time box and profit target; key connected; who receives the owner's orders (2026-10-08)
+
+Claude Code local (PR #9 branch, `4a2eca5`): the owner stored the trading key as Windows
+user variables; a signed read with the operator's own `verify_key` shows reading YES, Spot
+trading YES, withdrawals NO, IP restriction YES. No order was sent. Free USDT in Spot was 0
+at that moment, so a real session buys nothing until the owner deposits or converts to USDT.
+The operator must be started from a new terminal (the variables were created after that
+session started).
+
+Operator (`trading_intelligence/live/operator.py`), for the owner's phrases "por 3-4 horas"
+and "hasta ver ganancias del 60%":
+- `iniciar --horas N`: when the time is up, sells the session's positions and finishes.
+- `iniciar --meta N`: when session equity >= capital × (1 + N%), sells the session's
+  positions and finishes ("META_ALCANZADA").
+- Both only close. The loss limit, the 2 USD warning and every other limit are unchanged.
+  Non-positive or non-finite values are refused. Each writes `AVISO.txt` and the final
+  report.
+- Fixed: after `parar`, the session stayed RUNNING, so a new `iniciar` was refused with
+  "a session is already open" and the owner had no way forward. Every finish (owner stop,
+  time, target) now marks the session STOPPED.
+- 38 live tests (6 new); ruff and mypy clean; 4/4 mutants of the new exits killed.
+
+Honest note for the owner: with 4h bars, a 3-hour session decides once or twice (at start
+and at the next bar close). +60% in hours is very unlikely; such a session will almost
+always end on time. The operator never raises size or risk to reach a target.
+
+Stop losses (owner, same day: "actuar igual con stop loss"), verified unchanged:
+- every engine entry carries a protective stop (`strategy/models.py`: no stop, no proposal);
+  the operator learns it from the attached or pending STOP order and checks it every minute,
+  between bars too, with a MARKET sell on the real account;
+- the session guard (warning 2 USD before, hard stop at 20%) applies to every profile, and the
+  time box and profit target close the same way;
+- `copiar` has no per-position stop, by the owner's earlier rule not to close mechanically
+  on a temporary loss; the session guard still bounds it.
+
+Who receives the owner's orders: Claude Code local (on the owner's PC, opened from the
+Claude phone app). It holds the key and runs the operator. Claude Leader relays when the
+owner writes here instead.
+
+### 50. Pull requests resolved (2026-10-08, owner: "soluciona los pull request")
+
+- PR #9 (Claude Code local: real PAPER system #3 -> #4 -> F3 + read-only API H1-H3) merged
+  into the default branch, `15255f1`. Only conflict: `.gitignore` (kept both sides).
+  - Research suite: 677 passed; ruff and mypy clean.
+  - Root PAPER unittest suite: 660/662; the 2 errors need `tkinter`, which is absent in the
+    cloud container and present on the owner's PC.
+  - Repository guard: 0 findings.
+- PR #8 (GPT Work cross-review harness) merged, `4130970`. All of its reproduction suites
+  pass against the code; the findings were fixed in sections 31-37 and 40.
+  - Synthetic key literals were shortened so the guard stays at 0 findings.
+- PR #3: closed by the merge. PRs #4 and #5: closed as superseded (their content is in #9).
+- PR #1 merged: `main` is now in sync with the default branch, which stays
+  `ccr-b66a9a9e-okj2pl`.
+- No open PRs remain. Claude Code local should work from the default branch from now on.
+
+### 51. 8h review (2026-10-09 00:12Z): Windows suite green, SHADOW branch approved, market in downtrend
+
+- **Root PAPER suite on the owner's PC (Claude Code local, default branch `7bcc1b3`): 671/671
+  OK** with real pandas and tkinter. That closes the 2 tkinter errors seen in the cloud. (The cloud
+  counts 662 because `test_paper_ui_controls` fails to import there.)
+- **`main` CI after the PR merges:** research-tests run `37855295310` green (ruff, mypy, pytest).
+- **`claude-code/shadow-mode` (`fe56c78`, Claude Code local, SHADOW on the root runtime):** reviewed
+  and approved by the cloud.
+  - It merges cleanly into the default branch; `test_paper_shadow` 13/13.
+  - The merged root suite is 674 with only the cloud's tkinter error.
+  - 3 extra mutants killed: rollback→commit, forcing the valuation commit, dropping the audit
+    event.
+  - The design reuses the real decision code and rolls the whole transaction back, so SHADOW
+    cannot drift from PAPER's controls.
+  - Its documented limits are accurate. In particular, a symbol SHADOW "would open" keeps being
+    reported every scan, because SHADOW never holds it.
+  - No PR exists yet: Claude Code local opens it.
+- **PAPER automator:** last scheduled run `37845436206` (21:15Z) is green with state restored.
+  11 of 12 symbols are in `TREND_DOWN`/`NO_EDGE` and TRX is in `RANGE`, so there are no entries
+  (long-only Spot: correct).
+  - **Implication for the owner:** a real `tendencia` session started in this market would mostly
+    stay in USDT until an uptrend or breakout appears. That is the system protecting capital, not
+    a fault. `tendencia_rango` could act on ranging symbols such as TRX.
+  - GitHub ran only one scheduled tick in about 8h. Scheduled runs are best-effort; the state is
+    preserved and each run catches up all closed bars, so a skipped tick loses no data.
+- **AGENT_COORDINATION rows updated:** operator ready, key done, pilot approved, PR #9 merged, SHADOW
+  reviewed.
+- **Still waiting on the owner:** free USDT in Spot, then the phrase to Claude Code local.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |

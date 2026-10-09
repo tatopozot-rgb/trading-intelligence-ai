@@ -386,6 +386,7 @@ def build_loop(
     risk_overrides: Optional[dict] = None,
     trailing_stop_pct: Optional[float] = None,
     stop_file: Optional[Path] = None,
+    router_factory: Optional[Callable[[str], object]] = None,
 ) -> PaperLoop:
     """Wires the real RiskEngine, PaperAdapter and the default router (per symbol,
     at this timeframe) into a PaperLoop whose state lives in `state_dir`.
@@ -403,7 +404,8 @@ def build_loop(
     risk = RiskEngine(RiskConfig(**(risk_overrides or {})), state_dir / "risk.json", AuditLog(state_dir / "audit"))
     paper = PaperAdapter(market_data, Decimal(paper_equity), state_dir / "paper.json")
     runner = PaperTradingRunner(
-        lambda sym: default_router(sym, timeframe), risk, paper, trailing_stop_pct=trailing_stop_pct,
+        router_factory or (lambda sym: default_router(sym, timeframe)), risk, paper,  # type: ignore[arg-type]
+        trailing_stop_pct=trailing_stop_pct,
         state_path=state_dir / "runner.json",
     )
     return PaperLoop(runner, market_data, symbols, timeframe, state_dir / "loop.json", stop_file=stop_file)

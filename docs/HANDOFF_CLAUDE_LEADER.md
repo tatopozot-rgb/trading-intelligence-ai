@@ -1,6 +1,6 @@
 # Handoff: Claude Leader / Trading Codex (cloud) — read THIS instead of the chat
 
-Written 2026-10-07 for a fresh session or a model switch; updated after section 42.
+Written 2026-10-07 for a fresh session or a model switch; updated after section 44.
 It is self-contained: you do not need the previous conversation. Verify any number
 below against the repo before repeating it (`git log --oneline -5` on `ccr-b66a9a9e-okj2pl`).
 
@@ -90,6 +90,10 @@ on `origin/work/readiness-atomicity-followup`; extract with `git show`). I repli
 `ultimo_ok IS NULL` fix; `_abrir_validado` deferred-rejection transaction fix (SAVEPOINT
 alone is insufficient); SHADOW port; Binance/XM adapter skeletons (no credentials);
 Agent City bugs; PR #3 conflict + merge chain #3 -> #4 -> #5.
+
+**ROUTE B IS AUTHORIZED (section 44):** real operator in `trading_intelligence/live/`, limits in `config/live_limits.json` (do not change without the owner). Claude Code local runs it on the owner's PC.
+
+**How it all works for the owner:** `docs/OPERATING_MODEL.md`; pilot approval: `docs/PILOT_DECISION_FORM.md`.
 
 **New objective (section 41):** real pilot with USD 30; copy-trading pipeline built in
 `trading_intelligence/copy_trading/`; path and owner decisions in `docs/PILOT_30_USD.md`.
