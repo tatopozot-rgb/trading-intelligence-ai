@@ -39,6 +39,7 @@ Debe imprimir el reporte de inicio, decidir sobre datos reales y escribir
 
 | El dueño dice | Ejecutas |
 |---|---|
+| (el Spot tiene USD, no USDT) | añade `--convertir-usd` al `iniciar --real`: antes de arrancar compra en USDTUSD solo el USDT que le falta al capital, con el USD que ya está en Spot (mínimo 5 USD). No mueve nada fuera de la cuenta |
 | "trading sin parar con 50" | `python -m trading_intelligence.live.operator iniciar --capital 50 --perfil tendencia --real` (en segundo plano; el PC queda encendido; velas de 4 h: el operador rechaza órdenes reales en 1 h porque los datos reales mostraron pérdidas, sección 45) |
 | "trading por 3 horas con 50" | lo mismo + `--horas 3`: al cumplirse el plazo vende lo de la sesión y termina |
 | "hasta ganar 60%" (con cualquier otra orden) | `--meta 60`: cuando la sesión gana ese % de su capital, vende lo de la sesión y termina. Ambas opciones solo cierran; el límite de pérdida y el aviso de 2 USD siguen igual |

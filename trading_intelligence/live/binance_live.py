@@ -51,6 +51,8 @@ _SYMBOL = re.compile(r"^[A-Z0-9]{5,20}$")
 PENDING, FILLED, REJECTED, UNCERTAIN, NOT_FOUND = "PENDING_SEND", "FILLED", "REJECTED", "UNCERTAIN", "NOT_FOUND"
 UNRESOLVED = frozenset({PENDING, UNCERTAIN})
 STOP_KIND = "STOP"  # journal records of resting stop orders; never part of UNRESOLVED
+CONVERT_KIND = "CONVERT"  # owner-started USD -> USDT conversion (USDTUSD), journaled like orders
+CONVERT_SYMBOL = "USDTUSD"
 UNKNOWN_ORDER = (-2011, -2013)  # cancel/query of an order that is gone (filled, cancelled) or never existed
 
 
@@ -362,7 +364,7 @@ class SpotTrader:
 
     def unresolved(self) -> list[str]:
         return sorted(k for k, o in self.journal.read().items()
-                      if o.get("kind") != STOP_KIND and o["state"] in UNRESOLVED)
+                      if o.get("kind") is None and o["state"] in UNRESOLVED)
 
     def market_order(self, symbol: str, side: str, quantity: Decimal, fee_price: Callable[[str], Decimal]) -> Fill:
         if not self.key_checked:
@@ -370,7 +372,7 @@ class SpotTrader:
         if side not in ("BUY", "SELL") or not _SYMBOL.match(symbol) or quantity <= 0:
             raise ValueError("invalid order")
         orders = self.journal.read()
-        if any(o.get("kind") != STOP_KIND and o["state"] in UNRESOLVED for o in orders.values()):
+        if any(o.get("kind") is None and o["state"] in UNRESOLVED for o in orders.values()):
             raise Unreconciled("an earlier order is unresolved: reconcile before sending another")
         client_id = f"ti-{uuid.uuid4().hex[:24]}"
         record = {"state": PENDING, "symbol": symbol, "side": side, "quantity": str(quantity),
@@ -400,7 +402,7 @@ class SpotTrader:
         """Looks up every unresolved order by client id. Returns the fills it confirms."""
         orders = self.journal.read()
         confirmed: list[Fill] = []
-        for client_id in sorted(k for k, o in orders.items() if o.get("kind") != STOP_KIND and o["state"] in UNRESOLVED):
+        for client_id in sorted(k for k, o in orders.items() if o.get("kind") is None and o["state"] in UNRESOLVED):
             record = orders[client_id]
             resp = self._signed("GET", "/api/v3/order", {"symbol": record["symbol"], "origClientOrderId": client_id})
             data = self._json(resp)
@@ -421,6 +423,57 @@ class SpotTrader:
                 record["state"] = NOT_FOUND
             self.journal.write(orders)
         return confirmed
+
+    # --- owner-started USD -> USDT conversion --------------------------------------------
+
+    def convert_usd_to_usdt(self, usd: Decimal) -> Decimal:
+        """Spends exactly `usd` (fiat USD in Spot) on USDT at market, on USDTUSD. Returns
+        the USDT received. Same journal discipline as orders: an earlier unclear conversion is
+        looked up and never resent."""
+        if not self.key_checked:
+            raise UnsafeKey("key permissions not verified in this process")
+        usd = usd.quantize(Decimal("0.01"), rounding=ROUND_DOWN)
+        if usd <= 0:
+            raise ValueError("invalid conversion amount")
+        orders = self.journal.read()
+        for client_id, record in sorted(orders.items()):
+            if record.get("kind") == CONVERT_KIND and record["state"] in UNRESOLVED:
+                resp = self._signed("GET", "/api/v3/order", {"symbol": CONVERT_SYMBOL, "origClientOrderId": client_id})
+                data = self._json(resp)
+                if resp is not None and resp.status == 200 and isinstance(data, dict) and data.get("clientOrderId") == client_id:
+                    if data.get("status") in ("NEW", "PARTIALLY_FILLED", "PENDING_NEW"):
+                        raise Unreconciled("an earlier USD conversion is still working on Binance")
+                    record.update(state=FILLED, executed=str(data.get("executedQty", "0")))
+                    self.journal.write(orders)
+                    return Decimal(str(data.get("executedQty", "0")))  # it went through: do not convert twice
+                if resp is not None and resp.status == 400 and isinstance(data, dict) and data.get("code") == -2013 \
+                        and self._clock() - record["created"] >= 10:
+                    record["state"] = NOT_FOUND
+                    self.journal.write(orders)
+                    continue
+                raise Unreconciled("an earlier USD conversion is unresolved: try again in a minute")
+        client_id = f"tc-{uuid.uuid4().hex[:24]}"
+        record = {"kind": CONVERT_KIND, "state": PENDING, "symbol": CONVERT_SYMBOL, "usd": str(usd),
+                  "created": self._clock()}
+        orders[client_id] = record
+        self.journal.write(orders)
+        resp = self._signed("POST", "/api/v3/order", {
+            "symbol": CONVERT_SYMBOL, "side": "BUY", "type": "MARKET", "quoteOrderQty": format(usd, "f"),
+            "newClientOrderId": client_id, "newOrderRespType": "RESULT"})
+        data = self._json(resp)
+        if resp is not None and resp.status == 200 and isinstance(data, dict) and data.get("clientOrderId") == client_id:
+            got = Decimal(str(data.get("executedQty", "0")))
+            record.update(state=FILLED if got > 0 else REJECTED, executed=str(got))
+            self.journal.write(orders)
+            return got
+        code = data.get("code") if isinstance(data, dict) else None
+        if resp is not None and 400 <= resp.status < 500 and resp.status not in RESTRICTED and isinstance(code, int):
+            record.update(state=REJECTED, code=code)
+            self.journal.write(orders)
+            raise LiveError(f"Binance rejected the USD conversion (code {code})")
+        record.update(state=UNCERTAIN, http=None if resp is None else resp.status)
+        self.journal.write(orders)
+        raise Unreconciled(f"conversion {client_id} outcome unknown: it will be looked up, never resent")
 
     # --- protective stops resting on Binance -----------------------------------------
 

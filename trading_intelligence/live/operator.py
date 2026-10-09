@@ -25,7 +25,7 @@ import logging
 import os
 import time
 from datetime import datetime, timedelta, timezone
-from decimal import Decimal
+from decimal import ROUND_DOWN, Decimal
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -418,6 +418,26 @@ def _lock(state_dir: Path, now: Optional[datetime] = None) -> Path:
     return lock
 
 
+CONVERT_FEE_BUFFER = Decimal("1.003")  # USDTUSD trades near 0.999; 0.1% fee; a little slack
+MIN_CONVERSION_USD = Decimal("5")
+
+
+def convert_for_capital(trader, capital: Decimal) -> str:
+    """Owner-started (--convertir-usd): buys only the USDT the session capital still lacks,
+    with the fiat USD already in Spot. Never more than the USD there, never below Binance's
+    5 USD minimum. Moves nothing out of the account."""
+    free_usdt = trader.free_balance("USDT")
+    missing = capital - free_usdt
+    if missing <= 0:
+        return f"conversión: no hace falta (USDT libre {free_usdt})"
+    free_usd = trader.free_balance("USD")
+    usd = min(free_usd, missing * CONVERT_FEE_BUFFER).quantize(Decimal("0.01"), rounding=ROUND_DOWN)
+    if usd < MIN_CONVERSION_USD:
+        return f"conversión: no posible (USD libre {free_usd}, faltan {missing} USDT; mínimo de Binance 5 USD)"
+    got = trader.convert_usd_to_usdt(usd)
+    return f"conversión: {usd} USD -> {got} USDT (USDT libre ahora {trader.free_balance('USDT')})"
+
+
 def _launch(d: Path, limits: OwnerLimits, meta: dict, engine_equity: str, max_iterations: Optional[int]) -> None:
     """Runs the operator for the session described by meta.json (new or resumed)."""
     trader = _trader(meta["real"], d / "orders.json")
@@ -450,6 +470,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     start.add_argument("--max-iteraciones", type=int)
     start.add_argument("--horas", type=float, help="finish after N hours, closing the session's positions")
     start.add_argument("--meta", help="finish when the session gains N%% of its capital, closing its positions")
+    start.add_argument("--convertir-usd", action="store_true",
+                       help="(with --real) first convert fiat USD in Spot to the USDT the capital needs")
     sub.add_parser("estado")
     sub.add_parser("continuar")
     add = sub.add_parser("agregar")
@@ -528,6 +550,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     target = Decimal(args.meta) if args.meta is not None else None
     if target is not None and (not target.is_finite() or target <= 0):
         parser.error("--meta must be a positive percentage")
+    if args.convertir_usd and not args.real:
+        parser.error("--convertir-usd only makes sense with --real")
     symbols = args.simbolos or sorted(limits.allowed_symbols)
     if not set(symbols) <= limits.allowed_symbols:
         parser.error(f"symbols outside the approved list: {sorted(set(symbols) - limits.allowed_symbols)}")
@@ -544,7 +568,9 @@ def main(argv: Optional[list[str]] = None) -> int:
         end_at = now + timedelta(hours=args.horas) if args.horas is not None else None
         meta = {"profile": args.perfil, "timeframe": args.temporalidad, "symbols": symbols, "real": args.real,
                 "end_at": end_at.isoformat() if end_at else None, "profit_target_pct": args.meta}
-        _trader(args.real, d / "orders.json")  # verify the key before any session state is written
+        trader = _trader(args.real, d / "orders.json")  # verify the key before any session state is written
+        if args.convertir_usd:
+            print(convert_for_capital(trader, capital))
         Session(f"{now:%Y%m%dT%H%M%S}", args.perfil, now.isoformat(timespec="seconds"), capital).save(session_path)
         (d / "meta.json").write_text(json.dumps(meta), encoding="utf-8")
         _launch(d, limits, meta, str(capital), args.max_iteraciones)

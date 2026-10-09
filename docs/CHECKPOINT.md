@@ -2271,6 +2271,24 @@ Binance executes it whether or not the PC is on.
   - Claude Code local's permission system blocks real-money actions in its session.
   - The owner converts USD→USDT in the app and pastes the start command in PowerShell himself.
 
+### 57. Owner-started USD -> USDT conversion (2026-10-09)
+
+- **Blocker:** the owner's Spot holds 38.56 fiat **USD** and 0 USDT. Claude Code local's
+  permission system blocks real-money actions in its session, so it cannot convert for him.
+- Claude Code local read Binance's public `exchangeInfo` (`claude-code/preflight-usd-pairs`,
+  merged). **USDTUSD** is TRADING, with MARKET and `quoteOrderQty`, minNotional 5 and LOT_SIZE
+  step 1.
+- **New:** `iniciar --real --convertir-usd`, started by the owner. Before the session it buys,
+  on USDTUSD, only the USDT the capital still lacks: `min(USD in Spot, missing × 1.003)`,
+  floored to cents, and never below Binance's 5 USD minimum. It moves nothing out of the account.
+  - `SpotTrader.convert_usd_to_usdt` spends an exact USD amount (`quoteOrderQty`). It is
+    journaled as kind `CONVERT`.
+  - An unclear answer is looked up by client id and never resent, and it never blocks trading
+    or its stops.
+- 75 live tests (8 new); mutants: 6 of 7 killed, 1 equivalent.
+- **The owner's start command** (PowerShell, in `live-operator`):
+  `..\venv-live\Scripts\python.exe -m trading_intelligence.live.operator iniciar --capital 37 --perfil tendencia_rango --meta 58 --real --convertir-usd` (37, not 38: USDTUSD fills whole USDT and the fee comes off)
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |

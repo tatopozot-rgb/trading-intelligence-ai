@@ -865,3 +865,93 @@ def test_a_refused_guard_is_not_resent_every_minute(tmp_path):
     assert len(calls) == 2
     a = mirror.sell(s, trader, "BTCUSDT", "CLOSE")  # a refused guard never blocks the sale
     assert a.kind == "SELL" and "BTCUSDT" not in s.holdings
+
+
+# ------------------------------------------------------------------ USD -> USDT (owner-started)
+
+
+class ConvertBinance(FakeBinance):
+    def __init__(self):
+        super().__init__()
+        self.mode, self.converts = "ok", {}
+
+    def __call__(self, method, url, headers, timeout):
+        path = url.split("api.binance.com")[1].split("?")[0]
+        query = dict(p.split("=", 1) for p in url.split("?", 1)[1].split("&")) if "?" in url else {}
+        if path == "/api/v3/order" and query.get("symbol") == "USDTUSD":
+            self.calls.append((method, url, dict(headers)))
+            if method == "GET":
+                body = self.converts.get(query["origClientOrderId"])
+                return _resp(200, body) if body else _resp(400, {"code": -2013, "msg": "Order does not exist."})
+            cid = query["newClientOrderId"]
+            if self.mode == "reject":
+                return _resp(400, {"code": -2010, "msg": "Account has insufficient balance"})
+            got = (Decimal(query["quoteOrderQty"]) / Decimal("0.999")).quantize(Decimal("1"), rounding="ROUND_DOWN")
+            self.converts[cid] = {"symbol": "USDTUSD", "side": "BUY", "clientOrderId": cid, "orderId": 3,
+                                  "status": "FILLED", "executedQty": str(got), "cummulativeQuoteQty": query["quoteOrderQty"]}
+            if self.mode == "timeout":
+                raise TimeoutError("read timed out")
+            return _resp(200, self.converts[cid])
+        return super().__call__(method, url, headers, timeout)
+
+
+class TestUsdConversion:
+    def _t(self, tmp_path):
+        fake = ConvertBinance()
+        t = B.SpotTrader(B.Credentials(KEY, KEY), tmp_path / "orders.json", transport=fake, clock=lambda: 1_800_000_000.0)
+        t.verify_key()
+        return t, fake
+
+    def test_spends_exactly_the_usd_amount_on_usdtusd(self, tmp_path):
+        t, fake = self._t(tmp_path)
+        assert t.convert_usd_to_usdt(Decimal("38.567")) == Decimal("38")
+        method, url, _ = fake.calls[-1]
+        assert method == "POST" and "symbol=USDTUSD" in url and "side=BUY" in url and "type=MARKET" in url
+        assert "quoteOrderQty=38.56" in url and "quantity=" not in url
+        assert t.unresolved() == []
+        t.market_order("BTCUSDT", "BUY", Decimal("0.1"), lambda s: Decimal("1"))  # never blocks trading
+
+    def test_rejected_conversion_raises(self, tmp_path):
+        t, fake = self._t(tmp_path)
+        fake.mode = "reject"
+        with pytest.raises(B.LiveError, match="-2010"):
+            t.convert_usd_to_usdt(Decimal("10"))
+
+    def test_an_unclear_conversion_is_looked_up_never_resent(self, tmp_path):
+        t, fake = self._t(tmp_path)
+        fake.mode = "timeout"
+        with pytest.raises(B.Unreconciled):
+            t.convert_usd_to_usdt(Decimal("38.56"))
+        assert t.unresolved() == []  # an unclear conversion never blocks trading or its stops
+        fake.mode = "ok"
+        assert t.convert_usd_to_usdt(Decimal("38.56")) == Decimal("38")  # it had gone through
+        assert sum(1 for c in fake.calls if c[0] == "POST" and "USDTUSD" in c[1]) == 1
+
+    @pytest.mark.parametrize("usdt,usd,expect_usd", [
+        (Decimal("0"), Decimal("38.56"), Decimal("38.11")),   # capital 38: 38 x 1.003, capped by USD held
+        (Decimal("0"), Decimal("20"), Decimal("20.00")),      # less USD than needed: all of it
+        (Decimal("36"), Decimal("38.56"), None),              # 2 missing -> below Binance's 5 USD minimum
+        (Decimal("40"), Decimal("38.56"), None),              # enough USDT already
+    ])
+    def test_converts_only_what_the_capital_lacks(self, usdt, usd, expect_usd):
+        from trading_intelligence.live.operator import convert_for_capital
+
+        spent = []
+
+        class T:
+            def free_balance(self, asset):
+                return {"USDT": usdt, "USD": usd}[asset]
+
+            def convert_usd_to_usdt(self, amount):
+                spent.append(amount)
+                return amount
+
+        convert_for_capital(T(), Decimal("38"))
+        assert spent == ([] if expect_usd is None else [expect_usd])
+
+    def test_conversion_only_with_real(self, tmp_path, capsys):
+        from trading_intelligence.live import operator as O
+
+        with pytest.raises(SystemExit):
+            O.main(["--dir", str(tmp_path), "iniciar", "--capital", "38", "--convertir-usd"])
+        assert "--real" in capsys.readouterr().err and not (tmp_path / "session.json").exists()
