@@ -2252,6 +2252,25 @@ Binance executes it whether or not the PC is on.
   fix and to stricter fakes); full research suite 702 passed; ruff and mypy clean; guard 0
   findings.
 
+### 56. Owner raises the session loss limit to 45% (2026-10-09)
+
+- **Owner's written approval, in this session, verbatim:** "no fue de que si puede ser el 45 una
+  decisión fija apruebo el límite del 45 hazlo hasta 55 aceptaría entre 45 a 55 go".
+- `config/live_limits.json`: `loss_limit_pct` 20 → **45**. The quote and the owner's accepted
+  band [45, 55] are recorded in the file.
+  - `load_limits` now refuses any value outside a recorded band, so a later edit cannot drift
+    past what the owner approved.
+  - The engine's RiskConfig follows: daily loss and drawdown halt at 45, pause at 42.75. The
+    config validates.
+- **With 38 USDT:** warning at 15.1 USDT of loss, stop and close at 17.1. Unchanged: 2 USD
+  warning, 40% per position, 3 positions, Spot only, no withdrawals.
+- Told to the owner before he approved: no profile has proven an edge, so the higher limit
+  mainly means more money at risk.
+- 67 live tests.
+- **Still blocking the first order:** the Spot balance is 38.56 **USD**, not USDT.
+  - Claude Code local's permission system blocks real-money actions in its session.
+  - The owner converts USD→USDT in the app and pastes the start command in PowerShell himself.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
