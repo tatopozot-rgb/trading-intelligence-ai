@@ -1,0 +1,25 @@
+{
+ "experiment": "two_way_tsmom_1x",
+ "prereg": "docs/PREREG_TWO_WAY.md",
+ "checkpoint": 65,
+ "start": "2026-10-12",
+ "symbols": [
+  "BTCUSDT",
+  "ETHUSDT",
+  "BNBUSDT",
+  "SOLUSDT",
+  "XRPUSDT",
+  "DOGEUSDT",
+  "ADAUSDT",
+  "LINKUSDT",
+  "AVAXUSDT",
+  "LTCUSDT",
+  "TRXUSDT",
+  "DOTUSDT",
+  "PAXGUSDT"
+ ],
+ "status": "PENDING",
+ "stopped_reason": null,
+ "stopped_at": null,
+ "created": "2026-10-09T13:32:44.713856+00:00"
+}
