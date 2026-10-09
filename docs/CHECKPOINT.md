@@ -2289,6 +2289,24 @@ Binance executes it whether or not the PC is on.
 - **The owner's start command** (PowerShell, in `live-operator`):
   `..\venv-live\Scripts\python.exe -m trading_intelligence.live.operator iniciar --capital 37 --perfil tendencia_rango --meta 58 --real --convertir-usd` (37, not 38: USDTUSD fills whole USDT and the fee comes off)
 
+### 58. First real session started; live reports publisher (2026-10-09)
+
+- **Session start:** Claude Code local launched the real session around 03:25Z (process 52056):
+  38 USDT, `tendencia_rango`, 4h, `--meta 58`, loss limit 45%. The owner's screenshot shows
+  38.00 USDT and 0.60 USD in Spot, so the conversion is done.
+  - Right after launch, Claude Code local's permission system also blocked it from READING the
+    session's state. Nobody can see `status.json` or the reports; the operator keeps its own
+    guards (loss guard, guard stops on Binance, watchdog).
+- **New: `tools/publish_live_reports.py`**, stdlib only. Run hourly by a Task Scheduler entry
+  that the owner creates or approves. It copies only `status.json`, `reporte_*.md` and
+  `AVISO.txt` into `docs/live_reports/<session>/` of a separate clone on branch
+  `live-reports`, then pushes.
+  - It never copies `orders.json`, `session.json`, `meta.json` or `engine/`.
+  - Session ids are validated before they become paths.
+  - The operator's checkout is untouched.
+  - 3 tests, including a real git round trip to a bare repo.
+- The 4-hourly Leader monitor reads that branch.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
