@@ -1,0 +1,11 @@
+{
+  "at": "2026-10-09T12:29:39.745707+00:00",
+  "real": true,
+  "profile": "tendencia_rango",
+  "status": "RUNNING",
+  "capital": "38",
+  "equity": "38.00",
+  "loss_limit_usd": "17.1",
+  "warn_at_usd": "15.1",
+  "holdings": {}
+}
