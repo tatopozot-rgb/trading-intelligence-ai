@@ -149,3 +149,52 @@ amendment conflicts with the text above, the amendment governs.
 6. **Unchanged:** universe, strategies, costs (0.1% per side + 5 bps, 10 USDT per trade),
    the 12 two-hour windows, the backfill (14 days before 2026-10-09, reference only), the
    forward dates, BH q = 0.10 for the exploratory family, and the PAPER-only scope.
+
+---
+
+## Amendment 2 (2026-10-09 ~15:40 UTC, before any forward data)
+
+**Reason:** the reference backfill (run `37949990464`, 2026-09-25 → 10-08, which decides
+nothing) showed something the design did not anticipate. `tendencia` and `rango` almost never
+trade inside a window: 33 and 9 trades in 10 weekdays, never more than 2 in any window ×
+symbol cell. So no strategy cell could ever reach the per-half minimum.
+
+**Disclosure:** this amendment was written **after seeing that reference data**, and only to
+make the registered question answerable. No forward day exists yet. The first is Saturday
+2026-10-10; the first decisive weekday is Monday 2026-10-12. The rules below were not
+chosen by looking at which hours or symbols did well.
+
+1. **Strategy (d) "ruptura" (opening-range breakout), parameters fixed now:**
+   - **Opening range:** the window's first 20-minute bar (high and low).
+   - **Entry:** long, at the first 20-minute decision from the second bar onward whose last
+     completed 20-minute close is **above the range high**. Fill at that minute's open ×
+     (1 + 5 bps). **At most one entry per window.** No regime gate, no other filter.
+   - **Stop:** the range low. It is checked on every 1-minute low; the touch fills at the
+     stop × (1 − 10 bps), a gap at the open × (1 − 5 bps), as in Amendment 1. If the entry
+     fill is at or below the range low, the trade is skipped.
+   - **Exit:** the stop, or the forced close at the window's last minute close × (1 − 5 bps).
+     There is no other exit.
+   - Costs and size as registered: 0.1% per side + 5 bps, 10 USDT per trade.
+2. **Confirmatory tests for tendencia, rango and ruptura are POOLED.** Same split halves,
+   one-sided t-test on half 2, and half-1 mean > 0. **Minimum 15 trades per half** for every
+   pooled test (all four strategies). Families:
+   - **Owner's window 07–10 Ecuador (12–15 UTC), pooled over the 13 symbols, per strategy**
+     (tendencia, rango, ruptura, baseline). These 4 tests remain **PRIMARY**, at
+     **Bonferroni α = 0.05/4 = 0.0125**.
+   - **Pooled by window** (all 13 symbols), per strategy: 12 tests per strategy, BH at
+     q = 0.10, with all 12 as the denominator.
+   - **Pooled by symbol** (all 12 two-hour windows), per strategy: 13 tests per strategy,
+     BH at q = 0.10, with all 13 as the denominator.
+   - **Window × symbol cells:** for tendencia, rango and ruptura, **descriptive only**.
+     Baseline cells keep the registered cell-level rule: at least one trade per scope day
+     per half, and BH at q = 0.10 over the candidates.
+   - **Owner's window per symbol:** baseline only, 13 tests, BH at q = 0.10 over all 13. The
+     other strategies are descriptive only there.
+   - At the reference trade rate, tendencia and rango will probably not reach 15 trades per
+     half in most pooled tests. A test that cannot reach the minimum reports "insufficient
+     trades", never a pass.
+3. **Unchanged:** split halves (half 1 ≤ 2026-10-16; half 2 2026-10-17 → 10-23); the Mon–Fri
+   decision scope with Mon–Sat as the disclosed alternative; Sunday excluded; BH q = 0.10
+   within each family; the 3-minute 1-minute monitoring; Ecuador time first; PAPER only.
+4. The reference backfill is **re-run** so the reference reports include ruptura. It is
+   still labeled "referencia: datos pasados" and still decides nothing.
