@@ -401,8 +401,10 @@ def main(argv: Optional[list[str]] = None) -> int:
     closes = pd.DataFrame({s: f["close"] for s, f in frames.items()})
     opens = pd.DataFrame({s: f["open"] for s, f in frames.items()})
     full = pd.date_range(closes.index[0], closes.index[-1], freq="1D")
-    gaps = {s: int(len(full) - closes[s].loc[closes[s].first_valid_index():].notna().sum()) for s in closes}
     closes, opens = closes.reindex(full), opens.reindex(full)
+    # Missing daily bars between a symbol's own first and last bar (not the days before it listed).
+    gaps = {s: int(closes[s].loc[closes[s].first_valid_index():closes[s].last_valid_index()].isna().sum())
+            for s in closes}
     report = {"primary": run_period(closes, opens, funding, *PRIMARY),
               "secondary_already_seen": run_period(closes, opens, funding, *SECONDARY),
               "funding_sources": sources, "missing": missing, "gaps": gaps,
