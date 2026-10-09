@@ -48,5 +48,17 @@ drawdown, drawdown que activaría el halt, sin precio, precio movido, `PAUSA_ENT
 excesivo y otro símbolo con posición abierta) comprueba que el estado PAPER queda idéntico y que
 la misma solicitud, decidida después por PAPER, da el mismo resultado y el mismo motivo.
 
-**No ejecutado contra datos reales en este PC:** el scanner necesita pandas y Smart App Control
-bloquea sus DLL. Las pruebas usan un scanner simulado.
+## Ejecución con datos reales (2026-10-08)
+
+Una sesión corta en este PC, con pandas real (entorno aparte con pandas 2.2.3, que Smart App
+Control permite) y datos públicos de Binance, sin claves:
+`python system_runner.py --continuo --sombra-paper --horas 0.08`, salida 0.
+
+- 1 ciclo de scanner, 5 mercados analizados, 0 errores; 1 candidato llegó a la decisión.
+- Resultado: 1 evento `SHADOW_RECHAZADA` (motivo: "El precio cambió: generar y revisar una propuesta nueva", es decir, el precio se movió más del 0,25 % permitido entre el plan y la decisión), 0 filas en `paper_trades`, la
+  solicitud quedó `PENDIENTE`.
+- `runner_status.json` terminó en `DETENIDO` con `modo` = `SHADOW_PAPER`.
+
+Es una sola sesión de cinco minutos: demuestra que el recorrido funciona de extremo a extremo
+con datos reales, no dice nada sobre la calidad de las decisiones. No se ha observado todavía un
+`SHADOW_ABRIRIA` con datos reales.
