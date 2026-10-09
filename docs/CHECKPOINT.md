@@ -2659,6 +2659,35 @@ nothing alone**. The variants were also defined after seeing the short leg lose
 - **Nothing here validates real money.**
 - The registered forward PAPER (section 66) continues unchanged.
 
+### 68. Owner: find the best hours and markets in 2 weeks (2-hour windows, decisions every 20 min) (2026-10-09)
+
+- The owner rejected weekly momentum ("de lunes a lunes no tiene sentido"). He wants:
+  - operations and analysis every 20 minutes, in sessions of about 2 hours;
+  - daily reports, reviewed by GPT Work and by the leader;
+  - a decision after 2 weeks on the best hours to trade and in which markets.
+- Plan ("experimento horarios"), delegated to Quant as PAPER/research only:
+  - 12 two-hour windows per UTC day, on the 12 symbols plus PAXG, with 20-minute decisions on
+    public 5m data;
+  - strategies: trend, range, and a buy-at-start/sell-at-end baseline; long-only Spot with
+    real costs; every position closed at the end of its window;
+  - a daily replay workflow writes `docs/experimento_horarios/`;
+  - forward days 2026-10-10 → 2026-10-23 decide; a 14-day backfill is labeled as reference only.
+- Multiple-comparison guard, pre-registered in `docs/PREREG_HORARIOS.md` before results:
+  - week 1 selects, week 2 confirms;
+  - a cell qualifies only if net-positive in both halves, with enough trades, after a BH
+    adjustment;
+  - pooled-by-hour and pooled-by-symbol views are reported for power.
+- Why PAPER for the measurement: the real-data walk-forward showed 1h trading loses after
+  fees (section 45), and 20-minute trading pays even more fees.
+  - Measuring all 12 windows a day in PAPER gives 12× the data of one real 2-hour window, at
+    no cost.
+  - The real session keeps running unchanged.
+  - Real money moves to the winning hours/markets only after day 14, with the owner's written
+    authorization.
+- GPT Work's daily review prompt: `docs/prompts/GPT_WORK_HORARIOS.md`.
+- The momentum operator wiring stays shelved (draft kept outside the repo); the owner no
+  longer wants it.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
