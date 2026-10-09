@@ -7,8 +7,15 @@ GPT Work, lo revisa el líder y, al final, se decide con la regla registrada de 
 
 ## Qué es el experimento
 
-- 12 ventanas por día: 00:00, 02:00 … 22:00 UTC. En la hora probable del dueño (Ecuador,
-  UTC−5) son las 19:00, 21:00 … 17:00.
+- **Días de operación como trader:** de lunes a viernes, con el sábado aparte para decidir si
+  se incluye. El domingo se registra pero no decide.
+- **La ventana del dueño: de 07:00 a 10:00, hora de Ecuador (UTC−5).** Es la hipótesis
+  principal y se evalúa por separado.
+- Además se exploran 12 ventanas de 2 horas para buscar otras horas buenas: 19:00, 21:00 …
+  17:00 en hora de Ecuador (00:00, 02:00 … 22:00 UTC).
+- Las entradas se deciden **cada 20 minutos**. Con una operación abierta, la salida se revisa
+  **cada 3 minutos**: el stop loss analizado de la estrategia, su señal de salida y el cierre
+  obligatorio al final de la ventana.
 - 13 mercados: las 12 monedas aprobadas y PAXG (oro).
 - 3 maneras de operar, solo compras:
   - **tendencia**: cruce de medias;
@@ -33,8 +40,9 @@ El dueño te pega este texto:
 > `docs/prompts/GPT_WORK_HORARIOS.md` y `docs/PREREG_HORARIOS.md`. Cada día abre el reporte
 > más nuevo en `docs/experimento_horarios/` (`AAAA-MM-DD.md` y `.json`) y escríbeme, en
 > español y en no más de 10 líneas:
-> 1. Las 3 mejores y las 3 peores horas del día (todas las monedas juntas), con el resultado
->    neto después de costos.
+> 1. Cómo fue la ventana de 07:00 a 10:00 (hora de Ecuador). Después, las 3 mejores y las 3
+>    peores horas del día (todas las monedas juntas), con el resultado neto después de costos,
+>    en hora de Ecuador.
 > 2. Las 3 mejores y las 3 peores monedas (todas las horas juntas).
 > 3. Si alguna combinación hora + moneda + estrategia va bien **en los días acumulados** y no
 >    solo hoy.
