@@ -3004,6 +3004,74 @@ running session: `parar`, then `iniciar --temporalidad 20m` with the same flags,
 
 **Switch for the running session:** Claude local runs `parar`, then `iniciar` with `--temporalidad 5m` and the same flags, then `adoptar BTCUSDT`. This needs the owner's phrase written to Local.
 
+### 77. XM / MT5 connected to the automator, phase 1: read-only, instrument sheets, SHADOW (2026-10-09)
+
+**Owner's ask:**
+- "conectemos nuestro automatizador a XM, no reestructurar todo, solo cambiar de bróker y usar ese
+  otro mercado... ejecutar siempre en ese mercado";
+- "que el bot lea automáticamente spread, tamaño mínimo, margen y swap de cada instrumento antes de
+  autorizar una entrada".
+
+XM is CFDs through MT5. The owner's account allows 1:1000; that is the broker's ceiling, not ours.
+
+**Built (`trading_intelligence/live/xm_mt5.py`, on the existing H3 read-only design):**
+- **`XmReader`:**
+  - attaches to the terminal the owner logged in to; `initialize()` takes no credentials;
+  - a `_ReadOnly` gate allows only these read functions: account_info, positions_get, symbol_info,
+    symbol_info_tick, symbol_select, symbols_get, copy_rates_from_pos, order_calc_margin,
+    last_error, initialize, shutdown;
+  - `order_send` raises.
+- **`Sheet` (one per instrument):**
+  - bid/ask, spread and spread % of mid;
+  - min, step and max lot, and contract size;
+  - notional of the minimum lot in the account currency, from the broker's tick value;
+  - margin of the minimum lot (`order_calc_margin`);
+  - swap long/short and swap mode;
+  - stops level;
+  - market open: trade mode is not disabled and the quote is no older than 5 min.
+- **`check_entry(sheet, side, account, caps)`** refuses an entry when:
+  - trading is not allowed on the account;
+  - the market is closed;
+  - the broker blocks that side;
+  - the spread exceeds `max_spread_pct` (0.15%);
+  - the minimum lot's effective leverage exceeds 2x equity;
+  - its margin exceeds 20% of free margin.
+
+  `EntryCaps` defaults are a proposal; real money uses the caps the owner approves. Negative swap is
+  reported, not refused.
+- **`XmKlines`:** MT5 candles (20m native) feed the same PaperLoop, detectors and strategies.
+- **CLI:** `python -m trading_intelligence.live.xm_mt5 cuenta | fichas SYM... | velas SYM`.
+- **Operator `--broker xm`:**
+  - SHADOW only; `--real` is refused, and so is `copiar`;
+  - the MT5 symbol names are required;
+  - lots map to units as lot × contract size;
+  - for SHADOW only, the allowed symbols are the ones given, since no money moves.
+- **`PaperLoop(continuous_market=False)`, used for XM:** bars come from the broker's server history,
+  so a missing bar means the market was closed. There is no gap halt, and an old last bar is not
+  treated as an outage. Crypto keeps the strict checks.
+
+**Tests:** 11 in `tests/test_xm_mt5.py`, plus one session-market test in `test_paper_loop.py`. They
+cover:
+- the sheet's math (gold 0.01 lot = 1 oz ≈ 2600 USD notional);
+- refusing gold at 100 USD equity (26x);
+- authorizing EURUSD at 1000;
+- closed and close-only instruments, and a wide spread;
+- no order path and no credentials or account number in output;
+- UTC candles, the CLI, operator refusals, and a SHADOW session end to end on fake MT5 candles.
+
+**Not done yet (and why):**
+- **Real terminal:** this container has none. Claude local runs `cuenta` and `fichas` (prompt
+  section 4g). Smart App Control may block the MetaTrader5 DLL; if so, we stop and report.
+- **Phase 2:** DEMO orders, every one with SL/TP, risk sizing from the sheet, and positions
+  reconciled with `positions_get`.
+- **Phase 3:** real money, with the owner's phrase and written XM limits: max effective leverage,
+  loss limit, symbols.
+- **SELL entries (CFD shorts):** the three short studies were on crypto. Forex, gold and indices
+  shorts are untested. The engine's strategies are long-only today. A short leg needs a study, or at
+  least SHADOW evidence, before real money.
+- **Mixed sessions:** the engine processes only bars common to all symbols, so group symbols with
+  similar sessions.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |

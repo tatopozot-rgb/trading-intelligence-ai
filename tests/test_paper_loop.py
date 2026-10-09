@@ -331,6 +331,17 @@ class TestGapsAndFreshness:
         assert loop.runner.risk_engine.state.kill_switch is True
         assert report.processed == [_ts(WARMUP + 1), _ts(WARMUP + 3)], "available bars still processed"
 
+    def test_a_session_market_skips_closed_hours_without_halting(self, tmp_path, flat_feed):
+        # XM CFDs: forex closes at weekends, indices daily; missing bars there mean "closed".
+        loop = _build(tmp_path, flat_feed, entry_at=10**9, continuous_market=False)
+        _at(flat_feed, WARMUP + 1)
+        loop.tick()
+        flat_feed.frames[SYMBOL] = flat_feed.frames[SYMBOL].drop(pd.Timestamp(_ts(WARMUP + 2)).tz_localize(None))
+        _at(flat_feed, WARMUP + 4)
+        report = loop.tick()
+        assert report.gap_halt is None and loop.runner.risk_engine.state.kill_switch is False
+        assert report.processed == [_ts(WARMUP + 1), _ts(WARMUP + 3)]
+
     def test_contiguous_bars_never_halt(self, tmp_path, flat_feed):
         loop = _build(tmp_path, flat_feed, entry_at=10**9)
         _at(flat_feed, WARMUP + 1)

@@ -558,6 +558,26 @@ class Operator:
 # --- CLI ------------------------------------------------------------------------------
 
 
+BROKERS = ("binance", "xm")
+
+
+def _xm_feed_and_trader():
+    """XM through the owner's MT5 terminal: candles for the engine, a SHADOW trader on its prices.
+    Lots are mapped to units of the underlying (lots x contract size) so the engine's sizing works."""
+    from trading_intelligence.live.xm_mt5 import XmKlines, XmReader
+
+    reader = XmReader()
+    reader.connect()
+    feed = XmKlines(reader)
+
+    def rules(symbol: str) -> SymbolRules:
+        sh = reader.sheet(symbol)
+        return SymbolRules(step=sh.volume_step * sh.contract_size, min_qty=sh.volume_min * sh.contract_size,
+                           min_notional=Decimal("0"))
+
+    return feed, ShadowTrader(feed.get_current_price, rules)
+
+
 def _trader(real: bool, journal: Path):
     if real:
         trader = SpotTrader(Credentials.from_env(), journal)
@@ -760,16 +780,27 @@ def convert_for_capital(trader, capital: Decimal) -> str:
 def _launch(d: Path, limits: OwnerLimits, meta: dict, engine_equity: str, max_iterations: Optional[int]) -> None:
     """Runs the operator for the session described by meta.json (new or resumed)."""
     limits = limits.for_session(Decimal(str(meta["loss_limit_pct"])) if meta.get("loss_limit_pct") is not None else None)
-    trader = _trader(meta["real"], d / "orders.json")
+    xm = meta.get("broker", "binance") == "xm"
+    if xm:
+        if meta["real"]:
+            raise SystemExit("XM con dinero real todavía no existe (fase 2: cuenta DEMO; fase 3: límites XM del dueño)")
+        from dataclasses import replace as _replace
+
+        feed, trader = _xm_feed_and_trader()
+        limits = _replace(limits, allowed_symbols=frozenset(meta["symbols"]))  # SHADOW: no money moves
+    else:
+        trader = _trader(meta["real"], d / "orders.json")
     loop = None
     if meta["profile"] != "copiar":
         from trading_intelligence.data.binance_public_feed import BinancePublicKlines
         from trading_intelligence.execution.paper_loop import build_loop
 
         # An existing engine state in d/engine is resumed (progress, positions, risk counters).
-        loop = build_loop(meta["symbols"], meta["timeframe"], d / "engine", market_data=BinancePublicKlines(),
+        loop = build_loop(meta["symbols"], meta["timeframe"], d / "engine",
+                          market_data=feed if xm else BinancePublicKlines(),
                           paper_equity=engine_equity, risk_overrides=engine_risk_overrides(limits),
-                          router_factory=router_factory(meta["profile"], meta["timeframe"]))
+                          router_factory=router_factory(meta["profile"], meta["timeframe"]),
+                          continuous_market=not xm)
     end_at = datetime.fromisoformat(meta["end_at"]) if meta.get("end_at") else None
     target = Decimal(meta["profit_target_pct"]) if meta.get("profit_target_pct") is not None else None
     op = Operator(d, trader, limits, profile=meta["profile"], timeframe=meta["timeframe"], symbols=meta["symbols"],
@@ -799,6 +830,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     start.add_argument("--ventanas", nargs="+",
                        help=f"trading windows in Ecuador hours, e.g. 07-10 17-19 (5m/20m default: {' '.join(OWNER_WINDOWS)}); "
                             "inside them it decides at every bar, outside them every 20 minutes")
+    start.add_argument("--broker", choices=BROKERS, default="binance",
+                       help="xm: candles and prices from your MT5 terminal (SHADOW only in phase 1); "
+                            "give the MT5 symbol names with --simbolos")
     start.add_argument("--convertir-usd", action="store_true",
                        help="(with --real) first convert fiat USD in Spot to the USDT the capital needs")
     sub.add_parser("estado")
@@ -925,6 +959,14 @@ def main(argv: Optional[list[str]] = None) -> int:
     capital = Decimal(args.capital)
     if capital <= 0:
         parser.error("capital must be positive")
+    if args.broker == "xm":
+        if args.real:
+            parser.error("XM with real money does not exist yet: phase 1 is SHADOW (no orders). Phase 2 is the "
+                         "DEMO account, phase 3 needs XM limits approved by the owner")
+        if not args.simbolos:
+            parser.error("--broker xm needs --simbolos with the exact MT5 names (e.g. GOLD EURUSD)")
+        if args.perfil == "copiar":
+            parser.error("copiar follows Binance traders; it does not apply to XM")
     if args.real and args.perfil != "copiar" and args.temporalidad not in REAL_TIMEFRAMES:
         parser.error(f"real orders at {args.temporalidad} refused: on real Binance data this configuration lost "
                      f"money after fees (CHECKPOINT section 45). Allowed for real: {sorted(REAL_TIMEFRAMES)}; "
@@ -951,7 +993,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     if args.convertir_usd and not args.real:
         parser.error("--convertir-usd only makes sense with --real")
     symbols = args.simbolos or sorted(limits.allowed_symbols)
-    if not set(symbols) <= limits.allowed_symbols:
+    if args.broker == "binance" and not set(symbols) <= limits.allowed_symbols:
         parser.error(f"symbols outside the approved list: {sorted(set(symbols) - limits.allowed_symbols)}")
     if session_path.exists() and Session.load(session_path).status != STOPPED:
         parser.error("a session is already open here: use estado / continuar / agregar / parar")
@@ -967,10 +1009,19 @@ def main(argv: Optional[list[str]] = None) -> int:
         meta = {"profile": args.perfil, "timeframe": args.temporalidad, "symbols": symbols, "real": args.real,
                 "end_at": end_at.isoformat() if end_at else None, "profit_target_pct": args.meta,
                 "loss_limit_pct": str(session_loss) if session_loss is not None else None, "trailing_pct": str(trailing),
-                "windows": windows}
-        trader = _trader(args.real, d / "orders.json")  # verify the key before any session state is written
-        if args.convertir_usd:
-            print(convert_for_capital(trader, capital))
+                "windows": windows, "broker": args.broker}
+        if args.broker == "xm":
+            from trading_intelligence.live.xm_mt5 import XmReader
+
+            check = XmReader()  # the MT5 terminal must answer before any session state is written
+            check.connect()
+            for sym in symbols:
+                check.sheet(sym)
+            check.close()
+        else:
+            trader = _trader(args.real, d / "orders.json")  # verify the key before any session state is written
+            if args.convertir_usd:
+                print(convert_for_capital(trader, capital))
         Session(f"{now:%Y%m%dT%H%M%S}", args.perfil, now.isoformat(timespec="seconds"), capital).save(session_path)
         (d / "meta.json").write_text(json.dumps(meta), encoding="utf-8")
         _launch(d, limits, meta, str(capital), args.max_iteraciones)
