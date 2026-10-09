@@ -1,0 +1,14 @@
+{
+  "name": "agent-city-3d",
+  "version": "0.1.0",
+  "description": "Agent City 3D — visualización local de estado real de Trading Intelligence (solo lectura).",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test tests/model.test.mjs"
+  },
+  "type": "module",
+  "dependencies": {
+    "three": "^0.170.0"
+  },
+  "private": true
+}

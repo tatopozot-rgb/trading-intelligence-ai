@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agent City 3D</title>
+  <link rel="stylesheet" href="/public/style.css">
+  <script type="importmap">
+    { "imports": {
+        "three": "/vendor/three/build/three.module.js",
+        "three/addons/": "/vendor/three/examples/jsm/"
+    } }
+  </script>
+</head>
+<body>
+  <header id="top">
+    <div class="titulo">🏙 Agent City 3D <span id="modo" class="chip">BUILD MODE</span></div>
+    <div id="sync" class="chip">cargando…</div>
+    <div id="reloj-sim" class="chip" title="Reloj acelerado de la vida simulada; no es la hora real">🕒 SIM --:--</div>
+    <div class="acciones">
+      <span id="refresco" class="muted"></span>
+      <button id="reset" type="button">Reset cámara</button>
+      <button id="cortes" type="button" title="Mostrar/ocultar interiores">Interiores: on</button>
+    </div>
+  </header>
+  <div id="banners"></div>
+  <main>
+    <div id="escena" aria-label="Ciudad 3D"></div>
+    <aside id="panel">
+      <nav id="pestanas" class="pestanas">
+        <button class="tab on" data-tab="city" type="button">CITY</button>
+        <button class="tab" data-tab="agent" type="button">AGENT</button>
+        <button class="tab" data-tab="building" type="button">BUILDING</button>
+        <button class="tab" data-tab="operations" type="button">OPERATIONS</button>
+        <button class="tab" data-tab="simulation" type="button">SIMULATION</button>
+      </nav>
+      <section class="tarjeta" id="sel" data-tab="all">
+        <div class="cabecera-sel">
+          <h2 id="p-titulo">Ciudad</h2>
+          <span id="p-badge" class="badge"></span>
+        </div>
+        <div id="p-cuerpo" class="cuerpo"></div>
+        <button id="p-cerrar" type="button" class="secundario">Ver resumen de la ciudad</button>
+      </section>
+
+      <details class="bloque real" open data-tab="real">
+        <summary><span>🟢 Realidad operativa</span><small>solo fuentes reales</small></summary>
+        <div id="sec-real" class="cuerpo"></div>
+      </details>
+
+      <details class="bloque sim" open data-tab="sim">
+        <summary><span>🎮 Simulación visual</span><small>no es trabajo real</small></summary>
+        <div id="sec-sim" class="cuerpo"></div>
+      </details>
+
+      <details class="bloque" data-tab="roles">
+        <summary><span>🧩 Roles</span><small>agrupados por categoría</small></summary>
+        <div id="sec-roles" class="cuerpo"></div>
+      </details>
+
+      <details class="bloque" data-tab="feed">
+        <summary><span>📜 Eventos recientes</span><small>reales</small></summary>
+        <ol id="feed" class="feed"></ol>
+      </details>
+
+      <details class="bloque" data-tab="legend">
+        <summary><span>Leyenda</span></summary>
+        <ul class="leyenda">
+          <li><i style="background:#22c55e"></i> WORKING real (solo con evento reciente)</li>
+          <li><i style="background:#3b82f6"></i> REVIEWING real (documentado)</li>
+          <li><i style="background:#f97316"></i> BLOCKED real</li>
+          <li><i style="background:#6b7280"></i> NOT_SYNCED — sin evidencia</li>
+          <li><i style="background:#78716c"></i> STALE — fuente vieja</li>
+          <li><i style="background:#fcd34d"></i> SIM_* — simulación visual</li>
+        </ul>
+      </details>
+    </aside>
+  </main>
+  <script type="module" src="/public/app.js"></script>
+</body>
+</html>
