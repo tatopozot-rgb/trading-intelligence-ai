@@ -3,6 +3,20 @@
 Escrito por Claude Leader el 2026-10-09, a pedido del dueño: "si el oro algún rato se desploma
 nuestro automatizador no va a hacer nada… debe irse en contra o a favor del mercado".
 
+## Resultado de la prueba con datos reales: NO (2026-10-09)
+
+La sesión Quant probó, con datos reales de 4 años, cortos en 4h sobre las 12 monedas y PAXG
+(oro). Usó comisiones y *funding* de Futuros y no retocó nada (CHECKPOINT sección 61):
+
+- **pierde 1,70% por operación**, gana solo el 23% de las veces, p = 0,001;
+- pierde en los 5 periodos de prueba, también en los de mercado bajista; en PAXG, −0,87%;
+- sumar cortos a lo que ya hacemos **empeora** el resultado (+7.851 contra +11.219 sin cortos).
+
+**Decisión del líder:** con esta lógica no se activan cortos reales y no se construye el
+transporte de Futuros. Cuando el mercado cae, el sistema hace lo que sí funciona: no compra en
+tendencia bajista y sale con stops puestos en Binance. Otra estrategia de corto sería un estudio
+nuevo, registrado antes, con datos que no se usaron aquí; solo se activaría si pasa.
+
 ## Por qué hoy no puede
 
 Hoy el sistema opera en **Spot**: compra una moneda y la vende después. En Spot solo se gana
@@ -33,9 +47,8 @@ apalancamiento") y de lo que la clave permite.
 
 ## Qué hago yo antes de que haya un solo corto real
 
-1. **Medirlo con datos reales.** La sesión Quant ya lo está probando: estrategia de corto en 4h
-   sobre las 12 monedas y PAXG, con comisiones y *funding*, sin retocar parámetros. Si pierde,
-   te lo digo y no se activa, igual que pasó con 1h.
+1. **Medirlo con datos reales.** Hecho: la estrategia de corto en 4h **perdió** (arriba). No se
+   activa, igual que pasó con 1h. Los pasos 2 y 3 quedan en pausa.
 2. Construir el transporte de Futuros con las mismas protecciones de hoy: diario antes de enviar,
    nunca reenviar una orden dudosa, stop puesto en Binance y conciliación.
 3. Ensayo SHADOW en tu PC, y después la sesión real con tu frase.
