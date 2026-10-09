@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-09T20:53:47.228480+00:00",
+  "real": true,
+  "profile": "tendencia_rango",
+  "status": "RUNNING",
+  "capital": "37.76",
+  "equity": "37.77",
+  "loss_limit_usd": "16.992",
+  "warn_at_usd": "14.992",
+  "holdings": {
+    "BTCUSDT": "0.00006993"
+  }
+}
