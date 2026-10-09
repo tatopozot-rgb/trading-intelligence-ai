@@ -20,7 +20,7 @@ from trading_intelligence.backtesting import real_data_validation as rdv
 from trading_intelligence.data.binance_public_feed import DEFAULT_BASE_URL, _urllib_get
 
 TOP_N = 30
-STABLE_OR_FIAT = {"USDC", "FDUSD", "TUSD", "USDP", "DAI", "BUSD", "USDD", "PYUSD", "USDE", "USD1", "UST", "USTC",
+STABLE_OR_FIAT = {"USDC", "FDUSD", "TUSD", "USDP", "DAI", "BUSD", "USDD", "PYUSD", "USDE", "USD1", "UST", "USTC", "RLUSD",
                   "EUR", "EURI", "AEUR", "GBP", "TRY", "BRL", "ARS", "JPY", "AUD", "RUB", "UAH", "ZAR", "PLN",
                   "MXN", "COP", "CZK", "RON", "NGN", "IDRT", "BIDR", "BVND", "XUSD", "USDS", "SUSD"}
 LEVERAGED_SUFFIXES = ("UP", "DOWN", "BULL", "BEAR")

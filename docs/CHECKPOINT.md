@@ -2871,6 +2871,52 @@ against the market is allowed; selling logically matters too.
   Claude local in writing. The leader then builds it with a small capped budget inside the
   current limits. `REAL_TIMEFRAMES` (4h only) is unchanged until then.
 
+### 74. Binance Spot top-30 universe and section-45 check of the live 4h rule (2026-10-09)
+
+Quant/Strategy session, at the owner's request via the leader ("puede operar con todo el
+mercado"). Research only; `live/` and `config/live_limits.json` untouched.
+
+- **Code:** `trading_intelligence/backtesting/universe_scan.py` (3 tests).
+- **Run:** workflow `universe-top30.yml`, run `37971859157` on `922fa64`, green.
+- **Output:** `docs/universe/`:
+  - `top30_2026-10-09.json`: symbol, 24h quote volume, min notional;
+  - `walkforward_top30_…json`;
+  - `compare_top30_…json`.
+- **Universe at 2026-10-09 18:14 UTC.** 496 eligible USDT pairs: TRADING, not
+  stablecoin/fiat, not leveraged. The top 30 by 24h quote volume are:
+  BTC ETH SOL ZEC NEAR XRP BNB SUI UNI STRK DOGE RLC RLUSD XAUT ENA ADA OGN ONDO AVAX SPCXB QNT
+  TAO HYPE PUMP CRCLB KAIA U WLD PEPE LINK.
+  - Min notional is 5 USDT, except DOGE and PEPE at 1.
+  - **XAUTUSDT exists and is TRADING**: rank 14, data from 2026-03-26.
+  - **PAXGUSDT ranks 34th.**
+- **Filter caveats.** These need a human check before going into any limits file:
+  - **RLUSD is a stablecoin** that my list missed. It is now added to the exclusion list
+    for future runs.
+  - **SPCXB, CRCLB and U** look like tokenized or new assets with very short history
+    (2–4 months). They should be verified, not assumed to be crypto.
+- **Check of the existing rule** (section 45 walk-forward, `tendencia_rango` 4h,
+  2022-10 → 2026-10, same costs and folds, no retuning; not a new pre-registration):
+
+| Set | Symbols | OOS trades | Mean net/trade | Median | PF | p | Worst fold DD |
+|---|---|---|---|---|---|---|---|
+| 12 live (section 45) | 12 | 235 | +3.06% | −2.33% | 1.90 | 0.090 | −5.6% |
+| Top-30, all | 30 | 425 | +4.09% | −2.71% | 1.93 | 0.069 | −5.6% |
+| Top-30 ∩ the 12 live | 9 | 174 | +3.85% | −2.37% | 2.11 | 0.099 | −5.6% |
+| Top-30 new (not in the 12) | 21 | 251 | +4.26% | −3.14% | 1.79 | 0.217 | −5.1% |
+| Top-30 new, without ZEC | 20 | 232 | **+0.99%** | | 1.24 | 0.368 | |
+
+**Reading:**
+- **Widening the universe does not change the verdict.** The rule is nominally positive and
+  still NO-GO everywhere (p > 0.05, median trade negative).
+- The new symbols look as good only because of **ZEC** (+44% per trade over 19 trades).
+  Without ZEC, the 20 new symbols give +0.99% per trade, PF 1.24, p 0.37: weaker than the
+  12 live symbols.
+- **Selection bias:** ranking by *today's* volume favours coins that just had a large move
+  (ZEC). A list chosen this way flatters any backtest on the past that produced the ranking.
+- **Recommendation:** widening the universe is not a source of edge. If the owner wants more
+  markets, prefer liquid, long-history coins, verify the doubtful entries above, and do not
+  pick symbols by recent volume alone.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
