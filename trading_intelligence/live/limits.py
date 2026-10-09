@@ -51,6 +51,14 @@ def load_limits(path: Path = DEFAULT_PATH) -> OwnerLimits:
         raise LimitsNotApproved(f"owner limits malformed: {error}") from None
     if not (0 < limits.loss_limit_pct <= 100 and 0 < limits.max_position_pct <= 100):
         raise LimitsNotApproved("loss_limit_pct and max_position_pct must be in (0, 100]")
+    band = data.get("loss_limit_owner_range_pct")
+    if band is not None:
+        try:
+            low, high = (Decimal(str(v)) for v in band)
+        except (TypeError, ValueError, ArithmeticError):
+            raise LimitsNotApproved("loss_limit_owner_range_pct malformed") from None
+        if not low <= limits.loss_limit_pct <= high:
+            raise LimitsNotApproved("loss_limit_pct is outside the range the owner approved")
     if limits.warn_before_usd < 0 or limits.max_open_positions < 1 or not limits.allowed_symbols:
         raise LimitsNotApproved("warn_before_usd >= 0, max_open_positions >= 1 and a symbol list are required")
     return limits

@@ -62,8 +62,8 @@ paso la orden a Claude Code local, pero es un paso más y más lento.
 
 ## 4. La regla de pérdida (la que usted pidió)
 
-- Límite: **20% del capital de la sesión** (50 → 10 USDT).
-- **2 USD antes del límite** (50 → a los 8 USDT de pérdida): no abre nada nuevo y le
+- Límite: **45% del capital de la sesión** (aprobado por el dueño el 2026-10-09; su rango aceptado es 45-55%). Ejemplo: 38 → 17,1 USDT.
+- **2 USD antes del límite** (38 → a los 15,1 USDT de pérdida): no abre nada nuevo y le
   **pregunta** si continuar. Las salidas y los stops siguen funcionando.
 - Si dice "continúa", sigue hasta el límite. En el límite se detiene y cierra las
   posiciones de la sesión.
@@ -99,4 +99,4 @@ La sesión Quant probó ambas estrategias con 1 a 4 años de datos reales de Bin
 Decisión del líder: **el operador no envía órdenes reales en 1 h**; solo en 4 h. En 4 h, la
 operación típica (la mediana) pierde, y el resultado depende de pocas ganancias grandes.
 Se esperan rachas de pérdidas pequeñas. Cada sesión real sigue siendo un experimento con la
-pérdida acotada por su regla del 20% y el aviso de 2 USD.
+pérdida acotada por su regla del 45% y el aviso de 2 USD.

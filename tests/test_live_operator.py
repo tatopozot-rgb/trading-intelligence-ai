@@ -372,11 +372,13 @@ class TestOperator:
 class TestLimits:
     def test_the_committed_limits_load(self):
         limits = load_limits()
-        assert limits.loss_limit_pct == Decimal("20") and limits.warn_before_usd == Decimal("2")
-        assert limits.loss_limit_usd(Decimal("50")) == Decimal("10") and limits.warn_at_usd(Decimal("50")) == Decimal("8")
+        # Owner, 2026-10-09: "apruebo el límite del 45 ... aceptaría entre 45 a 55".
+        assert limits.loss_limit_pct == Decimal("45") and limits.warn_before_usd == Decimal("2")
+        assert limits.loss_limit_usd(Decimal("38")) == Decimal("17.1") and limits.warn_at_usd(Decimal("38")) == Decimal("15.1")
 
     @pytest.mark.parametrize("change", [{"approved_by_owner": False}, {"withdrawals": True}, {"max_leverage": 3},
-                                        {"market": "FUTURES"}, {"loss_limit_pct": 0}])
+                                        {"market": "FUTURES"}, {"loss_limit_pct": 0}, {"loss_limit_pct": 60},
+                                        {"loss_limit_pct": 40}, {"loss_limit_owner_range_pct": ["x"]}])
     def test_unapproved_or_unsafe_limits_refuse(self, tmp_path, change):
         data = json.loads((Path(__file__).resolve().parents[1] / "config/live_limits.json").read_text())
         (tmp_path / "l.json").write_text(json.dumps({**data, **change}))

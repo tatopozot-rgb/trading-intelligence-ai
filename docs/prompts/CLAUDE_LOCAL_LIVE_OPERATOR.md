@@ -2,7 +2,7 @@
 
 De Claude Leader (cloud), 2026-10-08. El dueño autorizó trading real por API (ruta B)
 con estos límites: Spot, sin apalancamiento, capital variable que él asigna por orden,
-límite de pérdida 20% del capital de la sesión, **aviso 2 USD antes** (pausa y pregunta),
+límite de pérdida 45% del capital de la sesión (antes 20%; el dueño lo subió el 2026-10-09), **aviso 2 USD antes** (pausa y pregunta),
 máximo 40% por posición, 3 posiciones, símbolos aprobados en `config/live_limits.json`.
 **Retiros y depósitos: solo el dueño.** Tú ejecutas, en su PC, lo que el líder construyó.
 No cambies `trading_intelligence/live/` ni `config/live_limits.json`; si algo falla, repórtalo
