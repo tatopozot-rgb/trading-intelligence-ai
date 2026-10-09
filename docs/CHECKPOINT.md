@@ -2779,6 +2779,18 @@ klines, no account, no key, no orders; `live/` and `config/live_limits.json` unt
   that just to break even.
 - Expect the honest outcome to be "no hour or market better than chance" unless the
   forward fortnight differs markedly. This is said now, before any forward data.
+- **Amendment 2** (`b0af04b`, written after the reference data, before any forward day) adds
+  strategy **ruptura** (opening-range breakout) and makes the strategy tests pooled:
+  - the owner's window, pooled per strategy, is primary at α = 0.0125;
+  - pooled by window and by symbol use BH;
+  - every pooled test needs at least 15 trades per half.
+  - Code `026c7a4`, 18 tests.
+  - The reference backfill was re-run (`6e077cb`), labeled reference.
+- **Reference results with ruptura (Mon–Fri, descriptive):**
+  - ruptura made 721 trades in the 2-hour windows: −0.41% per trade, 17% winners.
+  - ruptura in the owner's window: 60 trades, **−1.18% per trade, 5% winners**.
+  - baseline: −0.37% per trade (2-hour windows) and −0.91% per trade (owner's window).
+  - tendencia made 29 + 4 trades; rango made 9.
 
 ### 72. Real test left BTC unsold; owner orders lost by a running operator; trading with all holdings (2026-10-09)
 
