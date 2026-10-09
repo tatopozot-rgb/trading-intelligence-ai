@@ -106,14 +106,15 @@ def _series(rates: dict[int, float]) -> pd.Series:
 
 def daily_funding(rates: pd.Series, days: pd.DatetimeIndex) -> pd.Series:
     """Rate to charge longs on day d = sum of funding events t in (d, d+1day];
-    fallback days (before the first real rate) are NaN and handled by the caller."""
+    fallback days (before the first or after the last published rate) are NaN and handled
+    by the caller."""
     out = pd.Series(np.nan, index=days)
     if rates.empty:
         return out
-    first = rates.index[0]
     bucket = (rates.index - pd.Timedelta(microseconds=1)).floor("1D")
     summed = rates.groupby(bucket).sum()
-    covered = days >= first.floor("1D")
+    # Days after the last published rate are NOT known to be zero: they fall back too.
+    covered = (days >= rates.index[0].floor("1D")) & (days <= bucket.max())
     out[covered] = 0.0
     out.loc[out.index.intersection(summed.index)] = summed.reindex(out.index.intersection(summed.index))
     return out
@@ -132,6 +133,8 @@ class Week:
     short_pnl: float
     equity_start: float
     symbol_returns: dict[str, float] = field(default_factory=dict)
+    costs: float = 0.0    # fees + slippage paid this week (accounting only; added for forward PAPER)
+    funding: float = 0.0  # funding paid this week (negative = received)
 
 
 @dataclass
@@ -205,6 +208,7 @@ def simulate_fold(closes: pd.DataFrame, opens: pd.DataFrame, funding: dict[str, 
         e0 = equity
         tgt = targets(closes, opens, monday, e0, leverage, benchmark)
         sym_pnl = {s: 0.0 for s in qty}
+        week_costs = week_funding = 0.0
         long_pnl = short_pnl = 0.0
         for s in qty:
             px = last_px.get(s)
@@ -222,6 +226,7 @@ def simulate_fold(closes: pd.DataFrame, opens: pd.DataFrame, funding: dict[str, 
                     short_pnl -= c
                 sym_pnl[s] -= c
                 equity -= c
+                week_costs += c
             opened = abs(new_q) if np.sign(old_q) != np.sign(new_q) else max(0.0, abs(new_q) - abs(old_q))
             if opened:
                 c = opened * px * (FEE + SLIPPAGE)
@@ -231,6 +236,7 @@ def simulate_fold(closes: pd.DataFrame, opens: pd.DataFrame, funding: dict[str, 
                     short_pnl -= c
                 sym_pnl[s] -= c
                 equity -= c
+                week_costs += c
             qty[s] = new_q
         # Hold the week, marking at each daily close; funding on each day's close.
         for day in pd.date_range(monday, week_end - pd.Timedelta(days=1), freq="1D"):
@@ -251,6 +257,7 @@ def simulate_fold(closes: pd.DataFrame, opens: pd.DataFrame, funding: dict[str, 
                     else:
                         fund = -qty[s] * px * rate
                 funding_paid -= fund
+                week_funding -= fund
                 equity += move + fund
                 sym_pnl[s] += move + fund
                 if qty[s] > 0:
@@ -276,7 +283,7 @@ def simulate_fold(closes: pd.DataFrame, opens: pd.DataFrame, funding: dict[str, 
         alloc = e0 / max(1, len(tgt))
         pnl = equity - e0
         out.append(Week(monday, pnl / e0, pnl, long_pnl, short_pnl, e0,
-                        {s: sym_pnl[s] / alloc for s in tgt if tgt[s] or sym_pnl[s]}))
+                        {s: sym_pnl[s] / alloc for s in tgt if tgt[s] or sym_pnl[s]}, week_costs, week_funding))
         if ruined:
             break
     if ruined:

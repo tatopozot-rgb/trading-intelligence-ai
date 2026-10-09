@@ -1,0 +1,52 @@
+name: PAPER two-way momentum (weekly, public data, no account)
+
+# Forward PAPER of the pre-registered two-way momentum strategy (docs/PREREG_TWO_WAY.md,
+# CHECKPOINT section 65), 1x, as registered.
+# - Data: data-api.binance.vision daily klines and data.binance.vision funding files.
+#   No account, no API key, no orders, no secrets.
+# - Each run replays the registered code from the PAPER start Monday; it commits only
+#   docs/paper_two_way/ (state, Spanish report, JSON) to this branch.
+# - Stop rules (-20% drawdown; costs+funding > 2x the model) mark the experiment STOPPED.
+# Stop it: disable this workflow in the Actions tab.
+
+on:
+  schedule:
+    - cron: "20 0 * * 1"   # Mondays 00:20 UTC, just after the weekly decision bar closes
+  workflow_dispatch:
+
+permissions:
+  contents: write   # only to commit docs/paper_two_way/
+
+concurrency:
+  group: two-way-paper
+  cancel-in-progress: false
+
+jobs:
+  week:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+      - name: Install runtime dependencies (no exchange client, no credentials)
+        run: pip install "pandas>=2.0" "numpy>=1.24" "scipy>=1.11"
+      - name: Run the weekly PAPER step
+        shell: bash
+        run: |
+          python -m trading_intelligence.backtesting.two_way_paper --state-dir docs/paper_two_way \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Commit the PAPER state and report
+        shell: bash
+        run: |
+          git config user.name "two-way-paper[bot]"
+          git config user.email "two-way-paper@users.noreply.github.com"
+          git add docs/paper_two_way
+          if git diff --cached --quiet; then echo "No change"; exit 0; fi
+          git commit -m "PAPER two-way momentum: weekly report $(date -u +%Y-%m-%d)"
+          for i in 1 2 3 4; do
+            git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" && exit 0
+            sleep $((2 ** i))
+          done
+          exit 1

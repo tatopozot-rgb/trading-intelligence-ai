@@ -2569,6 +2569,50 @@ good over weeks"). Research only: public data, no key, no orders. `live/` and
   be a **new** hypothesis that needs its own pre-registration and evidence; it cannot be
   concluded from this data.
 
+### 66. Forward PAPER of the two-way momentum strategy: weekly runner (2026-10-09)
+
+Quant/Strategy session. The leader decided to keep the strategy exactly as registered
+(two-way, 1x) and asked for a forward PAPER runner. Research only: public data, no
+account, no key, no orders, no secrets. `live/` and `config/live_limits.json` were not
+modified. The runner reads `config/live_limits.json` once, to freeze its symbol list.
+
+- **Code:** `trading_intelligence/backtesting/two_way_paper.py`, 7 tests.
+- **Workflow:** `.github/workflows/two-way-paper.yml`, Mondays 00:20 UTC plus manual
+  dispatch.
+  - Its only write is a commit of `docs/paper_two_way/` (`contents: write`). It pulls with
+    rebase before pushing and never force-pushes.
+- **How it runs:** every run **replays the registered code** (`simulate_fold` at 1x) from
+  the PAPER start Monday on public data.
+  - The PAPER is therefore exactly the validated code, and no state can drift between runs.
+  - The repo stores only the experiment's identity: start Monday, the symbol list frozen
+    at creation (12 live symbols + PAXGUSDT), and status.
+  - The current Monday's still-open daily bar is never used as a close (tested).
+- **Start:** the first rebalance is **Monday 2026-10-12 00:00 UTC**. Until then the
+  status is PENDING.
+- **Output** in `docs/paper_two_way/`:
+  - `state.json`;
+  - `report.md`, in Spanish: status, equity, drawdown, last week, **long leg and short leg
+    separately** (that week and cumulative), weekly history, and next week's positions;
+  - `latest.json`;
+  - `history/<monday>.json`.
+- **Registered stop rules**, checked every run; once STOPPED, it stays STOPPED:
+  - PAPER drawdown ≤ −20%;
+  - any week's costs + funding more than 2× the model's.
+    - In PAPER, fees and slippage are the model's by construction (no real fills), so this
+      compares the week replayed with real funding rates against the same week under the
+      model's 0.01%/8h.
+    - Only the adverse direction stops the experiment.
+- **Funding fix found while building the runner:** `daily_funding` treated days after
+  Binance's last published rate as zero funding. They now fall back to the model's
+  0.01%/8h, which matters every week in forward PAPER because the monthly files lag.
+  - Impact on section 65: the primary period is unaffected (rates are published through
+    2022-10).
+  - In the secondary, already-seen period, at most the last day could change.
+- **Funding source in PAPER:** fapi is not reachable from GitHub, and the monthly files
+  publish after each month ends. Recent weeks therefore use the model's rate until the
+  real one is published, and the replay then corrects them retroactively. Reports can
+  shift slightly once a month; the report says so.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
