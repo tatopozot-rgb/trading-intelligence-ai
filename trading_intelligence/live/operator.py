@@ -669,8 +669,10 @@ def fee_lines(trader, symbols: list[str]) -> list[str]:
         std = data.get("standardCommission") or {}
         taker, maker = Decimal(str(std.get("taker", "0"))), Decimal(str(std.get("maker", "0")))
         disc = data.get("discount") or {}
-        bnb = (f"; pagando con {disc.get('discountAsset')} baja un {Decimal(str(disc.get('discount', '0'))) * 100:.0f}%"
-               if disc.get("enabledForAccount") and disc.get("enabledForSymbol") else "")
+        # Binance reports the multiplier paid with BNB (0.75 = you pay 75%, i.e. 25% off), not the discount.
+        paid = Decimal(str(disc.get("discount", "1")))
+        bnb = (f"; pagando con {disc.get('discountAsset')} baja un {(1 - paid) * 100:.0f}%"
+               if disc.get("enabledForAccount") and disc.get("enabledForSymbol") and paid < 1 else "")
         promo = " ¡PROMOCIÓN: sin comisión!" if taker == 0 else ""
         lines.append(f"{messages.coin(sym)}: comisión {taker * 100:.3f}% (órdenes a mercado), "
                      f"{maker * 100:.3f}% (órdenes límite){bnb}.{promo}")

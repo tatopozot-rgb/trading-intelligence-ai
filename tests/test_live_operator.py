@@ -1340,7 +1340,7 @@ class TestCommissions:
                     return _resp(200, {"symbol": "X", "standardCommission": {
                         "maker": "0" if zero else "0.001", "taker": "0" if zero else "0.001"},
                         "discount": {"enabledForAccount": True, "enabledForSymbol": True,
-                                     "discountAsset": "BNB", "discount": "0.25"}})
+                                     "discountAsset": "BNB", "discount": "0.75"}})  # pays 75%
                 return super().__call__(method, url, headers, timeout)
 
         fake = FeeFake()
