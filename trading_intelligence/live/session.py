@@ -53,6 +53,7 @@ class Session:
     # Protective stops resting on Binance: symbol -> {"id", "qty", "stop"}. They work even
     # when the owner's PC is off; the operator cancels one before it sells that symbol.
     guard_stops: dict[str, dict] = field(default_factory=dict)
+    trail_peaks: dict[str, Decimal] = field(default_factory=dict)  # highest price since entry, per held symbol
 
     # --- accounting -----------------------------------------------------------
 
@@ -72,6 +73,8 @@ class Session:
         return self.capital - self.equity(prices)
 
     def record_buy(self, symbol: str, qty: Decimal, cost_usdt: Decimal, fee_usdt: Decimal, reason: str) -> None:
+        if symbol not in self.holdings:
+            self.trail_peaks.pop(symbol, None)  # a new position starts its own peak
         h = self.holdings.setdefault(symbol, Holding(Decimal("0"), Decimal("0")))
         h.qty += qty
         h.cost += cost_usdt
@@ -87,6 +90,7 @@ class Session:
         h.cost -= cost_part
         if h.qty <= 0:
             del self.holdings[symbol]
+            self.trail_peaks.pop(symbol, None)
         self.realized_pnl += pnl
         self.fees += fee_usdt
         self._trade("SELL", symbol, qty, proceeds_usdt, fee_usdt, reason, pnl)
@@ -161,6 +165,7 @@ class Session:
             holdings={s: Holding(Decimal(h["qty"]), Decimal(h["cost"])) for s, h in d["holdings"].items()},
             events=d["events"], trades=d["trades"], peak_equity=Decimal(d["peak_equity"]),
             guard_stops=dict(d.get("guard_stops", {})),  # absent in sessions saved before this field
+            trail_peaks={k: Decimal(v) for k, v in d.get("trail_peaks", {}).items()},
         )
 
 

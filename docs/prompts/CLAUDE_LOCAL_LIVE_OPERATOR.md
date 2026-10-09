@@ -2,7 +2,7 @@
 
 De Claude Leader (cloud), 2026-10-08. El dueño autorizó trading real por API (ruta B)
 con estos límites: Spot, sin apalancamiento, capital variable que él asigna por orden,
-límite de pérdida 45% del capital de la sesión (antes 20%; el dueño lo subió el 2026-10-09), **aviso 2 USD antes** (pausa y pregunta),
+límite de pérdida 35% del capital de la sesión por defecto, 20-50% a la palabra del dueño (`--limite-perdida N`), **aviso 2 USD antes** (pausa y pregunta),
 máximo 40% por posición, 3 posiciones, símbolos aprobados en `config/live_limits.json`.
 **Retiros y depósitos: solo el dueño.** Tú ejecutas, en su PC, lo que el líder construyó.
 No cambies `trading_intelligence/live/` ni `config/live_limits.json`; si algo falla, repórtalo
@@ -44,6 +44,8 @@ Debe imprimir el reporte de inicio, decidir sobre datos reales y escribir
 | "trading por 3 horas con 50" | lo mismo + `--horas 3`: al cumplirse el plazo vende lo de la sesión y termina |
 | "hasta ganar 60%" (con cualquier otra orden) | `--meta 60`: cuando la sesión gana ese % de su capital, vende lo de la sesión y termina. Ambas opciones solo cierran; el límite de pérdida y el aviso de 2 USD siguen igual |
 | "un trader top hizo movimientos, analízalos" | abres la app/web de Binance en este PC (el dueño ya tiene la sesión iniciada), lees las posiciones actuales de ese líder, le dices qué hizo y si encaja con sus criterios (`copy_trading.review`); si el dueño dice "cópialo con 50", sigues la fila "copia al trader X" |
+| "esta vez arriesgo al 50" / "al 20" | `--limite-perdida 50` / `--limite-perdida 20` en el `iniciar` (fuera de 20-50 el operador lo rechaza) |
+| "sin stop móvil" / "stop móvil al 5" | `--trailing 0` / `--trailing 5` |
 | "usa también mercados en rango" | perfil `tendencia_rango` |
 | "revisa top traders" | con el dueño frente a la app: capturas los líderes (plantilla CSV) → `python -m trading_intelligence.copy_trading.review` → le dices quién está apto y por qué |
 | "copia al trader X con 50" | perfil `copiar` + escribes `live_runs/current/leader_positions.json` con las posiciones que el líder muestra en la app (`{"read_at": "<hora con zona>", "trader": "X", "positions": {"BTCUSDT": 0.4}}`) y lo refrescas cuando el dueño lo pida; si pasan 6 h sin refrescar, el operador deja de abrir posiciones nuevas |

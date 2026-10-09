@@ -2335,6 +2335,34 @@ Binance executes it whether or not the PC is on.
 - **CI** green on `main` and the default branch; no open PRs; `main` is level with the default
   branch.
 
+### 60. Owner: standard loss 35% (20-50 per session), trailing stop, shorts requested (2026-10-09)
+
+Owner, this session, verbatim on limits: "si el límite de pérdida digamos un standard de 35% pero
+si algún día quiero arriesgarme más te digo que sea al 50 o un 20 por si meto 10k lo haces". He
+also asked to watch every open trade continuously and to profit when markets fall.
+
+- **Limits:** `config/live_limits.json` now has `loss_limit_pct` **35** and band **[20, 50]**,
+  with his quote recorded. `OwnerLimits.for_session` lets a session pick a limit inside the band
+  (`iniciar --limite-perdida N`, stored in `meta.json`) and refuses anything outside it.
+  - `_launch` and `reporte` use the session's own limit.
+  - Sessions started before this change resume on the 35% default. The running session was
+    started at 45%; if the watchdog resumes it, it tightens to 35%.
+- **Trailing stop**, checked every minute: once a position is up 2%, its stop follows the
+  highest price since entry at 3% below it (`--trailing N`, 0 = off).
+  - The effective stop is max(engine stop, trailing). It drives both the operator's own
+    one-minute stop and the guard STOP_LOSS resting on Binance.
+  - Peaks persist in the session. A new position never inherits an old peak.
+  - The values are chosen, not walk-forward-validated, and this is documented in code and docs.
+- **Shorts:** not possible on Spot.
+  - `docs/DECISION_SHORTS.md` proposes USDⓈ-M futures at 1x, with exchange-side reduce-only
+    stops, only in TREND_DOWN/BREAKOUT_DOWN, under the same limits.
+  - The owner must open the Futures account, enable "Futures" on the key (withdrawals stay
+    off) and approve in writing.
+  - Pre-registered real-data validation was delegated to the Quant session: short side of the
+    4h trend logic on the 12 symbols plus PAXGUSDT, with fees, slippage and funding, no retuning,
+    GO/NO-GO. Nothing real is built until it reports.
+- 82 live tests (7 new); 10/10 mutants killed (two survivors led to new tests).
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
