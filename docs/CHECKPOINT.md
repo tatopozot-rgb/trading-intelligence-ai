@@ -3108,6 +3108,45 @@ cover:
 SHADOW, then the DEMO round trip. Operator integration (engine signals → DEMO orders) comes after
 that run works on the real terminal.
 
+### 79. Owner's fixed cadence: every 2 minutes inside his windows, every 5 outside (2026-10-10)
+
+**Owner's words:** "Trabajémoslo mejor cada 5 minutos fuera del horario y dentro del horario cada 2
+minutos, queda así fijado; e igual después se aplicarán las reglas para XM. Ejecuta, tradea, manda la
+orden."
+
+**What changed:**
+- **Operator cadence is configurable** with `inside_every_min` and `outside_every_min`, stored in
+  `meta.json`.
+- **`decision_due()`:** one decision per slot of the active period; skipped bars are replayed by the
+  engine.
+- **Defaults per timeframe (`DEFAULT_CADENCE`):**
+
+  | Timeframe | Inside the windows | Outside |
+  |---|---|---|
+  | 1m | every 2 minutes | every 5 minutes |
+  | 5m and 20m | every bar | every 20 minutes |
+
+  Sessions started earlier keep their old behaviour (their meta has no cadence).
+- **CLI:** `--cada-dentro N` and `--cada-fuera N`, limited to 1–240 minutes.
+- **1m is allowed for real money,** citing the owner's written choice. Stops are checked every
+  minute, as before.
+
+**Tests and replay:**
+- A 60-minute run with the 1m engine makes 30 decisions inside a window and 12 outside.
+- A 1m CLI session gets windows plus 2/5 by default.
+- 185 tests pass across the operator, Telegram, XM and paper_loop suites.
+- **Offline replay** (real engine, fake Binance at 1m, 22 h):
+  - 150 decisions inside the windows, 204 outside;
+  - kill switch off;
+  - 16 orders. Expect noticeably more trades, and so more fees, than at 5m.
+
+**Switch for the running session:** Claude local runs `parar`, then `iniciar --temporalidad 1m` with
+the same meta and loss limit, then `adoptar BTCUSDT`.
+- Claude local's classifier has so far required the owner's own words in the local chat for operator
+  commands; a leader message alone was denied before. The owner was told this.
+- XM: when it goes live, it uses the same cadence (`--temporalidad 1m` with `--broker xm`; MT5
+  serves 1m natively).
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
