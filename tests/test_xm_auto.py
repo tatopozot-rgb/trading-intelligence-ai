@@ -17,7 +17,7 @@ def _auto(tmp_path, signals, equity=1_000_000.0, clock=lambda: NOW, tick_age=5, 
     t = D.XmDemoTrader(tmp_path / "orders.json", m, reader=XmReader(m, clock=lambda: NOW))
     t.connect()
     sent: list[str] = []
-    auto = A.XmAuto(t, list(signals), tmp_path / "state.json", signal=lambda sym, data: signals.get(sym),
+    auto = A.XmAuto(t, list(signals), tmp_path / "state.json", signal=lambda sym, data, htf=None: signals.get(sym),
                     notify=sent.append, clock=clock, **kw)
     return auto, m, sent
 

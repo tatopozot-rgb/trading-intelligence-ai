@@ -44,7 +44,7 @@ Claude Leader) y guardar la memoria en Obsidian, para no gastar recursos recorda
 | Vigilante (watchdog) `operator reanudar` | Cada 5 minutos (Programador de tareas) | Si el operador se cayó o el PC se reinició, lo vuelve a arrancar. |
 | Vigilante del mercado (`market_watch`) | Cada 15 minutos (Programador de tareas) | Avisa por Telegram de movimientos fuertes y cambios de tendencia. No opera. |
 | Operador XM en los dos sentidos (`xm_auto`, DEMO) | 24/7, cuando el dueño instale MT5 | Compra cuando sube y vende en corto cuando baja: cada 2 min en sus horarios y cada 5 fuera. SL y TP quedan en el servidor de XM. Riesgo fijo de 0,5% y tope de pérdida diaria de 5%. Avisa por Telegram. |
-| Operador de Binance Futuros en los dos sentidos (`binance_futures`) | 24/7. Primero en SHADOW; en real cuando el dueño apruebe los límites | Usa el mismo motor que XM, con stop y meta puestos en Binance. Margen aislado y apalancamiento de 1x. El riesgo por operación es el que apruebe el dueño. |
+| Operador de Binance Futuros en los dos sentidos (`binance_futures`) | 24/7. Primero en SHADOW; en real cuando el dueño apruebe los límites | Usa el mismo motor que XM y los mismos números del programa de Spot: 1% de riesgo, posición máx. 40%, 3 posiciones, límite de 45% con aviso 2 USD antes y meta de 58%. Cada 2 min en sus horarios y cada 5 fuera. Stop y meta puestos en Binance, con el stop que sigue la ganancia. Margen aislado y 1x. |
 | Cripto en Spot | Solo en una "alcista brutal" | El dueño dijo el 2026-10-10: "no vuelvas a comprar criptos". El vigilante avisa si BTC entra en una alcista brutal (+60% en 90 días y +15% en 30, por encima de su media de 200 días). Comprar en Spot necesita además el "sí" del dueño. |
 | Memoria Obsidian | Una vez al día, a las 20:00 de Ecuador, y al final de cada bloque | Copia el resumen nuevo de `docs/CHECKPOINT.md` a `Memoria viva.md`. |
 
@@ -54,6 +54,7 @@ Claude Leader) y guardar la memoria en Obsidian, para no gastar recursos recorda
 |---|---|---|
 | Experimento de horarios (PAPER) | Cada día, 00:20 UTC (19:20 Ecuador) | `docs/experimento_horarios/`: análisis cada 20 min en todas las ventanas, incluidas la del dueño (07–10) y la del líder (17–19). |
 | TSMOM en dos sentidos (PAPER) | Cada lunes | `docs/paper_two_way/` |
+| Futuros en los dos sentidos: prueba con datos reales | Cada lunes, 01:40 UTC, y a pedido | `docs/two_way_backtest/`: los últimos 30 días con las reglas del motor en vivo, comparando las tres formas de decidir |
 | Lista de las 30 monedas principales | Cuando la lanza Quant | `docs/universe/` |
 
 ### 2.3 Claude Leader (rutinas programadas en la nube)

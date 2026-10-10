@@ -39,7 +39,7 @@ from trading_intelligence.live.xm_mt5 import (
 )
 
 DEMO_CALLS = READS | {"order_check", "order_send"}
-TRADE_ACTION_DEAL = 1
+TRADE_ACTION_DEAL, TRADE_ACTION_SLTP = 1, 6
 ORDER_TYPE = {"BUY": 0, "SELL": 1}
 ORDER_TIME_GTC = 0
 FILLING_FOK, FILLING_IOC, FILLING_RETURN = 0, 1, 2
@@ -195,6 +195,13 @@ class XmDemoTrader:
                            "type": ORDER_TYPE[plan.side], "price": float(plan.price), "sl": float(plan.sl),
                            "tp": float(plan.tp), "deviation": DEVIATION_POINTS, "magic": MAGIC, "comment": client,
                            "type_time": ORDER_TIME_GTC, "type_filling": self._filling(plan.symbol)})
+
+    def move_stop(self, symbol: str, ticket: int, sl: Decimal, tp: Decimal) -> dict:
+        """Moves an open position's stop (the stop that follows the gain); its target stays."""
+        point = self.reader.sheet(symbol).point
+        return self._send({"action": TRADE_ACTION_SLTP, "symbol": symbol, "position": ticket,
+                           "sl": float(sl.quantize(point)), "tp": float(tp.quantize(point)), "magic": MAGIC,
+                           "comment": "TI-sl-" + str(ticket)[-8:]})
 
     def close(self, symbol: str, ticket: int) -> dict:
         pos = [p for p in (self._mt5.positions_get(symbol=symbol) or ())  # type: ignore[operator]

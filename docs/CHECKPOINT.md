@@ -3414,6 +3414,48 @@ any approved GPT Work recommendations, to Claude local with the owner's exact wo
 - 17 futures tests: key safety, hedge mode refused, hosts, unapproved limits, sizing and minimums, the entry with SL and TP on the Algo service, stop refused leading to an immediate close, a lost answer looked up, an order that never arrived, an unclear order blocking entries, close and leftover cleanup, a SHADOW stop with fees, the CLI, and the engine turnaround.
 - 2 bull-run tests.
 
+### 88. Futures limits = the Spot program's numbers; better analysis, measured on real data (2026-10-10)
+
+**Owner's words** (≈04:55 UTC):
+"No Apruebo los límites de futuros, deben ser analizados y usar los mismos porcentajes y mismo horario que el anterior programado revisa, lo mismo pero para futuros y debe ser mejor analizado y 24/7".
+
+**Same numbers as Spot** (`config/live_limits.json` plus the running Spot session):
+
+| Rule | Value |
+|---|---|
+| Risk per trade | 1% of equity (the engine's `max_risk_per_trade_pct`) |
+| Max position | 40% of equity |
+| Max open positions | 3 |
+| Leverage | 1x |
+| Session loss limit | 45% (owner's band 20–50%) |
+| Warning before the limit | 2 USD: entries pause, the owner is asked, "continuar" resumes |
+| Session goal | +58% |
+| Schedule | 07–10 and 17–19 Ecuador every 2 min, every 5 min outside, 24/7 |
+| Stops | from the market (3–15%), trailing from +1R at R/2 |
+
+- `config/futures_limits.json` now carries these numbers. It is still **not approved**.
+- The 5% daily stop of the first proposal is gone: Spot has none. The engine keeps it as an option, unused.
+
+**Better analysis:**
+- `strategy/two_way_signals.py` holds Spot's `tendencia_rango` logic, mirrored for shorts:
+  - in a trend, the regime and the 20/50 moving averages must agree;
+  - in a range, a close outside the Bollinger bands triggers a reversion;
+  - plus a 1-hour confirmation: never trade against the 1h trend (default `tendencia_rango_1h`).
+- One `decide()` serves both the live engine and the backtest.
+- Engine (`live/two_way.py`):
+  - the session loss limit with the warning, `continuar` (file or CLI), and the goal;
+  - the trailing stop moves on the exchange: Binance places the new stop before cancelling the old one; XM uses TRADE_ACTION_SLTP;
+  - 1h candles are read for the confirmation.
+- XM CLI: `--limite-perdida 45 --aviso 2 --meta 58 --senal`, risk 1%. XM exposure caps wait for XM's own limits (phase 3).
+
+**Measured on real data:**
+- `backtesting/two_way_backtest.py` plus the workflow `futures-two-way-backtest.yml` (workflow_dispatch and Mondays at 01:40 UTC).
+- It replays the last 30 days on 5m bars for the 12 symbols, for each variant, with the live rules, the capital of 37 USDT, Binance's minimums, 0.05% taker fees and approximate funding.
+- Data: data-api.binance.vision spot klines as a proxy for the perpetuals.
+- Report: `docs/two_way_backtest/<date>.md`. The owner is asked to approve only after reading it.
+
+**Tests:** 10 engine and signal tests, 3 for the futures stop move, the SHADOW stop and `continuar`, 1 XM stop move, 3 backtest tests.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
