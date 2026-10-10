@@ -3347,6 +3347,73 @@ any approved GPT Work recommendations, to Claude local with the owner's exact wo
 - New test: the guard is placed at once and kept on the next pass; a later sell cancels it first.
 - Full suite: 878 passed.
 
+### 86. The owner chose XM in both directions; leftovers to USDT (2026-10-10)
+
+**Owner's words** (≈04:15 UTC), after being told Binance Spot only earns on rises and that selling short there needs futures or margin, which his rules forbid:
+"El A, ahora transforma todo a usdt y cambia dentro del sistema en xm we puede usar tanto dolares como usdt para automatizar, esas compras quedan como perdida usa esas monedas para hacer trading y el dólar en futuros con el código ese y en xm trabajamos como dices y 24 7 lunes o mañana configuramos xm en la pc".
+
+**Read as:**
+- XM is the two-way market: CFDs in USD, buying and selling short.
+- Binance keeps trading in Spot with USDT.
+- The leftover coins go back to USDT where Binance allows it.
+- Leftovers below the exchange step (ETH, SOL, AVAX, ≈0.41 USDT) are accepted as a loss.
+- "el dólar en futuros" is read as XM's CFDs, **not** Binance Futures. The "no futures, no margin" rule stands until he says otherwise in writing.
+
+**Built: `live/xm_auto.py`, the automatic XM operator (DEMO).**
+- Cadence: 2 minutes in his windows, 5 minutes outside, 24/7 where the market quotes.
+- Regime signal on 5m bars: up gives BUY, down gives SELL, range gives no entry. An opposite signal closes the position.
+- Exits: the exit plan by side (`market_kind` is now side-aware: a fall is a "trend" for a short) with XM's band of 0.2–5%. SL and TP rest on XM's server.
+- Risk: fixed at 0.5% per trade, max 3 positions, and a 5% daily loss guard that closes everything and halts until the next UTC day.
+- It touches only its own positions (MAGIC). A REAL account is refused.
+- `XmDemoTrader.positions()` lists the automator's positions.
+- XM demo plans use the XM band: 3% is far too wide a stop for forex.
+- 11 new tests and 1 exit-plan test.
+
+**Next:**
+- The owner installs MT5 with a DEMO account (Monday or tomorrow).
+- Local runs `cuenta`, `fichas` and the `xm_demo` round trip, then leaves `xm_auto` running with a watchdog.
+- Real money on XM is phase 3: his phrase to Local plus XM limits he approves in writing.
+
+**Binance leftovers.**
+- BTC 0.00006993 is in the running session (adopted), and `pasar-a-usdt` refuses a session coin.
+- Local needs the owner's phrase, then: `parar` (no `--cerrar`), `pasar-a-usdt --simbolo BTCUSDT` (tops up then sells), and restart the same session without adopting.
+
+### 87. Binance Futures on the same two-way engine; Spot stops buying (2026-10-10)
+
+**Owner's words** (≈04:30 UTC):
+"Continúa después de saber que debemos hacer y que Ya active cuenta de futuros en binance también no voy a retirar xq tiene mínimo, opera como lo ordenado y como si fuese en xm ahora si vamos a lo serio y xm el lunes xq tiene menos comisiones o podemos ir viendo entre las 2 cual slae mejor pero el sistema es el mismo los 2 mercados son futuros ahora si actúa no vuelvas a comprar criptos almenos qué sea una alcista brutal de millones como cuando fue el btc siempre un bot revisando eso".
+
+**Built:**
+- **`live/two_way.py`:** the engine shared by XM and Binance Futures.
+  - Signal, turnaround, max positions, daily loss halt and the 2/5-minute cadence.
+  - Brokers plug in through `equity`, `positions`, `candles`, `plan`, `open` and `close`.
+  - `xm_auto.py` is now XM's adapter.
+- **`live/binance_futures.py`:**
+  - `FuturesMarket` talks to fapi.binance.com, with a journal and lookup by client id.
+  - `FuturesBroker` places REAL orders. `PaperFuturesBroker` runs SHADOW on public prices, with the 0.05% taker fee.
+  - Key check: reading + Futures, IP restricted, no withdrawals, no transfers, no margin, no options. Spot trading is tolerated.
+  - One-way mode is required. Margin is ISOLATED, with leverage from the limits file.
+  - SL and TP are placed as `STOP_MARKET` / `TAKE_PROFIT_MARKET` with closePosition, on mark price, through `POST /fapi/v1/algoOrder`. Conditional orders moved to the Algo service on 2025-12-09; `/fapi/v1/order` refuses them with -4120.
+  - If the stop is refused, the position is closed at once. Leftover algo orders of a closed position are cancelled.
+  - Stop band: the owner's crypto band of 3–15%.
+  - Size: risk divided by stop distance, capped at leverage × equity / max positions, rounded down. Below Binance's minimum there is no trade.
+- **`config/futures_limits.json`:** PROPOSED, not approved. 1x, isolated, one-way, 1% risk per trade, max 3 positions, 5% daily loss, 12 symbols, no withdrawals, no transfers.
+  - 0.5% was tried first. With ≈37 USDT and a stop of at least 3%, it leaves most positions under Binance's 5 USDT minimum.
+- **`market_watch` "brutal bull" rule:** BTC up ≥60% in 90 days and ≥15% in 30, above its 200-day average. Alerts once a week; buying Spot then still needs the owner's yes.
+
+**Decisions:**
+- Spot stops buying: Local runs `parar` without `--cerrar` when nothing is open.
+- Futures REAL needs four things:
+  - the owner's written approval of the numbers;
+  - a new futures-only key that he creates and stores himself;
+  - USDT moved to Futures by the owner himself;
+  - his phrase to Local.
+- SHADOW starts now, so XM and Binance Futures can be compared on the same system.
+
+**Tests:**
+- 17 futures tests: key safety, hedge mode refused, hosts, unapproved limits, sizing and minimums, the entry with SL and TP on the Algo service, stop refused leading to an immediate close, a lost answer looked up, an order that never arrived, an unclear order blocking entries, close and leftover cleanup, a SHADOW stop with fees, the CLI, and the engine turnaround.
+- 2 bull-run tests.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |

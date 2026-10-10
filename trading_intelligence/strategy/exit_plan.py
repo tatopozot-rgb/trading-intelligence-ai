@@ -63,14 +63,16 @@ def _bars_in(data: pd.DataFrame, minutes: int) -> int:
     return max(int(minutes / step) if step > 0 else len(data), 2)
 
 
-def market_kind(data: pd.DataFrame) -> str:
+def market_kind(data: pd.DataFrame, side: str = "BUY") -> str:
+    """"tendencia" when the market runs in the trade's direction (up for a buy, down for a sell)."""
     from trading_intelligence.regime.detector import Regime, detect_regime
 
     try:
         regime = detect_regime(data).regime
     except Exception:  # noqa: BLE001 - not enough history: be conservative
         return "rango"
-    return "tendencia" if regime in (Regime.TREND_UP, Regime.BREAKOUT_UP) else "rango"
+    with_trade = (Regime.TREND_UP, Regime.BREAKOUT_UP) if side == "BUY" else (Regime.TREND_DOWN, Regime.BREAKOUT_DOWN)
+    return "tendencia" if regime in with_trade else "rango"
 
 
 def plan_exits(data: pd.DataFrame, entry: Decimal, *, side: str = "BUY", kind: Optional[str] = None,
@@ -78,7 +80,7 @@ def plan_exits(data: pd.DataFrame, entry: Decimal, *, side: str = "BUY", kind: O
                max_stop_pct: Decimal = Decimal("15")) -> ExitPlan:
     if side not in ("BUY", "SELL") or entry <= 0:
         raise ValueError("side must be BUY or SELL and entry positive")
-    kind = kind or market_kind(data)
+    kind = kind or market_kind(data, side)
     window = data.tail(_bars_in(data, STRUCTURE_MINUTES))
     support, resistance = Decimal(str(window["low"].min())), Decimal(str(window["high"].max()))
     vol = volatility_stop_pct(data)

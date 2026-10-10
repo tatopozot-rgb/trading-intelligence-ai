@@ -48,6 +48,9 @@ RETCODE_CHECK_OK = 0
 MAGIC = 26101009  # marks this automator's orders in MT5
 DEFAULT_RISK_PCT = Decimal("0.5")  # of equity lost if the stop is hit
 DEVIATION_POINTS = 20
+# Forex, gold and indices move far less than crypto: the same market reading (volatility and
+# structure) gives smaller percentages, so XM's stop band is its own, not Binance's 3-15%.
+XM_MIN_STOP_PCT, XM_MAX_STOP_PCT = Decimal("0.2"), Decimal("5")
 
 
 class NotDemo(XmError):
@@ -114,9 +117,10 @@ class XmDemoTrader:
         return acc
 
     def plan(self, symbol: str, side: str, sl_pct: Optional[Decimal] = None, tp_pct: Optional[Decimal] = None,
-             risk_pct: Decimal = DEFAULT_RISK_PCT, caps: EntryCaps = EntryCaps(), timeframe: str = "5m") -> Plan:
+             risk_pct: Decimal = DEFAULT_RISK_PCT, caps: EntryCaps = EntryCaps(), timeframe: str = "5m",
+             min_stop_pct: Decimal = XM_MIN_STOP_PCT, max_stop_pct: Decimal = XM_MAX_STOP_PCT) -> Plan:
         """sl_pct/tp_pct None: read them from the market, as on Binance (strategy.exit_plan: support,
-        resistance, volatility and regime; stop 3-15%, target by regime)."""
+        resistance, volatility and regime; target by regime), inside XM's own stop band."""
         acc = self._demo_account()
         sheet = self.reader.sheet(symbol)
         refused = check_entry(sheet, side, acc, caps)
@@ -126,7 +130,8 @@ class XmDemoTrader:
         if sl_pct is None or tp_pct is None:
             from trading_intelligence.strategy.exit_plan import plan_exits
 
-            market = plan_exits(self.reader.candles(symbol, timeframe, 500), price, side=side)
+            market = plan_exits(self.reader.candles(symbol, timeframe, 500), price, side=side,
+                                min_stop_pct=min_stop_pct, max_stop_pct=max_stop_pct)
             sl_pct = sl_pct if sl_pct is not None else market.stop_pct
             tp_pct = tp_pct if tp_pct is not None else market.target_pct
         if not (0 < sl_pct < 50 and 0 < tp_pct < 100):
@@ -146,6 +151,11 @@ class XmDemoTrader:
         per_lot_unit = sheet.min_lot_notional / (mid * sheet.volume_min)
         return Plan(symbol, side, lots, price, sl, tp, (abs(price - sl) * per_lot_unit * lots).quantize(Decimal("0.01")),
                     (mid * per_lot_unit * lots).quantize(Decimal("0.01")))
+
+    def positions(self) -> dict[str, object]:
+        """This automator's open positions (its MAGIC), by symbol; the owner's manual trades are never touched."""
+        return {str(p.symbol): p for p in (self._mt5.positions_get() or ())  # type: ignore[operator]
+                if int(getattr(p, "magic", -1)) == MAGIC}
 
     def _filling(self, symbol: str) -> int:
         mode = int(getattr(self._mt5.symbol_info(symbol), "filling_mode", 0))  # type: ignore[operator]

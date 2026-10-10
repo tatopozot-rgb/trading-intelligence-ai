@@ -232,7 +232,70 @@ conexión solo deja pasar funciones de lectura, y el operador rechaza `--broker 
    - Antes de operar pasa por la ficha y por `order_check` de MT5.
    - El tamaño sale del riesgo (por defecto 0,5% de la equity) y nunca se redondea hacia arriba.
    - Diario: `live_runs/xm_demo/orders.json`.
+6. **Operador automático en los dos sentidos (DEMO)**. El dueño eligió la opción "A" el 2026-10-10:
+   trabajar XM como funciona el mercado, comprando cuando sube y vendiendo en corto cuando baja, 24/7.
+   - Arranque, cuando la prueba de fase 2 salga bien:
+     `python -m trading_intelligence.live.xm_auto --simbolos EURUSD GOLD BTCUSD`.
+     Usa los nombres exactos que muestre `fichas`.
+   - Cadencia: cada 2 minutos dentro de las ventanas 07–10 y 17–19 de Ecuador, y cada 5 minutos fuera
+     de ellas. Ajustes: `--ventanas`, `--cada-dentro` y `--cada-fuera`.
+   - Señal del régimen en velas de 5 minutos:
+     - tendencia o ruptura al alza: **compra**;
+     - tendencia o ruptura a la baja: **venta en corto**;
+     - rango o sin ventaja: no abre nada.
+   - Con una señal contraria, cierra la posición abierta; en la siguiente decisión puede abrir al revés.
+   - El stop y la meta salen del plan según el mercado para ese lado, con la banda propia de XM (0,2–5%).
+     Quedan **puestos en el servidor de XM**, así que protegen la posición aunque el PC esté apagado.
+   - Controles:
+     - riesgo fijo de 0,5% de la equity por operación (`--riesgo`), que nunca sube después de una pérdida;
+     - máximo 3 posiciones (`--max-posiciones`);
+     - si la cuenta pierde 5% en el día (`--perdida-diaria`), cierra todo y no abre más hasta las 19:00
+       de Ecuador.
+   - Avisos por Telegram al abrir, al cerrar y cuando XM ejecuta un stop o una meta.
+   - Estado y diario: `live_runs/xm_auto/state.json` y `live_runs/xm_auto/orders.json`.
+   - Solo toca sus propias posiciones (marcadas con su número MAGIC), nunca las manuales del dueño.
+   - El forex y el oro cierran el fin de semana: esas horas se saltan solas. Las criptos de XM operan
+     cuando XM las cotice.
+   - Dejarlo corriendo como el operador de Binance: con un vigilante que lo reinicie si se cae.
    **Fase 3**: dinero real, solo con la frase del dueño y con límites XM aprobados por él por escrito.
+
+## 4h. Binance Futuros en los dos sentidos (orden del dueño, 2026-10-10)
+
+Palabras del dueño: "Ya active cuenta de futuros en binance ... opera como lo ordenado y como si fuese
+en xm ... el sistema es el mismo, los 2 mercados son futuros ... no vuelvas a comprar criptos almenos
+qué sea una alcista brutal".
+
+1. **Spot deja de comprar.** Si no hay ninguna posición abierta, `parar` sin `--cerrar`. Que el
+   vigilante `reanudar` no lo vuelva a arrancar. El vigilante del mercado (`market_watch`) avisa si BTC
+   entra en una alcista brutal; comprar en Spot después de ese aviso necesita el "sí" del dueño.
+2. **SHADOW ya, sin clave.** Lee precios reales y simula las posiciones con su stop, su meta y la
+   comisión de 0,05%:
+   `python -m trading_intelligence.live.binance_futures --modo shadow --capital 37`.
+   Corre con el mismo motor, la misma cadencia (2/5 min) y la misma señal que XM.
+   Estado: `live_runs/futures_auto/shadow/`.
+3. **REAL, solo cuando estén las cuatro cosas:**
+   a) El dueño aprueba por escrito los límites de `config/futures_limits.json`: apalancamiento 1x,
+      margen aislado, riesgo de 1% por operación, máximo 3 posiciones y tope de 5% de pérdida diaria.
+      El líder lo marca como aprobado en GitHub.
+   b) El dueño crea **una clave nueva solo para Futuros**: lectura y Futuros activados, restringida a la
+      IP del PC, sin retiros ni transferencias. La guarda él mismo en las variables de Windows
+      `BINANCE_FUTURES_API_KEY` y `BINANCE_FUTURES_SECRET_KEY`. No hay que añadir Futuros a la clave
+      actual: el operador de Spot rechaza claves con Futuros.
+   c) El dueño pasa él mismo los USDT de Spot a Futuros en la app. El sistema nunca transfiere.
+   d) La frase del dueño escrita a ti.
+   Arranque: `python -m trading_intelligence.live.binance_futures --modo real`.
+   - Verifica la clave y que la cuenta esté en modo unidireccional (One-way), no cobertura.
+   - Pone margen aislado y el apalancamiento del archivo en cada símbolo.
+   - Cada entrada lleva un STOP_MARKET y un TAKE_PROFIT_MARKET que cierran toda la posición. Van en el
+     servicio Algo de Binance, que es donde están desde 2025-12-09.
+   - Si el stop no entra, cierra la posición al momento.
+   - Una respuesta dudosa se busca por su id y nunca se reenvía.
+   - Diario: `live_runs/futures_auto/real/orders.json`.
+4. **Con poco saldo:** con unos 37 USDT y riesgo de 1%, cada operación arriesga unos 0,37 USDT.
+   BTC (mínimo 100 USDT) y ETH (mínimo 20 USDT) no caben con 1x: el operador los salta y lo anota una
+   vez. Las otras monedas, con mínimo de 5 USDT, sí entran.
+5. Los avisos de Telegram dicen "Binance Futuros" o "Binance Futuros (SHADOW)", y "XM DEMO" para XM,
+   para comparar cuál rinde más con el mismo sistema.
 
 ## 5. Nunca
 

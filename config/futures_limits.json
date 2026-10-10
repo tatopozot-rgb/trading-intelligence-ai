@@ -1,0 +1,15 @@
+{
+  "_comment": "Limits for REAL Binance USDⓈ-M Futures (both directions). PROPOSED by the leader on 2026-10-10 after the owner wrote 'Ya active cuenta de futuros en binance ... opera como lo ordenado y como si fuese en xm'. Real orders stay refused until approved_by_owner is true with his written approval of these numbers. Withdrawals and transfers are done only by the owner, never by the system.",
+  "approved_by_owner": false,
+  "approval_quote": "",
+  "market": "USDS_M_FUTURES",
+  "margin_type": "ISOLATED",
+  "position_mode": "ONE_WAY",
+  "max_leverage": 1,
+  "risk_per_trade_pct": 1,
+  "max_open_positions": 3,
+  "daily_loss_pct": 5,
+  "allowed_symbols": ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "LINKUSDT", "AVAXUSDT", "LTCUSDT", "TRXUSDT", "DOTUSDT"],
+  "withdrawals": false,
+  "transfers": false
+}
