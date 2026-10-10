@@ -118,7 +118,8 @@ def test_the_owners_cadence_two_minutes_inside_his_windows_five_outside(tmp_path
 def test_state_survives_a_restart(tmp_path):
     auto, m, _ = _auto(tmp_path, {"EURUSD": "BUY"})
     auto.step()
-    again = A.State.load(tmp_path / "state.json")
+    from trading_intelligence.live.two_way import State
+    again = State.load(tmp_path / "state.json")
     assert again.known == auto.state.known and again.day == NOW.date().isoformat()
 
 

@@ -148,7 +148,7 @@ def test_one_coin_without_data_does_not_stop_the_others(tmp_path, regimes):
 def test_a_corrupt_state_file_starts_clean(tmp_path, regimes):
     (tmp_path / "w.json").write_text("{not json")
     w, _, _ = _watch(tmp_path, FakeFeed())
-    assert w.state == {"alerts": {}, "regimes": {}}
+    assert w.state == {"alerts": {}, "regimes": {}, "bull": {}}
 
 
 def test_summary_lists_every_coin(tmp_path, regimes):
@@ -167,3 +167,39 @@ def test_the_watcher_never_touches_orders_or_keys():
     for word in ("market_order", "place_stop", "SpotTrader", "Credentials", "BINANCE_TRADE"):
         assert word not in src
     assert "PAXGUSDT" in W.watched_symbols() and "BTCUSDT" in W.watched_symbols()
+
+
+class TestBrutalBull:
+    """Owner, 2026-10-10: no more crypto buying unless a brutal bull run, with a bot always watching."""
+
+    def _daily(self, closes):
+        return _frame(closes, "1D", "2026-10-09")
+
+    def test_a_brutal_run_is_detected_and_a_normal_rise_is_not(self):
+        from trading_intelligence.live.market_watch import brutal_bull
+
+        flat_then_run = [100.0] * 130 + [100.0 * (1.0065 ** i) for i in range(90)]  # about +79% in 90 days
+        r = brutal_bull(self._daily(flat_then_run))
+        assert r is not None and r[0] >= 60 and r[1] >= 15
+        gentle = [100.0 * (1.001 ** i) for i in range(220)]
+        assert brutal_bull(self._daily(gentle)) is None
+        assert brutal_bull(self._daily(flat_then_run[-150:])) is None  # not enough history
+
+    def test_the_watcher_tells_the_owner_once_a_week(self, tmp_path):
+        from trading_intelligence.live.market_watch import MarketWatch
+
+        class BullFeed(FakeFeed):
+            def get_ohlcv(self, symbol, timeframe, limit=500):
+                if timeframe == "1d":
+                    return _frame([100.0] * 130 + [100.0 * (1.0065 ** i) for i in range(90)], "1D", "2026-10-09")
+                return super().get_ohlcv(symbol, timeframe, limit)
+
+        now = {"t": datetime(2026, 10, 10, 13, 5, tzinfo=timezone.utc)}
+        sent = []
+        watch = MarketWatch(BullFeed(), ["BTCUSDT"], tmp_path / "s.json", sent.append, clock=lambda: now["t"])
+        watch.check()
+        watch.check()
+        assert sum("Alcista brutal" in m for m in sent) == 1
+        now["t"] += timedelta(days=8)
+        watch.check()
+        assert sum("Alcista brutal" in m for m in sent) == 2

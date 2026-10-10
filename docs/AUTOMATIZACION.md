@@ -44,6 +44,8 @@ Claude Leader) y guardar la memoria en Obsidian, para no gastar recursos recorda
 | Vigilante (watchdog) `operator reanudar` | Cada 5 minutos (Programador de tareas) | Si el operador se cayó o el PC se reinició, lo vuelve a arrancar. |
 | Vigilante del mercado (`market_watch`) | Cada 15 minutos (Programador de tareas) | Avisa por Telegram de movimientos fuertes y cambios de tendencia. No opera. |
 | Operador XM en los dos sentidos (`xm_auto`, DEMO) | 24/7, cuando el dueño instale MT5 | Compra cuando sube y vende en corto cuando baja: cada 2 min en sus horarios y cada 5 fuera. SL y TP quedan en el servidor de XM. Riesgo fijo de 0,5% y tope de pérdida diaria de 5%. Avisa por Telegram. |
+| Operador de Binance Futuros en los dos sentidos (`binance_futures`) | 24/7. Primero en SHADOW; en real cuando el dueño apruebe los límites | Usa el mismo motor que XM, con stop y meta puestos en Binance. Margen aislado y apalancamiento de 1x. El riesgo por operación es el que apruebe el dueño. |
+| Cripto en Spot | Solo en una "alcista brutal" | El dueño dijo el 2026-10-10: "no vuelvas a comprar criptos". El vigilante avisa si BTC entra en una alcista brutal (+60% en 90 días y +15% en 30, por encima de su media de 200 días). Comprar en Spot necesita además el "sí" del dueño. |
 | Memoria Obsidian | Una vez al día, a las 20:00 de Ecuador, y al final de cada bloque | Copia el resumen nuevo de `docs/CHECKPOINT.md` a `Memoria viva.md`. |
 
 ### 2.2 En GitHub (Actions, sin gastar tokens de IA)
@@ -80,4 +82,7 @@ Claude Leader) y guardar la memoria en Obsidian, para no gastar recursos recorda
 - **No cambia `config/live_limits.json`** sin la aprobación escrita del dueño.
 - **No salta el motor de riesgo**, no usa martingala y no sube el riesgo para recuperar
   pérdidas.
-- **No hace retiros, transferencias, margen, futuros ni apalancamiento.**
+- **No hace retiros ni transferencias, y no usa margen.** Futuros de Binance: solo con
+  `config/futures_limits.json` aprobado por escrito por el dueño (margen aislado, apalancamiento máximo
+  del archivo, que hoy es 1x). El dueño activó su cuenta de futuros el 2026-10-10. El dueño mueve él
+  mismo los USDT entre Spot y Futuros.

@@ -13,6 +13,11 @@ Alerts:
 - a regime change on the last CLOSED 4h bar into TREND_UP, TREND_DOWN, BREAKOUT_UP or
   BREAKOUT_DOWN (the detector the engine uses). The first pass only records the regimes.
 
+- a "brutal bull run" in BTC (owner, 2026-10-10: "no vuelvas a comprar criptos al menos que sea
+  una alcista brutal de millones como cuando fue el btc, siempre un bot revisando eso"): BTC up at
+  least 60% in 90 days and 15% in 30 days, above its 200-day average. Told at most once a week;
+  buying Spot after it still needs the owner's yes.
+
 Watched: the owner's approved symbols plus PAXGUSDT (gold, watch only: it is not tradable
 here unless the owner adds it to config/live_limits.json).
 """
@@ -42,6 +47,9 @@ FOUR_HOURS = timedelta(hours=4)
 # (label, 15-minute bars back, threshold %)
 WINDOWS = (("1h", 4, 2.5), ("4h", 16, 4.0), ("24h", 96, 7.0))
 ALERT_REGIMES = {Regime.TREND_UP, Regime.TREND_DOWN, Regime.BREAKOUT_UP, Regime.BREAKOUT_DOWN}
+BULL_SYMBOL = "BTCUSDT"
+BULL_90D_PCT, BULL_30D_PCT = 60.0, 15.0
+BULL_COOLDOWN = timedelta(days=7)
 REGIME_WORDS = {
     "TREND_UP": "tendencia alcista", "TREND_DOWN": "tendencia bajista", "RANGE": "rango (lateral)",
     "BREAKOUT_UP": "ruptura al alza", "BREAKOUT_DOWN": "ruptura a la baja", "NO_EDGE": "sin dirección clara",
@@ -91,6 +99,16 @@ def closed_regime(bars_4h: pd.DataFrame, now: datetime) -> tuple[Optional[str], 
     return detect_regime(closed).regime.value, closed.index[-1].isoformat()
 
 
+def brutal_bull(daily: pd.DataFrame) -> Optional[tuple[float, float]]:
+    """(90-day %, 30-day %) when BTC is in a brutal bull run; None otherwise or without history."""
+    closes = daily["close"].tolist()
+    if len(closes) < 200 or closes[-91] <= 0 or closes[-31] <= 0:
+        return None
+    r90, r30 = (closes[-1] / closes[-91] - 1) * 100, (closes[-1] / closes[-31] - 1) * 100
+    above_200d = closes[-1] > sum(closes[-200:]) / 200
+    return (r90, r30) if r90 >= BULL_90D_PCT and r30 >= BULL_30D_PCT and above_200d else None
+
+
 def _fmt_price(price: float) -> str:
     return f"{price:,.4f}" if price < 10 else f"{price:,.2f}"
 
@@ -107,10 +125,11 @@ class MarketWatch:
         try:
             data = json.loads(self.state_path.read_text(encoding="utf-8"))
             if isinstance(data, dict):
-                return {"alerts": dict(data.get("alerts", {})), "regimes": dict(data.get("regimes", {}))}
+                return {"alerts": dict(data.get("alerts", {})), "regimes": dict(data.get("regimes", {})),
+                        "bull": dict(data.get("bull", {}))}
         except (OSError, ValueError):
             pass
-        return {"alerts": {}, "regimes": {}}
+        return {"alerts": {}, "regimes": {}, "bull": {}}
 
     def _save(self) -> None:
         self.state_path.parent.mkdir(parents=True, exist_ok=True)
@@ -157,12 +176,27 @@ class MarketWatch:
                     sent.append(f"🔄 {sym} cambió a {regime_txt} en la vela de 4h "
                                 f"(antes: {REGIME_WORDS.get(previous['regime'], previous['regime'])}).")
                 self.state["regimes"][sym] = {"regime": regime, "bar": bar}
+        sent += self._bull(now)
         if failures == len(self.symbols) and self.symbols:
             sent.append("⚠️ Vigilante: Binance no respondió para ninguna moneda en esta vuelta.")
         for message in sent:
             self.notify(f"[Vigilante] {message}")
         self._save()
         return sent
+
+    def _bull(self, now: datetime) -> list[str]:
+        try:
+            run = brutal_bull(self.feed.get_ohlcv(BULL_SYMBOL, "1d", limit=220))
+        except Exception as error:  # noqa: BLE001 - the daily check must not stop the other alerts
+            logger.warning("bull-run check: no data (%s)", type(error).__name__)
+            return []
+        last = self.state.setdefault("bull", {}).get("at")
+        if run is None or (last is not None and now - datetime.fromisoformat(last) < BULL_COOLDOWN):
+            return []
+        self.state["bull"] = {"at": now.isoformat()}
+        return [f"🚀 Alcista brutal en BTC: {run[0]:+.0f}% en 90 días y {run[1]:+.0f}% en 30, por encima de su media "
+                f"de 200 días. Tu regla: solo en un mercado así se vuelve a comprar cripto en Spot. "
+                f"Si quieres comprar, díselo a Claude local."]
 
     def summary(self) -> str:
         now = self.clock()

@@ -3,201 +3,77 @@ XM automatic operator, both directions. Owner, 2026-10-10, choosing "A": work XM
 market works (buy when it rises, sell short when it falls), 24/7, every 2 minutes inside his
 windows (07-10 and 17-19 Ecuador) and every 5 minutes outside them.
 
+The decisions are the shared two-way engine (live/two_way.py), the same one Binance Futures uses;
+this module is XM's broker adapter and its command line.
+
 DEMO only: every order goes through XmDemoTrader, which re-reads the account and refuses a REAL
 one. Real money is phase 3: the owner's phrase written to Claude local plus XM limits he approves.
-
-At each decision, for each instrument:
-- Signal from the regime on the decision bars: trend or breakout up -> BUY; down -> SELL; range or
-  no edge -> no new entry (an open position keeps its own stop and target).
-- An open position of ours (by MAGIC) facing the opposite signal is closed; the next decision may
-  open the other way.
-- No position, a signal, room under max_open and the day not halted -> plan (exit_plan read from
-  the market for that side, XM's stop band), the pre-entry check (spread, minimum lot, margin,
-  market open), then the order with its stop loss and take profit resting on XM's server, so the
-  position stays protected with the PC off.
-- Daily loss guard: when equity falls daily_loss_pct below the UTC day's starting equity, our
-  positions are closed and no new entry is made until the next UTC day (19:00 Ecuador).
-- Risk per trade is fixed (risk_pct of equity at the stop): never raised after a loss.
-- A closed market (forex at the weekend) is skipped and noted once.
+Before an entry the pre-entry check reads spread, minimum lot, margin and market hours; stop and
+target come from the market for that side inside XM's own band, and rest on XM's server. Only
+positions carrying this automator's MAGIC are touched: never the owner's manual trades. A closed
+market (forex at the weekend) is skipped and noted once.
 """
 from __future__ import annotations
 
 import argparse
-import json
 import logging
-import time
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Optional
 
 import pandas as pd
 
-from trading_intelligence.live.operator import in_windows, parse_windows
 from trading_intelligence.live.telegram_notify import console, from_env, make_notify
+from trading_intelligence.live.two_way import (
+    DEFAULT_WINDOWS,
+    Plan,
+    Position,
+    Signal,
+    TwoWayAuto,
+    regime_signal,
+)
 from trading_intelligence.live.xm_demo import DEFAULT_RISK_PCT, XmDemoTrader
 from trading_intelligence.live.xm_mt5 import EntryCaps, XmError
 
-logger = logging.getLogger(__name__)
-
-Signal = Callable[[str, pd.DataFrame], Optional[str]]  # (symbol, decision bars) -> BUY / SELL / None
 DEFAULT_SYMBOLS = ("EURUSD", "GOLD", "BTCUSD")
-DEFAULT_WINDOWS = ("07-10", "17-19")
-MAX_EVENTS = 500
 
 
-def regime_signal(symbol: str, data: pd.DataFrame) -> Optional[str]:
-    from trading_intelligence.regime.detector import Regime, detect_regime
+class XmBroker:
+    name, unit = "XM DEMO", "lotes"
 
-    try:
-        regime = detect_regime(data).regime
-    except Exception:  # noqa: BLE001 - not enough history: no signal
-        return None
-    if regime in (Regime.TREND_UP, Regime.BREAKOUT_UP):
-        return "BUY"
-    if regime in (Regime.TREND_DOWN, Regime.BREAKOUT_DOWN):
-        return "SELL"
-    return None
+    def __init__(self, trader: XmDemoTrader, caps: EntryCaps = EntryCaps()) -> None:
+        self.trader, self.caps = trader, caps
 
-
-def side_of(position: object) -> str:
-    return "BUY" if int(getattr(position, "type")) == 0 else "SELL"
-
-
-@dataclass
-class State:
-    day: str = ""
-    day_start_equity: str = "0"
-    halted: bool = False
-    known: dict[str, int] = field(default_factory=dict)  # symbol -> ticket of our open position
-    events: list[dict] = field(default_factory=list)
-
-    @classmethod
-    def load(cls, path: Path) -> "State":
-        if not path.exists():
-            return cls()
-        d = json.loads(path.read_text(encoding="utf-8"))
-        return cls(d.get("day", ""), d.get("day_start_equity", "0"), bool(d.get("halted", False)),
-                   {k: int(v) for k, v in d.get("known", {}).items()}, list(d.get("events", [])))
-
-    def save(self, path: Path) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(self.__dict__, indent=1), encoding="utf-8")
-        tmp.replace(path)
-
-
-class XmAuto:
-    def __init__(self, trader: XmDemoTrader, symbols: list[str], state_path: Path, *, timeframe: str = "5m",
-                 risk_pct: Decimal = DEFAULT_RISK_PCT, max_open: int = 3, daily_loss_pct: Decimal = Decimal("5"),
-                 windows: Optional[list[str]] = None, inside_every_min: int = 2, outside_every_min: int = 5,
-                 signal: Signal = regime_signal, notify: Callable[[str], None] = console,
-                 caps: EntryCaps = EntryCaps(),
-                 clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc)) -> None:
-        if max_open < 1 or not (0 < risk_pct <= 2) or not (0 < daily_loss_pct < 100):
-            raise ValueError("max_open >= 1, risk_pct in (0, 2], daily_loss_pct in (0, 100)")
-        self.trader, self.symbols, self.state_path = trader, list(symbols), Path(state_path)
-        self.timeframe, self.risk_pct, self.max_open, self.daily_loss_pct = timeframe, risk_pct, max_open, daily_loss_pct
-        self.windows = parse_windows(list(windows if windows is not None else DEFAULT_WINDOWS))
-        self.inside_every_min, self.outside_every_min = inside_every_min, outside_every_min
-        self.signal, self.notify, self.caps, self.clock = signal, notify, caps, clock
-        self.state = State.load(self.state_path)
-        self._last_slot: Optional[tuple[int, int]] = None
-        self._noted: set[str] = set()
-
-    def decision_due(self) -> bool:
-        """Every inside_every_min minutes inside the owner's windows, every outside_every_min outside."""
-        now = self.clock()
-        period = self.inside_every_min if in_windows(self.windows, now) else self.outside_every_min
-        slot = (period, int(now.timestamp() // (period * 60)))
-        if slot == self._last_slot:
-            return False
-        self._last_slot = slot
-        return True
-
-    def _event(self, kind: str, text: str) -> None:
-        self.state.events.append({"at": self.clock().isoformat(), "kind": kind, "text": text})
-        del self.state.events[:-MAX_EVENTS]
-
-    def _note_once(self, key: str, text: str) -> None:
-        if key not in self._noted:
-            self._noted.add(key)
-            self._event("SKIP", text)
-
-    def step(self) -> None:
-        s = self.state
+    def equity(self) -> tuple[Decimal, str]:
         acc = self.trader._demo_account()
-        today = self.clock().date().isoformat()
-        if s.day != today:
-            s.day, s.day_start_equity, s.halted = today, str(acc.equity), False
-            self._noted.clear()
-        ours = self.trader.positions()
+        return acc.equity, acc.currency
 
-        for sym, ticket in list(s.known.items()):
-            if sym not in ours or int(getattr(ours[sym], "ticket", -1)) != ticket:
-                del s.known[sym]
-                self._event("CLOSED_BY_SERVER", sym)
-                self.notify(f"⚪ XM DEMO: se cerró {sym} en el servidor de XM (llegó a su stop o a su meta).")
+    def positions(self) -> dict[str, Position]:
+        return {sym: Position(sym, "BUY" if int(getattr(p, "type")) == 0 else "SELL",
+                              Decimal(str(getattr(p, "volume", 0))), str(getattr(p, "ticket")),
+                              Decimal(str(getattr(p, "price_open", 0))))
+                for sym, p in self.trader.positions().items()}
 
-        floor = Decimal(s.day_start_equity) * (1 - self.daily_loss_pct / 100)
-        if not s.halted and acc.equity <= floor:
-            s.halted = True
-            for sym, pos in ours.items():
-                self.trader.close(sym, int(getattr(pos, "ticket")))
-                s.known.pop(sym, None)
-            ours = self.trader.positions()
-            self._event("DAY_HALTED", f"equity {acc.equity} <= {floor:.2f}")
-            self.notify(f"🛑 XM DEMO: la cuenta perdió {self.daily_loss_pct}% hoy (equity {acc.equity} {acc.currency}). "
-                        f"Cerré las posiciones y no abro nada más hasta mañana (19:00 de Ecuador).")
+    def candles(self, symbol: str, timeframe: str, count: int) -> pd.DataFrame:
+        return self.trader.reader.candles(symbol, timeframe, count)
 
-        for sym in self.symbols:
-            try:
-                self._decide(sym, ours, acc.currency)
-            except (XmError, ValueError) as error:
-                self._note_once(f"{sym}:{str(error)[:40]}", f"{sym}: {error}")
-        self.state.save(self.state_path)
+    def plan(self, symbol: str, side: str, risk_pct: Decimal, timeframe: str) -> Plan:
+        p = self.trader.plan(symbol, side, risk_pct=risk_pct, caps=self.caps, timeframe=timeframe)
+        self._last = p
+        return Plan(p.symbol, p.side, p.lots, p.price, p.sl, p.tp, p.risk_money)
 
-    def _decide(self, sym: str, ours: dict[str, object], currency: str) -> None:
-        s = self.state
-        signal = self.signal(sym, self.trader.reader.candles(sym, self.timeframe, 500))
-        pos = ours.get(sym)
-        if pos is not None:
-            if signal is not None and signal != side_of(pos):
-                self.trader.close(sym, int(getattr(pos, "ticket")))
-                ours.pop(sym)
-                s.known.pop(sym, None)
-                self._event("CLOSE", f"{sym} {side_of(pos)}: señal {signal}")
-                self.notify(f"🔁 XM DEMO: cerré la {'compra' if side_of(pos) == 'BUY' else 'venta en corto'} de {sym}: "
-                            f"el mercado cambió de dirección.")
-            return
-        if signal is None or s.halted or len(ours) >= self.max_open:
-            return
-        plan = self.trader.plan(sym, signal, risk_pct=self.risk_pct, caps=self.caps, timeframe=self.timeframe)
-        opened = self.trader.open(plan)
-        now_ours = self.trader.positions()
-        ticket = int(getattr(now_ours[sym], "ticket")) if sym in now_ours else int(opened["order"])
-        ours[sym] = now_ours.get(sym, object())
-        s.known[sym] = ticket
-        self._event("OPEN", f"{plan.side} {plan.lots} {sym} @ {plan.price} SL {plan.sl} TP {plan.tp}")
-        verb = "Compré" if plan.side == "BUY" else "Vendí en corto"
-        why = "el mercado está subiendo" if plan.side == "BUY" else "el mercado está bajando"
-        self.notify(f"{'🟢' if plan.side == 'BUY' else '🔴'} XM DEMO: {verb} {plan.lots} lotes de {sym} a {plan.price} "
-                    f"porque {why}. Stop en {plan.sl}, meta en {plan.tp} (puestos en el servidor de XM). "
-                    f"Si toca el stop se pierden unos {plan.risk_money} {currency}.")
+    def open(self, plan: Plan) -> str:
+        opened = self.trader.open(self._last)
+        now = self.trader.positions()
+        return str(getattr(now[plan.symbol], "ticket")) if plan.symbol in now else str(opened["order"])
 
-    def run(self, max_iterations: Optional[int] = None, sleep: Callable[[float], None] = time.sleep) -> None:
-        n = 0
-        while max_iterations is None or n < max_iterations:
-            n += 1
-            if self.decision_due():
-                try:
-                    self.step()
-                except XmError as error:  # terminal closed, account changed: retry next slot
-                    logger.warning("XM: %s", error)
-                    self._note_once(f"step:{str(error)[:40]}", str(error))
-                    self.state.save(self.state_path)
-            sleep(20)
+    def close(self, position: Position) -> None:
+        self.trader.close(position.symbol, int(position.ticket))
+
+
+def XmAuto(trader: XmDemoTrader, symbols: list[str], state_path: Path, *, caps: EntryCaps = EntryCaps(),
+           signal: Signal = regime_signal, **kw) -> TwoWayAuto:
+    return TwoWayAuto(XmBroker(trader, caps), symbols, state_path, signal=signal, **kw)
 
 
 def main(argv: Optional[list[str]] = None, mt5: Optional[object] = None) -> int:
