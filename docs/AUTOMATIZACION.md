@@ -17,7 +17,9 @@ Claude Leader) y guardar la memoria en Obsidian, para no gastar recursos recorda
 1. **Al empezar**, cada agente lee primero:
    - la nota de memoria `09 Checkpoints/Memoria viva.md` del vault de Obsidian del dueño
      (`C:\Users\tatop\TATO`);
-   - después, `docs/CHECKPOINT.md` en GitHub.
+   - después, `docs/ESTADO_ACTUAL.md` (estado actual) y `docs/CHECKPOINT.md` (últimos bloques) en GitHub;
+   - y sigue desde ahí, sin releer todo el hilo. Orden del dueño, 2026-10-10: "deben revisar obsidian y
+     git para no revisar todo el hilo y solo donde se quedaron".
 2. **Al terminar cada bloque de trabajo**, cada agente actualiza la memoria con:
    - qué hizo;
    - qué decidió y por qué;
@@ -43,8 +45,8 @@ Claude Leader) y guardar la memoria en Obsidian, para no gastar recursos recorda
 | Operador real (`operator iniciar --real`) | 24 horas, todos los días | Revisa precios y stops cada minuto y decide en cada vela de 4 horas. Compra y vende solo, y avisa por Telegram. |
 | Vigilante (watchdog) `operator reanudar` | Cada 5 minutos (Programador de tareas) | Si el operador se cayó o el PC se reinició, lo vuelve a arrancar. |
 | Vigilante del mercado (`market_watch`) | Cada 15 minutos (Programador de tareas) | Avisa por Telegram de movimientos fuertes y cambios de tendencia. No opera. |
-| Operador XM en los dos sentidos (`xm_auto`, DEMO) | 24/7, cuando el dueño instale MT5 | Compra cuando sube y vende en corto cuando baja: cada 2 min en sus horarios y cada 5 fuera. SL y TP quedan en el servidor de XM. Riesgo fijo de 0,5% y tope de pérdida diaria de 5%. Avisa por Telegram. |
-| Operador de Binance Futuros en los dos sentidos (`binance_futures`) | 24/7. Primero en SHADOW; en real cuando el dueño apruebe los límites | Usa el mismo motor que XM y los mismos números del programa de Spot: 1% de riesgo, posición máx. 40%, 3 posiciones, límite de 45% con aviso 2 USD antes y meta de 58%. Cada 2 min en sus horarios y cada 5 fuera. Stop y meta puestos en Binance, con el stop que sigue la ganancia. Margen aislado y 1x. |
+| Operador XM en los dos sentidos (`xm_auto`, DEMO) | 24/7, cuando el dueño instale MT5 (lunes) | El mismo motor y la misma mesa que Binance Futuros. SL y TP quedan en el servidor de XM. |
+| Operador de Binance Futuros con la mesa de trading (`binance_futures`) | 24/7. Con dinero real desde el lunes, con la clave nueva y la frase del dueño | Decide cada 30 s en sus horarios (sin parar) y cada 5 min fuera. El Scout revisa 24/7 y avisa al Chief. El Escéptico veta con reglas fijas. Riesgo de 1–15% según la señal, posición máx. 50%, 3 posiciones, límite de 45% con aviso y meta de 58%. Cada posición tiene su bot: revisa cada 30 s y avisa cada 2 min. Telegram solo avisa lo verificado 2 veces en la cuenta. |
 | Cripto en Spot | Solo en una "alcista brutal" | El dueño dijo el 2026-10-10: "no vuelvas a comprar criptos". El vigilante avisa si BTC entra en una alcista brutal (+60% en 90 días y +15% en 30, por encima de su media de 200 días). Comprar en Spot necesita además el "sí" del dueño. |
 | Memoria Obsidian | Una vez al día, a las 20:00 de Ecuador, y al final de cada bloque | Copia el resumen nuevo de `docs/CHECKPOINT.md` a `Memoria viva.md`. |
 

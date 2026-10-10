@@ -18,10 +18,11 @@ aliases: ["Docs Index", "MOC"]
 
 ## Coordination (read these first)
 
+- [[ESTADO_ACTUAL]] — **start here**: what runs, the approved limits, the schedule, the desk, Monday's checklist
+- [[CHECKPOINT]] — the latest work blocks (history up to 2026-10-10 in `archivo/`)
 - [[AGENT_COORDINATION]] — who's doing what, right now
-- [[CHECKPOINT]] — the running session log
-- [[AGENT_CITY_DATA_CONTRACT]] — the Agent City data contract (sources, freshness rules, status semantics)
-- `checkpoints/`[[GPT_WORK_AGENT_CITY_2026-10-06]] — a bounded handoff checkpoint
+- [[AUTOMATIZACION]] — what runs on its own, and the memory rule
+- `archivo/` — superseded documents, kept for history
 
 Permanent agent roles and rules live in `AGENTS.md` at the repo root (not
 under `docs/`, so not indexed here — it's the first file every agent reads).
