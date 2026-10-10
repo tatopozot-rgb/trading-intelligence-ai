@@ -1,0 +1,10 @@
+{
+  "_comment": "Hard rules of the desk's Skeptic and Scout (live/desk.py). Never decided by an AI. Owner, 2026-10-10: the 'AI Trading Desk' design (Scout, News, Sentiment, Charts, Skeptic, Chief) on this project's own percentages and risks. Changing a value is a reviewed change in GitHub.",
+  "min_reward_risk": 1.5,
+  "round_number_buffer_pct": 0.3,
+  "max_funding_against_pct": 0.05,
+  "min_sentiment_against": -0.5,
+  "scout_volume_mult": 2.0,
+  "scout_move_pct": 1.5,
+  "scout_alert_every_min": 30
+}

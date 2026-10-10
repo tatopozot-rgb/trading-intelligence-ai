@@ -76,7 +76,7 @@ paso la orden a Claude Code local, pero es un paso más y más lento.
   sigue al precio máximo un 3% por debajo; `--trailing N`, 0 lo apaga) y la guardia de pérdida.
 - El stop efectivo (el mayor de los dos) queda además **puesto en Binance**, así que protege
   aunque el PC esté apagado.
-- Ganar con la bajada (cortos) todavía no: ver `docs/DECISION_SHORTS.md`.
+- Ganar con la bajada (cortos) todavía no: ver `docs/archivo/DECISION_SHORTS.md` (superada: ya se opera en corto en Futuros y XM).
 
 ## 5. Lo que nunca pasa
 

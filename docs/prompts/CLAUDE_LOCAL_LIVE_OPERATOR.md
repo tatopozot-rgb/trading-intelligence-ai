@@ -259,59 +259,40 @@ conexión solo deja pasar funciones de lectura, y el operador rechaza `--broker 
    - Dejarlo corriendo como el operador de Binance: con un vigilante que lo reinicie si se cae.
    **Fase 3**: dinero real, solo con la frase del dueño y con límites XM aprobados por él por escrito.
 
-## 4h. Binance Futuros en los dos sentidos (orden del dueño, 2026-10-10)
+## 4h. Binance Futuros con la mesa de trading (orden del dueño, 2026-10-10)
 
-Palabras del dueño: "Ya active cuenta de futuros en binance ... opera como lo ordenado y como si fuese
-en xm ... el sistema es el mismo, los 2 mercados son futuros ... no vuelvas a comprar criptos almenos
-qué sea una alcista brutal".
+Empieza por `docs/ESTADO_ACTUAL.md`, que tiene los límites, el horario, la mesa y el checklist del lunes.
 
-1. **Spot deja de comprar.** Si no hay ninguna posición abierta, `parar` sin `--cerrar`. Que el
-   vigilante `reanudar` no lo vuelva a arrancar. El vigilante del mercado (`market_watch`) avisa si BTC
-   entra en una alcista brutal; comprar en Spot después de ese aviso necesita el "sí" del dueño.
-2. **SHADOW ya, sin clave.** Lee precios reales y simula las posiciones con su stop, su meta y la
-   comisión de 0,05%:
+1. **Spot está en pausa.** El dueño dijo "no vuelvas a comprar criptos". Si escribe "para", ejecuta
+   `parar` sin `--cerrar`. El vigilante `market_watch` avisa si BTC entra en una alcista brutal.
+2. **Modo prueba (SHADOW), sin clave:**
    `python -m trading_intelligence.live.binance_futures --modo shadow --capital 37`.
-   Corre con el mismo motor, la misma cadencia (2/5 min) y la misma señal que XM.
-   Estado: `live_runs/futures_auto/shadow/`.
-3. **REAL, solo cuando estén las cuatro cosas:**
-   a) ✅ Aprobado el 2026-10-10. El dueño aprueba por escrito `config/futures_limits.json`. Ese día rechazó la primera
-      propuesta: "deben ser analizados y usar los mismos porcentajes y mismo horario que el anterior
-      programado". Ahora son los mismos números del programa de Spot:
-      - 1% de la cuenta en riesgo por operación;
-      - cada posición, máximo 40% de la cuenta;
-      - máximo 3 posiciones;
-      - apalancamiento 1x y margen aislado;
-      - límite de pérdida de la sesión de 45% (banda del dueño 20–50%), con aviso 2 USD antes;
-      - meta de +58%;
-      - horario 07–10 y 17–19 de Ecuador cada 2 minutos y cada 5 fuera, 24/7;
-      - stop y meta del mercado (3–15%), con el stop que sigue la ganancia desde +1R a R/2.
-      Antes de pedirle la aprobación, se mide con datos reales: workflow
-      "Futuros en los dos sentidos" → `docs/two_way_backtest/`.
-      El líder lo marca como aprobado en GitHub.
-   b) **La misma clave de siempre** (orden del dueño, 2026-10-10: "usa la misma clave de ser necesario
-      es la misma cuenta"). Si no hay `BINANCE_FUTURES_API_KEY`, el operador usa `BINANCE_TRADE_API_KEY`.
-      El dueño solo tiene que marcar **"Habilitar Futuros"** en esa clave (Binance → Gestión de API →
-      Editar restricciones), con los retiros desactivados y la IP restringida. El operador de Spot ya
-      acepta claves con Futuros, y nunca llama a futuros.
-   c) El dueño pasa él mismo los USDT de Spot a Futuros en la app. El sistema nunca transfiere.
-   d) La frase del dueño escrita a ti.
-   Arranque: `python -m trading_intelligence.live.binance_futures --modo real` (opcional:
-   `--limite-perdida N` dentro de 20–50, y `--senal` con la variante que gane la prueba).
-   - "continuar" del dueño tras el aviso de pérdida: `python -m trading_intelligence.live.binance_futures
-     continuar --modo real`. En XM: `python -m trading_intelligence.live.xm_auto continuar`.
-   - Verifica la clave y que la cuenta esté en modo unidireccional (One-way), no cobertura.
-   - Pone margen aislado y el apalancamiento del archivo en cada símbolo.
-   - Cada entrada lleva un STOP_MARKET y un TAKE_PROFIT_MARKET que cierran toda la posición. Van en el
-     servicio Algo de Binance, que es donde están desde 2025-12-09.
-   - Si el stop no entra, cierra la posición al momento.
-   - Una respuesta dudosa se busca por su id y nunca se reenvía.
-   - Diario: `live_runs/futures_auto/real/orders.json`.
-4. **Con poco saldo:** con unos 37 USDT y riesgo de 1%, cada operación arriesga unos 0,37 USDT y cada
-   posición puede llegar a unos 14,8 USDT (40%).
-   BTC (mínimo 100 USDT) no cabe con 1x, y ETH (mínimo 20 USDT) tampoco con 40% de 37: el operador los
-   salta y lo anota una vez. Las otras monedas, con mínimo de 5 USDT, sí entran.
-5. Los avisos de Telegram dicen "Binance Futuros" o "Binance Futuros (SHADOW)", y "XM DEMO" para XM,
-   para comparar cuál rinde más con el mismo sistema.
+3. **Dinero real desde el lunes, cuando estén las tres cosas:**
+   a) La **clave nueva** con Futuros (lectura y Futuros, IP restringida, sin retiros), que el dueño
+      guarda él mismo como `BINANCE_FUTURES_API_KEY` y `BINANCE_FUTURES_SECRET_KEY`. Si no está, el
+      operador usa la clave de Spot, siempre que tenga Futuros activado.
+   b) La cuenta de futuros con saldo y en modo unidireccional (One-way).
+   c) La frase del dueño escrita a ti.
+   Primero: `python -m trading_intelligence.live.binance_futures --modo real --una-vez`. Comprueba la
+   clave, el modo y el saldo, y toma una decisión.
+   Después: `python -m trading_intelligence.live.binance_futures --modo real --diario "C:\Users\tatop\TATO\09 Checkpoints\Mesa"`.
+   Déjalo con un vigilante que lo reinicie si se cae; el estado queda en `live_runs/futures_auto/real/`.
+4. **Lo que hace solo:**
+   - Decide cada 30 s en 07–10 y 17–19 de Ecuador, y cada 5 min fuera de esas horas.
+   - El Scout revisa cada 30 s, 24/7, y avisa al Chief.
+   - Cada posición tiene su bot: la revisa cada 30 s, mueve el stop cuando gana y avisa cada 2 min.
+   - El riesgo va de 1% a 15% según la calidad de la señal; cada posición llega como máximo a 50% de la
+     cuenta.
+   - El Escéptico veta con `config/desk_rules.json`, y cada veto se anota y se mide.
+   - Telegram solo avisa lo que la cuenta mostró 2 veces.
+   - Con 3 fallos de conexión seguidos, no abre nada nuevo.
+   - Límite de pérdida de 45%, con aviso 2 USD antes. "continuar" del dueño:
+     `python -m trading_intelligence.live.binance_futures continuar --modo real`.
+5. **El diario de la mesa** (Markdown) se escribe en la carpeta de `--diario`, que es la de Obsidian. Si
+   usas otra carpeta, cópialo a Obsidian una vez al día.
+6. **XM (lunes):** el dueño instala MT5 (DEMO) e inicia sesión él mismo. Tú corres `cuenta`, `fichas` y
+   la prueba de `xm_demo`, y después `python -m trading_intelligence.live.xm_auto` (el mismo motor y la
+   misma mesa).
 
 ## 5. Nunca
 

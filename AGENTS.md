@@ -42,8 +42,10 @@ the three agents above.
 
 ### Coordination
 - GitHub is the single source of truth for all code and technical decisions. Notion is Mission Control (coordination view, not technical authority).
+- **Start where the work left off (owner's rule, 2026-10-10: "deben revisar obsidian y git para no revisar todo el hilo y solo donde se quedaron").** Every agent first reads Obsidian "Estado actual" (top of `09 Checkpoints/Memoria viva.md`) and `docs/ESTADO_ACTUAL.md`, then `docs/CHECKPOINT.md` (latest blocks only), and continues from there. Rereading the whole thread or the archive (`docs/archivo/`) is not needed.
 - **Shared memory in Obsidian (owner's order, 2026-10-09).** Every agent (Claude local, Claude Leader, Quant, GPT Work) reads the vault note `09 Checkpoints/Memoria viva.md` and then `docs/CHECKPOINT.md` before starting. At the end of every work block it records what it did, what it decided and why, what is pending, and any new owner order. Claude local writes the vault directly; the cloud agents write `docs/CHECKPOINT.md`, and Claude local copies it into the vault daily. GitHub wins on any conflict. Never put secrets in the vault; balances may go there, never in the public repo. Details: `docs/AUTOMATIZACION.md`.
-- All three agents MUST read `docs/CHECKPOINT.md` and recent commits/PRs/issues before starting any work session.
+- All agents MUST read `docs/ESTADO_ACTUAL.md`, `docs/CHECKPOINT.md` and recent commits/PRs before starting any work session.
+- **Telegram never says something false (owner, 2026-10-10).** A message that a position opened or closed is sent only after two separate reads of the account agree; otherwise the message says it is not confirmed.
 - Avoid modifying the same files simultaneously. Use `docs/AGENT_COORDINATION.md` to claim files and tasks. Check who holds a claim before editing.
 - When claiming a task, update `AGENT_COORDINATION.md` with: task, responsible agent, affected files, status.
 - Use Pull Requests for non-trivial changes. Tag the relevant agent for review when cross-domain (e.g. risk/architecture changes → Trading Claude-Work; local-filesystem changes → Claude Code local).

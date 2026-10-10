@@ -36,6 +36,7 @@ class FakeFapi:
         self.order_mode = "ok"  # ok | lost (network failure after Binance executed) | gone (never arrived)
         self.last_bar = None  # (low, high) of the newest 1m bar
         self.next_algo = 1
+        self.top_ratio = 1.0  # top traders neutral unless a test says otherwise
 
     def _bars(self, interval, limit):
         step = {"1m": 60, "5m": 300, "1h": 3600}[interval]
@@ -63,6 +64,8 @@ class FakeFapi:
             return _resp(self._bars(q["interval"], int(q["limit"])))
         if path == "/fapi/v1/ticker/bookTicker":
             return _resp({"symbol": q["symbol"], "bidPrice": str(self.price - 0.01), "askPrice": str(self.price + 0.01)})
+        if path == "/futures/data/topLongShortPositionRatio":
+            return _resp([{"symbol": q["symbol"], "longShortRatio": str(self.top_ratio), "timestamp": 0}])
         if path == "/fapi/v1/exchangeInfo":
             return _resp({"symbols": [{"symbol": "SOLUSDT", "status": "TRADING", "contractType": "PERPETUAL",
                                        "quoteAsset": "USDT", "filters": [
@@ -118,7 +121,8 @@ class FakeFapi:
 
 
 def _limits(**kw):
-    base = dict(approved=True, max_leverage=1, risk_pct=Decimal("1"), max_position_pct=Decimal("40"), max_open=3,
+    base = dict(approved=True, max_leverage=1, risk_min_pct=Decimal("1"), risk_max_pct=Decimal("15"),
+                max_position_pct=Decimal("50"), max_open=3,
                 loss_limit_pct=Decimal("45"), loss_range=(Decimal("20"), Decimal("50")), warn_before_usd=Decimal("2"),
                 profit_target_pct=Decimal("58"), symbols=("SOLUSDT", "BTCUSDT"))
     base.update(kw)
@@ -159,8 +163,8 @@ def test_real_orders_need_limits_the_owner_approved(tmp_path):
     with pytest.raises(F.FuturesError, match="no están aprobados"):
         _real(tmp_path, approved=False)
     limits = F.load_futures_limits()  # the committed file: the Spot program's numbers, approved 2026-10-10
-    assert limits.approved and limits.max_leverage == 1 and limits.risk_pct == 1
-    assert limits.max_position_pct == 40 and limits.max_open == 3 and limits.loss_limit_pct == 45
+    assert limits.approved and limits.max_leverage == 1 and (limits.risk_min_pct, limits.risk_max_pct) == (1, 15)
+    assert limits.max_position_pct == 50 and limits.max_open == 3 and limits.loss_limit_pct == 45
     assert limits.warn_before_usd == 2 and limits.profit_target_pct == 58
     with pytest.raises(F.FuturesError, match="fuera de la banda"):
         limits.for_session(Decimal("60"))
@@ -170,18 +174,18 @@ def test_real_orders_need_limits_the_owner_approved(tmp_path):
 
 def test_size_comes_from_risk_is_capped_and_never_rounds_up(tmp_path):
     market = F.FuturesMarket(None, transport=FakeFapi())
-    p = F.size_plan(market, "SOLUSDT", "BUY", Decimal("37"), Decimal("1"), "5m", 1, Decimal("40"))
+    p = F.size_plan(market, "SOLUSDT", "BUY", Decimal("37"), Decimal("1"), "5m", 1, Decimal("50"))
     stop_pct = (p.price - p.sl) / p.price * 100
     assert Decimal("3") <= stop_pct <= Decimal("15.1") and p.sl < p.price < p.tp
-    assert p.qty * p.price <= Decimal("37") * Decimal("0.4") and p.qty == (p.qty / Decimal("0.01")).to_integral_value() * Decimal("0.01")
-    s = F.size_plan(market, "SOLUSDT", "SELL", Decimal("37"), Decimal("1"), "5m", 1, Decimal("40"))
+    assert p.qty * p.price <= Decimal("37") * Decimal("0.5") and p.qty == (p.qty / Decimal("0.01")).to_integral_value() * Decimal("0.01")
+    s = F.size_plan(market, "SOLUSDT", "SELL", Decimal("37"), Decimal("1"), "5m", 1, Decimal("50"))
     assert s.tp < s.price < s.sl
 
 
 def test_below_binances_minimum_there_is_no_trade(tmp_path):
     market = F.FuturesMarket(None, transport=FakeFapi(price=60000.0))
     with pytest.raises(F.FuturesError, match="no llega al mínimo"):
-        F.size_plan(market, "BTCUSDT", "BUY", Decimal("37"), Decimal("1"), "5m", 1, Decimal("40"))
+        F.size_plan(market, "BTCUSDT", "BUY", Decimal("37"), Decimal("1"), "5m", 1, Decimal("50"))
 
 
 # --- real orders -------------------------------------------------------------------------------------
@@ -295,8 +299,8 @@ def test_real_from_the_command_line_refuses_unapproved_limits(tmp_path, capsys):
 def test_the_engine_turns_around_on_binance_as_on_xm(tmp_path):
     broker, fake = _real(tmp_path)
     sig = {"SOLUSDT": "BUY"}
-    auto = TwoWayAuto(broker, ["SOLUSDT"], tmp_path / "state.json", signal=lambda s, d, h=None: sig.get(s),
-                      risk_pct=Decimal("1"), notify=lambda m: None)
+    auto = TwoWayAuto(broker, ["SOLUSDT"], tmp_path / "state.json", signal=lambda s, d, h=None, top=None: sig.get(s),
+                      pause=lambda s: None, notify=lambda m: None)
     auto.step()
     assert fake.positions["SOLUSDT"] > 0
     sig["SOLUSDT"] = "SELL"
@@ -348,5 +352,5 @@ def test_real_runs_one_decision_with_the_approved_limits_and_the_same_key(tmp_pa
     assert F.main(["--modo", "real", "--dir", str(tmp_path), "--una-vez", "--simbolos", "SOLUSDT"],
                   transport=fake, env=env) == 0
     out = capsys.readouterr().out
-    assert "Binance Futuros" in out and "40" in out and "45" in out
+    assert "Binance Futuros" in out and "1-15%" in out and "50%" in out and "45%" in out
     assert any(p == "/sapi/v1/account/apiRestrictions" for _, p, _ in fake.calls)  # the key was checked first

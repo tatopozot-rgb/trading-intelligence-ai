@@ -20,7 +20,7 @@ if ($tests.Count -eq 0) { throw 'No PAPER test modules found' }
 Las pruebas usan fixtures temporales, no necesitan cuenta, claves, base de datos ni históricos privados.
 Tkinter debe estar instalado (componente de Python en Windows). Usar un entorno virtual real:
 hay una prueba del launcher de Windows que lo requiere. La integración continua inicial es manual;
-no se declara validada hasta observar un run remoto terminado. Ver [importación y límites](docs/IMPORTACION_2026-10-05.md).
+no se declara validada hasta observar un run remoto terminado. Ver [importación y límites](docs/archivo/IMPORTACION_2026-10-05.md).
 
 La simulación por reglas funciona como programa Python local, no como un chat haciendo clic por operación.
 Claude y Codex se reservan para desarrollo/revisión; no hay consumo de un modelo por cada tick del modo por reglas.
