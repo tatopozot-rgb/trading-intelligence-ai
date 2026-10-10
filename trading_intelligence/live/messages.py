@@ -45,6 +45,8 @@ def reason(code: str) -> str:
         return "el precio tocó el stop loss (la protección contra pérdidas)"
     if head in ("EXCHANGE_STOP", "EXCHANGE_STOP_ALREADY_EXECUTED"):
         return "se activó el stop de protección que estaba puesto en Binance"
+    if head == "TAKE_PROFIT":
+        return "se alcanzó la meta de ganancia de esta operación (3 veces lo que arriesgaba)"
     if head == "LOSS_LIMIT":
         return "se alcanzó tu límite de pérdida de la sesión"
     if head == "TIEMPO_CUMPLIDO":
@@ -74,7 +76,10 @@ def buy(symbol: str, spent: Decimal, at: Optional[Decimal], why: str, real: bool
 def sell(symbol: str, received: Decimal, pnl: Optional[Decimal], why: str, real: bool) -> str:
     where = "" if real else " (simulado, sin dinero real)"
     result = f" En esta operación {_result(pnl)}." if pnl is not None else ""
-    return f"🔴 Vendí {coin(symbol)} y recibí {usdt(received)}{where}.{result} Motivo: {reason(why)}. {NOTHING_TO_DO}"
+    motive = reason(why)
+    if why.split(":")[0] == "STOP_HIT" and pnl is not None and pnl > 0:
+        motive = "el stop que sigue la ganancia se activó y la aseguró"
+    return f"🔴 Vendí {coin(symbol)} y recibí {usdt(received)}{where}.{result} Motivo: {motive}. {NOTHING_TO_DO}"
 
 
 def guard(symbol: str, stop: Decimal) -> str:

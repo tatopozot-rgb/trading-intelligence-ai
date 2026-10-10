@@ -3249,6 +3249,31 @@ operator tests pass.
 **Running session:** needs a new session to pick this up: `parar` without `--cerrar`, then `iniciar`
 with the same flags (the band comes by default), then `adoptar BTCUSDT`.
 
+### 83. Take profit with logic, measured in each position's own risk (R) (2026-10-10)
+
+Owner: "el take profit por lógica debe estar configurado con lógica".
+
+**Before:** the strategy exit, a fixed trailing stop (3% below the peak once up 2%) and the session
+target. A fixed 2%/3% no longer fits a stop that ranges from 3% to 15%.
+
+**Now (`r_exits`, on by default for new 1m/5m/20m sessions):**
+- R = (entry − the engine's stop) / entry, the position's own stop distance.
+- **Trailing:** once the peak is ≥ +1R, the stop follows the peak at R/2 below it. It locks about
+  +0.5R at once and more as the price climbs. It is never lower than the engine's stop, and it moves
+  the Binance guard stop.
+- **Take profit:** at +3R, sell (reason `TAKE_PROFIT:3R`). Reward is three times the risk.
+- **Strategy exits** still act first if they come first.
+- **No re-buy right after an operator-side exit.** A trailing or take-profit sale while the engine
+  still holds the symbol records it in `Session.exited_early`, which is persisted. Targets for that
+  symbol are dropped until the engine itself exits; then the block lifts.
+  - This also fixes a latent issue in the old fixed trailing stop: after its exit, the next decision
+    could buy straight back.
+- **Telegram:** a profitable `STOP_HIT` now reads "el stop que sigue la ganancia se activó y la
+  aseguró". `TAKE_PROFIT` reads "se alcanzó la meta de ganancia de esta operación".
+
+**Tests:** 3 new tests: trailing from +1R locks profit, plus the re-buy block and its lift; take
+profit at +3R; the `r_exits` meta default. 140 operator, Telegram and stop-floor tests pass.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
