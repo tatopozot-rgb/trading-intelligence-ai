@@ -57,6 +57,8 @@ class Session:
     # Symbols the operator sold on its own (take profit, trailing stop) while the decision engine
     # still held them: no re-buy until the engine itself exits, or the mirror would buy right back.
     exited_early: list[str] = field(default_factory=list)
+    # Exit plan read from the market when each position was opened: {"stop", "target", "kind", ...}.
+    exit_plans: dict[str, dict] = field(default_factory=dict)
 
     # --- accounting -----------------------------------------------------------
 
@@ -170,6 +172,7 @@ class Session:
             guard_stops=dict(d.get("guard_stops", {})),  # absent in sessions saved before this field
             trail_peaks={k: Decimal(v) for k, v in d.get("trail_peaks", {}).items()},
             exited_early=list(d.get("exited_early", [])),
+            exit_plans=dict(d.get("exit_plans", {})),
         )
 
 

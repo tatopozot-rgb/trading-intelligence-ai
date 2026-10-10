@@ -3274,6 +3274,56 @@ target. A fixed 2%/3% no longer fits a stop that ranges from 3% to 15%.
 **Tests:** 3 new tests: trailing from +1R locks profit, plus the re-buy block and its lift; take
 profit at +3R; the `r_exits` meta default. 140 operator, Telegram and stop-floor tests pass.
 
+### 84. Stop and take profit read from the market at each entry (2026-10-10)
+
+**Owner:** "¿Cómo se están realizando estos cálculos? Debería ser con análisis: a veces 15 de stop y
+10 de profit, a veces 10 de stop y 15 de profit, siempre con lógica del mercado y análisis del momento,
+hasta de top traders. Todo igual para XM; actualizar git y Obsidian; las órdenes de GPT Work, cuando
+se reintegre, enviarlas a Local."
+
+**New `trading_intelligence/strategy/exit_plan.py`.** `plan_exits(data, entry, side, kind,
+stop_price)` reads, at the moment of entry, from the bars the engine already has:
+- volatility over about 4 hours;
+- the recent support and resistance over about 4 hours;
+- the regime (`detect_regime`): TREND_UP or BREAKOUT_UP counts as "tendencia"; anything else as
+  "rango".
+
+From that it sets:
+- **Stop:** below the support (with a 0.2% buffer) or 2.5 × volatility, whichever is farther, inside
+  [3%, 15%]. The engine's own stop is kept when it has one.
+- **Target, "tendencia":** max(resistance, 1.5 × volatility move), kept between 1.2× and 3× the stop
+  distance.
+- **Target, "rango":** min(resistance, volatility move), kept between 0.6× and 1.5× the stop distance.
+- **Result:** the reward/risk depends on the market at that moment ("15/10" in a wide-stop range,
+  "10/15+" in a trend).
+
+**Where it is used:**
+- **Operator (`r_exits`):** on every real BUY, the plan is computed from that symbol's latest bars.
+  - It is stored in `Session.exit_plans` and noted in the journal (`PLAN`).
+  - It is shown in the Telegram buy message: stop, target, regime and the reason.
+  - Take profit happens at the plan's target. Positions without a plan keep the +3R rule. Trailing
+    from +1R stays.
+- **XM (`xm_demo`):** `--sl/--tp` now default to the same market-read plan, on 5m candles from MT5.
+
+**Honest limits:**
+- These are rules, not a proven optimum. Each plan is journaled so the trades can measure which
+  kind works, by regime and by coin.
+- **Top traders:** there is no live top-trader feed yet. Leaderboard capture needs the Chrome
+  extension on the owner's PC (pending). The copy-trading review exists, but it runs from manual
+  captures. When that feed exists, it can become a confirmation input to the plan.
+
+**GPT Work:** `docs/AUTOMATIZACION.md` 2.4 now says the leader relays the owner's GPT Work orders, and
+any approved GPT Work recommendations, to Claude local with the owner's exact words.
+
+**Tests:**
+- 4 exit-plan tests:
+  - trend aims farther than range from the same stop;
+  - the stop goes under a nearby support;
+  - different markets give different numbers;
+  - an engine stop is kept, and the SELL side is mirrored.
+- An operator test: a BUY stores the plan, Telegram shows it, and the position is sold at its target.
+- An XM test: without `--sl/--tp`, the plan is read from the market.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |

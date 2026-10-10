@@ -1529,3 +1529,36 @@ class TestTakeProfitWithLogic:
         O.main(["--dir", str(tmp_path), "iniciar", "--capital", "32", "--temporalidad", "1m", "--real",
                 "--perfil", "tendencia_rango"])
         assert launched[0]["r_exits"] is True
+
+
+def test_a_buy_reads_its_exit_plan_from_the_market_and_sells_at_that_target(tmp_path):
+    """Owner: stop and take profit with market analysis at the moment, not fixed numbers."""
+    import pandas as pd
+
+    from trading_intelligence.execution.order_models import OrderRequest, Position
+
+    class Feed:
+        def get_ohlcv(self, symbol, timeframe, limit):
+            idx = pd.date_range("2026-10-10", periods=300, freq="1min", tz="UTC")
+            closes = [100.0] * 300
+            return pd.DataFrame({"open": closes, "high": [100.5] * 300, "low": [99.5] * 300, "close": closes,
+                                 "volume": 1.0}, index=idx)
+
+    sent = []
+    trader = FakeTrader({"BTCUSDT": Decimal("100")})
+    loop = FakeLoop(tmp_path)
+    loop.market_data = Feed()
+    loop.runner.paper.positions["BTCUSDT"] = Position("BTCUSDT", Decimal("0.1"), Decimal("100"), Decimal("0"))
+    loop.runner.paper._last_price["BTCUSDT"] = Decimal("100")
+    loop.runner.paper.pending_orders.append(OrderRequest("BTCUSDT", "SELL", "STOP", Decimal("0.1"),
+                                                         stop_price=Decimal("96")))
+    Session("s1", "tendencia", "t", Decimal("50")).save(tmp_path / "session.json")
+    op = Operator(tmp_path, trader, LIMITS, profile="tendencia", timeframe="1m", symbols=["BTCUSDT"], loop=loop,
+                  clock=lambda: datetime(2026, 10, 10, 12, tzinfo=timezone.utc), notify=sent.append, r_exits=True)
+    op.step(decide=True)
+    plan = op.session.exit_plans["BTCUSDT"]
+    assert Decimal(plan["stop"]) == Decimal("96") and Decimal(plan["target"]) > Decimal("100")
+    assert "Plan según el mercado" in sent[0] and "toma de ganancia en" in sent[0]
+    trader.prices["BTCUSDT"] = Decimal(plan["target"]) + Decimal("0.01")
+    op.step(decide=False)
+    assert "BTCUSDT" not in op.session.holdings and "calculada al comprar según el mercado" in sent[-1]

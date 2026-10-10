@@ -412,7 +412,8 @@ class Operator:
             elif a.kind == "BUY":
                 trade = self._trade_for(a)
                 at = Decimal(trade["usdt"]) / Decimal(trade["qty"]) if trade and Decimal(trade["qty"]) > 0 else None
-                self.notify(messages.buy(a.symbol, a.usdt, at, a.reason, self.real))
+                plan = self._plan_exit(a.symbol, base_stops) if self.r_exits else None
+                self.notify(messages.buy(a.symbol, a.usdt, at, a.reason, self.real, plan))
             elif a.kind == "SELL":
                 trade = self._trade_for(a)
                 pnl = Decimal(trade["pnl"]) if trade and trade.get("pnl") is not None else None
@@ -478,13 +479,42 @@ class Operator:
         return out
 
     def _take_profits(self, base_stops: dict[str, Decimal], prices: dict[str, Decimal]) -> list[mirror.Action]:
-        """Sell a position that reached +3R: reward three times what it risked."""
+        """Sell at the target read from the market when the position was opened (exit_plan); a
+        position without a plan uses +3R (reward three times what it risked)."""
         out = []
+        for sym in list(self.session.exit_plans):
+            if sym not in self.session.holdings:
+                del self.session.exit_plans[sym]
         for sym in list(self.session.holdings):
             held, price, r = self.session.holdings[sym], prices.get(sym), self._r(sym, base_stops)
-            if price is not None and r is not None and price >= held.avg_cost * (1 + TAKE_PROFIT_R * r):
+            plan = self.session.exit_plans.get(sym)
+            if price is None:
+                continue
+            if plan is not None:
+                if price >= Decimal(plan["target"]):
+                    out.append(mirror.sell(self.session, self.trader, sym, f"TAKE_PROFIT:{plan['kind']}"))
+            elif r is not None and price >= held.avg_cost * (1 + TAKE_PROFIT_R * r):
                 out.append(mirror.sell(self.session, self.trader, sym, f"TAKE_PROFIT:{TAKE_PROFIT_R}R"))
         return out
+
+    def _plan_exit(self, sym: str, base_stops: dict[str, Decimal]) -> Optional[dict]:
+        """Read the market for a position just opened: stop, target and why (exit_plan)."""
+        from trading_intelligence.strategy.exit_plan import plan_exits
+
+        held = self.session.holdings.get(sym)
+        if held is None or self.loop is None or not hasattr(self.loop, "market_data"):
+            return None
+        try:
+            data = self.loop.market_data.get_ohlcv(sym, self.timeframe, 500)
+            plan = plan_exits(data, held.avg_cost, stop_price=base_stops.get(sym))
+        except Exception as error:  # noqa: BLE001 - no plan: the +3R rule still applies
+            self.session.note("PLAN", f"{sym}: sin plan de salida ({error})")
+            return None
+        entry = {"stop": str(plan.stop), "target": str(plan.target), "kind": plan.kind,
+                 "stop_pct": str(plan.stop_pct), "target_pct": str(plan.target_pct), "why": plan.why}
+        self.session.exit_plans[sym] = entry
+        self.session.note("PLAN", f"{sym}: stop -{plan.stop_pct}% · meta +{plan.target_pct}% · {plan.kind} · {plan.why}")
+        return entry
 
     def _with_trailing(self, stops: dict[str, Decimal], prices: dict[str, Decimal]) -> dict[str, Decimal]:
         """Owner: "estar en revisión continua hasta cumplir la meta de esa transacción". Every

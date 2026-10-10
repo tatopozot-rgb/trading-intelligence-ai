@@ -100,6 +100,16 @@ def test_the_demo_round_trip_command(tmp_path, capsys, monkeypatch):
     from datetime import datetime, timezone
 
     m = TradingMt5(equity=1000.0, now=datetime.now(timezone.utc))
-    assert D.main(["--simbolo", "EURUSD", "--riesgo", "1", "--diario", str(tmp_path / "o.json")], mt5=m) == 0
+    assert D.main(["--simbolo", "EURUSD", "--sl", "0.5", "--tp", "1.0", "--riesgo", "1",
+                   "--diario", str(tmp_path / "o.json")], mt5=m) == 0
     out = capsys.readouterr().out
     assert "Cuenta DEMO" in out and "Abierta" in out and "Cerrada" in out and not m.positions
+
+
+
+def test_without_sl_tp_the_plan_is_read_from_the_market(tmp_path):
+    """Owner: stop and take profit "siempre con lógica del mercado", on XM as on Binance."""
+    t, m = _trader(tmp_path, equity=1_000_000.0)
+    p = t.plan("EURUSD", "BUY")
+    stop_pct = (1 - p.sl / p.price) * 100
+    assert Decimal("3") <= stop_pct <= Decimal("15.01") and p.tp > p.price
