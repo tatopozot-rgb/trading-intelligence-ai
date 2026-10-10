@@ -1,0 +1,14 @@
+{
+  "at": "2026-10-10T01:53:49.391098+00:00",
+  "real": true,
+  "profile": "tendencia_rango",
+  "status": "RUNNING",
+  "capital": "37.78",
+  "equity": "37.72",
+  "loss_limit_usd": "17.001",
+  "warn_at_usd": "15.001",
+  "holdings": {
+    "BTCUSDT": "0.00006993",
+    "AVAXUSDT": "1.41717000"
+  }
+}
