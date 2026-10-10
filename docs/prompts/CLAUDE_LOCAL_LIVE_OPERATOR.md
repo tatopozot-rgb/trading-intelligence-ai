@@ -221,7 +221,14 @@ conexión solo deja pasar funciones de lectura, y el operador rechaza `--broker 
    - Agrupa instrumentos con horarios parecidos (forex y oro juntos; índices aparte): el motor solo
      procesa las velas en que **todos** los símbolos cotizan.
    - Que el mercado cierre los fines de semana no detiene el motor.
-5. **Fase 2 (después)**: órdenes en la cuenta DEMO, siempre con SL y TP y con tope de apalancamiento.
+5. **Fase 2 (lista en el código; probar cuando el dueño tenga MT5 con una cuenta DEMO)**:
+   `python -m trading_intelligence.live.xm_demo --simbolo EURUSD --lado BUY --sl 0.5 --tp 1.0 --riesgo 1`.
+   - Abre una posición con SL y TP en la cuenta **DEMO** y la cierra.
+   - Con `--mantener` la deja abierta, con su SL y su TP.
+   - Si la cuenta activa en MT5 no es DEMO, se niega.
+   - Antes de operar pasa por la ficha y por `order_check` de MT5.
+   - El tamaño sale del riesgo (por defecto 0,5% de la equity) y nunca se redondea hacia arriba.
+   - Diario: `live_runs/xm_demo/orders.json`.
    **Fase 3**: dinero real, solo con la frase del dueño y con límites XM aprobados por él por escrito.
 
 ## 5. Nunca
