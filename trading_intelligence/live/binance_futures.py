@@ -19,8 +19,8 @@ Safety rules, each enforced in code (same design as the Spot transport):
   with -4120). If the stop cannot be placed, the position is closed at once: never left bare.
 - Every market order is journaled BEFORE it is sent; an unclear answer is looked up by client id,
   never resent, and no new entry is made while one stays unresolved.
-- Size from risk: qty = equity x risk% / stop distance, capped so each position's notional is at
-  most leverage x equity / max open positions; rounded DOWN; below Binance's minimum -> no trade.
+- Size from risk, as on Spot: qty = equity x 1% / stop distance, capped so one position's notional
+  is at most leverage x 40% of equity; rounded DOWN; below Binance's minimum -> no trade.
 - Never a withdrawal or a transfer: the owner moves USDT between his wallets himself.
 """
 from __future__ import annotations
@@ -46,12 +46,16 @@ import pandas as pd
 
 from trading_intelligence.live.binance_live import HttpResponse, Journal, LiveError, Restricted, Unreconciled
 from trading_intelligence.live.telegram_notify import console, from_env, make_notify
-from trading_intelligence.live.two_way import DEFAULT_WINDOWS, Plan, Position, TwoWayAuto
+from trading_intelligence.live.two_way import DEFAULT_WINDOWS, Plan, Position, TwoWayAuto, owner_continue
+from trading_intelligence.strategy.two_way_signals import DEFAULT_VARIANT, VARIANTS, signal_for
 
 logger = logging.getLogger(__name__)
 
 FAPI_HOST, SPOT_HOST = "fapi.binance.com", "api.binance.com"
 KEY_VAR, SECRET_VAR = "BINANCE_FUTURES_API_KEY", "BINANCE_FUTURES_SECRET_KEY"
+# Owner, 2026-10-10: "usa la misma clave de ser necesario es la misma cuenta": without a futures-only key,
+# the Spot key already on the PC is used (it then needs "Enable Futures" ticked in Binance).
+SPOT_KEY_VAR, SPOT_SECRET_VAR = "BINANCE_TRADE_API_KEY", "BINANCE_TRADE_SECRET_KEY"
 ALLOWED_TRUE_PERMISSIONS = frozenset({"enableReading", "enableFutures", "enableFixReadOnly",
                                       "enableSpotAndMarginTrading"})
 RECV_WINDOW_MS, TIME_RESYNC_SECONDS, TIMEOUT = 5000, 600, 15.0
@@ -105,8 +109,10 @@ class FuturesCredentials:
         env = os.environ if env is None else env
         key, secret = env.get(KEY_VAR), env.get(SECRET_VAR)
         if not key or not secret:
-            raise FuturesError(f"{KEY_VAR} / {SECRET_VAR} no están en este PC: el dueño crea la clave de futuros "
-                               "y la guarda él mismo")
+            key, secret = env.get(SPOT_KEY_VAR), env.get(SPOT_SECRET_VAR)
+        if not key or not secret:
+            raise FuturesError(f"no hay clave de Binance en este PC ({KEY_VAR} o {SPOT_KEY_VAR}): el dueño la "
+                               "guarda él mismo")
         return cls(key, secret)
 
     def header(self) -> dict[str, str]:
@@ -130,7 +136,8 @@ def check_futures_key(data: object) -> None:
     if data.get("enableWithdrawals") is not False:
         raise UnsafeFuturesKey("la clave tiene RETIROS activados (o desconocidos): desactívalos en Binance")
     if data.get("enableReading") is not True or data.get("enableFutures") is not True:
-        raise UnsafeFuturesKey("la clave necesita lectura y Futuros activados")
+        raise UnsafeFuturesKey("la clave necesita lectura y Futuros activados: en Binance, Gestión de API → "
+                               "Editar restricciones → marcar 'Habilitar Futuros'")
     if data.get("ipRestrict") is not True:
         raise UnsafeFuturesKey("la clave debe estar restringida a la IP de este PC")
     for name, value in data.items():
@@ -160,27 +167,47 @@ class FuturesRules:
 
 @dataclass(frozen=True)
 class FuturesLimits:
+    """The Spot program's percentages, for futures (owner, 2026-10-10: "usar los mismos porcentajes")."""
     approved: bool
     max_leverage: int
-    risk_pct: Decimal
+    risk_pct: Decimal  # of equity lost if the stop is hit (the Spot engine's 1%)
+    max_position_pct: Decimal  # notional of one position / equity (Spot: 40)
     max_open: int
-    daily_loss_pct: Decimal
+    loss_limit_pct: Decimal  # session loss limit (Spot session: 45, inside the owner's 20-50 band)
+    loss_range: tuple[Decimal, Decimal]
+    warn_before_usd: Decimal  # the owner is asked this many USD before the limit (Spot: 2)
+    profit_target_pct: Optional[Decimal]  # session goal (Spot session: 58)
     symbols: tuple[str, ...]
+
+    def for_session(self, loss_limit_pct: Optional[Decimal]) -> "FuturesLimits":
+        """The owner may pick a session's loss limit by his word, inside his approved band."""
+        if loss_limit_pct is None:
+            return self
+        if not self.loss_range[0] <= loss_limit_pct <= self.loss_range[1]:
+            raise FuturesError(f"límite de pérdida {loss_limit_pct}% fuera de la banda aprobada "
+                               f"{self.loss_range[0]}-{self.loss_range[1]}%")
+        from dataclasses import replace
+        return replace(self, loss_limit_pct=loss_limit_pct)
 
 
 def load_futures_limits(path: Path = DEFAULT_LIMITS) -> FuturesLimits:
     try:
         d = json.loads(Path(path).read_text(encoding="utf-8"))
+        lo, hi = (Decimal(str(x)) for x in d["loss_limit_owner_range_pct"])
+        target = d.get("profit_target_pct")
         limits = FuturesLimits(d.get("approved_by_owner") is True, int(d["max_leverage"]),
-                               Decimal(str(d["risk_per_trade_pct"])), int(d["max_open_positions"]),
-                               Decimal(str(d["daily_loss_pct"])), tuple(d["allowed_symbols"]))
+                               Decimal(str(d["risk_per_trade_pct"])), Decimal(str(d["max_position_pct"])),
+                               int(d["max_open_positions"]), Decimal(str(d["loss_limit_pct"])), (lo, hi),
+                               Decimal(str(d["warn_before_usd"])),
+                               Decimal(str(target)) if target is not None else None, tuple(d["allowed_symbols"]))
         if d.get("withdrawals") is not False or d.get("transfers") is not False:
             raise ValueError("withdrawals and transfers must be false")
     except (OSError, ValueError, KeyError, TypeError) as error:
         raise FuturesError(f"límites de futuros ilegibles en {path}: {error}") from None
-    if not (1 <= limits.max_leverage <= 5 and 0 < limits.risk_pct <= 2 and limits.max_open >= 1
-            and 0 < limits.daily_loss_pct < 100 and limits.symbols):
-        raise FuturesError("límites de futuros fuera de rango (apalancamiento 1-5, riesgo 0-2%)")
+    if not (1 <= limits.max_leverage <= 5 and 0 < limits.risk_pct <= 2 and 0 < limits.max_position_pct <= 100
+            and limits.max_open >= 1 and lo <= limits.loss_limit_pct <= hi and limits.warn_before_usd >= 0
+            and limits.symbols):
+        raise FuturesError("límites de futuros fuera de rango (apalancamiento 1-5, riesgo 0-2%, posición 0-100%)")
     return limits
 
 
@@ -433,7 +460,7 @@ class FuturesMarket:
 
 
 def size_plan(market: FuturesMarket, symbol: str, side: str, equity: Decimal, risk_pct: Decimal, timeframe: str,
-              leverage: int, max_open: int) -> Plan:
+              leverage: int, max_position_pct: Decimal) -> Plan:
     """Stop and target read from the market for that side (owner's crypto band 3-15%), size from risk."""
     from trading_intelligence.strategy.exit_plan import plan_exits
 
@@ -453,7 +480,7 @@ def size_plan(market: FuturesMarket, symbol: str, side: str, equity: Decimal, ri
     if distance <= 0:
         raise FuturesError(f"{symbol}: stop sin distancia")
     qty = equity * risk_pct / 100 / distance
-    qty = min(qty, Decimal(leverage) * equity / max_open / price)
+    qty = min(qty, Decimal(leverage) * equity * max_position_pct / 100 / price)  # the Spot program's 40% cap
     qty = rules.floor_qty(qty)
     if qty <= 0 or qty < rules.min_qty or qty * price < rules.min_notional:
         raise FuturesError(f"{symbol}: con {equity:.2f} USDT y riesgo {risk_pct}% la posición no llega al mínimo de "
@@ -489,7 +516,7 @@ class FuturesBroker:
 
     def plan(self, symbol: str, side: str, risk_pct: Decimal, timeframe: str) -> Plan:
         return size_plan(self.market, symbol, side, self.market.balance(), min(risk_pct, self.limits.risk_pct),
-                         timeframe, self.limits.max_leverage, self.limits.max_open)
+                         timeframe, self.limits.max_leverage, self.limits.max_position_pct)
 
     def open(self, plan: Plan) -> str:
         self.market.prepare(plan.symbol, self.limits.max_leverage)
@@ -513,15 +540,39 @@ class FuturesBroker:
         self.market.market(position.symbol, "SELL" if position.side == "BUY" else "BUY", position.qty,
                            reduce_only=True)
 
+    def move_stop(self, position: Position, stop: Decimal, target: Decimal) -> None:
+        """The stop that follows the gain: the new stop goes in first, then the old one is cancelled, so the
+        position is never without one. If Binance refuses two at once, the old one is swapped; if the new
+        one is still refused, the position is closed."""
+        exit_side = "SELL" if position.side == "BUY" else "BUY"
+        rules = self.market.rules(position.symbol)
+        stop = rules.round_price(stop, up=position.side != "BUY")
+        old = [str(a.get("algoId")) for a in self.market.open_algos()
+               if a.get("symbol") == position.symbol and a.get("type") == "STOP_MARKET"
+               and str(a.get("clientAlgoId", "")).startswith(CLIENT_PREFIX)]
+        try:
+            self.market.conditional(position.symbol, exit_side, "STOP_MARKET", stop)
+        except LiveError:
+            for algo_id in old:
+                self.market.cancel_algo(position.symbol, algo_id)
+            try:
+                self.market.conditional(position.symbol, exit_side, "STOP_MARKET", stop)
+            except LiveError:
+                self.close(position)
+                raise FuturesError(f"{position.symbol}: Binance no aceptó el stop nuevo; cerré la posición")
+            return
+        for algo_id in old:
+            self.market.cancel_algo(position.symbol, algo_id)
+
 
 class PaperFuturesBroker:
     """SHADOW: real public prices, simulated positions with their stop, target and taker fee."""
     name, unit = "Binance Futuros (SHADOW)", "unidades"
 
     def __init__(self, market: FuturesMarket, capital: Decimal, state_path: Path, *, leverage: int = 1,
-                 max_open: int = 3, fee: Decimal = TAKER_FEE) -> None:
-        self.market, self.state_path, self.leverage, self.max_open, self.fee = market, Path(state_path), leverage, \
-            max_open, fee
+                 max_position_pct: Decimal = Decimal("40"), fee: Decimal = TAKER_FEE) -> None:
+        self.market, self.state_path, self.leverage, self.max_position_pct, self.fee = market, Path(state_path), \
+            leverage, max_position_pct, fee
         self.book: dict[str, Any] = json.loads(self.state_path.read_text(encoding="utf-8")) \
             if self.state_path.exists() else {"cash": str(capital), "positions": {}, "closed": []}
 
@@ -576,7 +627,8 @@ class PaperFuturesBroker:
         return self.market.candles(symbol, timeframe, count)
 
     def plan(self, symbol: str, side: str, risk_pct: Decimal, timeframe: str) -> Plan:
-        return size_plan(self.market, symbol, side, self.equity()[0], risk_pct, timeframe, self.leverage, self.max_open)
+        return size_plan(self.market, symbol, side, self.equity()[0], risk_pct, timeframe, self.leverage,
+                         self.max_position_pct)
 
     def open(self, plan: Plan) -> str:
         fee = plan.price * plan.qty * self.fee
@@ -593,24 +645,37 @@ class PaperFuturesBroker:
         self._exit(position.symbol, bid if position.side == "BUY" else ask, "señal contraria")
         self._save()
 
+    def move_stop(self, position: Position, stop: Decimal, target: Decimal) -> None:
+        self.book["positions"][position.symbol]["sl"] = str(stop)
+        self._save()
+
 
 def main(argv: Optional[list[str]] = None, transport=None, env: Optional[Mapping[str, str]] = None) -> int:
     parser = argparse.ArgumentParser(description="Binance Futuros: operador automático en los dos sentidos")
+    parser.add_argument("accion", nargs="?", choices=("operar", "continuar"), default="operar",
+                        help="continuar: el dueño ordena seguir tras el aviso de pérdida")
     parser.add_argument("--modo", choices=("shadow", "real"), default="shadow")
     parser.add_argument("--capital", default="37", help="SHADOW: capital simulado en USDT")
     parser.add_argument("--limites", type=Path, default=DEFAULT_LIMITS)
+    parser.add_argument("--limite-perdida", help="%% de la sesión, dentro de la banda que aprobó el dueño")
     parser.add_argument("--simbolos", nargs="+", help="por defecto, los de los límites")
     parser.add_argument("--temporalidad", default="5m")
     parser.add_argument("--ventanas", nargs="*", default=list(DEFAULT_WINDOWS))
     parser.add_argument("--cada-dentro", type=int, default=2)
     parser.add_argument("--cada-fuera", type=int, default=5)
+    parser.add_argument("--senal", choices=VARIANTS, default=DEFAULT_VARIANT, help="lógica de entrada")
     parser.add_argument("--dir", type=Path, default=Path("live_runs/futures_auto"))
     parser.add_argument("--una-vez", action="store_true")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    d: Path = args.dir / args.modo
+    if args.accion == "continuar":
+        owner_continue(d)
+        print("orden registrada: el operador la aplica en su próxima decisión")
+        return 0
     try:
-        limits = load_futures_limits(args.limites)
-        d: Path = args.dir / args.modo
+        limits = load_futures_limits(args.limites).for_session(
+            Decimal(args.limite_perdida) if args.limite_perdida else None)
         if args.modo == "real":
             market = FuturesMarket(FuturesCredentials.from_env(env), d / "orders.json", transport=transport)
             broker: object = FuturesBroker(market, limits)
@@ -618,16 +683,19 @@ def main(argv: Optional[list[str]] = None, transport=None, env: Optional[Mapping
         else:
             market = FuturesMarket(None, transport=transport)
             broker = PaperFuturesBroker(market, Decimal(args.capital), d / "paper.json", leverage=limits.max_leverage,
-                                        max_open=limits.max_open)
+                                        max_position_pct=limits.max_position_pct)
         auto = TwoWayAuto(broker, list(args.simbolos or limits.symbols), d / "state.json",  # type: ignore[arg-type]
                           timeframe=args.temporalidad, risk_pct=limits.risk_pct, max_open=limits.max_open,
-                          daily_loss_pct=limits.daily_loss_pct, windows=args.ventanas,
+                          loss_limit_pct=limits.loss_limit_pct, warn_before=limits.warn_before_usd,
+                          profit_target_pct=limits.profit_target_pct, windows=args.ventanas,
                           inside_every_min=args.cada_dentro, outside_every_min=args.cada_fuera,
-                          notify=make_notify(console, from_env()))
+                          signal=signal_for(args.senal), notify=make_notify(console, from_env()))
         equity, _ = auto.broker.equity()
-        print(f"{auto.broker.name} · saldo {equity} USDT · apalancamiento máx. {limits.max_leverage}x · "
-              f"riesgo {limits.risk_pct}% · cada {args.cada_dentro} min en {' '.join(args.ventanas)} (Ecuador), "
-              f"cada {args.cada_fuera} fuera")
+        print(f"{auto.broker.name} · saldo {equity} USDT · {limits.max_leverage}x · riesgo {limits.risk_pct}% por "
+              f"operación · posición máx. {limits.max_position_pct}% · {limits.max_open} posiciones · límite de "
+              f"pérdida {limits.loss_limit_pct}% (aviso {limits.warn_before_usd} USD antes) · meta "
+              f"{limits.profit_target_pct}% · señal {args.senal} · cada {args.cada_dentro} min en "
+              f"{' '.join(args.ventanas)} (Ecuador), cada {args.cada_fuera} fuera")
         if args.una_vez:
             auto.step()
         else:

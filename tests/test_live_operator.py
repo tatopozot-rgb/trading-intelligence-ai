@@ -84,11 +84,13 @@ class TestTransport:
             t.verify_key()
         for bad in ({"enableWithdrawals": True}, {"enableWithdrawals": None}, {"ipRestrict": False},
                     {"enableSpotAndMarginTrading": False}, {"permitsUniversalTransfer": True},
-                    {"enableFutures": True}, {"enableNewThing": True}):
+                    {"enableMargin": True}, {"enableNewThing": True}):
             fake.restrictions = {**FakeBinance().restrictions, **bad}
             with pytest.raises(B.UnsafeKey):
                 t.verify_key()
             assert not t.key_checked
+        fake.restrictions = {**FakeBinance().restrictions, "enableFutures": True}  # the owner's one key, 2026-10-10
+        assert t.verify_key() is True
 
     def test_no_order_without_a_verified_key(self, tmp_path):
         t, _ = _trader(tmp_path)

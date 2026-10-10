@@ -26,14 +26,18 @@ class TradingMt5(FakeMt5):
         if self.send_result is None:
             return None
         ticket = 1000 + len(self.sent)
-        if "position" in request:
+        if request.get("action") == D.TRADE_ACTION_SLTP:
+            for p in self.positions:
+                if p.ticket == request["position"]:
+                    p.sl, p.tp = request["sl"], request["tp"]
+        elif "position" in request:
             self.positions = [p for p in self.positions if p.ticket != request["position"]]
         else:
             self.positions.append(NS(ticket=ticket, symbol=request["symbol"], type=request["type"],
                                      volume=request["volume"], comment=request["comment"],
                                      magic=request["magic"], price_open=request["price"], sl=request["sl"],
                                      tp=request["tp"]))
-        return NS(retcode=10009, order=ticket, deal=ticket, volume=request["volume"], price=request["price"],
+        return NS(retcode=10009, order=ticket, deal=ticket, volume=request.get("volume"), price=request.get("price"),
                   comment="done")
 
     def positions_get(self, symbol=None):
@@ -115,3 +119,13 @@ def test_without_sl_tp_the_plan_is_read_from_the_market(tmp_path):
     p = t.plan("EURUSD", "BUY")
     stop_pct = (1 - p.sl / p.price) * 100
     assert Decimal("3") <= stop_pct <= Decimal("15.01") and p.tp > p.price
+
+
+def test_the_stop_that_follows_the_gain_moves_on_xms_server(tmp_path):
+    t, m = _trader(tmp_path, equity=1000.0)
+    plan = t.plan("EURUSD", "BUY", Decimal("0.5"), Decimal("1.0"), Decimal("1"))
+    t.open(plan)
+    t.move_stop("EURUSD", 1001, plan.price, plan.tp)
+    req = m.sent[-1]
+    assert req["action"] == D.TRADE_ACTION_SLTP and req["position"] == 1001
+    assert m.positions[0].sl == float(plan.price) and m.positions[0].tp == float(plan.tp)  # still open

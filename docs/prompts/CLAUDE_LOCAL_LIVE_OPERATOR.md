@@ -274,16 +274,31 @@ qué sea una alcista brutal".
    Corre con el mismo motor, la misma cadencia (2/5 min) y la misma señal que XM.
    Estado: `live_runs/futures_auto/shadow/`.
 3. **REAL, solo cuando estén las cuatro cosas:**
-   a) El dueño aprueba por escrito los límites de `config/futures_limits.json`: apalancamiento 1x,
-      margen aislado, riesgo de 1% por operación, máximo 3 posiciones y tope de 5% de pérdida diaria.
+   a) ✅ Aprobado el 2026-10-10. El dueño aprueba por escrito `config/futures_limits.json`. Ese día rechazó la primera
+      propuesta: "deben ser analizados y usar los mismos porcentajes y mismo horario que el anterior
+      programado". Ahora son los mismos números del programa de Spot:
+      - 1% de la cuenta en riesgo por operación;
+      - cada posición, máximo 40% de la cuenta;
+      - máximo 3 posiciones;
+      - apalancamiento 1x y margen aislado;
+      - límite de pérdida de la sesión de 45% (banda del dueño 20–50%), con aviso 2 USD antes;
+      - meta de +58%;
+      - horario 07–10 y 17–19 de Ecuador cada 2 minutos y cada 5 fuera, 24/7;
+      - stop y meta del mercado (3–15%), con el stop que sigue la ganancia desde +1R a R/2.
+      Antes de pedirle la aprobación, se mide con datos reales: workflow
+      "Futuros en los dos sentidos" → `docs/two_way_backtest/`.
       El líder lo marca como aprobado en GitHub.
-   b) El dueño crea **una clave nueva solo para Futuros**: lectura y Futuros activados, restringida a la
-      IP del PC, sin retiros ni transferencias. La guarda él mismo en las variables de Windows
-      `BINANCE_FUTURES_API_KEY` y `BINANCE_FUTURES_SECRET_KEY`. No hay que añadir Futuros a la clave
-      actual: el operador de Spot rechaza claves con Futuros.
+   b) **La misma clave de siempre** (orden del dueño, 2026-10-10: "usa la misma clave de ser necesario
+      es la misma cuenta"). Si no hay `BINANCE_FUTURES_API_KEY`, el operador usa `BINANCE_TRADE_API_KEY`.
+      El dueño solo tiene que marcar **"Habilitar Futuros"** en esa clave (Binance → Gestión de API →
+      Editar restricciones), con los retiros desactivados y la IP restringida. El operador de Spot ya
+      acepta claves con Futuros, y nunca llama a futuros.
    c) El dueño pasa él mismo los USDT de Spot a Futuros en la app. El sistema nunca transfiere.
    d) La frase del dueño escrita a ti.
-   Arranque: `python -m trading_intelligence.live.binance_futures --modo real`.
+   Arranque: `python -m trading_intelligence.live.binance_futures --modo real` (opcional:
+   `--limite-perdida N` dentro de 20–50, y `--senal` con la variante que gane la prueba).
+   - "continuar" del dueño tras el aviso de pérdida: `python -m trading_intelligence.live.binance_futures
+     continuar --modo real`. En XM: `python -m trading_intelligence.live.xm_auto continuar`.
    - Verifica la clave y que la cuenta esté en modo unidireccional (One-way), no cobertura.
    - Pone margen aislado y el apalancamiento del archivo en cada símbolo.
    - Cada entrada lleva un STOP_MARKET y un TAKE_PROFIT_MARKET que cierran toda la posición. Van en el
@@ -291,9 +306,10 @@ qué sea una alcista brutal".
    - Si el stop no entra, cierra la posición al momento.
    - Una respuesta dudosa se busca por su id y nunca se reenvía.
    - Diario: `live_runs/futures_auto/real/orders.json`.
-4. **Con poco saldo:** con unos 37 USDT y riesgo de 1%, cada operación arriesga unos 0,37 USDT.
-   BTC (mínimo 100 USDT) y ETH (mínimo 20 USDT) no caben con 1x: el operador los salta y lo anota una
-   vez. Las otras monedas, con mínimo de 5 USDT, sí entran.
+4. **Con poco saldo:** con unos 37 USDT y riesgo de 1%, cada operación arriesga unos 0,37 USDT y cada
+   posición puede llegar a unos 14,8 USDT (40%).
+   BTC (mínimo 100 USDT) no cabe con 1x, y ETH (mínimo 20 USDT) tampoco con 40% de 37: el operador los
+   salta y lo anota una vez. Las otras monedas, con mínimo de 5 USDT, sí entran.
 5. Los avisos de Telegram dicen "Binance Futuros" o "Binance Futuros (SHADOW)", y "XM DEMO" para XM,
    para comparar cuál rinde más con el mismo sistema.
 
