@@ -77,3 +77,15 @@ def test_the_desk_scores_its_vetoes():
     strict = B.D.DeskRules(min_reward_risk=B.Decimal("50"))  # refuses everything
     res = B.simulate(p, "mesa", 37.0, strict)
     assert not res.trades and sum(res.vetoes.values()) > 0
+
+
+def test_the_verdict_names_positive_variants_with_too_few_trades():
+    def row(name, n, net):
+        side = {"operaciones": n, "neto": net}
+        return {"variante": name, "operaciones": n, "acierto_pct": 50, "neto_usdt": net, "neto_pct": net, "max_caida_pct": 5,
+                "riesgo_medio_pct": 5, "comisiones_usdt": 0.1, "por": {"BUY": side, "SELL": {"operaciones": 0, "neto": 0}},
+                "final": "fin del periodo", "vetos": {"evitó pérdida": 0, "dejó pasar ganancia": 0, "sin resultado": 0}}
+    meta = {"desde": "a", "hasta": "b", "capital": 37.0, "simbolos": ["SOLUSDT"]}
+    text = B.render([row("tendencia_rango_1h", 138, -2.34), row("mesa", 25, 6.39)], meta)
+    assert "**mesa** +6.39 USDT en 25" in text and "muestra es corta" in text
+    assert "Entre las de 30 operaciones o más, ninguna ganó" in text

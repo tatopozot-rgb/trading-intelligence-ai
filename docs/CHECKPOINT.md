@@ -72,3 +72,11 @@ only the latest work blocks. The history up to 2026-10-10 (sections 1–90) is i
 - Local runs `--una-vez` and then real, with his phrase.
 
 **Tests:** desk 9, engine 17, futures 20, backtest 5, XM 11 and 9. Full suite in CI.
+
+### 92. The new model measured on real data; PR #35 merged (2026-10-10)
+
+- PR #35 merged (desk, risk 1–15%, bots, cleanup). CI timeout raised from 10 to 25 min: the suite passed in 9:42 but the job hit the cap.
+- 30-day run (2026-09-10 → 10-10, 37 USDT, fees and real funding): `mesa` (what runs live) +6.39 USDT (+17.3%) in 25 trades, 64% hits, max drawdown 12.7%, average risk 12.9%, all longs. `tendencia_rango_1h_top` +8.8% in 19. `tendencia_rango_1h` −6.3% in 138; `tendencia_rango` −24%; `regimen` −45%.
+- Small sample: both positive variants have fewer than 30 trades. The report's verdict now names them instead of saying "none won".
+- Skeptic: 1040 vetoes avoided a loss, 1565 blocked a gain, 5124 had no result in 24 h. Its rules are kept for now and reviewed with more data.
+- Local told: update to main; Monday steps unchanged.

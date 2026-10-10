@@ -77,16 +77,22 @@ conexión vuelva. Los stops siguen puestos en el servidor.
 - Repiten los últimos 30 días con las reglas en vivo, el riesgo de 1–15%, los top traders y la
   financiación reales, y la mesa con sus vetos.
 - Los reportes quedan en `docs/two_way_backtest/`.
-- Primer resultado (2026-10-10, con las reglas anteriores de 1% de riesgo):
+- Resultado con el modelo de hoy (2026-09-10 a 2026-10-10, 37 USDT, riesgo de 1–15%, con comisiones y
+  financiación reales):
 
-  | Variante | Resultado en 30 días |
-  |---|---|
-  | `regimen` | −45% |
-  | `tendencia_rango` | −11,5% |
-  | `tendencia_rango_1h` | +2,3% |
+  | Variante | Operaciones | Acierto | Resultado | Caída máx. |
+  |---|---|---|---|---|
+  | `regimen` | 942 | 23% | −45% (tocó el límite) | 45% |
+  | `tendencia_rango` | 512 | 36% | −24% | 25% |
+  | `tendencia_rango_1h` | 138 | 36% | −6% | 14% |
+  | `tendencia_rango_1h_top` (señal por defecto) | 19 | 63% | +8,8% | 6,6% |
+  | **`mesa`** (lo que corre en vivo: señal + mesa) | 25 | 64% | **+17,3%** | 12,7% |
 
-- La versión de hoy se mide en la próxima corrida. El resultado se lee como una comparación entre
-  variantes, no como una promesa.
+- Lo que en vivo se usa (`mesa`) fue lo mejor, pero con solo 25 operaciones en 30 días: es poca muestra
+  para confirmarlo. Todas sus operaciones fueron compras; ninguna venta en corto pasó los filtros.
+- El Escéptico vetó más operaciones que habrían ganado (1565) que las que habrían perdido (1040). Sus
+  reglas se revisan con más datos antes de cambiarlas.
+- El resultado se lee como una comparación entre variantes, no como una promesa.
 
 ## 6. Lunes: checklist para operar con dinero real
 
