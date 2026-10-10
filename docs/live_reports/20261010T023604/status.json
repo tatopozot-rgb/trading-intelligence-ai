@@ -1,15 +1,15 @@
 {
-  "at": "2026-10-10T02:53:47.810324+00:00",
+  "at": "2026-10-10T03:53:52.095785+00:00",
   "real": true,
   "profile": "tendencia_rango",
   "status": "RUNNING",
   "capital": "37.78",
-  "equity": "37.74",
+  "equity": "37.72",
   "loss_limit_usd": "17.001",
   "warn_at_usd": "15.001",
   "holdings": {
-    "SOLUSDT": "0.08991000",
+    "SOLUSDT": "0.00091000",
     "BTCUSDT": "0.00006993",
-    "ETHUSDT": "0.00469530"
+    "ETHUSDT": "0.00009530"
   }
 }
