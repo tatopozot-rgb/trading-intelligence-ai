@@ -53,6 +53,9 @@ logger = logging.getLogger(__name__)
 
 FAPI_HOST, SPOT_HOST = "fapi.binance.com", "api.binance.com"
 KEY_VAR, SECRET_VAR = "BINANCE_FUTURES_API_KEY", "BINANCE_FUTURES_SECRET_KEY"
+# Owner, 2026-10-10: "usa la misma clave de ser necesario es la misma cuenta": without a futures-only key,
+# the Spot key already on the PC is used (it then needs "Enable Futures" ticked in Binance).
+SPOT_KEY_VAR, SPOT_SECRET_VAR = "BINANCE_TRADE_API_KEY", "BINANCE_TRADE_SECRET_KEY"
 ALLOWED_TRUE_PERMISSIONS = frozenset({"enableReading", "enableFutures", "enableFixReadOnly",
                                       "enableSpotAndMarginTrading"})
 RECV_WINDOW_MS, TIME_RESYNC_SECONDS, TIMEOUT = 5000, 600, 15.0
@@ -106,8 +109,10 @@ class FuturesCredentials:
         env = os.environ if env is None else env
         key, secret = env.get(KEY_VAR), env.get(SECRET_VAR)
         if not key or not secret:
-            raise FuturesError(f"{KEY_VAR} / {SECRET_VAR} no están en este PC: el dueño crea la clave de futuros "
-                               "y la guarda él mismo")
+            key, secret = env.get(SPOT_KEY_VAR), env.get(SPOT_SECRET_VAR)
+        if not key or not secret:
+            raise FuturesError(f"no hay clave de Binance en este PC ({KEY_VAR} o {SPOT_KEY_VAR}): el dueño la "
+                               "guarda él mismo")
         return cls(key, secret)
 
     def header(self) -> dict[str, str]:
@@ -131,7 +136,8 @@ def check_futures_key(data: object) -> None:
     if data.get("enableWithdrawals") is not False:
         raise UnsafeFuturesKey("la clave tiene RETIROS activados (o desconocidos): desactívalos en Binance")
     if data.get("enableReading") is not True or data.get("enableFutures") is not True:
-        raise UnsafeFuturesKey("la clave necesita lectura y Futuros activados")
+        raise UnsafeFuturesKey("la clave necesita lectura y Futuros activados: en Binance, Gestión de API → "
+                               "Editar restricciones → marcar 'Habilitar Futuros'")
     if data.get("ipRestrict") is not True:
         raise UnsafeFuturesKey("la clave debe estar restringida a la IP de este PC")
     for name, value in data.items():

@@ -158,8 +158,8 @@ def test_only_binance_hosts_and_never_a_key_in_the_repr():
 def test_real_orders_need_limits_the_owner_approved(tmp_path):
     with pytest.raises(F.FuturesError, match="no están aprobados"):
         _real(tmp_path, approved=False)
-    limits = F.load_futures_limits()  # the committed file: the Spot program's numbers, not yet approved
-    assert not limits.approved and limits.max_leverage == 1 and limits.risk_pct == 1
+    limits = F.load_futures_limits()  # the committed file: the Spot program's numbers, approved 2026-10-10
+    assert limits.approved and limits.max_leverage == 1 and limits.risk_pct == 1
     assert limits.max_position_pct == 40 and limits.max_open == 3 and limits.loss_limit_pct == 45
     assert limits.warn_before_usd == 2 and limits.profit_target_pct == 58
     with pytest.raises(F.FuturesError, match="fuera de la banda"):
@@ -285,7 +285,10 @@ def test_shadow_runs_on_the_shared_engine_from_the_command_line(tmp_path, capsys
 
 
 def test_real_from_the_command_line_refuses_unapproved_limits(tmp_path, capsys):
-    assert F.main(["--modo", "real", "--dir", str(tmp_path), "--una-vez"], transport=FakeFapi(), env=ENV) == 1
+    data = json.loads(F.DEFAULT_LIMITS.read_text(encoding="utf-8"))
+    (tmp_path / "limits.json").write_text(json.dumps({**data, "approved_by_owner": False}), encoding="utf-8")
+    assert F.main(["--modo", "real", "--dir", str(tmp_path), "--una-vez", "--limites", str(tmp_path / "limits.json")],
+                  transport=FakeFapi(), env=ENV) == 1
     assert "no están aprobados" in capsys.readouterr().out
 
 
@@ -329,3 +332,21 @@ def test_shadow_moves_its_simulated_stop(tmp_path):
 def test_continue_from_the_command_line_reaches_the_running_engine(tmp_path, capsys):
     assert F.main(["continuar", "--dir", str(tmp_path)]) == 0
     assert (tmp_path / "shadow" / "CONTINUAR").exists()
+
+
+def test_without_a_futures_only_key_the_owners_spot_key_is_used():
+    """Owner, 2026-10-10: "usa la misma clave de ser necesario es la misma cuenta"."""
+    creds = F.FuturesCredentials.from_env({F.SPOT_KEY_VAR: "a" * 64, F.SPOT_SECRET_VAR: "b" * 64})
+    assert creds.header() == {"X-MBX-APIKEY": "a" * 64}
+    with pytest.raises(F.FuturesError, match="no hay clave"):
+        F.FuturesCredentials.from_env({})
+
+
+def test_real_runs_one_decision_with_the_approved_limits_and_the_same_key(tmp_path, capsys):
+    env = {F.SPOT_KEY_VAR: "a" * 64, F.SPOT_SECRET_VAR: "b" * 64}
+    fake = FakeFapi()
+    assert F.main(["--modo", "real", "--dir", str(tmp_path), "--una-vez", "--simbolos", "SOLUSDT"],
+                  transport=fake, env=env) == 0
+    out = capsys.readouterr().out
+    assert "Binance Futuros" in out and "40" in out and "45" in out
+    assert any(p == "/sapi/v1/account/apiRestrictions" for _, p, _ in fake.calls)  # the key was checked first

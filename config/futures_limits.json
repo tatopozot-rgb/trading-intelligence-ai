@@ -1,7 +1,8 @@
 {
-  "_comment": "Limits for REAL Binance USDⓈ-M Futures (both directions). The owner rejected the first proposal (2026-10-10: 'No Apruebo los límites de futuros, deben ser analizados y usar los mismos porcentajes y mismo horario que el anterior programado ... lo mismo pero para futuros y debe ser mejor analizado y 24/7'). These are the Spot program's numbers: config/live_limits.json (40% per position, 3 positions, loss-limit band 20-50%, warning 2 USD before) and the running Spot session (loss limit 45%, goal +58%, 1% of equity at risk per trade from the engine's RiskConfig, windows 07-10 / 17-19 Ecuador every 2 min, every 5 outside, stops 3-15%). Real orders stay refused until approved_by_owner is true with his written approval. Withdrawals and transfers are done only by the owner, never by the system.",
-  "approved_by_owner": false,
-  "approval_quote": "",
+  "_comment": "Limits for REAL Binance USDⓈ-M Futures (both directions): the Spot program's numbers, as the owner asked (config/live_limits.json: 40% per position, 3 positions, loss-limit band 20-50%, warning 2 USD before; the running Spot session: loss limit 45%, goal +58%, 1% of equity at risk per trade, windows 07-10 / 17-19 Ecuador every 2 min, every 5 outside, stops 3-15%). Approved by the owner in writing on 2026-10-10 after he funded his Futures account. Changing any value requires his written approval. Withdrawals and transfers are done only by the owner, never by the system.",
+  "approved_by_owner": true,
+  "approved_at": "2026-10-10",
+  "approval_quote": "2026-10-10: \"No Apruebo los límites de futuros, deben ser analizados y usar los mismos porcentajes y mismo horario que el anterior programado revisa, lo mismo pero para futuros y debe ser mejor analizado y 24/7\" -> limits set to the Spot program's numbers; then: \"Ya tiene saldo la cuenta de futuros, opera usa la misma clave de ser necesario es la misma cuenta soluciona\"",
   "market": "USDS_M_FUTURES",
   "margin_type": "ISOLATED",
   "position_mode": "ONE_WAY",
@@ -10,10 +11,26 @@
   "max_position_pct": 40,
   "max_open_positions": 3,
   "loss_limit_pct": 45,
-  "loss_limit_owner_range_pct": [20, 50],
+  "loss_limit_owner_range_pct": [
+    20,
+    50
+  ],
   "warn_before_usd": 2,
   "profit_target_pct": 58,
-  "allowed_symbols": ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "LINKUSDT", "AVAXUSDT", "LTCUSDT", "TRXUSDT", "DOTUSDT"],
+  "allowed_symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "BNBUSDT",
+    "SOLUSDT",
+    "XRPUSDT",
+    "DOGEUSDT",
+    "ADAUSDT",
+    "LINKUSDT",
+    "AVAXUSDT",
+    "LTCUSDT",
+    "TRXUSDT",
+    "DOTUSDT"
+  ],
   "withdrawals": false,
   "transfers": false
 }

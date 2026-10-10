@@ -5,8 +5,9 @@ resting on Binance that protect a position even when the owner's PC is off; neve
 withdrawal, transfer, margin or futures path.
 
 Safety rules (same design as Claude Code local's Testnet transport, PR #9 H2):
-- The key must have Spot trading and reading, IP restriction, and NOTHING else:
-  withdrawals, transfers, margin, futures or any unknown permission -> refused.
+- The key must have Spot trading and reading, IP restriction, and NOTHING else: withdrawals,
+  transfers, margin or any unknown permission -> refused. Futures on the same key is tolerated (the
+  owner's one key serves live/binance_futures.py too); this transport never calls a futures endpoint.
 - Every order is written to a journal BEFORE it is sent. An uncertain answer
   (timeout, 5xx, unreadable) is never resent: it is reconciled by client order id,
   and no new order is sent while one is unreconciled.
@@ -45,7 +46,11 @@ TIME_RESYNC_SECONDS = 600
 TIMESTAMP_REJECTED = -1021
 TIMEOUT = 15.0
 RESTRICTED = {403, 418, 429, 451}
-ALLOWED_TRUE_PERMISSIONS = frozenset({"enableReading", "enableSpotAndMarginTrading", "enableFixReadOnly"})
+# Futures is tolerated since 2026-10-10: the owner opened his Futures account and asked to use the same key
+# ("usa la misma clave de ser necesario es la misma cuenta"). This Spot transport still never calls a futures
+# endpoint; withdrawals, transfers and margin stay refused.
+ALLOWED_TRUE_PERMISSIONS = frozenset({"enableReading", "enableSpotAndMarginTrading", "enableFixReadOnly",
+                                      "enableFutures"})
 _SYMBOL = re.compile(r"^[A-Z0-9]{5,20}$")
 
 PENDING, FILLED, REJECTED, UNCERTAIN, NOT_FOUND = "PENDING_SEND", "FILLED", "REJECTED", "UNCERTAIN", "NOT_FOUND"

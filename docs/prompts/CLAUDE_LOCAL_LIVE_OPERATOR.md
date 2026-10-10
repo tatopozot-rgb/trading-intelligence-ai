@@ -274,7 +274,7 @@ qué sea una alcista brutal".
    Corre con el mismo motor, la misma cadencia (2/5 min) y la misma señal que XM.
    Estado: `live_runs/futures_auto/shadow/`.
 3. **REAL, solo cuando estén las cuatro cosas:**
-   a) El dueño aprueba por escrito `config/futures_limits.json`. El 2026-10-10 rechazó la primera
+   a) ✅ Aprobado el 2026-10-10. El dueño aprueba por escrito `config/futures_limits.json`. Ese día rechazó la primera
       propuesta: "deben ser analizados y usar los mismos porcentajes y mismo horario que el anterior
       programado". Ahora son los mismos números del programa de Spot:
       - 1% de la cuenta en riesgo por operación;
@@ -288,10 +288,11 @@ qué sea una alcista brutal".
       Antes de pedirle la aprobación, se mide con datos reales: workflow
       "Futuros en los dos sentidos" → `docs/two_way_backtest/`.
       El líder lo marca como aprobado en GitHub.
-   b) El dueño crea **una clave nueva solo para Futuros**: lectura y Futuros activados, restringida a la
-      IP del PC, sin retiros ni transferencias. La guarda él mismo en las variables de Windows
-      `BINANCE_FUTURES_API_KEY` y `BINANCE_FUTURES_SECRET_KEY`. No hay que añadir Futuros a la clave
-      actual: el operador de Spot rechaza claves con Futuros.
+   b) **La misma clave de siempre** (orden del dueño, 2026-10-10: "usa la misma clave de ser necesario
+      es la misma cuenta"). Si no hay `BINANCE_FUTURES_API_KEY`, el operador usa `BINANCE_TRADE_API_KEY`.
+      El dueño solo tiene que marcar **"Habilitar Futuros"** en esa clave (Binance → Gestión de API →
+      Editar restricciones), con los retiros desactivados y la IP restringida. El operador de Spot ya
+      acepta claves con Futuros, y nunca llama a futuros.
    c) El dueño pasa él mismo los USDT de Spot a Futuros en la app. El sistema nunca transfiere.
    d) La frase del dueño escrita a ti.
    Arranque: `python -m trading_intelligence.live.binance_futures --modo real` (opcional:

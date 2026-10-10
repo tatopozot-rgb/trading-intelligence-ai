@@ -3456,6 +3456,23 @@ any approved GPT Work recommendations, to Claude local with the owner's exact wo
 
 **Tests:** 10 engine and signal tests, 3 for the futures stop move, the SHADOW stop and `continuar`, 1 XM stop move, 3 backtest tests.
 
+### 89. Futures funded; the limits are approved; the same key (2026-10-10)
+
+**Owner's words** (≈05:05 UTC): "Ya tiene saldo la cuenta de futuros, opera usa la misma clave de ser necesario es la misma cuenta soluciona".
+
+**What changed:**
+- `config/futures_limits.json` is `approved_by_owner: true`, with both quotes: this one and the "mismos porcentajes" request from section 88 that set the numbers.
+- `FuturesCredentials.from_env` uses `BINANCE_TRADE_API_KEY/SECRET` when no futures-only key exists.
+- The Spot key check tolerates `enableFutures`. Withdrawals, transfers and margin stay refused, and the Spot transport never calls futures.
+- If the key lacks Futures, the futures check now tells the owner where to tick it.
+
+**Before REAL starts:**
+- The owner ticks "Habilitar Futuros" on his key in Binance.
+- He writes his phrase to Claude local.
+- Local updates to main and runs `binance_futures --modo real`.
+
+**Honest gap:** the real-data backtest has not run yet. It runs in GitHub Actions once PR #33 is merged, and its result goes to the owner.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
