@@ -43,6 +43,7 @@ Claude Leader) y guardar la memoria en Obsidian, para no gastar recursos recorda
 | Operador real (`operator iniciar --real`) | 24 horas, todos los días | Revisa precios y stops cada minuto y decide en cada vela de 4 horas. Compra y vende solo, y avisa por Telegram. |
 | Vigilante (watchdog) `operator reanudar` | Cada 5 minutos (Programador de tareas) | Si el operador se cayó o el PC se reinició, lo vuelve a arrancar. |
 | Vigilante del mercado (`market_watch`) | Cada 15 minutos (Programador de tareas) | Avisa por Telegram de movimientos fuertes y cambios de tendencia. No opera. |
+| Operador XM en los dos sentidos (`xm_auto`, DEMO) | 24/7, cuando el dueño instale MT5 | Compra cuando sube y vende en corto cuando baja: cada 2 min en sus horarios y cada 5 fuera. SL y TP quedan en el servidor de XM. Riesgo fijo de 0,5% y tope de pérdida diaria de 5%. Avisa por Telegram. |
 | Memoria Obsidian | Una vez al día, a las 20:00 de Ecuador, y al final de cada bloque | Copia el resumen nuevo de `docs/CHECKPOINT.md` a `Memoria viva.md`. |
 
 ### 2.2 En GitHub (Actions, sin gastar tokens de IA)

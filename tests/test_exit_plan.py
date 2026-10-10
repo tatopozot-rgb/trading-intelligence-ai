@@ -61,3 +61,14 @@ def test_engine_stop_is_kept_and_sell_side_is_mirrored():
     assert short.stop > entry > short.target
     with pytest.raises(ValueError):
         plan_exits(data, entry, side="HOLD")
+
+
+def test_a_falling_market_is_a_trend_for_a_short_sale_and_a_range_for_a_buy():
+    """XM sells short: a market running down lets a SELL's profit run, as a rise does for a BUY."""
+    from trading_intelligence.strategy.exit_plan import market_kind
+
+    closes = np.linspace(200, 100, 300) + np.sin(np.arange(300)) * 0.3
+    data = _bars(closes)
+    assert market_kind(data, "SELL") == "tendencia" and market_kind(data, "BUY") == "rango"
+    plan = plan_exits(data, Decimal(str(closes[-1])), side="SELL")
+    assert plan.kind == "tendencia" and plan.target < plan.entry < plan.stop

@@ -232,6 +232,31 @@ conexión solo deja pasar funciones de lectura, y el operador rechaza `--broker 
    - Antes de operar pasa por la ficha y por `order_check` de MT5.
    - El tamaño sale del riesgo (por defecto 0,5% de la equity) y nunca se redondea hacia arriba.
    - Diario: `live_runs/xm_demo/orders.json`.
+6. **Operador automático en los dos sentidos (DEMO)**. El dueño eligió la opción "A" el 2026-10-10:
+   trabajar XM como funciona el mercado, comprando cuando sube y vendiendo en corto cuando baja, 24/7.
+   - Arranque, cuando la prueba de fase 2 salga bien:
+     `python -m trading_intelligence.live.xm_auto --simbolos EURUSD GOLD BTCUSD`.
+     Usa los nombres exactos que muestre `fichas`.
+   - Cadencia: cada 2 minutos dentro de las ventanas 07–10 y 17–19 de Ecuador, y cada 5 minutos fuera
+     de ellas. Ajustes: `--ventanas`, `--cada-dentro` y `--cada-fuera`.
+   - Señal del régimen en velas de 5 minutos:
+     - tendencia o ruptura al alza: **compra**;
+     - tendencia o ruptura a la baja: **venta en corto**;
+     - rango o sin ventaja: no abre nada.
+   - Con una señal contraria, cierra la posición abierta; en la siguiente decisión puede abrir al revés.
+   - El stop y la meta salen del plan según el mercado para ese lado, con la banda propia de XM (0,2–5%).
+     Quedan **puestos en el servidor de XM**, así que protegen la posición aunque el PC esté apagado.
+   - Controles:
+     - riesgo fijo de 0,5% de la equity por operación (`--riesgo`), que nunca sube después de una pérdida;
+     - máximo 3 posiciones (`--max-posiciones`);
+     - si la cuenta pierde 5% en el día (`--perdida-diaria`), cierra todo y no abre más hasta las 19:00
+       de Ecuador.
+   - Avisos por Telegram al abrir, al cerrar y cuando XM ejecuta un stop o una meta.
+   - Estado y diario: `live_runs/xm_auto/state.json` y `live_runs/xm_auto/orders.json`.
+   - Solo toca sus propias posiciones (marcadas con su número MAGIC), nunca las manuales del dueño.
+   - El forex y el oro cierran el fin de semana: esas horas se saltan solas. Las criptos de XM operan
+     cuando XM las cotice.
+   - Dejarlo corriendo como el operador de Binance: con un vigilante que lo reinicie si se cae.
    **Fase 3**: dinero real, solo con la frase del dueño y con límites XM aprobados por él por escrito.
 
 ## 5. Nunca

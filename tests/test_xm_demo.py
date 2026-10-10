@@ -30,7 +30,9 @@ class TradingMt5(FakeMt5):
             self.positions = [p for p in self.positions if p.ticket != request["position"]]
         else:
             self.positions.append(NS(ticket=ticket, symbol=request["symbol"], type=request["type"],
-                                     volume=request["volume"], comment=request["comment"]))
+                                     volume=request["volume"], comment=request["comment"],
+                                     magic=request["magic"], price_open=request["price"], sl=request["sl"],
+                                     tp=request["tp"]))
         return NS(retcode=10009, order=ticket, deal=ticket, volume=request["volume"], price=request["price"],
                   comment="done")
 

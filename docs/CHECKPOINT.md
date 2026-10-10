@@ -3347,6 +3347,37 @@ any approved GPT Work recommendations, to Claude local with the owner's exact wo
 - New test: the guard is placed at once and kept on the next pass; a later sell cancels it first.
 - Full suite: 878 passed.
 
+### 86. The owner chose XM in both directions; leftovers to USDT (2026-10-10)
+
+**Owner's words** (≈04:15 UTC), after being told Binance Spot only earns on rises and that selling short there needs futures or margin, which his rules forbid:
+"El A, ahora transforma todo a usdt y cambia dentro del sistema en xm we puede usar tanto dolares como usdt para automatizar, esas compras quedan como perdida usa esas monedas para hacer trading y el dólar en futuros con el código ese y en xm trabajamos como dices y 24 7 lunes o mañana configuramos xm en la pc".
+
+**Read as:**
+- XM is the two-way market: CFDs in USD, buying and selling short.
+- Binance keeps trading in Spot with USDT.
+- The leftover coins go back to USDT where Binance allows it.
+- Leftovers below the exchange step (ETH, SOL, AVAX, ≈0.41 USDT) are accepted as a loss.
+- "el dólar en futuros" is read as XM's CFDs, **not** Binance Futures. The "no futures, no margin" rule stands until he says otherwise in writing.
+
+**Built: `live/xm_auto.py`, the automatic XM operator (DEMO).**
+- Cadence: 2 minutes in his windows, 5 minutes outside, 24/7 where the market quotes.
+- Regime signal on 5m bars: up gives BUY, down gives SELL, range gives no entry. An opposite signal closes the position.
+- Exits: the exit plan by side (`market_kind` is now side-aware: a fall is a "trend" for a short) with XM's band of 0.2–5%. SL and TP rest on XM's server.
+- Risk: fixed at 0.5% per trade, max 3 positions, and a 5% daily loss guard that closes everything and halts until the next UTC day.
+- It touches only its own positions (MAGIC). A REAL account is refused.
+- `XmDemoTrader.positions()` lists the automator's positions.
+- XM demo plans use the XM band: 3% is far too wide a stop for forex.
+- 11 new tests and 1 exit-plan test.
+
+**Next:**
+- The owner installs MT5 with a DEMO account (Monday or tomorrow).
+- Local runs `cuenta`, `fichas` and the `xm_demo` round trip, then leaves `xm_auto` running with a watchdog.
+- Real money on XM is phase 3: his phrase to Local plus XM limits he approves in writing.
+
+**Binance leftovers.**
+- BTC 0.00006993 is in the running session (adopted), and `pasar-a-usdt` refuses a session coin.
+- Local needs the owner's phrase, then: `parar` (no `--cerrar`), `pasar-a-usdt --simbolo BTCUSDT` (tops up then sells), and restart the same session without adopting.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
