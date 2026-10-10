@@ -3215,6 +3215,38 @@ siempre".
 `parar` without `--cerrar`, `iniciar` with the same flags (2% by default), then `adoptar BTCUSDT`.
 Requested from Claude local, together with the Obsidian memory entry the owner asked for.
 
+### 82. The stop follows each coin's volatility, between 3% and 15% (2026-10-10)
+
+**Owner, after section 81's fixed 2% floor:** "Yo creo un stop más alto, con lógica; tú y local
+deciden; desde 3 al 15, no siempre lo mismo; actualiza todo".
+
+**Logic (`StopFloor` with `max_stop_pct`):**
+- **Distance:** 2.5 × the coin's recent volatility projected over 4 hours: the std of the last ≤500
+  bar log-returns × √(bars in 240 min).
+- **Band:** the distance is clamped to [3%, 15%].
+  - A calm coin gets ~3%. In 1m tests, a 0.05% per-bar std gives 3.00%.
+  - A lively one gets more: 0.3% per-bar std gives a value inside the band.
+  - A wild one is capped at 15%.
+- **Strategy stops:**
+  - a strategy stop already inside the band is kept;
+  - one farther than 15% is pulled up to 15%.
+- **Not enough history** (under 30 bars): the minimum is used.
+- **Position size:** the engine sizes each position for its own stop (1% risk budget, 40% cap), so
+  a wider stop means a smaller position, not a bigger loss. At 15%, risk 1% → about 6.7% of equity.
+
+**Operator settings:**
+- `DEFAULT_MIN_STOP_PCT = 3` and `DEFAULT_MAX_STOP_PCT = 15` for 1m/5m/20m sessions.
+- `--stop-minimo` / `--stop-maximo` override them; `meta.json` stores `min_stop_pct` and
+  `max_stop_pct`.
+- 4h sessions are unchanged.
+
+**Tests:** 3 new stop-band tests (the calm, lively and wild walks; the stop moved up into the band
+and capped at the max); the CLI defaults test is updated to the 3/15 band. 119 stop-floor and
+operator tests pass.
+
+**Running session:** needs a new session to pick this up: `parar` without `--cerrar`, then `iniciar`
+with the same flags (the band comes by default), then `adoptar BTCUSDT`.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |

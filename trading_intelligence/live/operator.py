@@ -61,7 +61,9 @@ OUTSIDE_WINDOW_EVERY = timedelta(minutes=20)  # sessions started before 2026-10-
 DEFAULT_CADENCE = {"1m": (2, 5), "5m": (None, 20), "20m": (None, 20)}
 # Owner, 2026-10-10 (an AVAX stop at -0.28%): short-bar stops sit inside normal noise. Intraday
 # sessions keep the stop at least this far below entry; the engine sizes for it (same risk budget).
-DEFAULT_MIN_STOP_PCT = Decimal("2")
+DEFAULT_MIN_STOP_PCT = Decimal("3")
+# Then: "desde 3 al 15, no siempre lo mismo": the stop follows each coin's volatility inside [3%, 15%].
+DEFAULT_MAX_STOP_PCT = Decimal("15")
 INTRADAY_TIMEFRAMES = frozenset({"1m", "5m", "20m"})
 ECUADOR_UTC_OFFSET_H = -5
 # The owner's windows, Ecuador time, every day: his 07-10 and the 17-19 one he gave the leader.
@@ -172,13 +174,14 @@ def engine_risk_overrides(limits: OwnerLimits) -> dict:
     }
 
 
-def router_factory(profile: str, timeframe: str, min_stop_pct: Optional[Decimal] = None) -> Callable[[str], object]:
+def router_factory(profile: str, timeframe: str, min_stop_pct: Optional[Decimal] = None,
+                   max_stop_pct: Optional[Decimal] = None) -> Callable[[str], object]:
     from trading_intelligence.strategy.router import default_router, router_with_range_reversion
     from trading_intelligence.strategy.stop_floor import with_stop_floor
 
     if profile == "tendencia_rango":
-        return lambda sym: with_stop_floor(router_with_range_reversion(sym), min_stop_pct)
-    return lambda sym: with_stop_floor(default_router(sym, timeframe), min_stop_pct)
+        return lambda sym: with_stop_floor(router_with_range_reversion(sym), min_stop_pct, max_stop_pct)
+    return lambda sym: with_stop_floor(default_router(sym, timeframe), min_stop_pct, max_stop_pct)
 
 
 def engine_targets(loop) -> tuple[dict[str, Decimal], dict[str, Decimal]]:
@@ -819,6 +822,8 @@ def _launch(d: Path, limits: OwnerLimits, meta: dict, engine_equity: str, max_it
                           paper_equity=engine_equity, risk_overrides=engine_risk_overrides(limits),
                           router_factory=router_factory(meta["profile"], meta["timeframe"],
                                                         Decimal(str(meta["min_stop_pct"])) if meta.get("min_stop_pct")
+                                                        else None,
+                                                        Decimal(str(meta["max_stop_pct"])) if meta.get("max_stop_pct")
                                                         else None),
                           continuous_market=not xm)
     end_at = datetime.fromisoformat(meta["end_at"]) if meta.get("end_at") else None
@@ -857,6 +862,8 @@ def main(argv: Optional[list[str]] = None) -> int:
                        "(1m default: 5; 5m/20m default: 20)")
     start.add_argument("--stop-minimo", help="minimum stop distance in %% below entry (1m/5m/20m default: "
                        f"{DEFAULT_MIN_STOP_PCT}; 4h: the strategy's own stop); 0 = the strategy's own stop")
+    start.add_argument("--stop-maximo", help="maximum stop distance in %% (1m/5m/20m default: "
+                       f"{DEFAULT_MAX_STOP_PCT}); between the minimum and the maximum the stop follows volatility")
     start.add_argument("--broker", choices=BROKERS, default="binance",
                        help="xm: candles and prices from your MT5 terminal (SHADOW only in phase 1); "
                             "give the MT5 symbol names with --simbolos")
@@ -1005,6 +1012,12 @@ def main(argv: Optional[list[str]] = None) -> int:
                 raise ValueError
         except (ValueError, ArithmeticError):
             parser.error("--stop-minimo must be a percentage between 0 and 50")
+    if args.stop_maximo is not None:
+        try:
+            if not Decimal("0") < Decimal(args.stop_maximo) < Decimal("50"):
+                raise ValueError
+        except (ValueError, ArithmeticError):
+            parser.error("--stop-maximo must be a percentage between 0 and 50")
     for every in (args.cada_dentro, args.cada_fuera):
         if every is not None and not 1 <= every <= 240:
             parser.error("--cada-dentro / --cada-fuera must be between 1 and 240 minutes")
@@ -1050,6 +1063,10 @@ def main(argv: Optional[list[str]] = None) -> int:
             DEFAULT_MIN_STOP_PCT if args.temporalidad in INTRADAY_TIMEFRAMES else Decimal("0"))
         if stop_min:
             meta["min_stop_pct"] = str(stop_min)
+            stop_max = Decimal(args.stop_maximo) if args.stop_maximo is not None else (
+                DEFAULT_MAX_STOP_PCT if args.temporalidad in INTRADAY_TIMEFRAMES else None)
+            if stop_max is not None:
+                meta["max_stop_pct"] = str(max(stop_max, stop_min))
         if windows:
             inside, outside = DEFAULT_CADENCE.get(args.temporalidad, (None, 20))
             meta["inside_every_min"] = args.cada_dentro if args.cada_dentro is not None else inside
