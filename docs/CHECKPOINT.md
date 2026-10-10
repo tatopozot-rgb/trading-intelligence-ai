@@ -3072,6 +3072,42 @@ cover:
 - **Mixed sessions:** the engine processes only bars common to all symbols, so group symbols with
   similar sessions.
 
+### 78. XM phase 2 ready in code: DEMO orders with SL/TP, sized from risk (2026-10-10)
+
+**Status from Claude local (23:35–23:59 UTC):**
+- **MetaTrader5 package:** installed in a separate `venv-xm` / `xm-wt`. Smart App Control did NOT
+  block it. The 11 XM tests pass on the PC.
+- **No MT5 terminal is installed**, and the owner has no PC access right now: "cuando tenga xm para
+  ejecutar pues te aviso". XM is paused until he says so.
+- **Binance:** the real session now runs at 5m with the owner's windows (section 76): capital 37.78,
+  no trades yet.
+
+**Built meanwhile, so the next step is ready (`trading_intelligence/live/xm_demo.py`):**
+- **`XmDemoTrader`:**
+  - its own gate allows the read functions plus `order_check` and `order_send`; the read-only
+    module stays order-free;
+  - the account mode is re-read before every send, and anything but DEMO raises `NotDemo`.
+- **`plan(symbol, side, sl_pct, tp_pct, risk_pct)`:**
+  - `check_entry` runs first;
+  - SL and TP are placed on the correct sides and outside the broker's stops level;
+  - lots = equity × risk% / (stop distance × value per price unit per lot), rounded down to the lot
+    step and capped at the 2x effective-leverage limit;
+  - if the result is below the minimum lot, no trade.
+- **Sending orders:**
+  - MT5 `order_check` validates first; a failure sends nothing;
+  - the journal records SENDING before `order_send`;
+  - a `None` answer is reconciled from `positions_get` by the order comment and never resent;
+  - every order carries magic `26101009`.
+- **CLI:** `python -m trading_intelligence.live.xm_demo --simbolo EURUSD --lado BUY --sl 0.5 --tp 1.0
+  --riesgo 1` does a DEMO round trip; `--mantener` keeps the position open with its SL/TP.
+- **Tests (7):** a REAL account refuses; size from risk (0.5% risk is below 0.01 lot and refused;
+  1% gives 0.01 lot, risk 5.43); SELL sides; the pre-entry check; the request carries SL/TP; journal
+  order; `order_check` failure sends nothing; an unclear answer is not resent; the CLI round trip.
+
+**Next:** when the owner installs MT5 with a DEMO account, Claude local runs `cuenta`, `fichas`,
+SHADOW, then the DEMO round trip. Operator integration (engine signals → DEMO orders) comes after
+that run works on the real terminal.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
