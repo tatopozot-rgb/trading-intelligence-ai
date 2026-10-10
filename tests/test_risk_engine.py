@@ -248,6 +248,19 @@ class TestPositionSizing:
         assert not decision.approved
         assert decision.reason == REASON_MAX_POSITION_SIZE_EXCEEDED
 
+    def test_opt_in_cap_shrinks_the_position_instead_of_rejecting(self, tmp_path):
+        """Same oversized case with cap_position_size: the entry passes at the cap minus headroom,
+        so the loss at the stop is lower than the risk budget, never higher."""
+        engine = _engine(tmp_path, max_risk_per_trade_pct=50.0, max_position_size_pct=5.0,
+                          min_stop_distance_pct=0.5, cap_position_size=True, cap_headroom_pct=2.0)
+        proposal = _proposal(entry_price=Decimal("50000"), stop_price=Decimal("49500"))  # 1% stop
+        decision = engine.validate_order(proposal, equity=Decimal("10000"), reference_price=Decimal("50000"))
+        assert decision.approved
+        assert decision.quantity * Decimal("50000") <= Decimal("490")  # 5% of 10000, minus 2% headroom
+        assert decision.quantity * Decimal("50000") > Decimal("480")
+        # the next-open fill check still has room for normal slippage (+1%)
+        assert engine.validate_fill(decision.quantity, Decimal("49500"), Decimal("50500"), Decimal("10000")) is None
+
     def test_sizing_matches_fixed_fractional_formula(self, tmp_path):
         engine = _loose_engine(tmp_path, max_risk_per_trade_pct=1.0, include_fees_in_risk_calc=True,
                                 taker_fee_rate=0.001)

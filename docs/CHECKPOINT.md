@@ -3108,6 +3108,76 @@ cover:
 SHADOW, then the DEMO round trip. Operator integration (engine signals → DEMO orders) comes after
 that run works on the real terminal.
 
+### 79. Owner's fixed cadence: every 2 minutes inside his windows, every 5 outside (2026-10-10)
+
+**Owner's words:** "Trabajémoslo mejor cada 5 minutos fuera del horario y dentro del horario cada 2
+minutos, queda así fijado; e igual después se aplicarán las reglas para XM. Ejecuta, tradea, manda la
+orden."
+
+**What changed:**
+- **Operator cadence is configurable** with `inside_every_min` and `outside_every_min`, stored in
+  `meta.json`.
+- **`decision_due()`:** one decision per slot of the active period; skipped bars are replayed by the
+  engine.
+- **Defaults per timeframe (`DEFAULT_CADENCE`):**
+
+  | Timeframe | Inside the windows | Outside |
+  |---|---|---|
+  | 1m | every 2 minutes | every 5 minutes |
+  | 5m and 20m | every bar | every 20 minutes |
+
+  Sessions started earlier keep their old behaviour (their meta has no cadence).
+- **CLI:** `--cada-dentro N` and `--cada-fuera N`, limited to 1–240 minutes.
+- **1m is allowed for real money,** citing the owner's written choice. Stops are checked every
+  minute, as before.
+
+**Tests and replay:**
+- A 60-minute run with the 1m engine makes 30 decisions inside a window and 12 outside.
+- A 1m CLI session gets windows plus 2/5 by default.
+- 185 tests pass across the operator, Telegram, XM and paper_loop suites.
+- **Offline replay** (real engine, fake Binance at 1m, 22 h):
+  - 150 decisions inside the windows, 204 outside;
+  - kill switch off;
+  - 16 orders. Expect noticeably more trades, and so more fees, than at 5m.
+
+**Switch for the running session:** Claude local runs `parar`, then `iniciar --temporalidad 1m` with
+the same meta and loss limit, then `adoptar BTCUSDT`.
+- Claude local's classifier has so far required the owner's own words in the local chat for operator
+  commands; a leader message alone was denied before. The owner was told this.
+- XM: when it goes live, it uses the same cadence (`--temporalidad 1m` with `--broker xm`; MT5
+  serves 1m natively).
+
+### 80. Entries were rejected for size at 1m: the live engine now shrinks to the cap (2026-10-10)
+
+**Status:**
+- Claude local switched the real session to `--temporalidad 1m` with the 2/5 cadence at 00:19 UTC.
+  The owner wrote "Cambia 2 y a 5 minutos" in his chat.
+- Capital is 37.78 and no trades have happened yet.
+- In Local's SHADOW rehearsal, the engine's risk check vetoed an entry with
+  `MAX_POSITION_SIZE_EXCEEDED`.
+
+**Root cause:** fixed-fractional sizing (risk 1% of equity / stop distance) on 1m–5m bars gives tight
+stops. The risk-sized position was then above the owner's 40% per-position cap, and the engine
+REJECTED the entry instead of taking the capped size. In the offline 1m replay, the rejections cut
+the trades by half: 16 instead of 32.
+
+**Fix:**
+- New `RiskConfig.cap_position_size` (default False, so behaviour and tests are unchanged): shrink
+  the quantity to `max_position_size_pct` × (1 − `cap_headroom_pct` / 100). The headroom defaults to
+  2%, so the next-open `validate_fill` cap check keeps room for normal slippage.
+- A smaller position at the same stop only lowers the loss at the stop.
+- The spec's wording ("hard caps applied after sizing", then floored to the lot) reads as a clip.
+  This is opt-in for that reason.
+- `operator.engine_risk_overrides` enables it.
+
+**Tests and replay:**
+- New risk test: the oversized case is approved at ≤ 490 (5% of 10000 minus 2%), and the fill check
+  passes at +1% slippage.
+- 274 risk, operator, runner and loop tests pass.
+- Offline 1m replay: 32 orders (was 16), kill switch off.
+- The running session picks it up on its next process start, through the watchdog's `reanudar`.
+  Same session, same limits.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |

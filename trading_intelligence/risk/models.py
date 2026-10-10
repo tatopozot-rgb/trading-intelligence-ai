@@ -55,6 +55,14 @@ class RiskConfig:
     # under "entry"; whether to change the policy is the owner's call.
     exposure_basis: str = "entry"
 
+    # What to do when the risk-sized position exceeds max_position_size_pct. False (default, the
+    # original behaviour): reject the entry. True: shrink it to the cap minus cap_headroom_pct, so
+    # the next-open fill check (FILL_EXCEEDS_POSITION_CAP) still has room for normal slippage. A
+    # smaller position at the same stop only lowers the loss at the stop, never raises it. Opt-in:
+    # the live operator enables it because 1m-5m stops are tight and every entry was rejected.
+    cap_position_size: bool = False
+    cap_headroom_pct: float = 2.0
+
     def __post_init__(self) -> None:
         self._validate()
 
@@ -75,6 +83,8 @@ class RiskConfig:
             (self.default_slippage_bps >= 0, "default_slippage_bps must be >= 0"),
             (0 <= self.taker_fee_rate < 1, "taker_fee_rate must be in [0, 1)"),
             (0 < self.min_stop_distance_pct, "min_stop_distance_pct must be > 0"),
+            (isinstance(self.cap_position_size, bool), "cap_position_size must be a bool"),
+            (0 <= self.cap_headroom_pct < 50, "cap_headroom_pct must be in [0, 50)"),
             (self.max_connectivity_gap_seconds > 0, "max_connectivity_gap_seconds must be > 0"),
             (self.max_fill_risk_overshoot_pct >= 0, "max_fill_risk_overshoot_pct must be >= 0"),
             (self.exposure_basis in ("entry", "entry_or_market"),

@@ -422,7 +422,7 @@ def test_the_real_engine_drives_the_real_account_end_to_end(tmp_path):
 def test_real_orders_are_refused_at_a_timeframe_proven_to_lose(tmp_path, capsys):
     from trading_intelligence.live import operator as O
 
-    assert O.DEFAULT_TIMEFRAME == "4h" and O.REAL_TIMEFRAMES == {"4h", "20m", "5m"}  # 20m/5m: owner's written choice
+    assert O.DEFAULT_TIMEFRAME == "4h" and O.REAL_TIMEFRAMES == {"4h", "20m", "5m", "1m"}  # 20m/5m: owner's written choice
     with pytest.raises(SystemExit):
         O.main(["--dir", str(tmp_path), "iniciar", "--capital", "50", "--temporalidad", "1h", "--real"])
     assert "lost money after fees" in capsys.readouterr().err
@@ -1369,7 +1369,7 @@ class TestTradingWindows:
             with pytest.raises(ValueError):
                 O.parse_windows(bad)
 
-    def _op(self, tmp_path, now, sent, timeframe="5m"):
+    def _op(self, tmp_path, now, sent, timeframe="5m", **kw):
         from trading_intelligence.execution.order_models import OrderRequest, Position
 
         trader = FakeTrader({"BTCUSDT": Decimal("100")})
@@ -1380,7 +1380,7 @@ class TestTradingWindows:
                                                              stop_price=Decimal("95")))
         Session("s1", "tendencia", "t", Decimal("50")).save(tmp_path / "session.json")
         op = Operator(tmp_path, trader, LIMITS, profile="tendencia", timeframe=timeframe, symbols=["BTCUSDT"],
-                      loop=loop, clock=lambda: now[0], notify=sent.append, windows=["07-10", "17-19"])
+                      loop=loop, clock=lambda: now[0], notify=sent.append, windows=["07-10", "17-19"], **kw)
         return op, trader, loop
 
     def test_outside_the_windows_it_also_trades(self, tmp_path):
@@ -1396,9 +1396,9 @@ class TestTradingWindows:
         op.step(decide=False)
         assert sent[-1].startswith("🕙 Terminó tu horario intenso") and "cada 20 minutos" in sent[-1]
 
-    def _decisions(self, tmp_path, start, minutes):
+    def _decisions(self, tmp_path, start, minutes, **kw):
         now, sent = [start], []
-        op, trader, loop = self._op(tmp_path, now, sent)
+        op, trader, loop = self._op(tmp_path, now, sent, **kw)
 
         def sleep(_):
             now[0] += timedelta(minutes=1)
@@ -1411,6 +1411,27 @@ class TestTradingWindows:
 
     def test_outside_the_windows_it_decides_every_20_minutes(self, tmp_path):
         assert self._decisions(tmp_path, datetime(2026, 10, 9, 16, 0, 30, tzinfo=timezone.utc), 60) == 3
+
+    def test_owner_cadence_2_minutes_inside_and_5_outside(self, tmp_path):
+        # Owner, 2026-10-10: "cada 5 minutos fuera del horario y dentro del horario cada 2 minutos"
+        kw = dict(timeframe="1m", inside_every_min=2, outside_every_min=5)
+        (tmp_path / "a").mkdir()
+        (tmp_path / "b").mkdir()
+        inside = self._decisions(tmp_path / "a", datetime(2026, 10, 9, 12, 0, 30, tzinfo=timezone.utc), 60, **kw)
+        outside = self._decisions(tmp_path / "b", datetime(2026, 10, 9, 16, 0, 30, tzinfo=timezone.utc), 60, **kw)
+        assert (inside, outside) == (30, 12)
+
+    def test_a_1m_session_gets_the_owners_cadence_by_default(self, tmp_path, monkeypatch):
+        from trading_intelligence.live import operator as O
+
+        launched = []
+        monkeypatch.setattr(O, "_trader", lambda real, journal: FakeTrader({"BTCUSDT": Decimal("100")}))
+        monkeypatch.setattr(O, "_launch", lambda d, limits, meta, eq, it: launched.append(meta))
+        O.main(["--dir", str(tmp_path), "iniciar", "--capital", "32", "--temporalidad", "1m", "--real",
+                "--perfil", "tendencia_rango"])
+        m = launched[0]
+        assert (m["timeframe"], m["windows"], m["inside_every_min"], m["outside_every_min"]) == (
+            "1m", ["07-10", "17-19"], 2, 5)
 
     def test_stops_work_every_minute_outside_the_windows(self, tmp_path):
         now, sent = [datetime(2026, 10, 9, 16, 0, 30, tzinfo=timezone.utc)], []

@@ -51,11 +51,14 @@ PROFILES = ("tendencia", "tendencia_rango", "copiar")
 # 5m: the owner chose them in writing on 2026-10-09 ("Todo a 20 min"; then "dentro de esos
 # horarios es sin parar y fuera de esos horarios cada 20 minutos"), after being shown that
 # the 20-minute reference backfill (docs/experimento_horarios/resumen.md) lost ~0.3-0.5% per
-# trade after fees for every strategy. With windows, a 5m session decides at every 5m bar
-# inside them and every OUTSIDE_WINDOW_EVERY outside them; stops are checked every minute.
-REAL_TIMEFRAMES = frozenset({"4h", "20m", "5m"})
-WINDOWED_TIMEFRAMES = frozenset({"5m", "20m"})
-OUTSIDE_WINDOW_EVERY = timedelta(minutes=20)
+# trade after fees for every strategy. Then, 2026-10-10: "cada 5 minutos fuera del horario y
+# dentro del horario cada 2 minutos, queda así fijado" -> 1m bars, decisions every 2 minutes
+# inside his windows and every 5 outside them. Stops are checked every minute at any cadence.
+REAL_TIMEFRAMES = frozenset({"4h", "20m", "5m", "1m"})
+WINDOWED_TIMEFRAMES = frozenset({"1m", "5m", "20m"})
+OUTSIDE_WINDOW_EVERY = timedelta(minutes=20)  # sessions started before 2026-10-10 (meta without a cadence)
+# (inside, outside) decision cadence in minutes per windowed timeframe; None = every bar.
+DEFAULT_CADENCE = {"1m": (2, 5), "5m": (None, 20), "20m": (None, 20)}
 ECUADOR_UTC_OFFSET_H = -5
 # The owner's windows, Ecuador time, every day: his 07-10 and the 17-19 one he gave the leader.
 OWNER_WINDOWS = ("07-10", "17-19")
@@ -159,6 +162,9 @@ def engine_risk_overrides(limits: OwnerLimits) -> dict:
         "drawdown_halt_pct": loss,
         "max_daily_turnover_pct": 1000.0,
         "max_trades_per_day": 100,
+        # 1m-5m stops are tight: the risk-sized position is often above the owner's per-position cap,
+        # which used to reject every entry. Shrink it to the cap instead (less risk, never more).
+        "cap_position_size": True,
     }
 
 
@@ -218,7 +224,8 @@ class Operator:
                  notify: Callable[[str], None] = print, real: bool = False,
                  end_at: Optional[datetime] = None, profit_target_pct: Optional[Decimal] = None,
                  trailing_pct: Decimal = DEFAULT_TRAILING_PCT, trail_after_pct: Decimal = DEFAULT_TRAIL_AFTER_PCT,
-                 windows: Optional[list[str]] = None) -> None:
+                 windows: Optional[list[str]] = None, inside_every_min: Optional[int] = None,
+                 outside_every_min: int = int(OUTSIDE_WINDOW_EVERY.total_seconds() // 60)) -> None:
         self.dir = Path(state_dir)
         self.trader = trader
         self.limits = limits
@@ -236,7 +243,9 @@ class Operator:
         self.window_spec = list(windows or [])
         self.windows = parse_windows(self.window_spec)  # empty: decide at every bar, all day
         self._was_in_window: Optional[bool] = None
-        self._last_slow_slot: Optional[int] = None
+        self.inside_every_min = inside_every_min  # None: every bar inside the windows
+        self.outside_every_min = outside_every_min
+        self._last_slot: Optional[tuple[int, int]] = None
         self.session = Session.load(self.dir / "session.json")
         self.last_mid_report = self.clock()
         self.last_summary = self.clock()
@@ -336,8 +345,8 @@ class Operator:
             inside = in_windows(self.windows, self.clock())
             if inside != self._was_in_window:
                 if self._was_in_window is not None or inside:
-                    self.notify(messages.window_open(self.window_spec, self._bar_minutes()) if inside
-                                else messages.window_closed(int(OUTSIDE_WINDOW_EVERY.total_seconds() // 60)))
+                    self.notify(messages.window_open(self.window_spec, self.inside_every_min or self._bar_minutes())
+                                if inside else messages.window_closed(self.outside_every_min))
                 self._was_in_window = inside
         stops = self._with_trailing(stops, prices)
         message = s.evaluate(prices, self.limits)
@@ -389,15 +398,19 @@ class Operator:
         return INTERVAL_SECONDS[self.timeframe] // 60
 
     def decision_due(self) -> bool:
-        """Owner: inside his windows "sin parar" (every bar), outside them every 20 minutes.
-        Skipped bars are not lost: the engine replays them at its next tick."""
+        """Owner's cadence: inside his windows every inside_every_min (None = every bar), outside
+        them every outside_every_min. Skipped bars are not lost: the engine replays them at its
+        next tick."""
         now = self.clock()
-        if not self.windows or in_windows(self.windows, now):
+        if not self.windows:
             return True
-        slot = int((now.timestamp() - 30) // OUTSIDE_WINDOW_EVERY.total_seconds())
-        if slot == self._last_slow_slot:
+        period = self.inside_every_min if in_windows(self.windows, now) else self.outside_every_min
+        if period is None:
+            return True
+        slot = (period, int((now.timestamp() - 30) // (period * 60)))
+        if slot == self._last_slot:
             return False
-        self._last_slow_slot = slot
+        self._last_slot = slot
         return True
 
     def _with_trailing(self, stops: dict[str, Decimal], prices: dict[str, Decimal]) -> dict[str, Decimal]:
@@ -807,7 +820,8 @@ def _launch(d: Path, limits: OwnerLimits, meta: dict, engine_equity: str, max_it
                   loop=loop, real=meta["real"], end_at=end_at, profit_target_pct=target,
                   notify=telegram_notify.make_notify(telegram_notify.console, telegram_notify.from_env()),
                   trailing_pct=Decimal(str(meta.get("trailing_pct", DEFAULT_TRAILING_PCT))),
-                  windows=meta.get("windows"))
+                  windows=meta.get("windows"), inside_every_min=meta.get("inside_every_min"),
+                  outside_every_min=meta.get("outside_every_min", int(OUTSIDE_WINDOW_EVERY.total_seconds() // 60)))
     op.run(max_iterations=max_iterations, start_report=True)
 
 
@@ -830,6 +844,10 @@ def main(argv: Optional[list[str]] = None) -> int:
     start.add_argument("--ventanas", nargs="+",
                        help=f"trading windows in Ecuador hours, e.g. 07-10 17-19 (5m/20m default: {' '.join(OWNER_WINDOWS)}); "
                             "inside them it decides at every bar, outside them every 20 minutes")
+    start.add_argument("--cada-dentro", type=int, help="minutes between decisions inside the windows "
+                       "(1m default: 2; 5m/20m default: every bar)")
+    start.add_argument("--cada-fuera", type=int, help="minutes between decisions outside the windows "
+                       "(1m default: 5; 5m/20m default: 20)")
     start.add_argument("--broker", choices=BROKERS, default="binance",
                        help="xm: candles and prices from your MT5 terminal (SHADOW only in phase 1); "
                             "give the MT5 symbol names with --simbolos")
@@ -972,6 +990,9 @@ def main(argv: Optional[list[str]] = None) -> int:
                      f"money after fees (CHECKPOINT section 45). Allowed for real: {sorted(REAL_TIMEFRAMES)}; "
                      "any timeframe is allowed without --real (SHADOW).")
     windows = args.ventanas or (list(OWNER_WINDOWS) if args.temporalidad in WINDOWED_TIMEFRAMES else None)
+    for every in (args.cada_dentro, args.cada_fuera):
+        if every is not None and not 1 <= every <= 240:
+            parser.error("--cada-dentro / --cada-fuera must be between 1 and 240 minutes")
     if windows:
         try:
             parse_windows(windows)
@@ -1010,6 +1031,10 @@ def main(argv: Optional[list[str]] = None) -> int:
                 "end_at": end_at.isoformat() if end_at else None, "profit_target_pct": args.meta,
                 "loss_limit_pct": str(session_loss) if session_loss is not None else None, "trailing_pct": str(trailing),
                 "windows": windows, "broker": args.broker}
+        if windows:
+            inside, outside = DEFAULT_CADENCE.get(args.temporalidad, (None, 20))
+            meta["inside_every_min"] = args.cada_dentro if args.cada_dentro is not None else inside
+            meta["outside_every_min"] = args.cada_fuera if args.cada_fuera is not None else outside
         if args.broker == "xm":
             from trading_intelligence.live.xm_mt5 import XmReader
 
