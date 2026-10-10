@@ -16,100 +16,193 @@
    "LTCUSDT",
    "TRXUSDT",
    "DOTUSDT"
-  ]
+  ],
+  "con_top_traders": 12
  },
  "resultados": [
   {
    "variante": "regimen",
-   "operaciones": 1662,
-   "ganadas": 374,
-   "acierto_pct": 22.5,
-   "neto_usdt": -16.6652,
-   "neto_pct": -45.04,
-   "comisiones_usdt": 14.1701,
-   "financiacion_usdt": 0.1902,
-   "max_caida_pct": 45.01,
-   "sin_minimo": 1817,
+   "operaciones": 942,
+   "ganadas": 216,
+   "acierto_pct": 22.9,
+   "neto_usdt": -16.6705,
+   "neto_pct": -45.06,
+   "comisiones_usdt": 12.8844,
+   "financiacion_usdt": 0.0008,
+   "max_caida_pct": 45.31,
+   "sin_minimo": 29240,
    "final": "l\u00edmite de p\u00e9rdida",
    "por": {
     "BUY": {
-     "operaciones": 835,
-     "neto": -6.2959
+     "operaciones": 472,
+     "neto": -6.5245
     },
     "SELL": {
-     "operaciones": 827,
-     "neto": -10.3692
+     "operaciones": 470,
+     "neto": -10.146
     },
     "tendencia": {
-     "operaciones": 1662,
-     "neto": -16.6652
+     "operaciones": 942,
+     "neto": -16.6705
     },
     "rango": {
      "operaciones": 0,
      "neto": 0
     }
+   },
+   "riesgo_medio_pct": 10.12,
+   "vetos": {
+    "evit\u00f3 p\u00e9rdida": 0,
+    "dej\u00f3 pasar ganancia": 0,
+    "sin resultado": 0
    }
   },
   {
    "variante": "tendencia_rango",
-   "operaciones": 776,
-   "ganadas": 302,
-   "acierto_pct": 38.9,
-   "neto_usdt": -4.2555,
-   "neto_pct": -11.5,
-   "comisiones_usdt": 8.3619,
-   "financiacion_usdt": 0.2896,
-   "max_caida_pct": 16.66,
-   "sin_minimo": 595,
+   "operaciones": 512,
+   "ganadas": 186,
+   "acierto_pct": 36.3,
+   "neto_usdt": -8.9649,
+   "neto_pct": -24.23,
+   "comisiones_usdt": 8.1223,
+   "financiacion_usdt": 0.0111,
+   "max_caida_pct": 25.46,
+   "sin_minimo": 27955,
    "final": "fin del periodo",
    "por": {
     "BUY": {
-     "operaciones": 393,
-     "neto": -0.6277
+     "operaciones": 257,
+     "neto": -3.1529
     },
     "SELL": {
-     "operaciones": 383,
-     "neto": -3.6278
+     "operaciones": 255,
+     "neto": -5.8119
     },
     "tendencia": {
-     "operaciones": 527,
-     "neto": -1.8935
+     "operaciones": 359,
+     "neto": -7.0312
     },
     "rango": {
-     "operaciones": 249,
-     "neto": -2.362
+     "operaciones": 153,
+     "neto": -1.9336
     }
+   },
+   "riesgo_medio_pct": 10.07,
+   "vetos": {
+    "evit\u00f3 p\u00e9rdida": 0,
+    "dej\u00f3 pasar ganancia": 0,
+    "sin resultado": 0
    }
   },
   {
    "variante": "tendencia_rango_1h",
-   "operaciones": 226,
-   "ganadas": 78,
-   "acierto_pct": 34.5,
-   "neto_usdt": 0.8442,
-   "neto_pct": 2.28,
-   "comisiones_usdt": 2.4714,
-   "financiacion_usdt": 0.2871,
-   "max_caida_pct": 9.22,
-   "sin_minimo": 172,
+   "operaciones": 138,
+   "ganadas": 49,
+   "acierto_pct": 35.5,
+   "neto_usdt": -2.3372,
+   "neto_pct": -6.32,
+   "comisiones_usdt": 2.3019,
+   "financiacion_usdt": 0.0679,
+   "max_caida_pct": 14.26,
+   "sin_minimo": 19257,
    "final": "fin del periodo",
    "por": {
     "BUY": {
-     "operaciones": 117,
-     "neto": 2.4433
+     "operaciones": 69,
+     "neto": -0.0127
     },
     "SELL": {
-     "operaciones": 109,
-     "neto": -1.5991
+     "operaciones": 69,
+     "neto": -2.3244
     },
     "tendencia": {
-     "operaciones": 186,
-     "neto": 0.8182
+     "operaciones": 113,
+     "neto": -2.018
     },
     "rango": {
-     "operaciones": 40,
-     "neto": 0.026
+     "operaciones": 25,
+     "neto": -0.3192
     }
+   },
+   "riesgo_medio_pct": 9.61,
+   "vetos": {
+    "evit\u00f3 p\u00e9rdida": 0,
+    "dej\u00f3 pasar ganancia": 0,
+    "sin resultado": 0
+   }
+  },
+  {
+   "variante": "tendencia_rango_1h_top",
+   "operaciones": 19,
+   "ganadas": 12,
+   "acierto_pct": 63.2,
+   "neto_usdt": 3.2512,
+   "neto_pct": 8.79,
+   "comisiones_usdt": 0.3413,
+   "financiacion_usdt": 0.2075,
+   "max_caida_pct": 6.59,
+   "sin_minimo": 9736,
+   "final": "fin del periodo",
+   "por": {
+    "BUY": {
+     "operaciones": 17,
+     "neto": 3.3616
+    },
+    "SELL": {
+     "operaciones": 2,
+     "neto": -0.1104
+    },
+    "tendencia": {
+     "operaciones": 15,
+     "neto": 3.4126
+    },
+    "rango": {
+     "operaciones": 4,
+     "neto": -0.1615
+    }
+   },
+   "riesgo_medio_pct": 11.97,
+   "vetos": {
+    "evit\u00f3 p\u00e9rdida": 0,
+    "dej\u00f3 pasar ganancia": 0,
+    "sin resultado": 0
+   }
+  },
+  {
+   "variante": "mesa",
+   "operaciones": 25,
+   "ganadas": 16,
+   "acierto_pct": 64.0,
+   "neto_usdt": 6.3894,
+   "neto_pct": 17.27,
+   "comisiones_usdt": 0.4741,
+   "financiacion_usdt": 0.1513,
+   "max_caida_pct": 12.72,
+   "sin_minimo": 2117,
+   "final": "fin del periodo",
+   "por": {
+    "BUY": {
+     "operaciones": 25,
+     "neto": 6.3894
+    },
+    "SELL": {
+     "operaciones": 0,
+     "neto": 0
+    },
+    "tendencia": {
+     "operaciones": 25,
+     "neto": 6.3894
+    },
+    "rango": {
+     "operaciones": 0,
+     "neto": 0
+    }
+   },
+   "riesgo_medio_pct": 12.93,
+   "vetos": {
+    "evit\u00f3 p\u00e9rdida": 1040,
+    "dej\u00f3 pasar ganancia": 1565,
+    "sin resultado": 5124
    }
   }
  ]
