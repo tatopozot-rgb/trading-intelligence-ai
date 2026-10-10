@@ -1,0 +1,116 @@
+{
+ "meta": {
+  "desde": "2026-09-10",
+  "hasta": "2026-10-10",
+  "capital": 37.0,
+  "simbolos": [
+   "BTCUSDT",
+   "ETHUSDT",
+   "BNBUSDT",
+   "SOLUSDT",
+   "XRPUSDT",
+   "DOGEUSDT",
+   "ADAUSDT",
+   "LINKUSDT",
+   "AVAXUSDT",
+   "LTCUSDT",
+   "TRXUSDT",
+   "DOTUSDT"
+  ]
+ },
+ "resultados": [
+  {
+   "variante": "regimen",
+   "operaciones": 1662,
+   "ganadas": 374,
+   "acierto_pct": 22.5,
+   "neto_usdt": -16.6652,
+   "neto_pct": -45.04,
+   "comisiones_usdt": 14.1701,
+   "financiacion_usdt": 0.1902,
+   "max_caida_pct": 45.01,
+   "sin_minimo": 1817,
+   "final": "l\u00edmite de p\u00e9rdida",
+   "por": {
+    "BUY": {
+     "operaciones": 835,
+     "neto": -6.2959
+    },
+    "SELL": {
+     "operaciones": 827,
+     "neto": -10.3692
+    },
+    "tendencia": {
+     "operaciones": 1662,
+     "neto": -16.6652
+    },
+    "rango": {
+     "operaciones": 0,
+     "neto": 0
+    }
+   }
+  },
+  {
+   "variante": "tendencia_rango",
+   "operaciones": 776,
+   "ganadas": 302,
+   "acierto_pct": 38.9,
+   "neto_usdt": -4.2555,
+   "neto_pct": -11.5,
+   "comisiones_usdt": 8.3619,
+   "financiacion_usdt": 0.2896,
+   "max_caida_pct": 16.66,
+   "sin_minimo": 595,
+   "final": "fin del periodo",
+   "por": {
+    "BUY": {
+     "operaciones": 393,
+     "neto": -0.6277
+    },
+    "SELL": {
+     "operaciones": 383,
+     "neto": -3.6278
+    },
+    "tendencia": {
+     "operaciones": 527,
+     "neto": -1.8935
+    },
+    "rango": {
+     "operaciones": 249,
+     "neto": -2.362
+    }
+   }
+  },
+  {
+   "variante": "tendencia_rango_1h",
+   "operaciones": 226,
+   "ganadas": 78,
+   "acierto_pct": 34.5,
+   "neto_usdt": 0.8442,
+   "neto_pct": 2.28,
+   "comisiones_usdt": 2.4714,
+   "financiacion_usdt": 0.2871,
+   "max_caida_pct": 9.22,
+   "sin_minimo": 172,
+   "final": "fin del periodo",
+   "por": {
+    "BUY": {
+     "operaciones": 117,
+     "neto": 2.4433
+    },
+    "SELL": {
+     "operaciones": 109,
+     "neto": -1.5991
+    },
+    "tendencia": {
+     "operaciones": 186,
+     "neto": 0.8182
+    },
+    "rango": {
+     "operaciones": 40,
+     "neto": 0.026
+    }
+   }
+  }
+ ]
+}
