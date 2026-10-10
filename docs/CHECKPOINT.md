@@ -3324,6 +3324,29 @@ any approved GPT Work recommendations, to Claude local with the owner's exact wo
 - An operator test: a BUY stores the plan, Telegram shows it, and the position is sold at its target.
 - An XM test: without `--sl/--tp`, the plan is read from the market.
 
+### 85. Adopted coins get a stop at once; the real session runs the exit plans (2026-10-10)
+
+**Live (Claude local, 02:36 UTC).**
+- Owner's words to Local: "Aplica el plan de salida".
+- Local ran `parar`, then `iniciar --real --temporalidad 1m --perfil tendencia_rango --meta 58 --limite-perdida 45 --capital 32` on `eef6b72`, then `adoptar --simbolo BTCUSDT`.
+- `meta.json`: `min_stop_pct` 3, `max_stop_pct` 15, `r_exits` true, cadence 2/5 minutes.
+- First trade with a plan: a SOLUSDT buy on a range signal.
+  - Stop −3.09% (the engine's stop), resting on Binance.
+  - Target +1.85% at resistance, 0.6× the stop distance, the range floor.
+  - Local notes that with 0.2% round-trip fees, range plans need a high hit rate. The journal will measure it by regime.
+
+**Gap found by Local.**
+- In the earlier restart, `adoptar AVAXUSDT` (14.7 USDT) recorded the coin but put no stop on Binance.
+- The engine did not hold AVAX, so the next decision sold it (`tendencia_rango:CLOSE`) after four minutes without protection.
+
+**Fix.**
+- `adoptar` now places a stop on Binance for a sellable amount at once.
+- The stop comes from the market plan (`plan_exits`), or 3% below the price when there are no bars.
+- The message now says plainly that the strategy sells the coin at its next decision if it does not want it.
+- Dust below the 5 USDT minimum behaves as before.
+- New test: the guard is placed at once and kept on the next pass; a later sell cancels it first.
+- Full suite: 878 passed.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |

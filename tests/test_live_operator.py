@@ -1316,6 +1316,29 @@ class TestOwnerOrders:
         assert any("Sumé a la sesión tu BTC" in m for m in sent) and any("DOGE no está" in m for m in sent)
         assert any("No pude aplicar tu orden" in m for m in sent)
 
+    def test_an_adopted_sellable_coin_gets_a_stop_at_once_and_the_strategy_may_sell_it(self, tmp_path):
+        """Claude local, 2026-10-10: AVAX adopted with no stop on Binance, sold four minutes later."""
+        from trading_intelligence.live import operator as O
+
+        class Held(GuardTrader):
+            def free_balance(self, a):
+                return Decimal("0.2") if a == "BTC" else Decimal("1000")
+
+        sent = []
+        trader = Held({"BTCUSDT": Decimal("100")})
+        op = _operator(tmp_path, trader)
+        op.notify = sent.append
+        O.queue_owner_order(tmp_path, {"cmd": "adoptar", "simbolo": "BTCUSDT"})
+        op.step(decide=False)
+        guard = op.session.guard_stops["BTCUSDT"]
+        assert guard["id"] is not None and Decimal(guard["stop"]) == Decimal("97.00")  # 3% below, on Binance
+        assert any("stop en Binance a 97.00" in m and "la venderá" in m for m in sent)
+        op.step(decide=False)  # the next pass keeps the guard, no engine stop needed
+        assert op.session.guard_stops["BTCUSDT"]["id"] == guard["id"]
+        actions = O.mirror.apply_targets(op.session, trader, {}, op.limits, {"BTCUSDT": Decimal("100")}, "t")
+        assert [a.kind for a in actions] == ["SELL"] and "BTCUSDT" not in op.session.guard_stops
+        assert ("BTCUSDT", "CANCEL", guard["id"]) in trader.orders  # the stop is cancelled before selling
+
     def test_without_a_running_operator_continue_is_applied_directly_and_adopt_refuses(self, tmp_path):
         from trading_intelligence.live import operator as O
 
