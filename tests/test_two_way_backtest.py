@@ -22,10 +22,17 @@ def _fetcher(drift):
     return fetch
 
 
+def _extras(symbol, start, end):
+    idx = pd.date_range(start, end, freq="5min")
+    top = pd.Series(1.3 if symbol == "SOLUSDT" else 0.7, index=idx)  # top traders long SOL, short XRP
+    funding = pd.Series(0.01, index=pd.date_range(start, end, freq="8h"))
+    return top, funding
+
+
 def test_every_variant_is_measured_with_costs_and_written_down(tmp_path):
     out = B.run(2, ["SOLUSDT", "XRPUSDT"], 37.0, tmp_path, _fetcher({"SOLUSDT": 0.0004, "XRPUSDT": -0.0004}),
-                end=END, warmup=200)
-    assert [s["variante"] for s in out] == list(B.VARIANTS)
+                end=END, warmup=200, extras=_extras)
+    assert [s["variante"] for s in out] == list(B.ALL_VARIANTS) and "mesa" in [s["variante"] for s in out]
     for s in out:
         assert s["operaciones"] == s["por"]["BUY"]["operaciones"] + s["por"]["SELL"]["operaciones"]
         if s["operaciones"]:
@@ -50,3 +57,23 @@ def test_btc_does_not_fit_a_small_account():
     h1 = fetch("BTCUSDT", "1h", datetime(2026, 10, 5, tzinfo=timezone.utc), END)
     res = B.simulate({"BTCUSDT": B.prepare(m5, h1, 200)}, "regimen", 37.0)
     assert not res.trades and res.skipped_minimum > 0  # 40% of 37 USDT < Binance's 100 USDT minimum
+
+
+def test_risk_is_sized_from_1_to_15_percent_and_positions_fit_the_equity():
+    fetch = _fetcher({"SOLUSDT": 0.0006, "XRPUSDT": -0.0006})
+    start = datetime(2026, 10, 6, tzinfo=timezone.utc)
+    prepared = {s: B.prepare(fetch(s, "5m", start, END), fetch(s, "1h", datetime(2026, 10, 3, tzinfo=timezone.utc), END),
+                             200, *_extras(s, start, END)) for s in ("SOLUSDT", "XRPUSDT")}
+    res = B.simulate(prepared, "tendencia_rango_1h_top", 37.0)
+    assert res.risks and all(B.RISK_MIN <= r <= B.RISK_MAX for r in res.risks)
+
+
+def test_the_desk_scores_its_vetoes():
+    fetch = _fetcher({"SOLUSDT": 0.0006})
+    start = datetime(2026, 10, 6, tzinfo=timezone.utc)
+    p = {"SOLUSDT": B.prepare(fetch("SOLUSDT", "5m", start, END),
+                              fetch("SOLUSDT", "1h", datetime(2026, 10, 3, tzinfo=timezone.utc), END), 200,
+                              *_extras("SOLUSDT", start, END))}
+    strict = B.D.DeskRules(min_reward_risk=B.Decimal("50"))  # refuses everything
+    res = B.simulate(p, "mesa", 37.0, strict)
+    assert not res.trades and sum(res.vetoes.values()) > 0
