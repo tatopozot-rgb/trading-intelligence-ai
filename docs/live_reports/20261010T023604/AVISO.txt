@@ -1,0 +1,1 @@
+2026-10-10T02:35:50.246625+00:00 OWNER_STOP: parada ordenada por el dueño
