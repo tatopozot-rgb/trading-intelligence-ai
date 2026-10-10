@@ -3178,6 +3178,43 @@ the trades by half: 16 instead of 32.
 - The running session picks it up on its next process start, through the watchdog's `reanudar`.
   Same session, same limits.
 
+### 81. Minimum stop distance for intraday sessions (2026-10-10)
+
+**First real trade:** an AVAX position was stopped out by the guard stop resting on Binance:
+received 14.54 USDT, P&L −0.04 USDT, about −0.28%. The owner: "el stop debe ser más alto y con
+lógica; puede hacer un stop loss largo y dejar operando; con uno así de bajo se va a pérdida
+siempre".
+
+**Cause:** on 1m bars the strategies' own stops sit inside normal one-minute noise:
+- DualMACrossover uses the swing low of the last 10 bars, which on 1m bars is 10 minutes;
+- BollingerReversion uses 1.5 × ATR(14) of 1m bars.
+
+**Fix:** a new `trading_intelligence/strategy/stop_floor.py` adds a `StopFloor` wrapper.
+- Entries and strategy exits are unchanged. Only the stop moves, down to at least `min_stop_pct`
+  below entry, and only when the strategy's own stop is closer.
+- Same strategy id and symbol, so positions re-attach to their strategy after a restart.
+- `with_stop_floor(router, pct)` wraps every registered strategy.
+- Operator:
+  - `--stop-minimo`, defaulting to **2%** for 1m/5m/20m (`DEFAULT_MIN_STOP_PCT`), 0 for 4h;
+  - stored in `meta.json` as `min_stop_pct` and passed to `router_factory`;
+  - the Binance guard stop and the per-minute stop follow the engine's (now wider) stop.
+- The risk engine sizes for the wider stop: risk 1% / stop 2% → 50% of equity, capped at 40% (minus
+  headroom). The loss at the stop is about 0.8% of equity (~0.30 USDT on 37.8), not a bigger budget.
+
+**Tests and replay:**
+- 6 new tests:
+  - the AVAX-like −0.28% stop is moved to −2%;
+  - a stop that is already wider is kept, and exits still delegate;
+  - the router is wrapped;
+  - the CLI defaults per timeframe, plus overrides and refusals.
+- 241 tests pass across stop floor, operator, runner and risk.
+- Offline 1m replay: exits are now mostly strategy exits rather than stops. The data is synthetic,
+  so the P&L means nothing.
+
+**Running session:** its meta has no `min_stop_pct`. Applying the floor needs a new session:
+`parar` without `--cerrar`, `iniciar` with the same flags (2% by default), then `adoptar BTCUSDT`.
+Requested from Claude local, together with the Obsidian memory entry the owner asked for.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
