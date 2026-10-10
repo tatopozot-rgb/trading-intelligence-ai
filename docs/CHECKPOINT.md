@@ -80,3 +80,8 @@ only the latest work blocks. The history up to 2026-10-10 (sections 1–90) is i
 - Small sample: both positive variants have fewer than 30 trades. The report's verdict now names them instead of saying "none won".
 - Skeptic: 1040 vetoes avoided a loss, 1565 blocked a gain, 5124 had no result in 24 h. Its rules are kept for now and reviewed with more data.
 - Local told: update to main; Monday steps unchanged.
+
+### 93. Owner's reminders (2026-10-10)
+
+- Notion trading board: build it once Futures runs stable for a few days, from 2026-10-15. The leader must bring it up: "tienes que recordarlo porque si no yo me olvido". A reminder is scheduled.
+- Risk: the owner keeps his numbers: "1% no es nada, debe ser 15% y los porcentajes que yo ya puse". The config already says 1–15% by signal quality; nothing changes. "lunes con todo".

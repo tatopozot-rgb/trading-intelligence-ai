@@ -106,6 +106,17 @@ conexión vuelva. Los stops siguen puestos en el servidor.
 5. XM: el dueño instala MT5 (DEMO) e inicia sesión él mismo. Local corre `cuenta`, `fichas`, la prueba
    de `xm_demo` y después `xm_auto`.
 
+### Pendiente que el líder debe recordar al dueño
+
+- **Tablero de operaciones en Notion.** Se arma cuando Futuros lleve unos días operando estable, desde el
+  jueves 2026-10-15. El bot del PC escribe en una tabla de Notion cada operación ya verificada en la cuenta.
+  Con una sola conexión, a una sola página, y la clave la guarda el dueño en Windows. Telegram sigue siendo el
+  aviso al momento y Notion no decide nada. Orden del dueño, 2026-10-10: "tienes que recordarlo porque si no
+  yo me olvido".
+- **Riesgo:** el dueño confirmó el 2026-10-10 que se mantienen sus porcentajes: "1% no es nada, debe ser 15%
+  y los porcentajes que yo ya puse". Sigue el 1–15% según la calidad de la señal, como dice
+  `config/futures_limits.json`. En la prueba de 30 días, el riesgo medio fue 12,9%.
+
 ## 7. Reglas que nunca cambian
 
 - Sin retiros ni transferencias automáticas. Ninguna clave en GitHub, Notion, Obsidian ni en los logs.
