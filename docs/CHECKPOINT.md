@@ -3147,6 +3147,37 @@ the same meta and loss limit, then `adoptar BTCUSDT`.
 - XM: when it goes live, it uses the same cadence (`--temporalidad 1m` with `--broker xm`; MT5
   serves 1m natively).
 
+### 80. Entries were rejected for size at 1m: the live engine now shrinks to the cap (2026-10-10)
+
+**Status:**
+- Claude local switched the real session to `--temporalidad 1m` with the 2/5 cadence at 00:19 UTC.
+  The owner wrote "Cambia 2 y a 5 minutos" in his chat.
+- Capital is 37.78 and no trades have happened yet.
+- In Local's SHADOW rehearsal, the engine's risk check vetoed an entry with
+  `MAX_POSITION_SIZE_EXCEEDED`.
+
+**Root cause:** fixed-fractional sizing (risk 1% of equity / stop distance) on 1m–5m bars gives tight
+stops. The risk-sized position was then above the owner's 40% per-position cap, and the engine
+REJECTED the entry instead of taking the capped size. In the offline 1m replay, the rejections cut
+the trades by half: 16 instead of 32.
+
+**Fix:**
+- New `RiskConfig.cap_position_size` (default False, so behaviour and tests are unchanged): shrink
+  the quantity to `max_position_size_pct` × (1 − `cap_headroom_pct` / 100). The headroom defaults to
+  2%, so the next-open `validate_fill` cap check keeps room for normal slippage.
+- A smaller position at the same stop only lowers the loss at the stop.
+- The spec's wording ("hard caps applied after sizing", then floored to the lot) reads as a clip.
+  This is opt-in for that reason.
+- `operator.engine_risk_overrides` enables it.
+
+**Tests and replay:**
+- New risk test: the oversized case is approved at ≤ 490 (5% of 10000 minus 2%), and the fill check
+  passes at +1% slippage.
+- 274 risk, operator, runner and loop tests pass.
+- Offline 1m replay: 32 orders (was 16), kill switch off.
+- The running session picks it up on its next process start, through the watchdog's `reanudar`.
+  Same session, same limits.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |

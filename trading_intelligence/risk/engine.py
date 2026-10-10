@@ -521,6 +521,13 @@ class RiskEngine:
 
             # Hard cap: single position size
             max_position_value = equity * Decimal(str(self.config.max_position_size_pct)) / 100
+            if position_value > max_position_value and self.config.cap_position_size:
+                target = max_position_value * (1 - Decimal(str(self.config.cap_headroom_pct)) / 100)
+                quantity = (target / entry_price).quantize(Decimal("0.00000001"), rounding=ROUND_DOWN)
+                position_value = quantity * entry_price
+                if quantity <= 0:
+                    return self._reject(proposal, REASON_POSITION_SIZE_ZERO, equity, daily_pnl,
+                                         daily_loss_pct, drawdown_pct, stop_distance_pct=stop_distance_pct)
             if position_value > max_position_value:
                 return self._reject(proposal, REASON_MAX_POSITION_SIZE_EXCEEDED, equity, daily_pnl,
                                      daily_loss_pct, drawdown_pct, stop_distance_pct=stop_distance_pct,

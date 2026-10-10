@@ -162,6 +162,9 @@ def engine_risk_overrides(limits: OwnerLimits) -> dict:
         "drawdown_halt_pct": loss,
         "max_daily_turnover_pct": 1000.0,
         "max_trades_per_day": 100,
+        # 1m-5m stops are tight: the risk-sized position is often above the owner's per-position cap,
+        # which used to reject every entry. Shrink it to the cap instead (less risk, never more).
+        "cap_position_size": True,
     }
 
 
