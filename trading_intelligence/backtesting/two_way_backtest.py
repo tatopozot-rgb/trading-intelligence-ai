@@ -352,10 +352,17 @@ def render(summaries: list[dict], meta: dict) -> str:
     valid = [s for s in summaries if s["operaciones"] >= 30]
     best = max(valid, key=lambda s: s["neto_usdt"]) if valid else None
     lines += ["", "## Veredicto", ""]
+    short = [s for s in summaries if 0 < s["operaciones"] < 30 and s["neto_usdt"] > 0]
+    if short:
+        lines.append("Con menos de 30 operaciones, por eso no cuentan para el veredicto: "
+                     + "; ".join(f"**{s['variante']}** {s['neto_usdt']:+.2f} USDT en {s['operaciones']}"
+                                 for s in short)
+                     + ". Son positivas, pero la muestra es corta para confirmarlas.")
+        lines.append("")
     if best is None:
         lines.append("Ninguna variante llegó a 30 operaciones: la muestra es corta para decidir.")
     elif best["neto_usdt"] <= 0:
-        lines.append(f"Ninguna variante ganó en este periodo. La que menos perdió fue **{best['variante']}** "
+        lines.append(f"Entre las de 30 operaciones o más, ninguna ganó. La que menos perdió fue **{best['variante']}** "
                      f"({best['neto_usdt']:+.2f} USDT). No se recomienda dinero real con estas reglas todavía.")
     else:
         lines.append(f"La mejor en este periodo fue **{best['variante']}**: {best['neto_usdt']:+.2f} USDT "
