@@ -1453,3 +1453,15 @@ class TestTradingWindows:
                 "--perfil", "tendencia_rango"])
         assert launched[0]["timeframe"] == timeframe and launched[0]["windows"] == ["07-10", "17-19"]
         assert json.loads((tmp_path / "meta.json").read_text())["windows"] == ["07-10", "17-19"]
+
+
+def test_a_repeated_dust_skip_is_noted_once(tmp_path):
+    trader = FakeTrader({"BTCUSDT": Decimal("100")})
+    op = _operator(tmp_path, trader)
+    op.session.record_buy("BTCUSDT", Decimal("0.00001"), Decimal("0.001"), Decimal("0"), "ADOPTED")  # dust
+    loop = FakeLoop(tmp_path)  # the engine holds nothing: the mirror tries to close the dust every pass
+    op.loop = loop
+    for _ in range(5):
+        op.step(decide=True)
+    skips = [e for e in op.session.events if e.get("kind") == "SKIP"]
+    assert len(skips) == 1 and "DUST" in skips[0]["text"]

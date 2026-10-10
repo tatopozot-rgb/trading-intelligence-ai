@@ -254,6 +254,7 @@ class Operator:
         self.inside_every_min = inside_every_min  # None: every bar inside the windows
         self.outside_every_min = outside_every_min
         self._last_slot: Optional[tuple[int, int]] = None
+        self._noted_skips: set[tuple[str, str]] = set()
         self.session = Session.load(self.dir / "session.json")
         self.last_mid_report = self.clock()
         self.last_summary = self.clock()
@@ -380,7 +381,12 @@ class Operator:
             self.notify(messages.error(str(error)))
         for a in actions:
             if a.kind == "SKIP":
-                s.note("SKIP", f"{a.symbol}: {a.reason}")
+                # The same skip (e.g. dust below the exchange minimum) repeats every pass: note it once
+                # per symbol and reason, not every minute (Claude local saw it filling the event log).
+                key = (a.symbol, a.reason.split(":")[0])
+                if key not in self._noted_skips:
+                    self._noted_skips.add(key)
+                    s.note("SKIP", f"{a.symbol}: {a.reason}")
             elif a.kind == "BUY":
                 trade = self._trade_for(a)
                 at = Decimal(trade["usdt"]) / Decimal(trade["qty"]) if trade and Decimal(trade["qty"]) > 0 else None

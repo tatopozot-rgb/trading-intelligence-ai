@@ -3244,6 +3244,8 @@ deciden; desde 3 al 15, no siempre lo mismo; actualiza todo".
 and capped at the max); the CLI defaults test is updated to the 3/15 band. 119 stop-floor and
 operator tests pass.
 
+**Also:** a repeated SKIP (e.g. dust below the exchange minimum) is now noted once per symbol and reason, not every pass; Claude local saw it filling the event log.
+
 **Running session:** needs a new session to pick this up: `parar` without `--cerrar`, then `iniciar`
 with the same flags (the band comes by default), then `adoptar BTCUSDT`.
 
