@@ -316,11 +316,21 @@ class Operator:
         s.add_capital(value)
         s.record_buy(symbol, qty, value, Decimal("0"), "ADOPTED")
         rules = self.trader.rules(symbol)
-        small = rules.floor_qty(qty) * price < rules.min_notional
-        tail = (" Es menos del mínimo de venta de Binance (5 USDT): se venderá junto con la próxima compra de "
-                f"{messages.coin(symbol)}, o con el comando pasar-a-usdt.") if small else ""
-        return (f"✅ Sumé a la sesión tu {messages.coin(symbol)} ({qty}, unos {messages.usdt(value)}). Desde ahora "
-                f"lo maneja el operador con sus reglas y stops.{tail}")
+        if rules.floor_qty(qty) * price < rules.min_notional:
+            return (f"✅ Sumé a la sesión tu {messages.coin(symbol)} ({qty}, unos {messages.usdt(value)}). Es menos "
+                    f"del mínimo de venta de Binance (5 USDT): se venderá junto con la próxima compra de "
+                    f"{messages.coin(symbol)}, o con el comando pasar-a-usdt.")
+        # A sellable coin the strategy did not buy is sold at its next decision unless the strategy
+        # wants it too; until then it must not sit without a stop (Claude local, 2026-10-10: AVAX
+        # adopted with no guard stop for four minutes). The stop is read from the market, as at entry.
+        plan = self._plan_exit(symbol, {})
+        stop = Decimal(plan["stop"]) if plan else price * (1 - DEFAULT_MIN_STOP_PCT / 100)
+        guarded = [a for a in mirror.place_guards(s, self.trader, {symbol: stop}, {symbol: price}) if a.kind == "GUARD"]
+        protection = (f"Le puse un stop en Binance a {guarded[0].reason.split(':')[1]}." if guarded else
+                      "⚠️ Binance no aceptó el stop: queda sin protección hasta la próxima decisión de la estrategia.")
+        return (f"✅ Sumé a la sesión tu {messages.coin(symbol)} ({qty}, unos {messages.usdt(value)}). {protection} "
+                f"Si la estrategia no quiere {messages.coin(symbol)} en su próxima decisión, la venderá y el dinero "
+                f"vuelve a la sesión en USDT.")
 
     def step(self, decide: bool) -> list[mirror.Action]:
         s = self.session
