@@ -3473,6 +3473,21 @@ any approved GPT Work recommendations, to Claude local with the owner's exact wo
 
 **Honest gap:** the real-data backtest has not run yet. It runs in GitHub Actions once PR #33 is merged, and its result goes to the owner.
 
+### 90. Real-data check of the futures engine (2026-10-10)
+
+Source: `docs/two_way_backtest/2026-10-10.md`, workflow run 38026501972. Last 30 days (2026-09-10 to 2026-10-10), 12 symbols, 37 USDT, the live rules, 0.05% taker fees and approximate funding.
+
+| Variant | Trades | Win rate | Net | Max drawdown |
+|---|---|---|---|---|
+| `regimen` (PR #32 default) | 1662 | 22.5% | −16.67 USDT (−45.0%, hit the loss limit) | 45.0% |
+| `tendencia_rango` | 776 | 38.9% | −4.26 (−11.5%) | 16.7% |
+| `tendencia_rango_1h` (default since PR #33) | 226 | 34.5% | +0.84 (+2.3%) | 9.2% |
+
+- The 1-hour confirmation is what turns the result from a loss into a small gain. It is near breakeven, not a profit promise.
+- In the default variant, longs made +2.44, shorts lost −1.60, and fees cost 2.47 USDT.
+- The owner's rejection of the first limits avoided the `regimen` version, which loses 45% on this data.
+- The check repeats every Monday at 01:40 UTC. Real trades are compared against it.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |
