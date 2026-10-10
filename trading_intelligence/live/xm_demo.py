@@ -113,16 +113,24 @@ class XmDemoTrader:
             raise NotDemo(f"la cuenta activa en MT5 es {acc.mode}: las órdenes de la fase 2 son solo en DEMO")
         return acc
 
-    def plan(self, symbol: str, side: str, sl_pct: Decimal, tp_pct: Decimal,
-             risk_pct: Decimal = DEFAULT_RISK_PCT, caps: EntryCaps = EntryCaps()) -> Plan:
+    def plan(self, symbol: str, side: str, sl_pct: Optional[Decimal] = None, tp_pct: Optional[Decimal] = None,
+             risk_pct: Decimal = DEFAULT_RISK_PCT, caps: EntryCaps = EntryCaps(), timeframe: str = "5m") -> Plan:
+        """sl_pct/tp_pct None: read them from the market, as on Binance (strategy.exit_plan: support,
+        resistance, volatility and regime; stop 3-15%, target by regime)."""
         acc = self._demo_account()
         sheet = self.reader.sheet(symbol)
         refused = check_entry(sheet, side, acc, caps)
         if refused:
             raise XmError("entrada no autorizada: " + "; ".join(refused))
+        price = sheet.ask if side == "BUY" else sheet.bid
+        if sl_pct is None or tp_pct is None:
+            from trading_intelligence.strategy.exit_plan import plan_exits
+
+            market = plan_exits(self.reader.candles(symbol, timeframe, 500), price, side=side)
+            sl_pct = sl_pct if sl_pct is not None else market.stop_pct
+            tp_pct = tp_pct if tp_pct is not None else market.target_pct
         if not (0 < sl_pct < 50 and 0 < tp_pct < 100):
             raise ValueError("sl_pct and tp_pct must be positive percentages")
-        price = sheet.ask if side == "BUY" else sheet.bid
         sign = 1 if side == "BUY" else -1
         digits_q = sheet.point
         sl = (price * (1 - sign * sl_pct / 100)).quantize(digits_q)
@@ -197,8 +205,8 @@ def main(argv: Optional[list[str]] = None, mt5: Optional[object] = None) -> int:
     parser = argparse.ArgumentParser(description="XM fase 2: prueba en cuenta DEMO (abre con SL y TP y cierra)")
     parser.add_argument("--simbolo", required=True)
     parser.add_argument("--lado", choices=("BUY", "SELL"), default="BUY")
-    parser.add_argument("--sl", default="0.5", help="stop loss en %% del precio")
-    parser.add_argument("--tp", default="1.0", help="take profit en %% del precio")
+    parser.add_argument("--sl", help="stop loss en %% del precio (por defecto: leído del mercado)")
+    parser.add_argument("--tp", help="take profit en %% del precio (por defecto: leído del mercado)")
     parser.add_argument("--riesgo", default=str(DEFAULT_RISK_PCT), help="%% de la equity que se pierde si toca el SL")
     parser.add_argument("--mantener", action="store_true", help="dejar la posición abierta (con su SL y TP)")
     parser.add_argument("--diario", default="live_runs/xm_demo/orders.json")
@@ -206,7 +214,8 @@ def main(argv: Optional[list[str]] = None, mt5: Optional[object] = None) -> int:
     trader = XmDemoTrader(Path(args.diario), mt5)
     try:
         acc = trader.connect()
-        plan = trader.plan(args.simbolo, args.lado, Decimal(args.sl), Decimal(args.tp), Decimal(args.riesgo))
+        plan = trader.plan(args.simbolo, args.lado, Decimal(args.sl) if args.sl else None,
+                           Decimal(args.tp) if args.tp else None, Decimal(args.riesgo))
         print(f"Cuenta DEMO · equity {acc.equity} {acc.currency}")
         print(f"Plan: {plan.side} {plan.lots} lotes de {plan.symbol} a {plan.price} · SL {plan.sl} · TP {plan.tp} · "
               f"riesgo {plan.risk_money} · exposición {plan.exposure} {acc.currency}")

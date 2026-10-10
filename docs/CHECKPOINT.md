@@ -3215,6 +3215,115 @@ siempre".
 `parar` without `--cerrar`, `iniciar` with the same flags (2% by default), then `adoptar BTCUSDT`.
 Requested from Claude local, together with the Obsidian memory entry the owner asked for.
 
+### 82. The stop follows each coin's volatility, between 3% and 15% (2026-10-10)
+
+**Owner, after section 81's fixed 2% floor:** "Yo creo un stop más alto, con lógica; tú y local
+deciden; desde 3 al 15, no siempre lo mismo; actualiza todo".
+
+**Logic (`StopFloor` with `max_stop_pct`):**
+- **Distance:** 2.5 × the coin's recent volatility projected over 4 hours: the std of the last ≤500
+  bar log-returns × √(bars in 240 min).
+- **Band:** the distance is clamped to [3%, 15%].
+  - A calm coin gets ~3%. In 1m tests, a 0.05% per-bar std gives 3.00%.
+  - A lively one gets more: 0.3% per-bar std gives a value inside the band.
+  - A wild one is capped at 15%.
+- **Strategy stops:**
+  - a strategy stop already inside the band is kept;
+  - one farther than 15% is pulled up to 15%.
+- **Not enough history** (under 30 bars): the minimum is used.
+- **Position size:** the engine sizes each position for its own stop (1% risk budget, 40% cap), so
+  a wider stop means a smaller position, not a bigger loss. At 15%, risk 1% → about 6.7% of equity.
+
+**Operator settings:**
+- `DEFAULT_MIN_STOP_PCT = 3` and `DEFAULT_MAX_STOP_PCT = 15` for 1m/5m/20m sessions.
+- `--stop-minimo` / `--stop-maximo` override them; `meta.json` stores `min_stop_pct` and
+  `max_stop_pct`.
+- 4h sessions are unchanged.
+
+**Tests:** 3 new stop-band tests (the calm, lively and wild walks; the stop moved up into the band
+and capped at the max); the CLI defaults test is updated to the 3/15 band. 119 stop-floor and
+operator tests pass.
+
+**Also:** a repeated SKIP (e.g. dust below the exchange minimum) is now noted once per symbol and reason, not every pass; Claude local saw it filling the event log.
+
+**Running session:** needs a new session to pick this up: `parar` without `--cerrar`, then `iniciar`
+with the same flags (the band comes by default), then `adoptar BTCUSDT`.
+
+### 83. Take profit with logic, measured in each position's own risk (R) (2026-10-10)
+
+Owner: "el take profit por lógica debe estar configurado con lógica".
+
+**Before:** the strategy exit, a fixed trailing stop (3% below the peak once up 2%) and the session
+target. A fixed 2%/3% no longer fits a stop that ranges from 3% to 15%.
+
+**Now (`r_exits`, on by default for new 1m/5m/20m sessions):**
+- R = (entry − the engine's stop) / entry, the position's own stop distance.
+- **Trailing:** once the peak is ≥ +1R, the stop follows the peak at R/2 below it. It locks about
+  +0.5R at once and more as the price climbs. It is never lower than the engine's stop, and it moves
+  the Binance guard stop.
+- **Take profit:** at +3R, sell (reason `TAKE_PROFIT:3R`). Reward is three times the risk.
+- **Strategy exits** still act first if they come first.
+- **No re-buy right after an operator-side exit.** A trailing or take-profit sale while the engine
+  still holds the symbol records it in `Session.exited_early`, which is persisted. Targets for that
+  symbol are dropped until the engine itself exits; then the block lifts.
+  - This also fixes a latent issue in the old fixed trailing stop: after its exit, the next decision
+    could buy straight back.
+- **Telegram:** a profitable `STOP_HIT` now reads "el stop que sigue la ganancia se activó y la
+  aseguró". `TAKE_PROFIT` reads "se alcanzó la meta de ganancia de esta operación".
+
+**Tests:** 3 new tests: trailing from +1R locks profit, plus the re-buy block and its lift; take
+profit at +3R; the `r_exits` meta default. 140 operator, Telegram and stop-floor tests pass.
+
+### 84. Stop and take profit read from the market at each entry (2026-10-10)
+
+**Owner:** "¿Cómo se están realizando estos cálculos? Debería ser con análisis: a veces 15 de stop y
+10 de profit, a veces 10 de stop y 15 de profit, siempre con lógica del mercado y análisis del momento,
+hasta de top traders. Todo igual para XM; actualizar git y Obsidian; las órdenes de GPT Work, cuando
+se reintegre, enviarlas a Local."
+
+**New `trading_intelligence/strategy/exit_plan.py`.** `plan_exits(data, entry, side, kind,
+stop_price)` reads, at the moment of entry, from the bars the engine already has:
+- volatility over about 4 hours;
+- the recent support and resistance over about 4 hours;
+- the regime (`detect_regime`): TREND_UP or BREAKOUT_UP counts as "tendencia"; anything else as
+  "rango".
+
+From that it sets:
+- **Stop:** below the support (with a 0.2% buffer) or 2.5 × volatility, whichever is farther, inside
+  [3%, 15%]. The engine's own stop is kept when it has one.
+- **Target, "tendencia":** max(resistance, 1.5 × volatility move), kept between 1.2× and 3× the stop
+  distance.
+- **Target, "rango":** min(resistance, volatility move), kept between 0.6× and 1.5× the stop distance.
+- **Result:** the reward/risk depends on the market at that moment ("15/10" in a wide-stop range,
+  "10/15+" in a trend).
+
+**Where it is used:**
+- **Operator (`r_exits`):** on every real BUY, the plan is computed from that symbol's latest bars.
+  - It is stored in `Session.exit_plans` and noted in the journal (`PLAN`).
+  - It is shown in the Telegram buy message: stop, target, regime and the reason.
+  - Take profit happens at the plan's target. Positions without a plan keep the +3R rule. Trailing
+    from +1R stays.
+- **XM (`xm_demo`):** `--sl/--tp` now default to the same market-read plan, on 5m candles from MT5.
+
+**Honest limits:**
+- These are rules, not a proven optimum. Each plan is journaled so the trades can measure which
+  kind works, by regime and by coin.
+- **Top traders:** there is no live top-trader feed yet. Leaderboard capture needs the Chrome
+  extension on the owner's PC (pending). The copy-trading review exists, but it runs from manual
+  captures. When that feed exists, it can become a confirmation input to the plan.
+
+**GPT Work:** `docs/AUTOMATIZACION.md` 2.4 now says the leader relays the owner's GPT Work orders, and
+any approved GPT Work recommendations, to Claude local with the owner's exact words.
+
+**Tests:**
+- 4 exit-plan tests:
+  - trend aims farther than range from the same stop;
+  - the stop goes under a nearby support;
+  - different markets give different numbers;
+  - an engine stop is kept, and the SELL side is mirrored.
+- An operator test: a BUY stores the plan, Telegram shows it, and the position is sold at its target.
+- An XM test: without `--sl/--tp`, the plan is read from the market.
+
 ## Documents Ready for Codex to Implement Against
 
 | Document | Purpose | Priority | Status |

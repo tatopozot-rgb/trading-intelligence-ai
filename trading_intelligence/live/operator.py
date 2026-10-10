@@ -61,8 +61,16 @@ OUTSIDE_WINDOW_EVERY = timedelta(minutes=20)  # sessions started before 2026-10-
 DEFAULT_CADENCE = {"1m": (2, 5), "5m": (None, 20), "20m": (None, 20)}
 # Owner, 2026-10-10 (an AVAX stop at -0.28%): short-bar stops sit inside normal noise. Intraday
 # sessions keep the stop at least this far below entry; the engine sizes for it (same risk budget).
-DEFAULT_MIN_STOP_PCT = Decimal("2")
+DEFAULT_MIN_STOP_PCT = Decimal("3")
+# Then: "desde 3 al 15, no siempre lo mismo": the stop follows each coin's volatility inside [3%, 15%].
+DEFAULT_MAX_STOP_PCT = Decimal("15")
 INTRADAY_TIMEFRAMES = frozenset({"1m", "5m", "20m"})
+# Take profit with logic (owner, 2026-10-10), measured in R = this position's own stop distance:
+# at +1R the stop starts following the peak at R/2 below it (it locks about +0.5R at once); at +3R
+# the position is sold (reward three times the risk). A 3% stop: trail from +3%, sell at +9%.
+TRAIL_START_R = Decimal("1")
+TRAIL_DISTANCE_R = Decimal("0.5")
+TAKE_PROFIT_R = Decimal("3")
 ECUADOR_UTC_OFFSET_H = -5
 # The owner's windows, Ecuador time, every day: his 07-10 and the 17-19 one he gave the leader.
 OWNER_WINDOWS = ("07-10", "17-19")
@@ -172,13 +180,14 @@ def engine_risk_overrides(limits: OwnerLimits) -> dict:
     }
 
 
-def router_factory(profile: str, timeframe: str, min_stop_pct: Optional[Decimal] = None) -> Callable[[str], object]:
+def router_factory(profile: str, timeframe: str, min_stop_pct: Optional[Decimal] = None,
+                   max_stop_pct: Optional[Decimal] = None) -> Callable[[str], object]:
     from trading_intelligence.strategy.router import default_router, router_with_range_reversion
     from trading_intelligence.strategy.stop_floor import with_stop_floor
 
     if profile == "tendencia_rango":
-        return lambda sym: with_stop_floor(router_with_range_reversion(sym), min_stop_pct)
-    return lambda sym: with_stop_floor(default_router(sym, timeframe), min_stop_pct)
+        return lambda sym: with_stop_floor(router_with_range_reversion(sym), min_stop_pct, max_stop_pct)
+    return lambda sym: with_stop_floor(default_router(sym, timeframe), min_stop_pct, max_stop_pct)
 
 
 def engine_targets(loop) -> tuple[dict[str, Decimal], dict[str, Decimal]]:
@@ -230,7 +239,8 @@ class Operator:
                  end_at: Optional[datetime] = None, profit_target_pct: Optional[Decimal] = None,
                  trailing_pct: Decimal = DEFAULT_TRAILING_PCT, trail_after_pct: Decimal = DEFAULT_TRAIL_AFTER_PCT,
                  windows: Optional[list[str]] = None, inside_every_min: Optional[int] = None,
-                 outside_every_min: int = int(OUTSIDE_WINDOW_EVERY.total_seconds() // 60)) -> None:
+                 outside_every_min: int = int(OUTSIDE_WINDOW_EVERY.total_seconds() // 60),
+                 r_exits: bool = False) -> None:
         self.dir = Path(state_dir)
         self.trader = trader
         self.limits = limits
@@ -251,6 +261,8 @@ class Operator:
         self.inside_every_min = inside_every_min  # None: every bar inside the windows
         self.outside_every_min = outside_every_min
         self._last_slot: Optional[tuple[int, int]] = None
+        self._noted_skips: set[tuple[str, str]] = set()
+        self.r_exits = r_exits  # take profit and trailing measured in each position's own risk (R)
         self.session = Session.load(self.dir / "session.json")
         self.last_mid_report = self.clock()
         self.last_summary = self.clock()
@@ -353,7 +365,14 @@ class Operator:
                     self.notify(messages.window_open(self.window_spec, self.inside_every_min or self._bar_minutes())
                                 if inside else messages.window_closed(self.outside_every_min))
                 self._was_in_window = inside
-        stops = self._with_trailing(stops, prices)
+        base_stops = dict(stops)  # the engine's own stops: they define each position's R
+        stops = self._with_r_exits(stops, prices) if self.r_exits else self._with_trailing(stops, prices)
+        if targets is not None:
+            for sym in list(s.exited_early):
+                if targets.get(sym, Decimal("0")) <= 0:
+                    s.exited_early.remove(sym)  # the engine exited too: the symbol may be bought again
+                else:
+                    targets.pop(sym)  # sold early by the operator; do not buy it straight back
         message = s.evaluate(prices, self.limits)
         if message:
             loss, limit = s.capital - s.equity(prices), self.limits.loss_limit_usd(s.capital)
@@ -364,6 +383,8 @@ class Operator:
                 actions += mirror.flatten(s, self.trader, "LOSS_LIMIT")
             else:
                 actions += mirror.enforce_stops(s, self.trader, stops, prices)
+                if self.r_exits:
+                    actions += self._take_profits(base_stops, prices)
                 if targets is not None and s.status != STOPPED:
                     prices = {sym: self.trader.price(sym) for sym in sorted(set(s.holdings) | set(targets))}
                     actions += mirror.apply_targets(s, self.trader, targets, self.limits, prices, self.profile)
@@ -375,13 +396,24 @@ class Operator:
         except LiveError as error:
             s.note("ERROR", str(error))
             self.notify(messages.error(str(error)))
+        engine_held = set(base_stops)
+        for a in actions:
+            if a.kind == "SELL" and a.symbol not in s.holdings and a.symbol in engine_held and \
+                    a.reason.split(":")[0] in ("STOP_HIT", "TAKE_PROFIT") and a.symbol not in s.exited_early:
+                s.exited_early.append(a.symbol)
         for a in actions:
             if a.kind == "SKIP":
-                s.note("SKIP", f"{a.symbol}: {a.reason}")
+                # The same skip (e.g. dust below the exchange minimum) repeats every pass: note it once
+                # per symbol and reason, not every minute (Claude local saw it filling the event log).
+                key = (a.symbol, a.reason.split(":")[0])
+                if key not in self._noted_skips:
+                    self._noted_skips.add(key)
+                    s.note("SKIP", f"{a.symbol}: {a.reason}")
             elif a.kind == "BUY":
                 trade = self._trade_for(a)
                 at = Decimal(trade["usdt"]) / Decimal(trade["qty"]) if trade and Decimal(trade["qty"]) > 0 else None
-                self.notify(messages.buy(a.symbol, a.usdt, at, a.reason, self.real))
+                plan = self._plan_exit(a.symbol, base_stops) if self.r_exits else None
+                self.notify(messages.buy(a.symbol, a.usdt, at, a.reason, self.real, plan))
             elif a.kind == "SELL":
                 trade = self._trade_for(a)
                 pnl = Decimal(trade["pnl"]) if trade and trade.get("pnl") is not None else None
@@ -417,6 +449,72 @@ class Operator:
             return False
         self._last_slot = slot
         return True
+
+    def _r(self, sym: str, base_stops: dict[str, Decimal]) -> Optional[Decimal]:
+        held = self.session.holdings.get(sym)
+        stop = base_stops.get(sym)
+        if held is None or stop is None or held.avg_cost <= 0 or not 0 < stop < held.avg_cost:
+            return None
+        return (held.avg_cost - stop) / held.avg_cost
+
+    def _with_r_exits(self, stops: dict[str, Decimal], prices: dict[str, Decimal]) -> dict[str, Decimal]:
+        """Owner: "el take profit debe estar configurado con lógica". Once a position is up 1R (its own
+        stop distance), the stop follows the highest price at R/2 below it: it locks about half a R at
+        once and more as the price climbs. Never lower than the engine's stop; moves the Binance guard."""
+        out = dict(stops)
+        s = self.session
+        for sym in list(s.trail_peaks):
+            if sym not in s.holdings:
+                del s.trail_peaks[sym]
+        for sym, held in s.holdings.items():
+            price, r = prices.get(sym), self._r(sym, stops)
+            if price is None or r is None:
+                continue
+            peak = max(s.trail_peaks.get(sym, price), price)
+            s.trail_peaks[sym] = peak
+            if peak >= held.avg_cost * (1 + TRAIL_START_R * r):
+                trail = peak * (1 - TRAIL_DISTANCE_R * r)
+                if trail > out.get(sym, Decimal("0")):
+                    out[sym] = trail
+        return out
+
+    def _take_profits(self, base_stops: dict[str, Decimal], prices: dict[str, Decimal]) -> list[mirror.Action]:
+        """Sell at the target read from the market when the position was opened (exit_plan); a
+        position without a plan uses +3R (reward three times what it risked)."""
+        out = []
+        for sym in list(self.session.exit_plans):
+            if sym not in self.session.holdings:
+                del self.session.exit_plans[sym]
+        for sym in list(self.session.holdings):
+            held, price, r = self.session.holdings[sym], prices.get(sym), self._r(sym, base_stops)
+            plan = self.session.exit_plans.get(sym)
+            if price is None:
+                continue
+            if plan is not None:
+                if price >= Decimal(plan["target"]):
+                    out.append(mirror.sell(self.session, self.trader, sym, f"TAKE_PROFIT:{plan['kind']}"))
+            elif r is not None and price >= held.avg_cost * (1 + TAKE_PROFIT_R * r):
+                out.append(mirror.sell(self.session, self.trader, sym, f"TAKE_PROFIT:{TAKE_PROFIT_R}R"))
+        return out
+
+    def _plan_exit(self, sym: str, base_stops: dict[str, Decimal]) -> Optional[dict]:
+        """Read the market for a position just opened: stop, target and why (exit_plan)."""
+        from trading_intelligence.strategy.exit_plan import plan_exits
+
+        held = self.session.holdings.get(sym)
+        if held is None or self.loop is None or not hasattr(self.loop, "market_data"):
+            return None
+        try:
+            data = self.loop.market_data.get_ohlcv(sym, self.timeframe, 500)
+            plan = plan_exits(data, held.avg_cost, stop_price=base_stops.get(sym))
+        except Exception as error:  # noqa: BLE001 - no plan: the +3R rule still applies
+            self.session.note("PLAN", f"{sym}: sin plan de salida ({error})")
+            return None
+        entry = {"stop": str(plan.stop), "target": str(plan.target), "kind": plan.kind,
+                 "stop_pct": str(plan.stop_pct), "target_pct": str(plan.target_pct), "why": plan.why}
+        self.session.exit_plans[sym] = entry
+        self.session.note("PLAN", f"{sym}: stop -{plan.stop_pct}% · meta +{plan.target_pct}% · {plan.kind} · {plan.why}")
+        return entry
 
     def _with_trailing(self, stops: dict[str, Decimal], prices: dict[str, Decimal]) -> dict[str, Decimal]:
         """Owner: "estar en revisión continua hasta cumplir la meta de esa transacción". Every
@@ -819,6 +917,8 @@ def _launch(d: Path, limits: OwnerLimits, meta: dict, engine_equity: str, max_it
                           paper_equity=engine_equity, risk_overrides=engine_risk_overrides(limits),
                           router_factory=router_factory(meta["profile"], meta["timeframe"],
                                                         Decimal(str(meta["min_stop_pct"])) if meta.get("min_stop_pct")
+                                                        else None,
+                                                        Decimal(str(meta["max_stop_pct"])) if meta.get("max_stop_pct")
                                                         else None),
                           continuous_market=not xm)
     end_at = datetime.fromisoformat(meta["end_at"]) if meta.get("end_at") else None
@@ -828,7 +928,8 @@ def _launch(d: Path, limits: OwnerLimits, meta: dict, engine_equity: str, max_it
                   notify=telegram_notify.make_notify(telegram_notify.console, telegram_notify.from_env()),
                   trailing_pct=Decimal(str(meta.get("trailing_pct", DEFAULT_TRAILING_PCT))),
                   windows=meta.get("windows"), inside_every_min=meta.get("inside_every_min"),
-                  outside_every_min=meta.get("outside_every_min", int(OUTSIDE_WINDOW_EVERY.total_seconds() // 60)))
+                  outside_every_min=meta.get("outside_every_min", int(OUTSIDE_WINDOW_EVERY.total_seconds() // 60)),
+                  r_exits=bool(meta.get("r_exits", False)))
     op.run(max_iterations=max_iterations, start_report=True)
 
 
@@ -857,6 +958,8 @@ def main(argv: Optional[list[str]] = None) -> int:
                        "(1m default: 5; 5m/20m default: 20)")
     start.add_argument("--stop-minimo", help="minimum stop distance in %% below entry (1m/5m/20m default: "
                        f"{DEFAULT_MIN_STOP_PCT}; 4h: the strategy's own stop); 0 = the strategy's own stop")
+    start.add_argument("--stop-maximo", help="maximum stop distance in %% (1m/5m/20m default: "
+                       f"{DEFAULT_MAX_STOP_PCT}); between the minimum and the maximum the stop follows volatility")
     start.add_argument("--broker", choices=BROKERS, default="binance",
                        help="xm: candles and prices from your MT5 terminal (SHADOW only in phase 1); "
                             "give the MT5 symbol names with --simbolos")
@@ -1005,6 +1108,12 @@ def main(argv: Optional[list[str]] = None) -> int:
                 raise ValueError
         except (ValueError, ArithmeticError):
             parser.error("--stop-minimo must be a percentage between 0 and 50")
+    if args.stop_maximo is not None:
+        try:
+            if not Decimal("0") < Decimal(args.stop_maximo) < Decimal("50"):
+                raise ValueError
+        except (ValueError, ArithmeticError):
+            parser.error("--stop-maximo must be a percentage between 0 and 50")
     for every in (args.cada_dentro, args.cada_fuera):
         if every is not None and not 1 <= every <= 240:
             parser.error("--cada-dentro / --cada-fuera must be between 1 and 240 minutes")
@@ -1050,6 +1159,11 @@ def main(argv: Optional[list[str]] = None) -> int:
             DEFAULT_MIN_STOP_PCT if args.temporalidad in INTRADAY_TIMEFRAMES else Decimal("0"))
         if stop_min:
             meta["min_stop_pct"] = str(stop_min)
+            stop_max = Decimal(args.stop_maximo) if args.stop_maximo is not None else (
+                DEFAULT_MAX_STOP_PCT if args.temporalidad in INTRADAY_TIMEFRAMES else None)
+            if stop_max is not None:
+                meta["max_stop_pct"] = str(max(stop_max, stop_min))
+            meta["r_exits"] = True  # take profit / trailing in R when the stop has a logical floor
         if windows:
             inside, outside = DEFAULT_CADENCE.get(args.temporalidad, (None, 20))
             meta["inside_every_min"] = args.cada_dentro if args.cada_dentro is not None else inside

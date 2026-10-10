@@ -62,6 +62,10 @@ Claude Leader) y guardar la memoria en Obsidian, para no gastar recursos recorda
 
 ### 2.4 GPT Work (desde el 2026-10-14, cuando tenga créditos)
 
+- **Órdenes del dueño:** todo lo que el dueño ordene a GPT Work, y lo que GPT Work recomiende y el
+  líder apruebe, el líder se lo pasa a Claude local con las palabras exactas del dueño. Así el PC aplica
+  lo mismo que se decidió en la nube. Orden del dueño, 2026-10-10.
+
 - **Cada día:** la revisión independiente del experimento, con el texto de
   `docs/prompts/GPT_WORK_HORARIOS.md`.
 - **Al terminar:** deja su resumen en GitHub (issue o PR) para que Claude local lo pase a la

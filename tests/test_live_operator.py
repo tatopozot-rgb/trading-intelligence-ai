@@ -1453,3 +1453,112 @@ class TestTradingWindows:
                 "--perfil", "tendencia_rango"])
         assert launched[0]["timeframe"] == timeframe and launched[0]["windows"] == ["07-10", "17-19"]
         assert json.loads((tmp_path / "meta.json").read_text())["windows"] == ["07-10", "17-19"]
+
+
+def test_a_repeated_dust_skip_is_noted_once(tmp_path):
+    trader = FakeTrader({"BTCUSDT": Decimal("100")})
+    op = _operator(tmp_path, trader)
+    op.session.record_buy("BTCUSDT", Decimal("0.00001"), Decimal("0.001"), Decimal("0"), "ADOPTED")  # dust
+    loop = FakeLoop(tmp_path)  # the engine holds nothing: the mirror tries to close the dust every pass
+    op.loop = loop
+    for _ in range(5):
+        op.step(decide=True)
+    skips = [e for e in op.session.events if e.get("kind") == "SKIP"]
+    assert len(skips) == 1 and "DUST" in skips[0]["text"]
+
+
+
+class TestTakeProfitWithLogic:
+    """Owner, 2026-10-10: "el take profit debe estar configurado con lógica". R = the position's own
+    stop distance: trail from +1R at R/2, take profit at +3R, never re-buy what the operator sold early."""
+
+    def _op(self, tmp_path, sent):
+        from trading_intelligence.execution.order_models import OrderRequest, Position
+
+        trader = FakeTrader({"BTCUSDT": Decimal("100")})
+        loop = FakeLoop(tmp_path)
+        loop.runner.paper.positions["BTCUSDT"] = Position("BTCUSDT", Decimal("0.1"), Decimal("100"), Decimal("0"))
+        loop.runner.paper._last_price["BTCUSDT"] = Decimal("100")
+        loop.runner.paper.pending_orders.append(OrderRequest("BTCUSDT", "SELL", "STOP", Decimal("0.1"),
+                                                             stop_price=Decimal("97")))  # R = 3%
+        Session("s1", "tendencia", "t", Decimal("50")).save(tmp_path / "session.json")
+        op = Operator(tmp_path, trader, LIMITS, profile="tendencia", timeframe="1m", symbols=["BTCUSDT"], loop=loop,
+                      clock=lambda: datetime(2026, 10, 10, 12, tzinfo=timezone.utc), notify=sent.append,
+                      r_exits=True)
+        return op, trader, loop
+
+    def test_trailing_starts_at_1r_and_locks_profit(self, tmp_path):
+        sent = []
+        op, trader, loop = self._op(tmp_path, sent)
+        op.step(decide=True)
+        cost = op.session.holdings["BTCUSDT"].avg_cost
+        trader.prices["BTCUSDT"] = cost * Decimal("1.02")
+        op.step(decide=False)
+        assert "BTCUSDT" in op.session.holdings  # +2% < 1R: nothing moves
+        trader.prices["BTCUSDT"] = cost * Decimal("1.035")  # past +1R: the stop follows at R/2
+        op.step(decide=False)
+        trader.prices["BTCUSDT"] = cost * Decimal("1.015")  # back below peak x (1 - 1.5%)
+        op.step(decide=False)
+        assert "BTCUSDT" not in op.session.holdings
+        assert "ganaste" in sent[-1] and "stop que sigue la ganancia" in sent[-1]
+        # the engine still holds BTC: the operator must not buy it straight back
+        op.step(decide=True)
+        assert "BTCUSDT" not in op.session.holdings and op.session.exited_early == ["BTCUSDT"]
+        loop.runner.paper.positions.clear()
+        loop.runner.paper.pending_orders.clear()
+        op.step(decide=True)  # the engine exited too: the block is lifted
+        assert op.session.exited_early == []
+
+    def test_take_profit_at_3r(self, tmp_path):
+        sent = []
+        op, trader, loop = self._op(tmp_path, sent)
+        op.step(decide=True)
+        cost = op.session.holdings["BTCUSDT"].avg_cost
+        trader.prices["BTCUSDT"] = cost * Decimal("1.0901")  # +9.01% = 3R
+        op.step(decide=False)
+        assert "BTCUSDT" not in op.session.holdings
+        assert "meta de ganancia de esta operación" in sent[-1] and "ganaste" in sent[-1]
+        assert json.loads((tmp_path / "session.json").read_text())["exited_early"] == ["BTCUSDT"]
+
+    def test_new_intraday_sessions_use_r_exits(self, tmp_path, monkeypatch):
+        from trading_intelligence.live import operator as O
+
+        launched = []
+        monkeypatch.setattr(O, "_trader", lambda real, journal: FakeTrader({"BTCUSDT": Decimal("100")}))
+        monkeypatch.setattr(O, "_launch", lambda d, limits, meta, eq, it: launched.append(meta))
+        O.main(["--dir", str(tmp_path), "iniciar", "--capital", "32", "--temporalidad", "1m", "--real",
+                "--perfil", "tendencia_rango"])
+        assert launched[0]["r_exits"] is True
+
+
+def test_a_buy_reads_its_exit_plan_from_the_market_and_sells_at_that_target(tmp_path):
+    """Owner: stop and take profit with market analysis at the moment, not fixed numbers."""
+    import pandas as pd
+
+    from trading_intelligence.execution.order_models import OrderRequest, Position
+
+    class Feed:
+        def get_ohlcv(self, symbol, timeframe, limit):
+            idx = pd.date_range("2026-10-10", periods=300, freq="1min", tz="UTC")
+            closes = [100.0] * 300
+            return pd.DataFrame({"open": closes, "high": [100.5] * 300, "low": [99.5] * 300, "close": closes,
+                                 "volume": 1.0}, index=idx)
+
+    sent = []
+    trader = FakeTrader({"BTCUSDT": Decimal("100")})
+    loop = FakeLoop(tmp_path)
+    loop.market_data = Feed()
+    loop.runner.paper.positions["BTCUSDT"] = Position("BTCUSDT", Decimal("0.1"), Decimal("100"), Decimal("0"))
+    loop.runner.paper._last_price["BTCUSDT"] = Decimal("100")
+    loop.runner.paper.pending_orders.append(OrderRequest("BTCUSDT", "SELL", "STOP", Decimal("0.1"),
+                                                         stop_price=Decimal("96")))
+    Session("s1", "tendencia", "t", Decimal("50")).save(tmp_path / "session.json")
+    op = Operator(tmp_path, trader, LIMITS, profile="tendencia", timeframe="1m", symbols=["BTCUSDT"], loop=loop,
+                  clock=lambda: datetime(2026, 10, 10, 12, tzinfo=timezone.utc), notify=sent.append, r_exits=True)
+    op.step(decide=True)
+    plan = op.session.exit_plans["BTCUSDT"]
+    assert Decimal(plan["stop"]) == Decimal("96") and Decimal(plan["target"]) > Decimal("100")
+    assert "Plan según el mercado" in sent[0] and "toma de ganancia en" in sent[0]
+    trader.prices["BTCUSDT"] = Decimal(plan["target"]) + Decimal("0.01")
+    op.step(decide=False)
+    assert "BTCUSDT" not in op.session.holdings and "calculada al comprar según el mercado" in sent[-1]

@@ -54,6 +54,11 @@ class Session:
     # when the owner's PC is off; the operator cancels one before it sells that symbol.
     guard_stops: dict[str, dict] = field(default_factory=dict)
     trail_peaks: dict[str, Decimal] = field(default_factory=dict)  # highest price since entry, per held symbol
+    # Symbols the operator sold on its own (take profit, trailing stop) while the decision engine
+    # still held them: no re-buy until the engine itself exits, or the mirror would buy right back.
+    exited_early: list[str] = field(default_factory=list)
+    # Exit plan read from the market when each position was opened: {"stop", "target", "kind", ...}.
+    exit_plans: dict[str, dict] = field(default_factory=dict)
 
     # --- accounting -----------------------------------------------------------
 
@@ -166,6 +171,8 @@ class Session:
             events=d["events"], trades=d["trades"], peak_equity=Decimal(d["peak_equity"]),
             guard_stops=dict(d.get("guard_stops", {})),  # absent in sessions saved before this field
             trail_peaks={k: Decimal(v) for k, v in d.get("trail_peaks", {}).items()},
+            exited_early=list(d.get("exited_early", [])),
+            exit_plans=dict(d.get("exit_plans", {})),
         )
 
 
