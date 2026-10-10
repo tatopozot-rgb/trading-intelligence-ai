@@ -17,7 +17,7 @@ def _auto(tmp_path, signals, equity=1_000_000.0, clock=lambda: NOW, tick_age=5, 
     t = D.XmDemoTrader(tmp_path / "orders.json", m, reader=XmReader(m, clock=lambda: NOW))
     t.connect()
     sent: list[str] = []
-    auto = A.XmAuto(t, list(signals), tmp_path / "state.json", signal=lambda sym, data, htf=None: signals.get(sym),
+    auto = A.XmAuto(t, list(signals), tmp_path / "state.json", signal=lambda sym, data, htf=None, top=None: signals.get(sym), pause=lambda s: None,
                     notify=sent.append, clock=clock, **kw)
     return auto, m, sent
 
@@ -40,7 +40,7 @@ def test_the_opposite_signal_closes_and_the_next_decision_turns_around(tmp_path)
     sig["EURUSD"] = "SELL"
     auto.step()  # closes the buy, opens nothing in the same pass
     assert "position" in m.sent[-1] and not m.positions and "EURUSD" not in auto.state.known
-    assert any("cerré la compra de EURUSD" in s for s in sent)
+    assert any("Bot EURUSD" in s and "cerré la compra" in s and "Verificado 2 veces" in s for s in sent)
     auto.step()
     assert m.positions[0].type == 1  # now short
 
@@ -62,7 +62,7 @@ def test_a_position_closed_by_its_stop_or_target_on_the_server_is_reported(tmp_p
     m.positions.clear()  # XM's server executed the SL or the TP
     sig["EURUSD"] = None
     auto.step()
-    assert "EURUSD" not in auto.state.known and any("se cerró EURUSD en el servidor" in s for s in sent)
+    assert "EURUSD" not in auto.state.known and any("Bot EURUSD" in s and "se cerró en el servidor" in s for s in sent)
 
 
 def test_the_daily_loss_guard_closes_and_stops_entries_until_the_next_day(tmp_path):
@@ -100,14 +100,15 @@ def test_a_closed_market_is_skipped_and_noted_once(tmp_path):
     assert len(skips) == 1 and "mercado cerrado" in skips[0]["text"]
 
 
-def test_the_owners_cadence_two_minutes_inside_his_windows_five_outside(tmp_path):
+def test_the_owners_cadence_nonstop_inside_his_windows_five_minutes_outside(tmp_path):
+    """Owner, 2026-10-10: "de 7 a 10 am y de 5 a 7 ... deben trabajar sin parar y fuera de ese horario cada 5 minutos"."""
     t = {"now": datetime(2026, 10, 12, 13, 0, tzinfo=timezone.utc)}  # 08:00 Ecuador: inside 07-10
     auto, _, _ = _auto(tmp_path, {"EURUSD": None}, clock=lambda: t["now"])
     due = []
-    for minute in range(10):
-        t["now"] = datetime(2026, 10, 12, 13, minute, 5, tzinfo=timezone.utc)
+    for half_minute in range(20):  # 10 minutes, a check every 30 s
+        t["now"] = datetime(2026, 10, 12, 13, 0, 5, tzinfo=timezone.utc) + timedelta(seconds=30 * half_minute)
         due.append(auto.decision_due())
-    assert sum(due) == 5
+    assert sum(due) == 20  # a decision every 30 s: non-stop
     due = []
     for minute in range(10):
         t["now"] = datetime(2026, 10, 12, 4, minute, 5, tzinfo=timezone.utc)  # 23:00 Ecuador: outside
