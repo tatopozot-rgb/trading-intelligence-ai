@@ -40,14 +40,14 @@ under `docs/`, so not indexed here — it's the first file every agent reads).
 Two of these (`RISK_ENGINE_SPEC`, `PAPER_TRADING_SIMULATION_SPEC`) describe
 the design that `trading_intelligence/` implements closely and the real
 PAPER system (root `*.py` modules, imported via PR #3) implements
-differently in places — see [[FINDING_3_HALT_DESIGN]] and
+differently in places — see [[archivo/FINDING_3_HALT_DESIGN|FINDING_3_HALT_DESIGN]] (archived) and
 `AGENT_COORDINATION.md`'s Finding 2/3 entries for where they currently
 diverge and why that divergence is a tracked decision, not an oversight.
 
 ## Operations
 
 - [[DEPLOYMENT_RUNBOOK]] — modes, startup, crash recovery, rollback
-- [[FINDING_3_HALT_DESIGN]] — grounded design note for the real system's missing persistent halt
+- [[archivo/FINDING_3_HALT_DESIGN|FINDING_3_HALT_DESIGN]] — design note for the persistent halt (archived)
 
 ## Live surfaces (not files — linked for completeness)
 
@@ -60,8 +60,8 @@ diverge and why that divergence is a tracked decision, not an oversight.
 
 Sección añadida al resolver el merge del PR #9: conserva el índice que traía la rama local.
 
-- [Importación y reproducción](IMPORTACION_2026-10-05.md)
-- [Mission Control y protocolo de ciclos](MISSION_CONTROL.md)
+- [Importación y reproducción](archivo/IMPORTACION_2026-10-05.md) (archivado)
+- [Mission Control y protocolo de ciclos](archivo/MISSION_CONTROL.md) (archivado)
 - [Operación y arquitectura](../README.md)
 - [Fills](../MODELO_FILLS_PAPER.md)
 - [Controles](../CONTRATO_CONTROLES_PAPER.md)
@@ -73,6 +73,6 @@ Sección añadida al resolver el merge del PR #9: conserva el índice que traía
 - [Roadmap](../PLAN_PILOTO.md)
 - [Historial](../CHECKPOINTS.md)
 - [Diagnóstico sin operar](../ENTORNO_Y_DIAGNOSTICO.md)
-- [Handoff de la capa de API (H1-H3)](HANDOFF_CLAUDE_LOCAL_API.md)
+- [Handoff de la capa de API (H1-H3)](archivo/HANDOFF_CLAUDE_LOCAL_API.md) (archivado)
 - `history/`: checkpoint y coordinación de la rama local tal como estaban antes de este merge
   (`CHECKPOINT_CLAUDE_LOCAL_2026-10-08.md`, `COORDINATION_CLAUDE_LOCAL_2026-10-08.md`).

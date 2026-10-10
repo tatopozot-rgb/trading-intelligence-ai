@@ -1,4 +1,4 @@
-# Ensayo previo (Fase 0 de `docs/prompts/PREFLIGHT_100.md`), Claude Code local
+# Ensayo previo (Fase 0 de `docs/archivo/PREFLIGHT_100.md`), Claude Code local
 
 Ejecutado el 2026-10-09 ~01:50 UTC en el PC del dueño, sobre `b8a312c`. Ninguna orden real.
 
