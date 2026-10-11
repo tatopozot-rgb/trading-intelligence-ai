@@ -42,12 +42,12 @@ Claude Leader) y guardar la memoria en Obsidian, para no gastar recursos recorda
 
 | Qué | Cuándo | Qué hace |
 |---|---|---|
-| Operador real (`operator iniciar --real`) | 24 horas, todos los días | Revisa precios y stops cada minuto y decide en cada vela de 4 horas. Compra y vende solo, y avisa por Telegram. |
+| Operador Spot (`operator iniciar --real`) | **Detenido** por el dueño el 2026-10-10 ("Para"). Solo vuelve con su palabra | Revisa precios y stops cada minuto y decide en cada vela de 4 horas. Compra y vende solo, y avisa por Telegram. |
 | Vigilante (watchdog) `operator reanudar` | Cada 5 minutos (Programador de tareas) | Si el operador se cayó o el PC se reinició, lo vuelve a arrancar. |
-| Vigilante del mercado (`market_watch`) | Cada 15 minutos (Programador de tareas) | Avisa por Telegram de movimientos fuertes y cambios de tendencia. No opera. |
+| Vigilante del mercado (`market_watch`) | **Desactivado** por el dueño el 2026-10-10 ("Deten vigilante"); antes, cada 15 minutos | Avisa por Telegram de movimientos fuertes y cambios de tendencia. No opera. |
 | Operador XM en los dos sentidos (`xm_auto`, DEMO) | 24/7, cuando el dueño instale MT5 (lunes) | El mismo motor y la misma mesa que Binance Futuros. SL y TP quedan en el servidor de XM. |
 | Operador de Binance Futuros con la mesa de trading (`binance_futures`) | 24/7. Con dinero real desde el lunes, con la clave nueva y la frase del dueño | Decide cada 30 s en sus horarios (sin parar) y cada 5 min fuera. El Scout revisa 24/7 y avisa al Chief. El Escéptico veta con reglas fijas. Riesgo de 1–15% según la señal, posición máx. 50%, 3 posiciones, límite de 45% con aviso y meta de 58%. Cada posición tiene su bot: revisa cada 30 s y avisa cada 2 min. Telegram solo avisa lo verificado 2 veces en la cuenta. |
-| Cripto en Spot | Solo en una "alcista brutal" | El dueño dijo el 2026-10-10: "no vuelvas a comprar criptos". El vigilante avisa si BTC entra en una alcista brutal (+60% en 90 días y +15% en 30, por encima de su media de 200 días). Comprar en Spot necesita además el "sí" del dueño. |
+| Cripto en Spot | Solo en una "alcista brutal" | El dueño dijo el 2026-10-10: "no vuelvas a comprar criptos". El vigilante (hoy desactivado por el dueño) avisaba si BTC entraba en una alcista brutal (+60% en 90 días y +15% en 30, por encima de su media de 200 días). Comprar en Spot necesita además el "sí" del dueño. |
 | Memoria Obsidian | Una vez al día, a las 20:00 de Ecuador, y al final de cada bloque | Copia el resumen nuevo de `docs/CHECKPOINT.md` a `Memoria viva.md`. |
 
 ### 2.2 En GitHub (Actions, sin gastar tokens de IA)
