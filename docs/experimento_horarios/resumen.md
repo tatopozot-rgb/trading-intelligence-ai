@@ -2,9 +2,93 @@
 
 Simulación con datos públicos (PAPER): **sin cuenta, sin claves, sin órdenes reales**. Entradas cada 20 min (velas de 20 min); con posición abierta se revisa la salida cada 3 min (velas de 1 min): stop de la estrategia, su condición de salida y cierre forzado al final de la ventana. 10 USDT por operación, comisión 0.1% por lado + 5 bps. Horas en **Ecuador (UTC−5)**, UTC entre paréntesis. Reglas en `docs/PREREG_HORARIOS.md` (con las Enmiendas 1 y 2).
 
-Días forward: 0/14 (días hábiles lun–vie: 0/10) · días de referencia: 15
+Días forward: 1/14 (días hábiles lun–vie: 0/10) · días de referencia: 15
 
 Las reglas se aplican cuando el período forward esté completo (2026-10-10 → 2026-10-23).
+
+## FORWARD — por día de la semana
+
+| Día | tendencia: n / media % | rango: n / media % | ruptura: n / media % | baseline: n / media % |
+|---|---|---|---|---|
+| sábado (aparte) | 1 / -0.268 | 2 / -0.345 | 85 / -0.269 | 169 / -0.212 |
+
+## FORWARD — tendencia: neto % acumulado lun–vie por ventana × símbolo
+
+| Ventana |  | Todas |
+|---|---|
+| 19–21 Ecuador (00–02 UTC) |  | +0.00 |
+| 21–23 Ecuador (02–04 UTC) |  | +0.00 |
+| 23–01 Ecuador (04–06 UTC) |  | +0.00 |
+| 01–03 Ecuador (06–08 UTC) |  | +0.00 |
+| 03–05 Ecuador (08–10 UTC) |  | +0.00 |
+| 05–07 Ecuador (10–12 UTC) |  | +0.00 |
+| 07–09 Ecuador (12–14 UTC) |  | +0.00 |
+| 09–11 Ecuador (14–16 UTC) |  | +0.00 |
+| 11–13 Ecuador (16–18 UTC) |  | +0.00 |
+| 13–15 Ecuador (18–20 UTC) |  | +0.00 |
+| 15–17 Ecuador (20–22 UTC) |  | +0.00 |
+| 17–19 Ecuador (22–00 UTC) |  | +0.00 |
+| 07–10 Ecuador (12–15 UTC) — ventana del dueño |  | +0.00 |
+
+## FORWARD — rango: neto % acumulado lun–vie por ventana × símbolo
+
+| Ventana |  | Todas |
+|---|---|
+| 19–21 Ecuador (00–02 UTC) |  | +0.00 |
+| 21–23 Ecuador (02–04 UTC) |  | +0.00 |
+| 23–01 Ecuador (04–06 UTC) |  | +0.00 |
+| 01–03 Ecuador (06–08 UTC) |  | +0.00 |
+| 03–05 Ecuador (08–10 UTC) |  | +0.00 |
+| 05–07 Ecuador (10–12 UTC) |  | +0.00 |
+| 07–09 Ecuador (12–14 UTC) |  | +0.00 |
+| 09–11 Ecuador (14–16 UTC) |  | +0.00 |
+| 11–13 Ecuador (16–18 UTC) |  | +0.00 |
+| 13–15 Ecuador (18–20 UTC) |  | +0.00 |
+| 15–17 Ecuador (20–22 UTC) |  | +0.00 |
+| 17–19 Ecuador (22–00 UTC) |  | +0.00 |
+| 07–10 Ecuador (12–15 UTC) — ventana del dueño |  | +0.00 |
+
+## FORWARD — ruptura: neto % acumulado lun–vie por ventana × símbolo
+
+| Ventana |  | Todas |
+|---|---|
+| 19–21 Ecuador (00–02 UTC) |  | +0.00 |
+| 21–23 Ecuador (02–04 UTC) |  | +0.00 |
+| 23–01 Ecuador (04–06 UTC) |  | +0.00 |
+| 01–03 Ecuador (06–08 UTC) |  | +0.00 |
+| 03–05 Ecuador (08–10 UTC) |  | +0.00 |
+| 05–07 Ecuador (10–12 UTC) |  | +0.00 |
+| 07–09 Ecuador (12–14 UTC) |  | +0.00 |
+| 09–11 Ecuador (14–16 UTC) |  | +0.00 |
+| 11–13 Ecuador (16–18 UTC) |  | +0.00 |
+| 13–15 Ecuador (18–20 UTC) |  | +0.00 |
+| 15–17 Ecuador (20–22 UTC) |  | +0.00 |
+| 17–19 Ecuador (22–00 UTC) |  | +0.00 |
+| 07–10 Ecuador (12–15 UTC) — ventana del dueño |  | +0.00 |
+
+## FORWARD — baseline: neto % acumulado lun–vie por ventana × símbolo
+
+| Ventana |  | Todas |
+|---|---|
+| 19–21 Ecuador (00–02 UTC) |  | +0.00 |
+| 21–23 Ecuador (02–04 UTC) |  | +0.00 |
+| 23–01 Ecuador (04–06 UTC) |  | +0.00 |
+| 01–03 Ecuador (06–08 UTC) |  | +0.00 |
+| 03–05 Ecuador (08–10 UTC) |  | +0.00 |
+| 05–07 Ecuador (10–12 UTC) |  | +0.00 |
+| 07–09 Ecuador (12–14 UTC) |  | +0.00 |
+| 09–11 Ecuador (14–16 UTC) |  | +0.00 |
+| 11–13 Ecuador (16–18 UTC) |  | +0.00 |
+| 13–15 Ecuador (18–20 UTC) |  | +0.00 |
+| 15–17 Ecuador (20–22 UTC) |  | +0.00 |
+| 17–19 Ecuador (22–00 UTC) |  | +0.00 |
+| 07–10 Ecuador (12–15 UTC) — ventana del dueño |  | +0.00 |
+
+## FORWARD — mejores y peores celdas (lun–vie)
+
+**Mejores 5 (descriptivo, puede ser suerte):**
+
+**Peores 5:**
 
 ## referencia: datos pasados — por día de la semana
 
