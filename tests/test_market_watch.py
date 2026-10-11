@@ -65,7 +65,9 @@ def test_a_strong_fall_is_alerted_once_with_price_and_regime(tmp_path, regimes):
     feed.set_move("BTCUSDT", pct_4h=-4.5)
     w, sent, clock = _watch(tmp_path, feed)
     w.check()
-    assert sent == ["[Vigilante] 📉 BTCUSDT -4.5% en 4h (precio 100.00). Régimen 4h: tendencia bajista."]
+    assert sent == ["[Vigilante futuros · aviso de mercado, no es una operación] 📉 BTCUSDT -4.5% en 4h (precio 100.00). "
+                    "Régimen 4h: tendencia bajista. Movimiento a favor de una VENTA EN CORTO en futuros; la mesa decide "
+                    "si entra."]
     clock[0] += timedelta(minutes=15)
     w.check()
     assert len(sent) == 1  # same move: not repeated
@@ -110,7 +112,8 @@ def test_regime_changes_are_alerted_on_closed_bars_only(tmp_path, regimes):
         else _frame([100.0] * limit, "4h", "2026-10-09 16:00"))
     clock[0] = NOW + timedelta(hours=4)
     w.check()
-    assert sent == ["[Vigilante] 🔄 BTCUSDT cambió a tendencia bajista en la vela de 4h (antes: tendencia alcista)."]
+    assert sent == ["[Vigilante futuros · aviso de mercado, no es una operación] 🔄 BTCUSDT cambió a tendencia bajista "
+                    "en la vela de 4h (antes: tendencia alcista): los bots de futuros buscan ventas en corto."]
 
 
 def test_a_change_into_range_or_no_edge_is_not_alerted(tmp_path, regimes):

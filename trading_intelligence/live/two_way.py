@@ -41,7 +41,7 @@ from __future__ import annotations
 import json
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -115,6 +115,8 @@ class State:
     events: list[dict] = field(default_factory=list)
     vetoes: list[dict] = field(default_factory=list)  # the Skeptic's refusals, scored later
     veto_score: dict = field(default_factory=lambda: {"evitó pérdida": 0, "dejó pasar ganancia": 0, "sin resultado": 0})
+    month: str = ""  # the goal is monthly (owner, 2026-10-11): it starts again from this equity each month
+    month_start_equity: str = "0"
 
     @classmethod
     def load(cls, path: Path) -> "State":
@@ -126,6 +128,7 @@ class State:
                     d.get("day", ""), d.get("day_start_equity", "0"), bool(d.get("halted", False)), known,
                     list(d.get("events", [])), list(d.get("vetoes", [])))
         state.veto_score.update(d.get("veto_score", {}))
+        state.month, state.month_start_equity = d.get("month", ""), d.get("month_start_equity", "0")
         return state
 
     def save(self, path: Path) -> None:
@@ -145,7 +148,8 @@ class TwoWayAuto:
                  inside_every_min: float = 0.5, outside_every_min: float = 5, signal: Optional[Signal] = None,
                  desk_rules: Optional[D.DeskRules] = None, journal_dir: Optional[Path] = None,
                  news_get: Optional[D.Getter] = None, watch_every_s: int = 30, report_every_s: int = 120,
-                 notify: Callable[[str], None] = console, pause: Callable[[float], None] = time.sleep,
+                 notify: Callable[[str], None] = console, chatter: Callable[[str], None] = console,
+                 goal_usd: Optional[Decimal] = None, pause: Callable[[float], None] = time.sleep,
                  clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc)) -> None:
         if max_open < 1 or not (0 < risk_min_pct <= risk_max_pct <= 15) or not (0 < loss_limit_pct <= 100):
             raise ValueError("max_open >= 1, 0 < risk_min_pct <= risk_max_pct <= 15, loss_limit_pct in (0, 100]")
@@ -159,7 +163,11 @@ class TwoWayAuto:
         self.windows = parse_windows(list(windows if windows is not None else DEFAULT_WINDOWS))
         self.inside_every_min, self.outside_every_min = inside_every_min, outside_every_min
         self.signal: Signal = signal or signal_for()
-        self.notify, self.pause, self.clock = notify, pause, clock
+        # notify reaches Telegram and carries only what the account confirmed twice; chatter (the Scout, the
+        # Skeptic, a stop being moved) stays on the console and in the desk journal (owner, 2026-10-11: "que el bot
+        # de telegram envíe solo cosas ciertas revisadas")
+        self.notify, self.chatter, self.pause, self.clock = notify, chatter, pause, clock
+        self.goal_usd = goal_usd
         self.desk_rules, self.journal_dir, self.news_get = desk_rules, journal_dir, news_get
         self.watch_every_s, self.report_every_s = watch_every_s, report_every_s
         self.state = State.load(self.state_path)
@@ -169,6 +177,7 @@ class TwoWayAuto:
         self._last_report: dict[str, datetime] = {}
         self._last_scout: dict[str, datetime] = {}
         self._last_veto: dict[str, tuple[str, datetime]] = {}
+        self._rally_seen: dict[str, tuple[datetime, Optional[D.Alert]]] = {}
         self._fng: tuple[Optional[datetime], Optional[int]] = (None, None)
         self._failures = 0
 
@@ -205,28 +214,43 @@ class TwoWayAuto:
                 s.status, s.warn_acknowledged = RUNNING, True
                 self._event("OWNER", "continuar")
                 self.notify(f"✅ {name}: entendido, sigo operando hasta el límite de pérdida.")
+        if s.status in (STOPPED, GOAL) and ours:  # a close that failed (exchange down) is retried every pass
+            self._close_all(ours)
+            ours = self.broker.positions()
         capital = Decimal(s.capital)
         loss, limit = capital - equity, capital * self.loss_limit_pct / 100
+        month_start = Decimal(s.month_start_equity) if Decimal(s.month_start_equity) > 0 else capital
+        goal = self.goal_usd if self.goal_usd is not None else (
+            month_start * self.profit_target_pct / 100 if self.profit_target_pct is not None else None)
+        loss_hit = (s.status not in (STOPPED, GOAL) and loss >= limit) or \
+            (s.status == RUNNING and not s.warn_acknowledged and loss > 0 and loss >= limit - self.warn_before)
+        goal_hit = goal is not None and s.status in (RUNNING, WAITING_OWNER) and equity - month_start >= goal
+        if loss_hit or goal_hit:  # a warning, a stop or the goal is told only if a second read of the account agrees
+            self.pause(VERIFY_PAUSE_S)
+            second = self.broker.equity()[0]
+            # the less extreme read: the higher equity for a loss, the lower one for the goal
+            equity = max(equity, second) if loss_hit else min(equity, second)
+            loss = capital - equity
         if s.status not in (STOPPED, GOAL) and loss >= limit:
             s.status = STOPPED
             self._close_all(ours)
             self._event("STOPPED", f"pérdida {loss:.2f} >= {limit:.2f}")
             self.notify(f"🛑 {name}: la pérdida llegó al límite de {self.loss_limit_pct}% ({loss:.2f} {currency}). "
-                        f"Cerré todas las posiciones y la sesión terminó.")
+                        f"Cerré todas las posiciones y la sesión terminó. Revisado 2 veces en la cuenta.")
             return self.broker.positions()
         if s.status == RUNNING and not s.warn_acknowledged and loss > 0 and loss >= limit - self.warn_before:
             s.status = WAITING_OWNER
             self._event("WAITING_OWNER", f"pérdida {loss:.2f}, límite {limit:.2f}")
-            self.notify(f"⚠️ {name}: la pérdida es {loss:.2f} {currency}, a {limit - loss:.2f} del límite. "
-                        f"No abro operaciones nuevas (las abiertas siguen con su stop). ¿Continuar? Dile a Claude "
-                        f"local: continuar.")
-        if self.profit_target_pct is not None and s.status in (RUNNING, WAITING_OWNER) \
-                and equity - capital >= capital * self.profit_target_pct / 100:
+            self.notify(f"⚠️ {name}: la pérdida es {loss:.2f} {currency}, a {limit - loss:.2f} del límite "
+                        f"(revisado 2 veces en la cuenta). No abro operaciones nuevas (las abiertas siguen con su "
+                        f"stop). ¿Continuar? Dile a Claude local: continuar.")
+        if goal is not None and s.status in (RUNNING, WAITING_OWNER) and equity - month_start >= goal:
             s.status = GOAL
             self._close_all(ours)
-            self._event("GOAL", f"ganancia {equity - capital:.2f}")
-            self.notify(f"🏆 {name}: ¡meta cumplida! Ganancia de {equity - capital:.2f} {currency} "
-                        f"(+{self.profit_target_pct}%). Cerré todo y la sesión terminó.")
+            self._event("GOAL", f"ganancia del mes {equity - month_start:.2f}")
+            self.notify(f"🏆 {name}: ¡meta del mes cumplida! Ganancia de {equity - month_start:.2f} {currency} este "
+                        f"mes (meta {goal:.2f}). Cerré todo y vuelvo a operar el día 1 del mes que viene. "
+                        f"Revisado 2 veces en la cuenta.")
             return self.broker.positions()
         if self.daily_loss_pct is not None:
             floor = Decimal(s.day_start_equity) * (1 - self.daily_loss_pct / 100)
@@ -244,6 +268,15 @@ class TwoWayAuto:
         equity, currency = self.broker.equity()
         if Decimal(s.capital) <= 0:
             s.capital = str(equity)
+        month = self.clock().strftime("%Y-%m")
+        if s.month != month:
+            resumed = s.status == GOAL  # also a GOAL left by the old session goal (before 2026-10-11)
+            s.month, s.month_start_equity = month, str(equity)
+            if resumed:
+                s.status = RUNNING
+                self._event("MONTH", f"nuevo mes desde {equity}")
+                self.notify(f"🗓️ {self.broker.name}: empieza {month}. Retomo las operaciones; la meta del mes cuenta "
+                            f"desde {equity} {currency}.")
         today = self.clock().date().isoformat()
         if s.day != today:
             s.day, s.day_start_equity, s.halted = today, str(equity), False
@@ -313,6 +346,8 @@ class TwoWayAuto:
         if last is not None and (now - last).total_seconds() < self.report_every_s:
             return
         self._last_report[pos.symbol] = now
+        if not self._verified(pos.symbol, open_=True):
+            return  # the account did not show it twice: the reconciliation will tell what happened
         info = self.state.known.get(pos.symbol, {})
         entry = Decimal(info.get("entry", pos.entry or price))
         pnl = (price - entry) * pos.qty if pos.side == "BUY" else (entry - price) * pos.qty
@@ -363,7 +398,7 @@ class TwoWayAuto:
             self._last_scout[sym] = now
             self._event("SCOUT", f"{sym}: {alert.text}")
             self._journal(f"Scout → Chief: {sym}", [alert.text])
-            self.notify(f"📡 Scout · {self.broker.name}: {sym} con {alert.text}. Le aviso al Chief para que lo "
+            self.chatter(f"📡 Scout · {self.broker.name}: {sym} con {alert.text}. Le aviso al Chief para que lo "
                         f"evalúe ahora.")
             if self.state.status == RUNNING:
                 try:
@@ -392,8 +427,24 @@ class TwoWayAuto:
             self._event("TRAIL", f"{pos.symbol} stop {new}")
             if not info.get("trail_told"):
                 info["trail_told"] = True
-                self.notify(f"🛡️ 🤖 Bot {pos.symbol} · {self.broker.name}: la operación ya gana más de lo que "
+                self.chatter(f"🛡️ 🤖 Bot {pos.symbol} · {self.broker.name}: la operación ya gana más de lo que "
                             f"arriesgaba; el stop sube a {new} y seguirá la ganancia.")
+
+    def _rally(self, sym: str) -> Optional[D.Alert]:
+        """Daily bars, checked at most once an hour per coin: is this coin in a bull run?"""
+        assert self.desk_rules is not None
+        now = self.clock()
+        cached = self._rally_seen.get(sym)
+        if cached is not None and now - cached[0] < timedelta(hours=1):
+            return cached[1]
+        try:
+            daily = self.broker.candles(sym, "1d", self.desk_rules.rally_lookback_days + 25)
+            alert = D.rally(sym, daily, self.desk_rules)
+        except Exception as error:  # noqa: BLE001 - no daily data must not stop a trade
+            logger.warning("%s: sin velas diarias para el modo alcista (%s)", sym, error)
+            alert = None
+        self._rally_seen[sym] = (now, alert)
+        return alert
 
     def risk_for(self, quality: float) -> Decimal:
         """1% to 15% of equity with the signal's quality (0-1); never with past wins or losses."""
@@ -429,7 +480,8 @@ class TwoWayAuto:
         signal, quality, data = self._signal(sym)
         pos = ours.get(sym)
         if pos is not None:
-            if signal is not None and signal != pos.side:
+            riding = pos.side == "BUY" and bool(s.known.get(sym, {}).get("rally"))
+            if signal is not None and signal != pos.side and not riding:  # a bull run ends only at the trailing stop
                 self.broker.close(pos)
                 ours.pop(sym)
                 s.known.pop(sym, None)
@@ -453,6 +505,9 @@ class TwoWayAuto:
             quality = round(max(0.0, min(1.0, quality + 0.2 * lean)), 4)  # the Chief weighs the sentiment
         risk = self.risk_for(quality)
         plan = self.broker.plan(sym, signal, risk, self.timeframe)
+        run = self._rally(sym) if signal == "BUY" and self.desk_rules is not None else None
+        if self.desk_rules is not None:  # take profit at 3-5%, or let a bull run go with the trailing stop
+            plan = replace(plan, tp=D.shape_target(plan.price, plan.tp, plan.side, self.desk_rules, run is not None))
         headlines = D.news(sym, self.news_get) if (self.desk_rules is not None and self.news_get is not None) else []
         if self.desk_rules is not None and mood is not None:
             verdict = D.skeptic(signal, plan.price, plan.sl, plan.tp, mood, funding, self.desk_rules)
@@ -466,14 +521,14 @@ class TwoWayAuto:
                     f"plan: entrada {plan.price}, stop {plan.sl}, meta {plan.tp}, riesgo {risk}%",
                     f"sentimiento {mood.score:+.2f} {mood.parts}", *[f"motivo: {r}" for r in verdict.reasons],
                     *[f"noticia: [{h.title}]({h.link}) · {h.source} · {h.published}" for h in headlines]])
-                self.notify(f"🧐 Escéptico · {name}: rechazo {'la compra' if signal == 'BUY' else 'la venta en corto'} "
+                self.chatter(f"🧐 Escéptico · {name}: rechazo {'la compra' if signal == 'BUY' else 'la venta en corto'} "
                             f"de {sym}: {'; '.join(verdict.reasons)}. Queda anotado y mediré si el veto acertó.")
                 return
         ticket = self.broker.open(plan)
         ours[sym] = Position(sym, plan.side, plan.qty, ticket, plan.price)
         s.known[sym] = {"ticket": ticket, "side": plan.side, "entry": str(plan.price), "stop": str(plan.sl),
                         "target": str(plan.tp), "r": str(abs(plan.price - plan.sl)), "risk_pct": str(risk),
-                        "quality": quality}
+                        "quality": quality, "rally": run is not None}
         self._event("OPEN", f"{plan.side} {plan.qty} {sym} @ {plan.price} SL {plan.sl} TP {plan.tp} "
                             f"riesgo {risk}% calidad {quality}")
         self._journal(f"Chief ejecuta {plan.side} {sym}", [
@@ -487,6 +542,9 @@ class TwoWayAuto:
             return
         verb = "Compré" if plan.side == "BUY" else "Vendí en corto"
         why = "el mercado está subiendo" if plan.side == "BUY" else "el mercado está bajando"
+        if run is not None:
+            why = (f"{sym} está en {run.text}. 🚀 Modo alcista: no cierro en la meta; el stop sigue la ganancia "
+                   f"y la operación queda abierta mientras siga subiendo")
         self.notify(f"{'🟢' if plan.side == 'BUY' else '🔴'} 🤖 Bot {sym} · {name}: {verb} {plan.qty} {self.broker.unit} "
                     f"a {plan.price} porque {why} (calidad de la señal {quality:.0%}, riesgo {risk}%). Stop en {plan.sl}, "
                     f"meta en {plan.tp}, puestos en el servidor. Si toca el stop se pierden unos {plan.risk_money} "
@@ -494,7 +552,7 @@ class TwoWayAuto:
 
     def run(self, max_iterations: Optional[int] = None, sleep: Callable[[float], None] = time.sleep) -> None:
         n = 0
-        while (max_iterations is None or n < max_iterations) and self.state.status not in (STOPPED, GOAL):
+        while (max_iterations is None or n < max_iterations) and self.state.status != STOPPED:
             n += 1
             if self.decision_due():
                 try:

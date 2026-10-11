@@ -72,7 +72,7 @@ def _engine(tmp_path, sig, broker=None, **kw):
     broker = broker or FakeBroker()
     sent: list[str] = []
     auto = T.TwoWayAuto(broker, list(sig), tmp_path / "state.json", signal=lambda s, d, h=None, top=None: sig.get(s), pause=lambda s: None,
-                        notify=sent.append, clock=lambda: NOW, **kw)
+                        notify=sent.append, chatter=sent.append, clock=lambda: NOW, **kw)
     return auto, broker, sent
 
 
@@ -106,13 +106,53 @@ def test_at_the_loss_limit_everything_closes_and_the_session_ends(tmp_path):
     assert not b.pos  # the loop does not trade after the end
 
 
-def test_at_the_goal_everything_closes_and_the_session_ends(tmp_path):
+def test_at_the_monthly_goal_everything_closes_and_trading_resumes_next_month(tmp_path):
     sig = {"SOLUSDT": "SELL"}
-    auto, b, sent = _engine(tmp_path, sig)
+    now = [NOW]
+    broker = FakeBroker()
+    sent: list[str] = []
+    auto = T.TwoWayAuto(broker, list(sig), tmp_path / "state.json", signal=lambda s, d, h=None, top=None: sig.get(s),
+                        pause=lambda s: None, notify=sent.append, clock=lambda: now[0])
     auto.step()
-    b.eq = Decimal("158")
+    broker.eq = Decimal("158")
     auto.step()
-    assert auto.state.status == T.GOAL and not b.pos and any("meta cumplida" in m for m in sent)
+    assert auto.state.status == T.GOAL and not broker.pos and any("meta del mes cumplida" in m for m in sent)
+    auto.step()
+    assert not broker.pos  # no new entries for the rest of the month
+    now[0] = datetime(2026, 11, 2, 13, 0, tzinfo=timezone.utc)
+    auto.step()
+    assert auto.state.status == T.RUNNING and auto.state.month_start_equity == "158" and "SOLUSDT" in broker.pos
+    assert any("empieza 2026-11" in m for m in sent)
+
+
+def test_an_owner_set_monthly_goal_in_dollars(tmp_path):
+    auto, b, sent = _engine(tmp_path, {"SOLUSDT": None}, goal_usd=Decimal("20"))
+    auto.step()
+    b.eq = Decimal("121")
+    auto.step()
+    assert auto.state.status == T.GOAL and any("meta 20.00" in m for m in sent)
+
+
+def test_a_warning_needs_two_reads_of_the_account(tmp_path):
+    auto, b, sent = _engine(tmp_path, {"SOLUSDT": None})
+    auto.step()  # capital 100: warning at 43 USD of loss
+    reads = iter([(Decimal("56"), "USDT"), (Decimal("80"), "USDT")])  # the second read disagrees
+    b.equity = lambda: next(reads)
+    auto.step()
+    assert auto.state.status == T.RUNNING and not any("del límite" in m for m in sent)
+
+
+def test_desk_chatter_never_reaches_telegram(tmp_path):
+    sig = {"SOLUSDT": "BUY"}
+    b = FakeBroker()
+    b.reward = Decimal("3")  # vetoed by the Skeptic
+    telegram: list[str] = []
+    console: list[str] = []
+    auto = T.TwoWayAuto(b, list(sig), tmp_path / "state.json", signal=lambda s, d, h=None, top=None: sig.get(s),
+                        pause=lambda s: None, notify=telegram.append, chatter=console.append, clock=lambda: NOW,
+                        desk_rules=T.D.DeskRules())
+    auto.step()
+    assert any("Escéptico" in m for m in console) and not any("Escéptico" in m for m in telegram)
 
 
 def test_the_stop_follows_the_gain_from_one_r_and_never_moves_back(tmp_path):
@@ -298,3 +338,80 @@ def test_the_live_signal_reads_real_bars():
     assert out is None or (out[0] == "SELL" and 0 <= out[1] <= 1)
     regime_only = signal_for("regimen")("SOLUSDT", bars, None)
     assert regime_only is None or regime_only[0] != "BUY"
+
+
+# --- bull-run mode and the 3-5% take profit (owner, 2026-10-11) ----------------------------------------
+
+class RallyBroker(FakeBroker):
+    """Daily bars of a coin that rose 40% in two weeks and is still rising."""
+
+    def candles(self, symbol, timeframe, count):
+        if timeframe != "1d":
+            return super().candles(symbol, timeframe, count)
+        idx = pd.date_range(end=NOW, periods=count, freq="1D")
+        c = np.concatenate([np.full(count - 15, 70.0), np.linspace(70.0, 100.0, 15)])
+        return pd.DataFrame({"open": c, "high": c, "low": c, "close": c, "volume": 1.0}, index=idx)
+
+
+def test_the_target_is_kept_between_3_and_5_percent(tmp_path):
+    sig = {"SOLUSDT": "BUY"}
+    b = FakeBroker()
+    b.reward = Decimal("12")  # the market's target is 12% away: taken at 5%
+    auto, b, sent = _engine(tmp_path, sig, broker=b, desk_rules=T.D.DeskRules(target_max_pct=Decimal("5")))
+    auto.step()
+    assert Decimal(auto.state.known["SOLUSDT"]["target"]) == Decimal("105")
+    assert auto.state.known["SOLUSDT"]["rally"] is False
+
+
+def test_a_coin_in_a_bull_run_keeps_its_long_open_with_the_trailing_stop(tmp_path):
+    sig = {"SOLUSDT": "BUY"}
+    auto, b, sent = _engine(tmp_path, sig, broker=RallyBroker(), desk_rules=T.D.DeskRules())
+    auto.step()
+    info = auto.state.known["SOLUSDT"]
+    assert info["rally"] is True and Decimal(info["target"]) == Decimal("150")  # no 3-5% exit: only the trail
+    assert any("Modo alcista" in m and "+43%" in m for m in sent)
+    assert b.last_risk <= Decimal("15")  # "arriesgar algo no todo": the usual risk, never more
+    sig["SOLUSDT"] = "SELL"  # a 5-minute dip does not close the bull-run long
+    auto.step()
+    assert "SOLUSDT" in b.pos and not b.closed
+    b.px = Decimal("110")  # up 10%: the stop follows the gain
+    auto.watch()
+    assert b.moved and b.moved[-1][1] > Decimal("97")
+
+
+def test_shorts_are_never_in_bull_run_mode(tmp_path):
+    sig = {"SOLUSDT": "SELL"}
+    auto, b, sent = _engine(tmp_path, sig, broker=RallyBroker(), desk_rules=T.D.DeskRules(target_max_pct=Decimal("5")))
+    auto.step()
+    assert auto.state.known["SOLUSDT"]["rally"] is False
+    assert Decimal(auto.state.known["SOLUSDT"]["target"]) == Decimal("95")
+
+
+def test_the_goal_is_confirmed_on_the_lower_of_two_reads(tmp_path):
+    auto, b, sent = _engine(tmp_path, {"SOLUSDT": None}, goal_usd=Decimal("10"))
+    auto.step()  # capital 100
+    reads = iter([(Decimal("111"), "USDT"), (Decimal("105"), "USDT")])  # the second read is under the goal
+    b.equity = lambda: next(reads)
+    auto.step()
+    assert auto.state.status == T.RUNNING and not any("meta del mes" in m for m in sent)
+
+
+def test_a_close_that_failed_at_the_goal_is_retried(tmp_path):
+    sig = {"SOLUSDT": "BUY"}
+    auto, b, sent = _engine(tmp_path, sig)
+    auto.step()
+    assert "SOLUSDT" in b.pos
+    real_close, calls = b.close, []
+
+    def flaky(position):
+        calls.append(position.symbol)
+        if len(calls) == 1:
+            raise RuntimeError("exchange down")
+        real_close(position)
+    b.close = flaky
+    b.eq = Decimal("160")
+    with pytest.raises(RuntimeError):
+        auto.step()  # the goal is reached but the close fails
+    b.eq = Decimal("160")
+    auto.step()
+    assert not b.pos and len(calls) == 2

@@ -33,7 +33,7 @@ import io
 import json
 import urllib.request
 import zipfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -64,10 +64,36 @@ MIN_NOTIONAL = {"BTCUSDT": 100.0, "ETHUSDT": 20.0}
 DEFAULT_MIN_NOTIONAL = 5.0
 FEE, FUNDING_PER_8H = 0.0005, 0.0001
 RISK_MIN, RISK_MAX, MAX_POSITION, MAX_OPEN, LEVERAGE = 0.01, 0.15, 0.50, 3, 1.0
-ALL_VARIANTS = (*VARIANTS, "mesa")
+# "mesa" is what runs live: the desk with config/desk_rules.json's take profit and the bull-run mode.
+# "mesa_sin_alcista" drops the bull-run mode; "mesa_libre" has no take-profit band and no bull-run mode, as the
+# desk was on 2026-10-10; "mesa_meta_3_5" keeps the owner's 3-5% band (2026-10-11) to keep measuring it.
+DESK_VARIANTS = ("mesa", "mesa_sin_alcista", "mesa_libre", "mesa_meta_3_5")
+ALL_VARIANTS = (*VARIANTS, *DESK_VARIANTS)
 VISION = "https://data.binance.vision/data/futures/um"
 VETO_LOOKAHEAD = 288  # bars (24 h) to score a veto
 LOSS_LIMIT, GOAL = 0.45, 0.58
+MAINTENANCE = 0.005  # isolated-margin maintenance rate (approx.): a stop beyond liquidation is refused
+
+
+@dataclass(frozen=True)
+class Sizing:
+    """How big each trade is. The default is the owner-approved live setting (config/futures_limits.json)."""
+    name: str = "actual"
+    risk_min: float = RISK_MIN
+    risk_max: float = RISK_MAX
+    max_position: float = MAX_POSITION  # notional of one position / equity
+    leverage: float = LEVERAGE
+
+    def liquidation_distance(self) -> float:
+        return 1 / self.leverage - MAINTENANCE  # fraction of the entry price
+
+
+# Research only: what higher risk per trade would have done. Live limits change only with the owner's approval.
+RISK_SCENARIOS = (
+    Sizing("actual: 1x, posición 50%, riesgo 1-15%"),
+    Sizing("3x, posición 150%, riesgo 1-15%", max_position=1.5, leverage=3.0),
+    Sizing("5x, posición 250%, riesgo 15-30%", risk_min=0.15, risk_max=0.30, max_position=2.5, leverage=5.0),
+)
 TRAIL_START_R, TRAIL_DISTANCE_R = 1.0, 0.5
 WINDOW, WARMUP = 300, 300
 BAR_HOURS = 5 / 60
@@ -177,6 +203,7 @@ class Pos:
     kind: str
     fee_in: float
     funding: float = 0.0
+    rally: bool = False  # a bull-run long: closed only by its (trailing) stop
 
 
 @dataclass
@@ -188,6 +215,9 @@ class Result:
     skipped_minimum: int = 0
     vetoes: dict = field(default_factory=lambda: {"evitó pérdida": 0, "dejó pasar ganancia": 0, "sin resultado": 0})
     risks: list[float] = field(default_factory=list)
+    real_risks: list[float] = field(default_factory=list)  # loss at the stop / equity, after every cap
+    skipped_liquidation: int = 0
+    rally_entries: int = 0
 
     def summary(self, capital: float) -> dict:
         pnl = [t["pnl"] for t in self.trades]
@@ -209,6 +239,9 @@ class Result:
                 "financiacion_usdt": round(sum(t["funding"] for t in self.trades), 4),
                 "max_caida_pct": round(dd, 2), "sin_minimo": self.skipped_minimum, "final": self.end, "por": by,
                 "riesgo_medio_pct": round(float(np.mean(self.risks)) * 100, 2) if self.risks else 0.0,
+                "riesgo_real_medio_pct": round(float(np.mean(self.real_risks)) * 100, 2) if self.real_risks else 0.0,
+                "riesgo_real_max_pct": round(float(np.max(self.real_risks)) * 100, 2) if self.real_risks else 0.0,
+                "sin_margen_liquidacion": self.skipped_liquidation, "entradas_alcistas": self.rally_entries,
                 "vetos": self.vetoes}
 
 
@@ -232,11 +265,16 @@ def _veto_outcome(p: Prepared, i: int, side: str, sl: float, tp: float) -> str:
 
 
 def simulate(prepared: dict[str, Prepared], variant: str, capital: float,
-             rules: Optional[D.DeskRules] = None) -> Result:
+             rules: Optional[D.DeskRules] = None, sizing: Sizing = Sizing()) -> Result:
     res = Result(variant)
-    desk = variant == "mesa"
+    desk = variant in DESK_VARIANTS
+    band = variant in ("mesa", "mesa_sin_alcista", "mesa_meta_3_5")
+    ride = variant == "mesa"
     base = "tendencia_rango_1h_top" if desk else variant
+    daily = {s: p.bars["close"].resample("1D").last().dropna() for s, p in prepared.items()} if ride else {}
     rules = rules or D.DeskRules.load()
+    if variant == "mesa_meta_3_5":
+        rules = replace(rules, target_min_pct=Decimal("3"), target_max_pct=Decimal("5"))
     cash = capital
     positions: dict[str, Pos] = {}
     times = sorted(set().union(*[set(p.bars.index) for p in prepared.values()]))
@@ -261,7 +299,7 @@ def simulate(prepared: dict[str, Prepared], variant: str, capital: float,
                 signal = decide(reading, base) if reading is not None else None
                 if hit_sl or hit_tp:
                     cash_delta, trade = _exit(pos, pos.sl if hit_sl else pos.tp, "stop" if hit_sl else "meta", t, sym)
-                elif signal is not None and signal != pos.side:
+                elif signal is not None and signal != pos.side and not pos.rally:
                     cash_delta, trade = _exit(pos, close, "señal contraria", t, sym)
                 else:
                     gain = close - pos.entry if long else pos.entry - close
@@ -299,6 +337,14 @@ def simulate(prepared: dict[str, Prepared], variant: str, capital: float,
             except ValueError:
                 continue
             sl, tp = float(plan.stop), float(plan.target)
+            run = False
+            if ride and side == "BUY":
+                past = daily[sym][daily[sym].index < t.normalize()]
+                closes = pd.concat([past, pd.Series([close], index=[t])])
+                run = D.rally(sym, pd.DataFrame({"close": closes}), rules) is not None
+            if band:
+                ftp = D.shape_target(Decimal(str(close)), plan.target, side, rules, run)
+                tp, plan = float(ftp), replace(plan, target=ftp)
             if desk:
                 mood = D.sentiment(p.funding[i], p.top_ratio[i], None)
                 qual = max(0.0, min(1.0, qual + 0.2 * (mood.score if side == "BUY" else -mood.score)))
@@ -309,17 +355,23 @@ def simulate(prepared: dict[str, Prepared], variant: str, capital: float,
             dist = abs(close - sl)
             if dist <= 0:
                 continue
-            risk = RISK_MIN + (RISK_MAX - RISK_MIN) * qual
+            if dist / close >= sizing.liquidation_distance():  # the exchange would liquidate before the stop
+                res.skipped_liquidation += 1
+                continue
+            risk = sizing.risk_min + (sizing.risk_max - sizing.risk_min) * qual
             used = sum(o.qty * o.entry for o in positions.values())
-            qty = min(equity * risk / dist, LEVERAGE * equity * MAX_POSITION / close,
-                      max(0.0, LEVERAGE * equity - used) * 0.95 / close)
+            qty = min(equity * risk / dist, equity * sizing.max_position / close,
+                      max(0.0, sizing.leverage * equity - used) * 0.95 / close)
             if qty * close < MIN_NOTIONAL.get(sym, DEFAULT_MIN_NOTIONAL):
                 res.skipped_minimum += 1
                 continue
             fee_in = qty * close * FEE
             cash -= fee_in
             res.risks.append(risk)
-            positions[sym] = Pos(side, qty, close, sl, tp, dist, plan.kind, fee_in)
+            res.real_risks.append(qty * dist / equity)
+            positions[sym] = Pos(side, qty, close, sl, tp, dist, plan.kind, fee_in, rally=run)
+            if run:
+                res.rally_entries += 1
     else:
         t_end = times[-1] if times else None
         for sym, q in list(positions.items()):
@@ -344,11 +396,30 @@ def render(summaries: list[dict], meta: dict) -> str:
                      f"{s['comisiones_usdt']:.2f} | "
                      f"{s['por']['BUY']['operaciones']} ({s['por']['BUY']['neto']:+.2f}) | "
                      f"{s['por']['SELL']['operaciones']} ({s['por']['SELL']['neto']:+.2f}) | {s['final']} |")
+    lines += ["", "Variantes de la mesa: **mesa** = lo que corre en vivo (meta según config/desk_rules.json y modo alcista); "
+                  "**mesa_sin_alcista** = sin el modo alcista; **mesa_libre** = sin banda de meta ni modo alcista, como el "
+                  "2026-10-10; **mesa_meta_3_5** = la meta de 3-5% del dueño. Entradas en modo alcista (mesa): "
+                  + str(next((s.get("entradas_alcistas", 0) for s in summaries if s["variante"] == "mesa"), 0)) + "."]
     mesa = next((s for s in summaries if s["variante"] == "mesa"), None)
     if mesa is not None:
         v = mesa["vetos"]
         lines += ["", f"Vetos del Escéptico (mesa): {v['evitó pérdida']} evitaron una pérdida, "
                       f"{v['dejó pasar ganancia']} dejaron pasar una ganancia, {v['sin resultado']} sin resultado en 24 h."]
+    lines += ["", "Riesgo medio = el que pide la señal (1-15%). Riesgo real = lo que se pierde de la cuenta si salta el stop, "
+                  "después de los topes de posición y margen: " + ", ".join(
+                      f"{s['variante']} {s.get('riesgo_real_medio_pct', 0)}% (máx. {s.get('riesgo_real_max_pct', 0)}%)"
+                      for s in summaries) + "."]
+    scen = meta.get("escenarios") or []
+    if scen:
+        lines += ["", "## Escenarios de riesgo (solo investigación; la mesa con otros tamaños)", "",
+                  "| Escenario | Operaciones | Acierto | Neto % | Máx. caída | Riesgo real medio | Riesgo real máx. | "
+                  "Sin margen | Final |", "|---|---|---|---|---|---|---|---|---|"]
+        for s in scen:
+            lines.append(f"| {s['escenario']} | {s['operaciones']} | {s['acierto_pct']}% | {s['neto_pct']:+.2f}% | "
+                         f"{s['max_caida_pct']}% | {s['riesgo_real_medio_pct']}% | {s['riesgo_real_max_pct']}% | "
+                         f"{s['sin_margen_liquidacion']} | {s['final']} |")
+        lines += ["", "Con apalancamiento, un stop más lejos que la liquidación no se abre (columna \"Sin margen\"). "
+                      "Cambiar el apalancamiento o el riesgo en vivo exige la aprobación escrita del dueño."]
     valid = [s for s in summaries if s["operaciones"] >= 30]
     best = max(valid, key=lambda s: s["neto_usdt"]) if valid else None
     lines += ["", "## Veredicto", ""]
@@ -393,8 +464,10 @@ def run(days: int, symbols: list[str], capital: float, out_dir: Path = OUT_DIR, 
         prepared[sym] = prepare(m5, h1, warmup, top, funding)
         print(f"{sym}: {len(m5)} velas, top traders {len(top)} puntos, financiación {len(funding)} puntos")
     summaries = [simulate(prepared, v, capital).summary(capital) for v in ALL_VARIANTS]
+    scenarios = [{"escenario": z.name, **simulate(prepared, "mesa", capital, sizing=z).summary(capital)}
+                 for z in RISK_SCENARIOS]
     meta = {"desde": start.date().isoformat(), "hasta": end.date().isoformat(), "capital": capital,
-            "simbolos": list(prepared),
+            "simbolos": list(prepared), "escenarios": scenarios,
             "con_top_traders": sum(1 for p in prepared.values() if any(x is not None for x in p.top_ratio))}
     out_dir.mkdir(parents=True, exist_ok=True)
     stamp = end.date().isoformat()

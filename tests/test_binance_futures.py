@@ -278,6 +278,7 @@ def test_shadow_simulates_a_short_stopped_out_with_fees(tmp_path):
     assert broker.positions() == {}
     closed = broker.book["closed"][0]
     assert closed["why"] == "stop" and Decimal(closed["pnl"]) < 0
+    assert Decimal(closed["r"]) < Decimal("-1")  # a full stop is -1R, and the fees make it a bit worse
     loss = Decimal("37") - Decimal(broker.book["cash"])
     fees = (plan.price + plan.sl) * plan.qty * F.TAKER_FEE
     assert loss == (plan.sl - plan.price) * plan.qty + fees  # the stop's distance plus both taker fees
@@ -285,7 +286,7 @@ def test_shadow_simulates_a_short_stopped_out_with_fees(tmp_path):
 
 def test_shadow_runs_on_the_shared_engine_from_the_command_line(tmp_path, capsys):
     assert F.main(["--dir", str(tmp_path), "--una-vez", "--simbolos", "SOLUSDT"], transport=FakeFapi()) == 0
-    assert "SHADOW" in capsys.readouterr().out and (tmp_path / "shadow" / "state.json").exists()
+    assert "SIMULADO" in capsys.readouterr().out and (tmp_path / "shadow" / "state.json").exists()
 
 
 def test_real_from_the_command_line_refuses_unapproved_limits(tmp_path, capsys):
@@ -354,3 +355,12 @@ def test_real_runs_one_decision_with_the_approved_limits_and_the_same_key(tmp_pa
     out = capsys.readouterr().out
     assert "Binance Futuros" in out and "1-15%" in out and "50%" in out and "45%" in out
     assert any(p == "/sapi/v1/account/apiRestrictions" for _, p, _ in fake.calls)  # the key was checked first
+
+
+def test_a_reshaped_target_is_rounded_to_the_exchange_tick(tmp_path):
+    broker, fake = _real(tmp_path)
+    plan = broker.plan("SOLUSDT", "BUY", Decimal("1"), "5m")
+    from dataclasses import replace
+    broker.open(replace(plan, tp=plan.price * Decimal("1.03123")))  # the engine's 3% floor: not on the tick
+    tp = next(a for a in fake.algos.values() if a["type"] == "TAKE_PROFIT_MARKET")
+    assert Decimal(tp["triggerPrice"]) % Decimal("0.01") == 0  # SOLUSDT tick 0.01, as Binance requires

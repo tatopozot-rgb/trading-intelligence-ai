@@ -32,6 +32,8 @@ from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Callable, Optional
 
+import pandas as pd
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_RULES = Path("config/desk_rules.json")
@@ -60,6 +62,15 @@ class DeskRules:
     scout_volume_mult: float = 2.0
     scout_move_pct: float = 1.5  # in the last 15 minutes
     scout_alert_every_min: int = 30
+    # Take profit 3-5% from the entry (owner, 2026-10-11: "en cada operación intente tener un profit del 3% al 5%
+    # ... ese porcentaje después lo controles tu con lo aprendido y lo varies"). None switches the band off.
+    target_min_pct: Optional[Decimal] = Decimal("3")
+    target_max_pct: Optional[Decimal] = None  # 5% capped the winners in the 2026-10-11 backtest: off (see docs)
+    # Bull-run mode (owner, 2026-10-11: "si algún día alguna moneda se va en alza debe dejar el trade de largo ...
+    # arriesgar algo no todo"): a coin up this much over these days lets its longs run with the trailing stop.
+    rally_lookback_days: int = 14
+    rally_min_gain_pct: float = 25.0
+    rally_target_pct: Decimal = Decimal("50")  # so far away that only the trailing stop closes the trade
 
     @classmethod
     def load(cls, path: Path = DEFAULT_RULES) -> "DeskRules":
@@ -69,10 +80,49 @@ class DeskRules:
         r = cls(Decimal(str(d.get("min_reward_risk", "1.5"))), Decimal(str(d.get("round_number_buffer_pct", "0.3"))),
                 Decimal(str(d.get("max_funding_against_pct", "0.05"))), float(d.get("min_sentiment_against", -0.5)),
                 float(d.get("scout_volume_mult", 2.0)), float(d.get("scout_move_pct", 1.5)),
-                int(d.get("scout_alert_every_min", 30)))
+                int(d.get("scout_alert_every_min", 30)),
+                _opt_dec(d.get("target_min_pct", "3")), _opt_dec(d.get("target_max_pct")),
+                int(d.get("rally_lookback_days", 14)), float(d.get("rally_min_gain_pct", 25.0)),
+                Decimal(str(d.get("rally_target_pct", "50"))))
         if r.min_reward_risk <= 0 or r.round_number_buffer_pct < 0 or r.scout_volume_mult <= 1:
             raise ValueError("desk rules out of range")
+        if (r.target_min_pct is not None and r.target_max_pct is not None and not 0 < r.target_min_pct <= r.target_max_pct) \
+                or r.rally_lookback_days < 2 or r.rally_min_gain_pct <= 0 or r.rally_target_pct <= 0:
+            raise ValueError("desk rules out of range")
         return r
+
+
+def _opt_dec(x: object) -> Optional[Decimal]:
+    return None if x is None else Decimal(str(x))
+
+
+# --- Take profit and bull-run mode ---------------------------------------------------------------------
+
+def shape_target(entry: Decimal, target: Decimal, side: str, rules: DeskRules, rally: bool = False) -> Decimal:
+    """The market's target, kept within the 3-5% band; a long in a bull run gets a target only the trail reaches."""
+    sign = 1 if side == "BUY" else -1
+    if rally and side == "BUY":
+        return entry * (1 + rules.rally_target_pct / 100)
+    pct = abs(target - entry) / entry * 100
+    if rules.target_min_pct is not None:
+        pct = max(pct, rules.target_min_pct)
+    if rules.target_max_pct is not None:
+        pct = min(pct, rules.target_max_pct)
+    return entry * (1 + sign * pct / 100)
+
+
+def rally(symbol: str, daily: pd.DataFrame, rules: DeskRules) -> Optional[Alert]:
+    """A bull run: up ``rally_min_gain_pct`` over the lookback, above its 20-day mean and still rising."""
+    closes = daily["close"].astype(float)
+    n = rules.rally_lookback_days
+    if len(closes) < n + 1:
+        return None
+    last, then = closes.iloc[-1], closes.iloc[-1 - n]
+    gain = (last / then - 1) * 100 if then > 0 else 0.0
+    rising = last >= closes.iloc[-4] if len(closes) >= 4 else True
+    if gain >= rules.rally_min_gain_pct and last > closes.tail(20).mean() and rising:
+        return Alert(symbol, f"alcista fuerte: +{gain:.0f}% en {n} días, sobre su media de 20 días y todavía subiendo")
+    return None
 
 
 # --- Scout ---------------------------------------------------------------------------------------------

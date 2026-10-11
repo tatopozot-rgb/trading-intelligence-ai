@@ -91,3 +91,73 @@ only the latest work blocks. The history up to 2026-10-10 (sections 1–90) is i
 - Spot operator: stopped with "Para" at 08:44 UTC. Nothing was sold or moved; the session is STOPPED.
 - Market watcher: the owner wrote "Deten vigilante". Task `TradingIntelligence-Vigilante` is disabled, not deleted, so there are no market or brutal-bull alerts.
 - Neither comes back without the owner's word to Local. Reports, Memory and Reanudar stay active.
+
+### 95. Learning to manage futures: practice 30 + 30, risk scenarios, daily loop (2026-10-11)
+
+**Owner's words:** "tu última tarea con dinero en las dos cuentas es aprender a manejar el mercado futuros ... en un futuro puedas arriesgar por operación hasta el 15-30% ... Eres el gerente ... empezar con el valor que tenemos Binance 30 y XM 30 ... Después de conectar XM, empezamos con dinero real al 100%, con lo aprendido."
+
+**Built:**
+- **Backtest:**
+  - Reports the *real* risk per trade (the loss at the stop after the caps) next to the risk the signal asks for.
+  - New risk scenarios for the desk: 1x/50% (live), 3x/150%, and 5x/250% with 15–30% risk.
+  - A stop beyond the liquidation price is refused.
+- **Practice account:**
+  - Paper trades record their R multiple.
+  - Telegram labels them "🧪 SIMULADO (dinero ficticio)".
+  - The status report comes every 30 min, not every 2.
+- **`live/shadow_report.py`:** the daily practice report (win rate, net, expectancy in R, profit factor, drawdown, by symbol/side/exit, vetoes).
+- **Docs and agents:**
+  - `docs/APRENDIZAJE_FUTUROS.md`: roles, the daily loop, and the evidence gate for raising risk toward 15–30%, which needs the owner's written approval.
+  - `docs/prompts/GPT_WORK_FUTUROS.md`: GPT Work's analysis prompt.
+  - `.claude/skills/revision-futuros`: the leader's daily review.
+
+**Finding the owner must know:**
+- At 1x with a 50% position cap, "risk 15%" is nominal: one trade loses at most 7.5% of the account, usually 1.5–4%.
+- Real 15–30% needs 3–5x leverage.
+- Two losses in a row at 30% leave 49%, already past the 45% session limit. With 64% hits, P(two losses in a row within 25 trades) = 93%.
+
+**Then the owner added:** "si algún día alguna moneda se va en alza debe dejar el trade de largo ... arriesgar algo no todo ... en cada operación intente tener un profit del 3% al 5% ... después lo controles tu".
+
+**Built for it:**
+- `desk.shape_target`: keeps the take profit within 3–5% of the entry.
+- `desk.rally`: flags a coin up ≥25% in 14 days, above its 20-day mean and still rising.
+- The engine keeps a bull-run long open:
+  - its target is +50%, so only the trailing stop closes it;
+  - a 5-minute flip does not close it;
+  - it takes the usual risk.
+- The backtest compares `mesa` (live), `mesa_sin_alcista` and `mesa_libre` (the 2026-10-10 desk).
+- **Caveat:** with the Skeptic's 1.5:1 rule, a 5% cap leaves room only for stops of 3.3% or less. The Monday run decides whether the band stays.
+
+**Tests:** shadow report 2, backtest 8, futures 20, engine 20, desk 10.
+
+### 96. Monthly goal, Telegram only verified, watcher back (2026-10-11)
+
+**Owner's words:**
+- "Si 5% máximo por operación estaria mejor a gran escala, pero que si intente ganar sin parar no por operación si no diariamente hasta cumplir una meta me dual de que se yo 5k dependiendo el valor después depositado".
+- "activa vigilante para futuros nuevamente y que el bot de telegram envíe solo cosas ciertas revisadas, suele enviarme cosas no revisadas en los brokers".
+
+**Built:**
+- **Monthly goal:**
+  - `profit_target_pct` (58) now counts from each month's starting equity.
+  - At the goal everything closes; trading resumes on the 1st of the next month.
+  - `monthly_goal_usd` lets the owner set the goal in dollars after a deposit.
+  - Recorded in `config/futures_limits.json` with his quote.
+- **Telegram only verified:**
+  - The engine has `notify` (Telegram) and `chatter` (console and journal).
+  - Scout alerts, Skeptic vetoes and stop moves are chatter.
+  - Each position's status report goes out only after two account reads.
+  - Warnings, the loss stop and the goal need a second equity read that agrees.
+- **5% max per trade:** read as the take profit, which keeps the 3–5% band. Risk stays 1–15%.
+- **Market watcher:** reactivation asked of Claude local with his words.
+
+**30-day real-data check, 2026-10-11** (22–25 trades per desk variant, so noise-level):
+
+| Variant | Result | Max drawdown |
+|---|---|---|
+| no band (mesa_libre) | +18.7% | 12.7% |
+| 3–5% band | +6.1% | 11.8% |
+| band + bull-run mode | +4.2% | 15.3% |
+
+- **Real risk:** about 2% average, about 5% max.
+- **Risk scenarios:** 3x gave +57.8% (goal reached, 18% drawdown); 5x at 15–30% risk gave +59% (28.7% drawdown).
+- **Leader decision:** `target_max_pct` is off and the 3% floor stays. The bull-run mode stays, for rare big runs; it had only 4 entries in this window. The band keeps being measured as `mesa_meta_3_5`.

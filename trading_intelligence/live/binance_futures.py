@@ -180,8 +180,9 @@ class FuturesLimits:
     loss_limit_pct: Decimal  # session loss limit (Spot session: 45, inside the owner's 20-50 band)
     loss_range: tuple[Decimal, Decimal]
     warn_before_usd: Decimal  # the owner is asked this many USD before the limit (Spot: 2)
-    profit_target_pct: Optional[Decimal]  # session goal (Spot session: 58)
+    profit_target_pct: Optional[Decimal]  # monthly goal, % of the month's starting equity (owner, 2026-10-11)
     symbols: tuple[str, ...]
+    monthly_goal_usd: Optional[Decimal] = None  # the owner may set the month's goal in dollars after a deposit
 
     def for_session(self, loss_limit_pct: Optional[Decimal]) -> "FuturesLimits":
         """The owner may pick a session's loss limit by his word, inside his approved band."""
@@ -204,7 +205,8 @@ def load_futures_limits(path: Path = DEFAULT_LIMITS) -> FuturesLimits:
                                Decimal(str(d["max_position_pct"])),
                                int(d["max_open_positions"]), Decimal(str(d["loss_limit_pct"])), (lo, hi),
                                Decimal(str(d["warn_before_usd"])),
-                               Decimal(str(target)) if target is not None else None, tuple(d["allowed_symbols"]))
+                               Decimal(str(target)) if target is not None else None, tuple(d["allowed_symbols"]),
+                               Decimal(str(d["monthly_goal_usd"])) if d.get("monthly_goal_usd") is not None else None)
         if d.get("withdrawals") is not False or d.get("transfers") is not False:
             raise ValueError("withdrawals and transfers must be false")
     except (OSError, ValueError, KeyError, TypeError) as error:
@@ -574,8 +576,9 @@ class FuturesBroker:
         except LiveError:
             self.market.market(plan.symbol, exit_side, plan.qty, reduce_only=True)  # never left without a stop
             raise FuturesError(f"{plan.symbol}: Binance no aceptó el stop; cerré la posición al momento")
+        tp = self.market.rules(plan.symbol).round_price(plan.tp, up=plan.side != "BUY")  # the engine may reshape it
         try:
-            self.market.conditional(plan.symbol, exit_side, "TAKE_PROFIT_MARKET", plan.tp)
+            self.market.conditional(plan.symbol, exit_side, "TAKE_PROFIT_MARKET", tp)
         except LiveError as error:
             logger.warning("%s: take profit not placed (%s); the stop and the engine still guard it", plan.symbol, error)
         return f"{plan.symbol}:{'L' if plan.side == 'BUY' else 'S'}"
@@ -614,7 +617,7 @@ class FuturesBroker:
 
 class PaperFuturesBroker:
     """SHADOW: real public prices, simulated positions with their stop, target and taker fee."""
-    name, unit = "Binance Futuros (SHADOW)", "unidades"
+    name, unit = "🧪 Binance Futuros SIMULADO (dinero ficticio)", "unidades"
 
     def __init__(self, market: FuturesMarket, capital: Decimal, state_path: Path, *, leverage: int = 1,
                  max_position_pct: Decimal = Decimal("50"), fee: Decimal = TAKER_FEE) -> None:
@@ -634,10 +637,13 @@ class PaperFuturesBroker:
         qty, entry = Decimal(p["qty"]), Decimal(p["entry"])
         pnl = (price - entry) * qty if p["side"] == "BUY" else (entry - price) * qty
         fee = price * qty * self.fee
+        net = pnl - fee - Decimal(p["fee"])
         self.book["cash"] = str(Decimal(self.book["cash"]) + pnl - fee)
+        risk = abs(entry - Decimal(p.get("sl0", p["sl"]))) * qty  # what the first stop put at stake
         self.book["closed"].append({"symbol": sym, "side": p["side"], "entry": p["entry"], "exit": str(price),
-                                    "qty": p["qty"], "pnl": str((pnl - fee - Decimal(p["fee"])).quantize(Decimal("0.0001"))),
-                                    "why": why, "at": datetime.now(timezone.utc).isoformat()})
+                                    "qty": p["qty"], "pnl": str(net.quantize(Decimal("0.0001"))),
+                                    "r": str((net / risk).quantize(Decimal("0.01"))) if risk > 0 else None,
+                                    "opened": p.get("opened"), "why": why, "at": datetime.now(timezone.utc).isoformat()})
 
     def _settle(self) -> None:
         """A stop or a target touched since the last pass (on 1m bars) closes there; stop first if both."""
@@ -693,8 +699,9 @@ class PaperFuturesBroker:
         ticket = f"paper-{uuid.uuid4().hex[:8]}"
         self.book["cash"] = str(Decimal(self.book["cash"]) - fee)
         self.book["positions"][plan.symbol] = {
-            "side": plan.side, "qty": str(plan.qty), "entry": str(plan.price), "sl": str(plan.sl), "tp": str(plan.tp),
-            "fee": str(fee), "ticket": ticket, "checked": datetime.now(timezone.utc).isoformat()}
+            "side": plan.side, "qty": str(plan.qty), "entry": str(plan.price), "sl": str(plan.sl), "sl0": str(plan.sl),
+            "tp": str(plan.tp), "fee": str(fee), "ticket": ticket, "checked": datetime.now(timezone.utc).isoformat(),
+            "opened": datetime.now(timezone.utc).isoformat()}
         self._save()
         return ticket
 
@@ -752,7 +759,8 @@ def main(argv: Optional[list[str]] = None, transport=None, env: Optional[Mapping
                           inside_every_min=args.cada_dentro, outside_every_min=args.cada_fuera,
                           signal=signal_for(args.senal), notify=make_notify(console, from_env()),
                           desk_rules=None if args.sin_mesa else DeskRules.load(),
-                          journal_dir=args.diario or d / "mesa", news_get=None if args.sin_mesa else desk_get)
+                          journal_dir=args.diario or d / "mesa", news_get=None if args.sin_mesa else desk_get,
+                          report_every_s=120 if args.modo == "real" else 1800, goal_usd=limits.monthly_goal_usd)  # practice: status every 30 min
         equity, _ = auto.broker.equity()
         print(f"{auto.broker.name} · saldo {equity} USDT · {limits.max_leverage}x · riesgo {limits.risk_min_pct}-"
               f"{limits.risk_max_pct}% por operación según la señal · posición máx. {limits.max_position_pct}% · {limits.max_open} posiciones · límite de "
