@@ -355,3 +355,12 @@ def test_real_runs_one_decision_with_the_approved_limits_and_the_same_key(tmp_pa
     out = capsys.readouterr().out
     assert "Binance Futuros" in out and "1-15%" in out and "50%" in out and "45%" in out
     assert any(p == "/sapi/v1/account/apiRestrictions" for _, p, _ in fake.calls)  # the key was checked first
+
+
+def test_a_reshaped_target_is_rounded_to_the_exchange_tick(tmp_path):
+    broker, fake = _real(tmp_path)
+    plan = broker.plan("SOLUSDT", "BUY", Decimal("1"), "5m")
+    from dataclasses import replace
+    broker.open(replace(plan, tp=plan.price * Decimal("1.03123")))  # the engine's 3% floor: not on the tick
+    tp = next(a for a in fake.algos.values() if a["type"] == "TAKE_PROFIT_MARKET")
+    assert Decimal(tp["triggerPrice"]) % Decimal("0.01") == 0  # SOLUSDT tick 0.01, as Binance requires

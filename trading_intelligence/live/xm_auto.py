@@ -17,7 +17,8 @@ from __future__ import annotations
 
 import argparse
 import logging
-from decimal import Decimal
+from dataclasses import replace
+from decimal import ROUND_DOWN, ROUND_UP, Decimal
 from pathlib import Path
 from typing import Optional
 
@@ -66,7 +67,10 @@ class XmBroker:
         return Plan(p.symbol, p.side, p.lots, p.price, p.sl, p.tp, p.risk_money)
 
     def open(self, plan: Plan) -> str:
-        opened = self.trader.open(self._last)
+        point = self.trader.reader.sheet(plan.symbol).point  # the engine may reshape the target: XM's own precision
+        tp = (plan.tp / point).to_integral_value(rounding=ROUND_DOWN if plan.side == "BUY" else ROUND_UP) * point \
+            if point > 0 else plan.tp
+        opened = self.trader.open(replace(self._last, tp=tp))
         now = self.trader.positions()
         return str(getattr(now[plan.symbol], "ticket")) if plan.symbol in now else str(opened["order"])
 

@@ -135,3 +135,10 @@ def test_the_cli_refuses_a_real_account(tmp_path, capsys):
     m = TradingMt5(mode=2)
     assert A.main(["--dir", str(tmp_path), "--una-vez"], mt5=m) == 1
     assert "DEMO" in capsys.readouterr().out and m.sent == []
+
+
+def test_the_engine_target_reaches_xm_on_its_price_precision(tmp_path):
+    auto, m, sent = _auto(tmp_path, {"EURUSD": "BUY"})
+    auto.step()
+    sent_tp, target = Decimal(str(m.sent[0]["tp"])), Decimal(auto.state.known["EURUSD"]["target"])
+    assert abs(sent_tp - target) < Decimal("0.001")  # the engine's (reshaped) target, not XM's own plan

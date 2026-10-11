@@ -214,18 +214,22 @@ class TwoWayAuto:
                 s.status, s.warn_acknowledged = RUNNING, True
                 self._event("OWNER", "continuar")
                 self.notify(f"✅ {name}: entendido, sigo operando hasta el límite de pérdida.")
+        if s.status in (STOPPED, GOAL) and ours:  # a close that failed (exchange down) is retried every pass
+            self._close_all(ours)
+            ours = self.broker.positions()
         capital = Decimal(s.capital)
         loss, limit = capital - equity, capital * self.loss_limit_pct / 100
         month_start = Decimal(s.month_start_equity) if Decimal(s.month_start_equity) > 0 else capital
         goal = self.goal_usd if self.goal_usd is not None else (
             month_start * self.profit_target_pct / 100 if self.profit_target_pct is not None else None)
-        triggered = (s.status not in (STOPPED, GOAL) and loss >= limit) or \
-            (s.status == RUNNING and not s.warn_acknowledged and loss > 0 and loss >= limit - self.warn_before) or \
-            (goal is not None and s.status in (RUNNING, WAITING_OWNER) and equity - month_start >= goal)
-        if triggered:  # a warning, a stop or the goal is told only if a second read of the account agrees
+        loss_hit = (s.status not in (STOPPED, GOAL) and loss >= limit) or \
+            (s.status == RUNNING and not s.warn_acknowledged and loss > 0 and loss >= limit - self.warn_before)
+        goal_hit = goal is not None and s.status in (RUNNING, WAITING_OWNER) and equity - month_start >= goal
+        if loss_hit or goal_hit:  # a warning, a stop or the goal is told only if a second read of the account agrees
             self.pause(VERIFY_PAUSE_S)
             second = self.broker.equity()[0]
-            equity = max(equity, second) if loss > 0 else min(equity, second)  # the less extreme of the two reads
+            # the less extreme read: the higher equity for a loss, the lower one for the goal
+            equity = max(equity, second) if loss_hit else min(equity, second)
             loss = capital - equity
         if s.status not in (STOPPED, GOAL) and loss >= limit:
             s.status = STOPPED
@@ -266,7 +270,7 @@ class TwoWayAuto:
             s.capital = str(equity)
         month = self.clock().strftime("%Y-%m")
         if s.month != month:
-            resumed = s.month != "" and s.status == GOAL
+            resumed = s.status == GOAL  # also a GOAL left by the old session goal (before 2026-10-11)
             s.month, s.month_start_equity = month, str(equity)
             if resumed:
                 s.status = RUNNING

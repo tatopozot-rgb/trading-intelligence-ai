@@ -576,8 +576,9 @@ class FuturesBroker:
         except LiveError:
             self.market.market(plan.symbol, exit_side, plan.qty, reduce_only=True)  # never left without a stop
             raise FuturesError(f"{plan.symbol}: Binance no aceptó el stop; cerré la posición al momento")
+        tp = self.market.rules(plan.symbol).round_price(plan.tp, up=plan.side != "BUY")  # the engine may reshape it
         try:
-            self.market.conditional(plan.symbol, exit_side, "TAKE_PROFIT_MARKET", plan.tp)
+            self.market.conditional(plan.symbol, exit_side, "TAKE_PROFIT_MARKET", tp)
         except LiveError as error:
             logger.warning("%s: take profit not placed (%s); the stop and the engine still guard it", plan.symbol, error)
         return f"{plan.symbol}:{'L' if plan.side == 'BUY' else 'S'}"

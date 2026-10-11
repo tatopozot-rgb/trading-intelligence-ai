@@ -385,3 +385,33 @@ def test_shorts_are_never_in_bull_run_mode(tmp_path):
     auto.step()
     assert auto.state.known["SOLUSDT"]["rally"] is False
     assert Decimal(auto.state.known["SOLUSDT"]["target"]) == Decimal("95")
+
+
+def test_the_goal_is_confirmed_on_the_lower_of_two_reads(tmp_path):
+    auto, b, sent = _engine(tmp_path, {"SOLUSDT": None}, goal_usd=Decimal("10"))
+    auto.step()  # capital 100
+    reads = iter([(Decimal("111"), "USDT"), (Decimal("105"), "USDT")])  # the second read is under the goal
+    b.equity = lambda: next(reads)
+    auto.step()
+    assert auto.state.status == T.RUNNING and not any("meta del mes" in m for m in sent)
+
+
+def test_a_close_that_failed_at_the_goal_is_retried(tmp_path):
+    sig = {"SOLUSDT": "BUY"}
+    auto, b, sent = _engine(tmp_path, sig)
+    auto.step()
+    assert "SOLUSDT" in b.pos
+    real_close, calls = b.close, []
+
+    def flaky(position):
+        calls.append(position.symbol)
+        if len(calls) == 1:
+            raise RuntimeError("exchange down")
+        real_close(position)
+    b.close = flaky
+    b.eq = Decimal("160")
+    with pytest.raises(RuntimeError):
+        auto.step()  # the goal is reached but the close fails
+    b.eq = Decimal("160")
+    auto.step()
+    assert not b.pos and len(calls) == 2
