@@ -50,6 +50,12 @@ ALERT_REGIMES = {Regime.TREND_UP, Regime.TREND_DOWN, Regime.BREAKOUT_UP, Regime.
 BULL_SYMBOL = "BTCUSDT"
 BULL_90D_PCT, BULL_30D_PCT = 60.0, 15.0
 BULL_COOLDOWN = timedelta(days=7)
+# What each move means for the futures desk, which trades both ways (owner, 2026-10-11: "el vigilante sigue
+# buscando compra de criptos"). These are market alerts, never orders and never a suggestion to buy in Spot.
+SIDE_WORDS = {"up": "a favor de una COMPRA en futuros", "down": "a favor de una VENTA EN CORTO en futuros"}
+REGIME_SIDE = {"TREND_UP": "los bots de futuros buscan compras", "BREAKOUT_UP": "los bots de futuros buscan compras",
+               "TREND_DOWN": "los bots de futuros buscan ventas en corto",
+               "BREAKOUT_DOWN": "los bots de futuros buscan ventas en corto"}
 REGIME_WORDS = {
     "TREND_UP": "tendencia alcista", "TREND_DOWN": "tendencia bajista", "RANGE": "rango (lateral)",
     "BREAKOUT_UP": "ruptura al alza", "BREAKOUT_DOWN": "ruptura a la baja", "NO_EDGE": "sin dirección clara",
@@ -169,18 +175,20 @@ class MarketWatch:
                     arrow = "📈" if move.direction == "up" else "📉"
                     strong = " FUERTE" if move.level >= 2 else ""
                     sent.append(f"{arrow}{strong} {sym} {move.pct:+.1f}% en {move.window} "
-                                f"(precio {_fmt_price(move.price)}). Régimen 4h: {regime_txt}.")
+                                f"(precio {_fmt_price(move.price)}). Régimen 4h: {regime_txt}. "
+                                f"Movimiento {SIDE_WORDS[move.direction]}; la mesa decide si entra.")
             previous = self.state["regimes"].get(sym)
             if regime is not None and (previous is None or previous["bar"] != bar):  # once per closed bar
                 if previous is not None and previous["regime"] != regime and Regime(regime) in ALERT_REGIMES:
                     sent.append(f"🔄 {sym} cambió a {regime_txt} en la vela de 4h "
-                                f"(antes: {REGIME_WORDS.get(previous['regime'], previous['regime'])}).")
+                                f"(antes: {REGIME_WORDS.get(previous['regime'], previous['regime'])}): "
+                                f"{REGIME_SIDE.get(regime, 'los bots esperan')}.")
                 self.state["regimes"][sym] = {"regime": regime, "bar": bar}
         sent += self._bull(now)
         if failures == len(self.symbols) and self.symbols:
             sent.append("⚠️ Vigilante: Binance no respondió para ninguna moneda en esta vuelta.")
         for message in sent:
-            self.notify(f"[Vigilante] {message}")
+            self.notify(f"[Vigilante futuros · aviso de mercado, no es una operación] {message}")
         self._save()
         return sent
 
@@ -195,8 +203,8 @@ class MarketWatch:
             return []
         self.state["bull"] = {"at": now.isoformat()}
         return [f"🚀 Alcista brutal en BTC: {run[0]:+.0f}% en 90 días y {run[1]:+.0f}% en 30, por encima de su media "
-                f"de 200 días. Tu regla: solo en un mercado así se vuelve a comprar cripto en Spot. "
-                f"Si quieres comprar, díselo a Claude local."]
+                f"de 200 días. En futuros, el modo alcista de los bots deja correr las compras con el stop siguiendo "
+                f"la ganancia, con el riesgo de siempre."]
 
     def summary(self) -> str:
         now = self.clock()
@@ -214,9 +222,9 @@ class MarketWatch:
 
 
 def watched_symbols() -> list[str]:
-    from trading_intelligence.live.limits import load_limits
+    from trading_intelligence.live.binance_futures import load_futures_limits
 
-    return sorted(set(load_limits().allowed_symbols) | set(WATCH_ONLY))
+    return sorted(set(load_futures_limits().symbols) | set(WATCH_ONLY))  # the futures desk's coins
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
