@@ -72,7 +72,7 @@ def _engine(tmp_path, sig, broker=None, **kw):
     broker = broker or FakeBroker()
     sent: list[str] = []
     auto = T.TwoWayAuto(broker, list(sig), tmp_path / "state.json", signal=lambda s, d, h=None, top=None: sig.get(s), pause=lambda s: None,
-                        notify=sent.append, clock=lambda: NOW, **kw)
+                        notify=sent.append, chatter=sent.append, clock=lambda: NOW, **kw)
     return auto, broker, sent
 
 
@@ -106,13 +106,53 @@ def test_at_the_loss_limit_everything_closes_and_the_session_ends(tmp_path):
     assert not b.pos  # the loop does not trade after the end
 
 
-def test_at_the_goal_everything_closes_and_the_session_ends(tmp_path):
+def test_at_the_monthly_goal_everything_closes_and_trading_resumes_next_month(tmp_path):
     sig = {"SOLUSDT": "SELL"}
-    auto, b, sent = _engine(tmp_path, sig)
+    now = [NOW]
+    broker = FakeBroker()
+    sent: list[str] = []
+    auto = T.TwoWayAuto(broker, list(sig), tmp_path / "state.json", signal=lambda s, d, h=None, top=None: sig.get(s),
+                        pause=lambda s: None, notify=sent.append, clock=lambda: now[0])
     auto.step()
-    b.eq = Decimal("158")
+    broker.eq = Decimal("158")
     auto.step()
-    assert auto.state.status == T.GOAL and not b.pos and any("meta cumplida" in m for m in sent)
+    assert auto.state.status == T.GOAL and not broker.pos and any("meta del mes cumplida" in m for m in sent)
+    auto.step()
+    assert not broker.pos  # no new entries for the rest of the month
+    now[0] = datetime(2026, 11, 2, 13, 0, tzinfo=timezone.utc)
+    auto.step()
+    assert auto.state.status == T.RUNNING and auto.state.month_start_equity == "158" and "SOLUSDT" in broker.pos
+    assert any("empieza 2026-11" in m for m in sent)
+
+
+def test_an_owner_set_monthly_goal_in_dollars(tmp_path):
+    auto, b, sent = _engine(tmp_path, {"SOLUSDT": None}, goal_usd=Decimal("20"))
+    auto.step()
+    b.eq = Decimal("121")
+    auto.step()
+    assert auto.state.status == T.GOAL and any("meta 20.00" in m for m in sent)
+
+
+def test_a_warning_needs_two_reads_of_the_account(tmp_path):
+    auto, b, sent = _engine(tmp_path, {"SOLUSDT": None})
+    auto.step()  # capital 100: warning at 43 USD of loss
+    reads = iter([(Decimal("56"), "USDT"), (Decimal("80"), "USDT")])  # the second read disagrees
+    b.equity = lambda: next(reads)
+    auto.step()
+    assert auto.state.status == T.RUNNING and not any("del límite" in m for m in sent)
+
+
+def test_desk_chatter_never_reaches_telegram(tmp_path):
+    sig = {"SOLUSDT": "BUY"}
+    b = FakeBroker()
+    b.reward = Decimal("3")  # vetoed by the Skeptic
+    telegram: list[str] = []
+    console: list[str] = []
+    auto = T.TwoWayAuto(b, list(sig), tmp_path / "state.json", signal=lambda s, d, h=None, top=None: sig.get(s),
+                        pause=lambda s: None, notify=telegram.append, chatter=console.append, clock=lambda: NOW,
+                        desk_rules=T.D.DeskRules())
+    auto.step()
+    assert any("Escéptico" in m for m in console) and not any("Escéptico" in m for m in telegram)
 
 
 def test_the_stop_follows_the_gain_from_one_r_and_never_moves_back(tmp_path):

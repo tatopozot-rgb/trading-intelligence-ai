@@ -129,3 +129,23 @@ only the latest work blocks. The history up to 2026-10-10 (sections 1–90) is i
 - **Caveat:** with the Skeptic's 1.5:1 rule, a 5% cap leaves room only for stops of 3.3% or less. The Monday run decides whether the band stays.
 
 **Tests:** shadow report 2, backtest 8, futures 20, engine 20, desk 10.
+
+### 96. Monthly goal, Telegram only verified, watcher back (2026-10-11)
+
+**Owner's words:**
+- "Si 5% máximo por operación estaria mejor a gran escala, pero que si intente ganar sin parar no por operación si no diariamente hasta cumplir una meta me dual de que se yo 5k dependiendo el valor después depositado".
+- "activa vigilante para futuros nuevamente y que el bot de telegram envíe solo cosas ciertas revisadas, suele enviarme cosas no revisadas en los brokers".
+
+**Built:**
+- **Monthly goal:**
+  - `profit_target_pct` (58) now counts from each month's starting equity.
+  - At the goal everything closes; trading resumes on the 1st of the next month.
+  - `monthly_goal_usd` lets the owner set the goal in dollars after a deposit.
+  - Recorded in `config/futures_limits.json` with his quote.
+- **Telegram only verified:**
+  - The engine has `notify` (Telegram) and `chatter` (console and journal).
+  - Scout alerts, Skeptic vetoes and stop moves are chatter.
+  - Each position's status report goes out only after two account reads.
+  - Warnings, the loss stop and the goal need a second equity read that agrees.
+- **5% max per trade:** read as the take profit, which keeps the 3–5% band. Risk stays 1–15%.
+- **Market watcher:** reactivation asked of Claude local with his words.

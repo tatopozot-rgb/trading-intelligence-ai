@@ -47,7 +47,7 @@ Los límites están en `config/futures_limits.json`, con sus palabras citadas:
 | Apalancamiento | 1x, margen aislado, modo unidireccional |
 | Posiciones a la vez | 3 |
 | Límite de pérdida de la sesión | 45% (banda del dueño 20–50%). 2 USD antes, avisa y pausa las entradas; `continuar` las reanuda. |
-| Meta de la sesión | +58%: cierra todo y termina |
+| Meta del mes (2026-10-11) | Opera sin parar todos los días hasta ganar +58% en el mes; entonces cierra todo y retoma el día 1 del mes siguiente. Cuando el dueño deposite más, puede fijar la meta en dólares (`monthly_goal_usd`). |
 | Stop y meta | Leídos del mercado en cada entrada (3–15%) y puestos en Binance. Desde +1R, el stop sigue la ganancia a R/2. |
 | Pérdida máxima de una operación | 50% × 15% = **7,5%** de la cuenta. El "1–15%" es lo que pide la señal; el riesgo real lo limitan la posición de 50% y el apalancamiento 1x. |
 
@@ -78,7 +78,7 @@ con el stop siguiendo la ganancia, sin meta. Detalle en `docs/APRENDIZAJE_FUTURO
 **Bots por posición:** cada posición abierta tiene su propio bot ("🤖 Bot SOLUSDT"). Ese bot la revisa,
 mueve su stop y avisa de su estado.
 
-**Telegram nunca dice algo falso.** Un aviso de "compré", "vendí" o "se cerró" sale solo después de
+**Telegram nunca dice algo falso.** Solo llega lo que la cuenta confirma: compras, ventas, cierres, el estado de cada posición, avisos de límite y la meta, cada uno revisado 2 veces. El Scout, el Escéptico y los movimientos del stop quedan en la consola y en el diario de la mesa (orden del dueño, 2026-10-11). Un aviso de "compré", "vendí" o "se cerró" sale solo después de
 **leer la cuenta 2 veces** y que las dos lecturas coincidan. Si no coinciden, el aviso lo dice.
 
 **Interruptor de emergencia:** con 3 fallos seguidos de conexión, no abre nada nuevo hasta que la

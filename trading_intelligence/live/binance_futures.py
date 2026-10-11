@@ -180,8 +180,9 @@ class FuturesLimits:
     loss_limit_pct: Decimal  # session loss limit (Spot session: 45, inside the owner's 20-50 band)
     loss_range: tuple[Decimal, Decimal]
     warn_before_usd: Decimal  # the owner is asked this many USD before the limit (Spot: 2)
-    profit_target_pct: Optional[Decimal]  # session goal (Spot session: 58)
+    profit_target_pct: Optional[Decimal]  # monthly goal, % of the month's starting equity (owner, 2026-10-11)
     symbols: tuple[str, ...]
+    monthly_goal_usd: Optional[Decimal] = None  # the owner may set the month's goal in dollars after a deposit
 
     def for_session(self, loss_limit_pct: Optional[Decimal]) -> "FuturesLimits":
         """The owner may pick a session's loss limit by his word, inside his approved band."""
@@ -204,7 +205,8 @@ def load_futures_limits(path: Path = DEFAULT_LIMITS) -> FuturesLimits:
                                Decimal(str(d["max_position_pct"])),
                                int(d["max_open_positions"]), Decimal(str(d["loss_limit_pct"])), (lo, hi),
                                Decimal(str(d["warn_before_usd"])),
-                               Decimal(str(target)) if target is not None else None, tuple(d["allowed_symbols"]))
+                               Decimal(str(target)) if target is not None else None, tuple(d["allowed_symbols"]),
+                               Decimal(str(d["monthly_goal_usd"])) if d.get("monthly_goal_usd") is not None else None)
         if d.get("withdrawals") is not False or d.get("transfers") is not False:
             raise ValueError("withdrawals and transfers must be false")
     except (OSError, ValueError, KeyError, TypeError) as error:
@@ -757,7 +759,7 @@ def main(argv: Optional[list[str]] = None, transport=None, env: Optional[Mapping
                           signal=signal_for(args.senal), notify=make_notify(console, from_env()),
                           desk_rules=None if args.sin_mesa else DeskRules.load(),
                           journal_dir=args.diario or d / "mesa", news_get=None if args.sin_mesa else desk_get,
-                          report_every_s=120 if args.modo == "real" else 1800)  # practice: status every 30 min
+                          report_every_s=120 if args.modo == "real" else 1800, goal_usd=limits.monthly_goal_usd)  # practice: status every 30 min
         equity, _ = auto.broker.equity()
         print(f"{auto.broker.name} · saldo {equity} USDT · {limits.max_leverage}x · riesgo {limits.risk_min_pct}-"
               f"{limits.risk_max_pct}% por operación según la señal · posición máx. {limits.max_position_pct}% · {limits.max_open} posiciones · límite de "
