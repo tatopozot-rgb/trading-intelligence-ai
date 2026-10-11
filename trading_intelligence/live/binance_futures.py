@@ -614,7 +614,7 @@ class FuturesBroker:
 
 class PaperFuturesBroker:
     """SHADOW: real public prices, simulated positions with their stop, target and taker fee."""
-    name, unit = "Binance Futuros (SHADOW)", "unidades"
+    name, unit = "🧪 Binance Futuros SIMULADO (dinero ficticio)", "unidades"
 
     def __init__(self, market: FuturesMarket, capital: Decimal, state_path: Path, *, leverage: int = 1,
                  max_position_pct: Decimal = Decimal("50"), fee: Decimal = TAKER_FEE) -> None:
@@ -634,10 +634,13 @@ class PaperFuturesBroker:
         qty, entry = Decimal(p["qty"]), Decimal(p["entry"])
         pnl = (price - entry) * qty if p["side"] == "BUY" else (entry - price) * qty
         fee = price * qty * self.fee
+        net = pnl - fee - Decimal(p["fee"])
         self.book["cash"] = str(Decimal(self.book["cash"]) + pnl - fee)
+        risk = abs(entry - Decimal(p.get("sl0", p["sl"]))) * qty  # what the first stop put at stake
         self.book["closed"].append({"symbol": sym, "side": p["side"], "entry": p["entry"], "exit": str(price),
-                                    "qty": p["qty"], "pnl": str((pnl - fee - Decimal(p["fee"])).quantize(Decimal("0.0001"))),
-                                    "why": why, "at": datetime.now(timezone.utc).isoformat()})
+                                    "qty": p["qty"], "pnl": str(net.quantize(Decimal("0.0001"))),
+                                    "r": str((net / risk).quantize(Decimal("0.01"))) if risk > 0 else None,
+                                    "opened": p.get("opened"), "why": why, "at": datetime.now(timezone.utc).isoformat()})
 
     def _settle(self) -> None:
         """A stop or a target touched since the last pass (on 1m bars) closes there; stop first if both."""
@@ -693,8 +696,9 @@ class PaperFuturesBroker:
         ticket = f"paper-{uuid.uuid4().hex[:8]}"
         self.book["cash"] = str(Decimal(self.book["cash"]) - fee)
         self.book["positions"][plan.symbol] = {
-            "side": plan.side, "qty": str(plan.qty), "entry": str(plan.price), "sl": str(plan.sl), "tp": str(plan.tp),
-            "fee": str(fee), "ticket": ticket, "checked": datetime.now(timezone.utc).isoformat()}
+            "side": plan.side, "qty": str(plan.qty), "entry": str(plan.price), "sl": str(plan.sl), "sl0": str(plan.sl),
+            "tp": str(plan.tp), "fee": str(fee), "ticket": ticket, "checked": datetime.now(timezone.utc).isoformat(),
+            "opened": datetime.now(timezone.utc).isoformat()}
         self._save()
         return ticket
 
@@ -752,7 +756,8 @@ def main(argv: Optional[list[str]] = None, transport=None, env: Optional[Mapping
                           inside_every_min=args.cada_dentro, outside_every_min=args.cada_fuera,
                           signal=signal_for(args.senal), notify=make_notify(console, from_env()),
                           desk_rules=None if args.sin_mesa else DeskRules.load(),
-                          journal_dir=args.diario or d / "mesa", news_get=None if args.sin_mesa else desk_get)
+                          journal_dir=args.diario or d / "mesa", news_get=None if args.sin_mesa else desk_get,
+                          report_every_s=120 if args.modo == "real" else 1800)  # practice: status every 30 min
         equity, _ = auto.broker.equity()
         print(f"{auto.broker.name} · saldo {equity} USDT · {limits.max_leverage}x · riesgo {limits.risk_min_pct}-"
               f"{limits.risk_max_pct}% por operación según la señal · posición máx. {limits.max_position_pct}% · {limits.max_open} posiciones · límite de "

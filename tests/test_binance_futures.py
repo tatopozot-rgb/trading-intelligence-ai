@@ -278,6 +278,7 @@ def test_shadow_simulates_a_short_stopped_out_with_fees(tmp_path):
     assert broker.positions() == {}
     closed = broker.book["closed"][0]
     assert closed["why"] == "stop" and Decimal(closed["pnl"]) < 0
+    assert Decimal(closed["r"]) < Decimal("-1")  # a full stop is -1R, and the fees make it a bit worse
     loss = Decimal("37") - Decimal(broker.book["cash"])
     fees = (plan.price + plan.sl) * plan.qty * F.TAKER_FEE
     assert loss == (plan.sl - plan.price) * plan.qty + fees  # the stop's distance plus both taker fees
@@ -285,7 +286,7 @@ def test_shadow_simulates_a_short_stopped_out_with_fees(tmp_path):
 
 def test_shadow_runs_on_the_shared_engine_from_the_command_line(tmp_path, capsys):
     assert F.main(["--dir", str(tmp_path), "--una-vez", "--simbolos", "SOLUSDT"], transport=FakeFapi()) == 0
-    assert "SHADOW" in capsys.readouterr().out and (tmp_path / "shadow" / "state.json").exists()
+    assert "SIMULADO" in capsys.readouterr().out and (tmp_path / "shadow" / "state.json").exists()
 
 
 def test_real_from_the_command_line_refuses_unapproved_limits(tmp_path, capsys):

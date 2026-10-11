@@ -298,3 +298,50 @@ def test_the_live_signal_reads_real_bars():
     assert out is None or (out[0] == "SELL" and 0 <= out[1] <= 1)
     regime_only = signal_for("regimen")("SOLUSDT", bars, None)
     assert regime_only is None or regime_only[0] != "BUY"
+
+
+# --- bull-run mode and the 3-5% take profit (owner, 2026-10-11) ----------------------------------------
+
+class RallyBroker(FakeBroker):
+    """Daily bars of a coin that rose 40% in two weeks and is still rising."""
+
+    def candles(self, symbol, timeframe, count):
+        if timeframe != "1d":
+            return super().candles(symbol, timeframe, count)
+        idx = pd.date_range(end=NOW, periods=count, freq="1D")
+        c = np.concatenate([np.full(count - 15, 70.0), np.linspace(70.0, 100.0, 15)])
+        return pd.DataFrame({"open": c, "high": c, "low": c, "close": c, "volume": 1.0}, index=idx)
+
+
+def test_the_target_is_kept_between_3_and_5_percent(tmp_path):
+    sig = {"SOLUSDT": "BUY"}
+    b = FakeBroker()
+    b.reward = Decimal("12")  # the market's target is 12% away: taken at 5%
+    auto, b, sent = _engine(tmp_path, sig, broker=b, desk_rules=T.D.DeskRules())
+    auto.step()
+    assert Decimal(auto.state.known["SOLUSDT"]["target"]) == Decimal("105")
+    assert auto.state.known["SOLUSDT"]["rally"] is False
+
+
+def test_a_coin_in_a_bull_run_keeps_its_long_open_with_the_trailing_stop(tmp_path):
+    sig = {"SOLUSDT": "BUY"}
+    auto, b, sent = _engine(tmp_path, sig, broker=RallyBroker(), desk_rules=T.D.DeskRules())
+    auto.step()
+    info = auto.state.known["SOLUSDT"]
+    assert info["rally"] is True and Decimal(info["target"]) == Decimal("150")  # no 3-5% exit: only the trail
+    assert any("Modo alcista" in m and "+43%" in m for m in sent)
+    assert b.last_risk <= Decimal("15")  # "arriesgar algo no todo": the usual risk, never more
+    sig["SOLUSDT"] = "SELL"  # a 5-minute dip does not close the bull-run long
+    auto.step()
+    assert "SOLUSDT" in b.pos and not b.closed
+    b.px = Decimal("110")  # up 10%: the stop follows the gain
+    auto.watch()
+    assert b.moved and b.moved[-1][1] > Decimal("97")
+
+
+def test_shorts_are_never_in_bull_run_mode(tmp_path):
+    sig = {"SOLUSDT": "SELL"}
+    auto, b, sent = _engine(tmp_path, sig, broker=RallyBroker(), desk_rules=T.D.DeskRules())
+    auto.step()
+    assert auto.state.known["SOLUSDT"]["rally"] is False
+    assert Decimal(auto.state.known["SOLUSDT"]["target"]) == Decimal("95")

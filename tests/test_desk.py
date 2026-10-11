@@ -95,3 +95,18 @@ def test_the_journal_is_markdown_for_obsidian(tmp_path):
     D.journal(tmp_path, NOW, "Escéptico rechaza", ["motivo: beneficio/riesgo"])
     text = (tmp_path / "2026-10-12.md").read_text(encoding="utf-8")
     assert text.startswith("# Mesa de trading — 2026-10-12") and text.count("## 13:00 UTC") == 2
+
+
+def test_shape_target_and_rally_detection():
+    rules = D.DeskRules()
+    e = Decimal("100")
+    assert D.shape_target(e, Decimal("101"), "BUY", rules) == Decimal("103")  # 1% -> at least 3%
+    assert D.shape_target(e, Decimal("90"), "SELL", rules) == Decimal("95")  # 10% -> at most 5%
+    assert D.shape_target(e, Decimal("104"), "BUY", rules, rally=True) == Decimal("150")
+    off = D.DeskRules(target_min_pct=None, target_max_pct=None)
+    assert D.shape_target(e, Decimal("112"), "BUY", off) == Decimal("112")
+    idx = pd.date_range("2026-09-20", periods=30, freq="1D")
+    up = pd.DataFrame({"close": np.concatenate([np.full(15, 70.0), np.linspace(70, 100, 15)])}, index=idx)
+    flat = pd.DataFrame({"close": np.full(30, 100.0)}, index=idx)
+    assert D.rally("SOLUSDT", up, rules) is not None and D.rally("SOLUSDT", flat, rules) is None
+    assert D.rally("SOLUSDT", up.head(10), rules) is None  # not enough history

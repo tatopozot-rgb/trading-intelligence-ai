@@ -27,6 +27,15 @@ Actualizado: 2026-10-10 (Claude Leader).
 
 Las dos plataformas usan **el mismo sistema** (`live/two_way.py`), porque "los 2 mercados son futuros".
 
+## 1b. Práctica y aprendizaje (orden del dueño, 2026-10-11)
+
+- **Práctica con dinero ficticio:** Binance con 30 USDT desde ya, XM DEMO con 30 USD desde el lunes. Usa el mismo
+  motor y los mismos límites. Telegram la marca "🧪 SIMULADO".
+- **Reporte diario** de la práctica en `docs/shadow_futures/` (rama `local/practica`). El líder lo lee cada día y
+  GPT Work hace el análisis profundo (`docs/prompts/GPT_WORK_FUTUROS.md`).
+- **Plan completo y regla para subir el riesgo a 15–30% real:** `docs/APRENDIZAJE_FUTUROS.md`.
+- **Dinero real:** cuando XM esté conectado, con la frase del dueño escrita a Local.
+
 ## 2. Límites aprobados por el dueño (Futuros)
 
 Los límites están en `config/futures_limits.json`, con sus palabras citadas:
@@ -40,7 +49,7 @@ Los límites están en `config/futures_limits.json`, con sus palabras citadas:
 | Límite de pérdida de la sesión | 45% (banda del dueño 20–50%). 2 USD antes, avisa y pausa las entradas; `continuar` las reanuda. |
 | Meta de la sesión | +58%: cierra todo y termina |
 | Stop y meta | Leídos del mercado en cada entrada (3–15%) y puestos en Binance. Desde +1R, el stop sigue la ganancia a R/2. |
-| Pérdida máxima de una operación | 50% × 15% = **7,5%** de la cuenta |
+| Pérdida máxima de una operación | 50% × 15% = **7,5%** de la cuenta. El "1–15%" es lo que pide la señal; el riesgo real lo limitan la posición de 50% y el apalancamiento 1x. |
 
 ## 3. Horario (orden del dueño)
 
@@ -61,6 +70,10 @@ Los límites están en `config/futures_limits.json`, con sus palabras citadas:
 | **Charts** | Señal "tendencia_rango" en los dos sentidos, más la tendencia de 1 hora y los top traders. Fija el stop y la meta según el mercado. |
 | **Escéptico** | Reglas fijas de `config/desk_rules.json`, que no decide una IA: beneficio/riesgo mínimo de 1,5:1, nada de stops pegados a números redondos, nada contra una financiación saturada ni contra un sentimiento muy en contra. Cada veto se anota y se mide (¿evitó una pérdida?). |
 | **Chief** | El motor: junta todo, fija el riesgo de 1–15%, ejecuta, ignora o vigila, y escribe el diario de la mesa (Markdown para Obsidian). |
+
+**Meta y modo alcista (2026-10-11):** cada operación toma ganancia entre 3% y 5%, y el líder ajusta esa banda con lo
+que aprenda. Si una moneda está en una alcista fuerte (+25% en 14 días y todavía subiendo), su compra queda abierta
+con el stop siguiendo la ganancia, sin meta. Detalle en `docs/APRENDIZAJE_FUTUROS.md` §3b.
 
 **Bots por posición:** cada posición abierta tiene su propio bot ("🤖 Bot SOLUSDT"). Ese bot la revisa,
 mueve su stop y avisa de su estado.

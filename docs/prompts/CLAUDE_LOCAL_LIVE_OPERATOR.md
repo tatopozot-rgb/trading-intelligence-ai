@@ -294,6 +294,24 @@ Empieza por `docs/ESTADO_ACTUAL.md`, que tiene los límites, el horario, la mesa
    la prueba de `xm_demo`, y después `python -m trading_intelligence.live.xm_auto` (el mismo motor y la
    misma mesa).
 
+### 4i. Practice account and daily report (owner's order, 2026-10-11)
+
+Read `docs/APRENDIZAJE_FUTUROS.md`. Until XM is connected, everything runs on fictitious money.
+
+1. **Binance practice, now, 24/7, under its own watchdog:**
+   `python -m trading_intelligence.live.binance_futures --modo shadow --capital 30 --diario "C:\Users\tatop\TATO\09 Checkpoints\Mesa práctica"`.
+   It needs no key. Telegram messages say "🧪 SIMULADO (dinero ficticio)".
+2. **XM practice, from Monday:**
+   - The owner installs MT5 and opens an XM DEMO account with 30 USD, then logs in himself.
+   - Run `xm_auto` on the DEMO account.
+3. **Daily report, 19:30 Ecuador (Task Scheduler):**
+   - Run `python -m trading_intelligence.live.shadow_report --capital 30`.
+   - Commit `docs/shadow_futures/` to the branch `local/practica` and push it. Never to `main`.
+   - Practice numbers are fictitious, so they may go to GitHub. **Real balances never go to GitHub**; the real account's report uses percentages only.
+4. **Real money:**
+   - It starts only after XM is connected and the owner writes his phrase to you.
+   - The practice keeps running next to it, so new ideas are tested there first.
+
 ## 5. Nunca
 
 Retiros, transferencias, margen, futuros o apalancamiento; reenviar una orden incierta (el

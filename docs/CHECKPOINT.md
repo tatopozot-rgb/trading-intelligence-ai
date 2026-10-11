@@ -91,3 +91,41 @@ only the latest work blocks. The history up to 2026-10-10 (sections 1–90) is i
 - Spot operator: stopped with "Para" at 08:44 UTC. Nothing was sold or moved; the session is STOPPED.
 - Market watcher: the owner wrote "Deten vigilante". Task `TradingIntelligence-Vigilante` is disabled, not deleted, so there are no market or brutal-bull alerts.
 - Neither comes back without the owner's word to Local. Reports, Memory and Reanudar stay active.
+
+### 95. Learning to manage futures: practice 30 + 30, risk scenarios, daily loop (2026-10-11)
+
+**Owner's words:** "tu última tarea con dinero en las dos cuentas es aprender a manejar el mercado futuros ... en un futuro puedas arriesgar por operación hasta el 15-30% ... Eres el gerente ... empezar con el valor que tenemos Binance 30 y XM 30 ... Después de conectar XM, empezamos con dinero real al 100%, con lo aprendido."
+
+**Built:**
+- **Backtest:**
+  - Reports the *real* risk per trade (the loss at the stop after the caps) next to the risk the signal asks for.
+  - New risk scenarios for the desk: 1x/50% (live), 3x/150%, and 5x/250% with 15–30% risk.
+  - A stop beyond the liquidation price is refused.
+- **Practice account:**
+  - Paper trades record their R multiple.
+  - Telegram labels them "🧪 SIMULADO (dinero ficticio)".
+  - The status report comes every 30 min, not every 2.
+- **`live/shadow_report.py`:** the daily practice report (win rate, net, expectancy in R, profit factor, drawdown, by symbol/side/exit, vetoes).
+- **Docs and agents:**
+  - `docs/APRENDIZAJE_FUTUROS.md`: roles, the daily loop, and the evidence gate for raising risk toward 15–30%, which needs the owner's written approval.
+  - `docs/prompts/GPT_WORK_FUTUROS.md`: GPT Work's analysis prompt.
+  - `.claude/skills/revision-futuros`: the leader's daily review.
+
+**Finding the owner must know:**
+- At 1x with a 50% position cap, "risk 15%" is nominal: one trade loses at most 7.5% of the account, usually 1.5–4%.
+- Real 15–30% needs 3–5x leverage.
+- Two losses in a row at 30% leave 49%, already past the 45% session limit. With 64% hits, P(two losses in a row within 25 trades) = 93%.
+
+**Then the owner added:** "si algún día alguna moneda se va en alza debe dejar el trade de largo ... arriesgar algo no todo ... en cada operación intente tener un profit del 3% al 5% ... después lo controles tu".
+
+**Built for it:**
+- `desk.shape_target`: keeps the take profit within 3–5% of the entry.
+- `desk.rally`: flags a coin up ≥25% in 14 days, above its 20-day mean and still rising.
+- The engine keeps a bull-run long open:
+  - its target is +50%, so only the trailing stop closes it;
+  - a 5-minute flip does not close it;
+  - it takes the usual risk.
+- The backtest compares `mesa` (live), `mesa_sin_alcista` and `mesa_libre` (the 2026-10-10 desk).
+- **Caveat:** with the Skeptic's 1.5:1 rule, a 5% cap leaves room only for stops of 3.3% or less. The Monday run decides whether the band stays.
+
+**Tests:** shadow report 2, backtest 8, futures 20, engine 20, desk 10.
