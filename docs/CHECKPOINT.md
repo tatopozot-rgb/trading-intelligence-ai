@@ -85,3 +85,9 @@ only the latest work blocks. The history up to 2026-10-10 (sections 1–90) is i
 
 - Notion trading board: build it once Futures runs stable for a few days, from 2026-10-15. The leader must bring it up: "tienes que recordarlo porque si no yo me olvido". A reminder is scheduled.
 - Risk: the owner keeps his numbers: "1% no es nada, debe ser 15% y los porcentajes que yo ya puse". The config already says 1–15% by signal quality; nothing changes. "lunes con todo".
+
+### 94. Stopped by the owner (reported by Local, 2026-10-10)
+
+- Spot operator: stopped with "Para" at 08:44 UTC. Nothing was sold or moved; the session is STOPPED.
+- Market watcher: the owner wrote "Deten vigilante". Task `TradingIntelligence-Vigilante` is disabled, not deleted, so there are no market or brutal-bull alerts.
+- Neither comes back without the owner's word to Local. Reports, Memory and Reanudar stay active.

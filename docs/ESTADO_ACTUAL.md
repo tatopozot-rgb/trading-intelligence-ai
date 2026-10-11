@@ -22,7 +22,8 @@ Actualizado: 2026-10-10 (Claude Leader).
 |---|---|---|
 | **Binance Futuros USDⓈ-M** (principal) | Listo. Con dinero real **desde el lunes**, cuando el dueño conecte la clave nueva con Futuros y escriba su frase a Claude local. | `python -m trading_intelligence.live.binance_futures --modo real`. Hasta entonces se puede correr en `--modo shadow` (precios reales, sin dinero). |
 | **XM / MetaTrader 5** | Listo para DEMO; el dueño lo instala y conecta el lunes. | `python -m trading_intelligence.live.xm_auto`. El dinero real va en la fase 3, con la frase del dueño y los límites de XM. |
-| **Binance Spot** | En pausa. Orden del dueño: "no vuelvas a comprar criptos" salvo en una alcista brutal. | Si el dueño escribe "para" a Local, se detiene sin vender. El vigilante `market_watch` avisa si BTC entra en una alcista brutal. |
+| **Binance Spot** | **Detenido** por el dueño ("Para", 2026-10-10 08:44 UTC), sin vender ni mover nada. Sin USDT; solo restos. | No se reactiva sin su palabra a Local. |
+| **Vigilante del mercado** (`market_watch`) | **Desactivado** por el dueño ("Deten vigilante", 2026-10-10). La tarea no se borró. Mientras siga así, no hay avisos de mercado ni de "alcista brutal" por Telegram. | Se reactiva solo con su palabra a Local. |
 
 Las dos plataformas usan **el mismo sistema** (`live/two_way.py`), porque "los 2 mercados son futuros".
 
