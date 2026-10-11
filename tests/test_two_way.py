@@ -357,7 +357,7 @@ def test_the_target_is_kept_between_3_and_5_percent(tmp_path):
     sig = {"SOLUSDT": "BUY"}
     b = FakeBroker()
     b.reward = Decimal("12")  # the market's target is 12% away: taken at 5%
-    auto, b, sent = _engine(tmp_path, sig, broker=b, desk_rules=T.D.DeskRules())
+    auto, b, sent = _engine(tmp_path, sig, broker=b, desk_rules=T.D.DeskRules(target_max_pct=Decimal("5")))
     auto.step()
     assert Decimal(auto.state.known["SOLUSDT"]["target"]) == Decimal("105")
     assert auto.state.known["SOLUSDT"]["rally"] is False
@@ -381,7 +381,7 @@ def test_a_coin_in_a_bull_run_keeps_its_long_open_with_the_trailing_stop(tmp_pat
 
 def test_shorts_are_never_in_bull_run_mode(tmp_path):
     sig = {"SOLUSDT": "SELL"}
-    auto, b, sent = _engine(tmp_path, sig, broker=RallyBroker(), desk_rules=T.D.DeskRules())
+    auto, b, sent = _engine(tmp_path, sig, broker=RallyBroker(), desk_rules=T.D.DeskRules(target_max_pct=Decimal("5")))
     auto.step()
     assert auto.state.known["SOLUSDT"]["rally"] is False
     assert Decimal(auto.state.known["SOLUSDT"]["target"]) == Decimal("95")

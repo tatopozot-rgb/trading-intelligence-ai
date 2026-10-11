@@ -71,8 +71,8 @@ Los límites están en `config/futures_limits.json`, con sus palabras citadas:
 | **Escéptico** | Reglas fijas de `config/desk_rules.json`, que no decide una IA: beneficio/riesgo mínimo de 1,5:1, nada de stops pegados a números redondos, nada contra una financiación saturada ni contra un sentimiento muy en contra. Cada veto se anota y se mide (¿evitó una pérdida?). |
 | **Chief** | El motor: junta todo, fija el riesgo de 1–15%, ejecuta, ignora o vigila, y escribe el diario de la mesa (Markdown para Obsidian). |
 
-**Meta y modo alcista (2026-10-11):** cada operación toma ganancia entre 3% y 5%, y el líder ajusta esa banda con lo
-que aprenda. Si una moneda está en una alcista fuerte (+25% en 14 días y todavía subiendo), su compra queda abierta
+**Meta y modo alcista (2026-10-11):** cada operación busca ganar al menos 3%. El tope de 5% se quitó porque recortaba las
+ganancias en la prueba con datos reales (+6% con el tope frente a +19% sin él); se sigue midiendo cada lunes. Si una moneda está en una alcista fuerte (+25% en 14 días y todavía subiendo), su compra queda abierta
 con el stop siguiendo la ganancia, sin meta. Detalle en `docs/APRENDIZAJE_FUTUROS.md` §3b.
 
 **Bots por posición:** cada posición abierta tiene su propio bot ("🤖 Bot SOLUSDT"). Ese bot la revisa,

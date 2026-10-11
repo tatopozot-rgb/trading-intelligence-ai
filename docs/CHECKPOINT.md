@@ -149,3 +149,15 @@ only the latest work blocks. The history up to 2026-10-10 (sections 1–90) is i
   - Warnings, the loss stop and the goal need a second equity read that agrees.
 - **5% max per trade:** read as the take profit, which keeps the 3–5% band. Risk stays 1–15%.
 - **Market watcher:** reactivation asked of Claude local with his words.
+
+**30-day real-data check, 2026-10-11** (22–25 trades per desk variant, so noise-level):
+
+| Variant | Result | Max drawdown |
+|---|---|---|
+| no band (mesa_libre) | +18.7% | 12.7% |
+| 3–5% band | +6.1% | 11.8% |
+| band + bull-run mode | +4.2% | 15.3% |
+
+- **Real risk:** about 2% average, about 5% max.
+- **Risk scenarios:** 3x gave +57.8% (goal reached, 18% drawdown); 5x at 15–30% risk gave +59% (28.7% drawdown).
+- **Leader decision:** `target_max_pct` is off and the 3% floor stays. The bull-run mode stays, for rare big runs; it had only 4 entries in this window. The band keeps being measured as `mesa_meta_3_5`.

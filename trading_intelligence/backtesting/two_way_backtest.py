@@ -64,9 +64,10 @@ MIN_NOTIONAL = {"BTCUSDT": 100.0, "ETHUSDT": 20.0}
 DEFAULT_MIN_NOTIONAL = 5.0
 FEE, FUNDING_PER_8H = 0.0005, 0.0001
 RISK_MIN, RISK_MAX, MAX_POSITION, MAX_OPEN, LEVERAGE = 0.01, 0.15, 0.50, 3, 1.0
-# "mesa" is what runs live: the desk, the 3-5% take profit and the bull-run mode (owner, 2026-10-11).
-# "mesa_sin_alcista" drops the bull-run mode; "mesa_libre" drops both, as the desk was on 2026-10-10.
-DESK_VARIANTS = ("mesa", "mesa_sin_alcista", "mesa_libre")
+# "mesa" is what runs live: the desk with config/desk_rules.json's take profit and the bull-run mode.
+# "mesa_sin_alcista" drops the bull-run mode; "mesa_libre" has no take-profit band and no bull-run mode, as the
+# desk was on 2026-10-10; "mesa_meta_3_5" keeps the owner's 3-5% band (2026-10-11) to keep measuring it.
+DESK_VARIANTS = ("mesa", "mesa_sin_alcista", "mesa_libre", "mesa_meta_3_5")
 ALL_VARIANTS = (*VARIANTS, *DESK_VARIANTS)
 VISION = "https://data.binance.vision/data/futures/um"
 VETO_LOOKAHEAD = 288  # bars (24 h) to score a veto
@@ -267,11 +268,13 @@ def simulate(prepared: dict[str, Prepared], variant: str, capital: float,
              rules: Optional[D.DeskRules] = None, sizing: Sizing = Sizing()) -> Result:
     res = Result(variant)
     desk = variant in DESK_VARIANTS
-    band = variant in ("mesa", "mesa_sin_alcista")
+    band = variant in ("mesa", "mesa_sin_alcista", "mesa_meta_3_5")
     ride = variant == "mesa"
     base = "tendencia_rango_1h_top" if desk else variant
     daily = {s: p.bars["close"].resample("1D").last().dropna() for s, p in prepared.items()} if ride else {}
     rules = rules or D.DeskRules.load()
+    if variant == "mesa_meta_3_5":
+        rules = replace(rules, target_min_pct=Decimal("3"), target_max_pct=Decimal("5"))
     cash = capital
     positions: dict[str, Pos] = {}
     times = sorted(set().union(*[set(p.bars.index) for p in prepared.values()]))
@@ -393,8 +396,9 @@ def render(summaries: list[dict], meta: dict) -> str:
                      f"{s['comisiones_usdt']:.2f} | "
                      f"{s['por']['BUY']['operaciones']} ({s['por']['BUY']['neto']:+.2f}) | "
                      f"{s['por']['SELL']['operaciones']} ({s['por']['SELL']['neto']:+.2f}) | {s['final']} |")
-    lines += ["", "Variantes de la mesa: **mesa** = lo que corre en vivo (meta de 3-5% y modo alcista); **mesa_sin_alcista** = "
-                  "solo la meta de 3-5%; **mesa_libre** = sin las dos, como el 2026-10-10. Entradas en modo alcista (mesa): "
+    lines += ["", "Variantes de la mesa: **mesa** = lo que corre en vivo (meta según config/desk_rules.json y modo alcista); "
+                  "**mesa_sin_alcista** = sin el modo alcista; **mesa_libre** = sin banda de meta ni modo alcista, como el "
+                  "2026-10-10; **mesa_meta_3_5** = la meta de 3-5% del dueño. Entradas en modo alcista (mesa): "
                   + str(next((s.get("entradas_alcistas", 0) for s in summaries if s["variante"] == "mesa"), 0)) + "."]
     mesa = next((s for s in summaries if s["variante"] == "mesa"), None)
     if mesa is not None:

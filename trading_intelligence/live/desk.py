@@ -65,7 +65,7 @@ class DeskRules:
     # Take profit 3-5% from the entry (owner, 2026-10-11: "en cada operación intente tener un profit del 3% al 5%
     # ... ese porcentaje después lo controles tu con lo aprendido y lo varies"). None switches the band off.
     target_min_pct: Optional[Decimal] = Decimal("3")
-    target_max_pct: Optional[Decimal] = Decimal("5")
+    target_max_pct: Optional[Decimal] = None  # 5% capped the winners in the 2026-10-11 backtest: off (see docs)
     # Bull-run mode (owner, 2026-10-11: "si algún día alguna moneda se va en alza debe dejar el trade de largo ...
     # arriesgar algo no todo"): a coin up this much over these days lets its longs run with the trailing stop.
     rally_lookback_days: int = 14
@@ -81,7 +81,7 @@ class DeskRules:
                 Decimal(str(d.get("max_funding_against_pct", "0.05"))), float(d.get("min_sentiment_against", -0.5)),
                 float(d.get("scout_volume_mult", 2.0)), float(d.get("scout_move_pct", 1.5)),
                 int(d.get("scout_alert_every_min", 30)),
-                _opt_dec(d.get("target_min_pct", "3")), _opt_dec(d.get("target_max_pct", "5")),
+                _opt_dec(d.get("target_min_pct", "3")), _opt_dec(d.get("target_max_pct")),
                 int(d.get("rally_lookback_days", 14)), float(d.get("rally_min_gain_pct", 25.0)),
                 Decimal(str(d.get("rally_target_pct", "50"))))
         if r.min_reward_risk <= 0 or r.round_number_buffer_pct < 0 or r.scout_volume_mult <= 1:

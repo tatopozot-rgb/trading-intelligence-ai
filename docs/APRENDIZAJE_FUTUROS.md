@@ -65,7 +65,7 @@ Sus palabras: "si algún día alguna moneda se va en alza debe dejar el trade de
 puede suceder nuevamente con algo más mientras yo duermo ... arriesgar algo no todo ... en cada operación intente
 tener un profit del 3% al 5% ... ese porcentaje después lo controles tu con lo aprendido y lo varies".
 
-- **Meta de 3–5%:** cada operación toma ganancia entre 3% y 5% desde la entrada. Si el mercado marca una meta más
+- **Meta de 3–5% (pedido inicial; ver la primera medición abajo):** cada operación toma ganancia entre 3% y 5% desde la entrada. Si el mercado marca una meta más
   cerca, se sube a 3%; si la marca más lejos, se baja a 5%. Está en `config/desk_rules.json`
   (`target_min_pct`, `target_max_pct`), y **el líder la ajusta con lo que se mida**.
 - **El cuidado que trae:** el Escéptico pide ganar al menos 1,5 veces lo que se arriesga. Con una meta de 5%, el stop
@@ -79,6 +79,24 @@ tener un profit del 3% al 5% ... ese porcentaje después lo controles tu con lo 
   - Las ventas en corto nunca entran en este modo.
 - **Antes de entrar:** el vigilante de mercado (`market_watch`, hoy apagado por el dueño) puede volver a avisar de una
   alcista brutal de BTC si el dueño lo pide. El motor revisa cada moneda por su cuenta, una vez por hora.
+
+**Primera medición (2026-10-11, 30 días de datos reales; muestra corta de 22 a 25 operaciones):**
+
+| Variante | Resultado | Caída máx. |
+|---|---|---|
+| Mesa sin banda de meta (como el 10 de octubre) | **+18,7%** | 12,7% |
+| Mesa con meta de 3–5% | +6,1% | 11,8% |
+| Mesa con meta de 3–5% y modo alcista | +4,2% | 15,3% |
+
+- **Lo que muestra:** el tope de 5% recortó las operaciones ganadoras, porque las buenas tendencias suelen ir más allá del 5%.
+- **Decisión del líder:** se quita el tope y queda el piso de 3%. Ninguna operación busca menos de 3%, y las que traen tendencia pueden ganar más.
+- **Se sigue midiendo:** la banda de 3–5% del dueño se mide cada lunes como `mesa_meta_3_5`. Si en algún periodo gana, vuelve.
+- **Modo alcista:** se mantiene. En 30 días hubo solo 4 entradas en ese modo, así que la muestra no dice nada todavía. Está para las subidas grandes y raras como la de BTC, que una ventana de 30 días casi nunca muestra.
+- **Riesgo real medido:** en promedio se arriesgó cerca de 2% por operación y como máximo 5%. Ya coincide con el 5% máximo que propuso el dueño.
+- **Apalancamiento en la misma muestra:**
+  - 3x: **+57,8%** y llegó a la meta, con una caída de 18%.
+  - 5x con riesgo de 15–30%: +59%, con una caída de 28,7%.
+  - Es el camino al riesgo de 15–30%. Se decide con más operaciones y la aprobación escrita del dueño.
 
 ## 4. El ciclo diario de aprendizaje
 
