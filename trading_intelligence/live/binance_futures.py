@@ -760,7 +760,8 @@ def main(argv: Optional[list[str]] = None, transport=None, env: Optional[Mapping
                           signal=signal_for(args.senal), notify=make_notify(console, from_env()),
                           desk_rules=None if args.sin_mesa else DeskRules.load(),
                           journal_dir=args.diario or d / "mesa", news_get=None if args.sin_mesa else desk_get,
-                          report_every_s=120 if args.modo == "real" else 1800, goal_usd=limits.monthly_goal_usd)  # practice: status every 30 min
+                          report_every_s=120 if args.modo == "real" else 1800, goal_usd=limits.monthly_goal_usd,
+                          heartbeat_every_s=4 * 3600)  # practice: status every 30 min
         equity, _ = auto.broker.equity()
         print(f"{auto.broker.name} · saldo {equity} USDT · {limits.max_leverage}x · riesgo {limits.risk_min_pct}-"
               f"{limits.risk_max_pct}% por operación según la señal · posición máx. {limits.max_position_pct}% · {limits.max_open} posiciones · límite de "
