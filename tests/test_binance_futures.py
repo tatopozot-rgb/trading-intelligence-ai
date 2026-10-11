@@ -364,3 +364,13 @@ def test_a_reshaped_target_is_rounded_to_the_exchange_tick(tmp_path):
     broker.open(replace(plan, tp=plan.price * Decimal("1.03123")))  # the engine's 3% floor: not on the tick
     tp = next(a for a in fake.algos.values() if a["type"] == "TAKE_PROFIT_MARKET")
     assert Decimal(tp["triggerPrice"]) % Decimal("0.01") == 0  # SOLUSDT tick 0.01, as Binance requires
+
+
+def test_more_leverage_only_in_practice(tmp_path, capsys):
+    assert F.main(["--dir", str(tmp_path), "--una-vez", "--simbolos", "SOLUSDT", "--apalancamiento", "3",
+                   "--posicion-max", "150"], transport=FakeFapi()) == 0
+    out = capsys.readouterr().out
+    assert "3x" in out and "posición máx. 150%" in out
+    assert F.main(["--dir", str(tmp_path), "--modo", "real", "--una-vez", "--apalancamiento", "3"],
+                  transport=FakeFapi(), env={}) == 1
+    assert "solo para la práctica" in capsys.readouterr().out

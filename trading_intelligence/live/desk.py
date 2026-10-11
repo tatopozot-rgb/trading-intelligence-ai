@@ -71,6 +71,9 @@ class DeskRules:
     rally_lookback_days: int = 14
     rally_min_gain_pct: float = 25.0
     rally_target_pct: Decimal = Decimal("50")  # so far away that only the trailing stop closes the trade
+    # Reward as a multiple of the risk taken (owner, 2026-10-11: "replantea la ganancia que recompense el riesgo"):
+    # the target sits target_r times the stop distance away; None keeps the market's own target.
+    target_r: Optional[Decimal] = None
 
     @classmethod
     def load(cls, path: Path = DEFAULT_RULES) -> "DeskRules":
@@ -83,11 +86,12 @@ class DeskRules:
                 int(d.get("scout_alert_every_min", 30)),
                 _opt_dec(d.get("target_min_pct", "3")), _opt_dec(d.get("target_max_pct")),
                 int(d.get("rally_lookback_days", 14)), float(d.get("rally_min_gain_pct", 25.0)),
-                Decimal(str(d.get("rally_target_pct", "50"))))
+                Decimal(str(d.get("rally_target_pct", "50"))), _opt_dec(d.get("target_r")))
         if r.min_reward_risk <= 0 or r.round_number_buffer_pct < 0 or r.scout_volume_mult <= 1:
             raise ValueError("desk rules out of range")
         if (r.target_min_pct is not None and r.target_max_pct is not None and not 0 < r.target_min_pct <= r.target_max_pct) \
-                or r.rally_lookback_days < 2 or r.rally_min_gain_pct <= 0 or r.rally_target_pct <= 0:
+                or r.rally_lookback_days < 2 or r.rally_min_gain_pct <= 0 or r.rally_target_pct <= 0 \
+                or (r.target_r is not None and r.target_r <= 0):
             raise ValueError("desk rules out of range")
         return r
 
@@ -98,11 +102,15 @@ def _opt_dec(x: object) -> Optional[Decimal]:
 
 # --- Take profit and bull-run mode ---------------------------------------------------------------------
 
-def shape_target(entry: Decimal, target: Decimal, side: str, rules: DeskRules, rally: bool = False) -> Decimal:
-    """The market's target, kept within the 3-5% band; a long in a bull run gets a target only the trail reaches."""
+def shape_target(entry: Decimal, target: Decimal, side: str, rules: DeskRules, rally: bool = False,
+                 stop: Optional[Decimal] = None) -> Decimal:
+    """The target: target_r times the risk when set (else the market's), kept within the % band; a long in a bull
+    run gets a target only the trailing stop reaches."""
     sign = 1 if side == "BUY" else -1
     if rally and side == "BUY":
         return entry * (1 + rules.rally_target_pct / 100)
+    if rules.target_r is not None and stop is not None and stop != entry:
+        target = entry + sign * rules.target_r * abs(entry - stop)
     pct = abs(target - entry) / entry * 100
     if rules.target_min_pct is not None:
         pct = max(pct, rules.target_min_pct)

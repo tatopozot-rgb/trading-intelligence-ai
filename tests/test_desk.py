@@ -111,3 +111,12 @@ def test_shape_target_and_rally_detection():
     flat = pd.DataFrame({"close": np.full(30, 100.0)}, index=idx)
     assert D.rally("SOLUSDT", up, rules) is not None and D.rally("SOLUSDT", flat, rules) is None
     assert D.rally("SOLUSDT", up.head(10), rules) is None  # not enough history
+
+
+def test_the_target_can_be_a_multiple_of_the_risk():
+    rules = D.DeskRules(target_r=Decimal("2"), target_min_pct=None)
+    e = Decimal("100")
+    assert D.shape_target(e, Decimal("101"), "BUY", rules, stop=Decimal("97")) == Decimal("106")  # 2 x 3
+    assert D.shape_target(e, Decimal("99"), "SELL", rules, stop=Decimal("104")) == Decimal("92")  # 2 x 4
+    floor = D.DeskRules(target_r=Decimal("1.5"))  # with the 3% floor
+    assert D.shape_target(e, Decimal("101"), "BUY", floor, stop=Decimal("99")) == Decimal("103")

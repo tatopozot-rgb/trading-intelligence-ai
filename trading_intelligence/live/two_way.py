@@ -539,7 +539,8 @@ class TwoWayAuto:
         plan = self.broker.plan(sym, signal, risk, self.timeframe)
         run = self._rally(sym) if signal == "BUY" and self.desk_rules is not None else None
         if self.desk_rules is not None:  # take profit at 3-5%, or let a bull run go with the trailing stop
-            plan = replace(plan, tp=D.shape_target(plan.price, plan.tp, plan.side, self.desk_rules, run is not None))
+            plan = replace(plan, tp=D.shape_target(plan.price, plan.tp, plan.side, self.desk_rules, run is not None,
+                                                  plan.sl))
         headlines = D.news(sym, self.news_get) if (self.desk_rules is not None and self.news_get is not None) else []
         if self.desk_rules is not None and mood is not None:
             verdict = D.skeptic(signal, plan.price, plan.sl, plan.tp, mood, funding, self.desk_rules)
