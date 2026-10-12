@@ -149,7 +149,7 @@ class TwoWayAuto:
                  desk_rules: Optional[D.DeskRules] = None, journal_dir: Optional[Path] = None,
                  news_get: Optional[D.Getter] = None, watch_every_s: int = 30, report_every_s: int = 120,
                  notify: Callable[[str], None] = console, chatter: Callable[[str], None] = console,
-                 goal_usd: Optional[Decimal] = None, pause: Callable[[float], None] = time.sleep,
+                 goal_usd: Optional[Decimal] = None, heartbeat_every_s: Optional[int] = None, pause: Callable[[float], None] = time.sleep,
                  clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc)) -> None:
         if max_open < 1 or not (0 < risk_min_pct <= risk_max_pct <= 15) or not (0 < loss_limit_pct <= 100):
             raise ValueError("max_open >= 1, 0 < risk_min_pct <= risk_max_pct <= 15, loss_limit_pct in (0, 100]")
@@ -168,6 +168,9 @@ class TwoWayAuto:
         # de telegram envíe solo cosas ciertas revisadas")
         self.notify, self.chatter, self.pause, self.clock = notify, chatter, pause, clock
         self.goal_usd = goal_usd
+        # a short "still alive" summary to Telegram (owner, 2026-10-11: "no he recibido una sola notificación")
+        self.heartbeat_every_s = heartbeat_every_s
+        self._last_heartbeat: Optional[datetime] = None
         self.desk_rules, self.journal_dir, self.news_get = desk_rules, journal_dir, news_get
         self.watch_every_s, self.report_every_s = watch_every_s, report_every_s
         self.state = State.load(self.state_path)
@@ -337,9 +340,38 @@ class TwoWayAuto:
             self._score_vetoes()
             if self.desk_rules is not None:
                 self._scout(now)
+            self._heartbeat(now)
         except (RuntimeError, ValueError) as error:
             self._note_once(f"watch:{str(error)[:40]}", f"bots: {error}")
         self.state.save(self.state_path)
+
+    def _heartbeat(self, now: datetime) -> None:
+        """Every few hours: the account's equity (two reads that agree), open positions and what the desk did."""
+        if self.heartbeat_every_s is None:
+            return
+        if self._last_heartbeat is None:
+            self._last_heartbeat = now  # the first one after a full interval, not at start-up
+            return
+        if (now - self._last_heartbeat).total_seconds() < self.heartbeat_every_s:
+            return
+        since = self._last_heartbeat
+        first, currency = self.broker.equity()
+        self.pause(VERIFY_PAUSE_S)
+        second, _ = self.broker.equity()
+        if first != second and abs(first - second) > max(abs(first), Decimal("1")) * Decimal("0.01"):
+            return  # the two reads disagree: try again next pass rather than send a wrong number
+        self._last_heartbeat = now
+        recent = [e for e in self.state.events if e.get("at", "") >= since.isoformat()]
+        count = {k: sum(1 for e in recent if e.get("kind") == k) for k in ("OPEN", "CLOSE", "CLOSED_BY_EXCHANGE", "VETO")}
+        open_now = self.broker.positions()
+        hours = round(self.heartbeat_every_s / 3600)
+        status = {RUNNING: "operando", WAITING_OWNER: "esperando tu 'continuar'", GOAL: "meta del mes cumplida",
+                  STOPPED: "detenido", PAUSED_API: "en pausa por fallos de conexión"}.get(self.state.status,
+                                                                                           self.state.status)
+        self.notify(f"🫀 {self.broker.name}: {status}. Saldo {min(first, second)} {currency} (revisado 2 veces). "
+                    f"Posiciones abiertas: {len(open_now)}. En las últimas {hours} h: {count['OPEN']} entradas, "
+                    f"{count['CLOSE'] + count['CLOSED_BY_EXCHANGE']} cierres y {count['VETO']} propuestas rechazadas "
+                    f"por el Escéptico.")
 
     def _report(self, pos: Position, price: Decimal, now: datetime) -> None:
         last = self._last_report.get(pos.symbol)
@@ -507,7 +539,8 @@ class TwoWayAuto:
         plan = self.broker.plan(sym, signal, risk, self.timeframe)
         run = self._rally(sym) if signal == "BUY" and self.desk_rules is not None else None
         if self.desk_rules is not None:  # take profit at 3-5%, or let a bull run go with the trailing stop
-            plan = replace(plan, tp=D.shape_target(plan.price, plan.tp, plan.side, self.desk_rules, run is not None))
+            plan = replace(plan, tp=D.shape_target(plan.price, plan.tp, plan.side, self.desk_rules, run is not None,
+                                                  plan.sl))
         headlines = D.news(sym, self.news_get) if (self.desk_rules is not None and self.news_get is not None) else []
         if self.desk_rules is not None and mood is not None:
             verdict = D.skeptic(signal, plan.price, plan.sl, plan.tp, mood, funding, self.desk_rules)

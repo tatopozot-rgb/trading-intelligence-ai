@@ -733,6 +733,9 @@ def main(argv: Optional[list[str]] = None, transport=None, env: Optional[Mapping
     parser.add_argument("--diario", type=Path, help="carpeta del diario de la mesa (p. ej. la del vault de Obsidian)")
     parser.add_argument("--sin-mesa", action="store_true", help="sin Scout, Escéptico ni sentimiento (no recomendado)")
     parser.add_argument("--una-vez", action="store_true")
+    parser.add_argument("--apalancamiento", type=int, help="SOLO práctica: apalancamiento simulado (1-5) para aprender "
+                                                            "con más riesgo; en real manda config/futures_limits.json")
+    parser.add_argument("--posicion-max", help="SOLO práctica: tamaño máximo de una posición, %% de la cuenta (hasta 250)")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     d: Path = args.dir / args.modo
@@ -743,6 +746,16 @@ def main(argv: Optional[list[str]] = None, transport=None, env: Optional[Mapping
     try:
         limits = load_futures_limits(args.limites).for_session(
             Decimal(args.limite_perdida) if args.limite_perdida else None)
+        if args.apalancamiento is not None or args.posicion_max is not None:
+            if args.modo == "real":
+                raise FuturesError("--apalancamiento y --posicion-max son solo para la práctica; en real mandan los "
+                                   "límites aprobados por el dueño")
+            from dataclasses import replace
+            lev = args.apalancamiento if args.apalancamiento is not None else limits.max_leverage
+            pos = Decimal(args.posicion_max) if args.posicion_max is not None else limits.max_position_pct
+            if not (1 <= lev <= 5 and 0 < pos <= 250):
+                raise FuturesError("práctica: apalancamiento 1-5 y posición máxima hasta 250%")
+            limits = replace(limits, max_leverage=lev, max_position_pct=pos)
         if args.modo == "real":
             market = FuturesMarket(FuturesCredentials.from_env(env), d / "orders.json", transport=transport)
             broker: object = FuturesBroker(market, limits)
@@ -760,7 +773,8 @@ def main(argv: Optional[list[str]] = None, transport=None, env: Optional[Mapping
                           signal=signal_for(args.senal), notify=make_notify(console, from_env()),
                           desk_rules=None if args.sin_mesa else DeskRules.load(),
                           journal_dir=args.diario or d / "mesa", news_get=None if args.sin_mesa else desk_get,
-                          report_every_s=120 if args.modo == "real" else 1800, goal_usd=limits.monthly_goal_usd)  # practice: status every 30 min
+                          report_every_s=120 if args.modo == "real" else 1800, goal_usd=limits.monthly_goal_usd,
+                          heartbeat_every_s=4 * 3600)  # practice: status every 30 min
         equity, _ = auto.broker.equity()
         print(f"{auto.broker.name} · saldo {equity} USDT · {limits.max_leverage}x · riesgo {limits.risk_min_pct}-"
               f"{limits.risk_max_pct}% por operación según la señal · posición máx. {limits.max_position_pct}% · {limits.max_open} posiciones · límite de "

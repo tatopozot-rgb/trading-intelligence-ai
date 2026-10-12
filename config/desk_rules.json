@@ -1,5 +1,5 @@
 {
-  "_comment": "Hard rules of the desk's Skeptic and Scout (live/desk.py). Never decided by an AI. Owner, 2026-10-10: the 'AI Trading Desk' design (Scout, News, Sentiment, Charts, Skeptic, Chief) on this project's own percentages and risks. Changing a value is a reviewed change in GitHub. Owner, 2026-10-11: take profit 3-5% from the entry, tuned later by the leader with what is learned; a coin in a bull run lets its longs run with the trailing stop, at the usual risk ('arriesgar algo no todo'). Leader, 2026-10-11, from the 30-day real-data check: the 5% cap cut the desk from +18.7% (no band) to +6.1% (3-5% band), so target_max_pct is off and the 3% floor stays; the 3-5% band is still measured every Monday as 'mesa_meta_3_5'.",
+  "_comment": "Hard rules of the desk's Skeptic and Scout (live/desk.py). Never decided by an AI. Owner, 2026-10-10: the 'AI Trading Desk' design (Scout, News, Sentiment, Charts, Skeptic, Chief) on this project's own percentages and risks. Changing a value is a reviewed change in GitHub. Owner, 2026-10-11: take profit 3-5% from the entry, tuned later by the leader with what is learned; a coin in a bull run lets its longs run with the trailing stop, at the usual risk ('arriesgar algo no todo'). Leader, 2026-10-11, from the 30-day real-data check: the 5% cap cut the desk from +18.7% (no band) to +6.1% (3-5% band), so target_max_pct is off and the 3% floor stays; the 3-5% band is still measured every Monday as 'mesa_meta_3_5'. Leader, 2026-10-12, owner's order 'replantea la ganancia que recompense el riesgo': the target is now 3 times the risk (target_r 3). Measured with fees and real funding, 37 USDT, 1x: 60 days (2026-08-12 to 10-11) mesa_r3 +50.6% in 50 trades, max drawdown 9.1%, against the market target (mesa_libre) +57.8% in 47 trades with 18.0% drawdown, and mesa (3% floor and bull-run mode) +48.8% with 17.0%; 30 days (09-12 to 10-12) mesa_r3 +29.9% in 25 trades, drawdown 6.7%, against mesa_libre +25.0% (12.7%) and mesa +16.1% (16.3%). 1.5R and 2R paid less in both windows. Half the drawdown for about the same gain. It also ends the practice account's vetoes at 1.20:1 (no trade in its first day). The 3% floor and the bull-run mode stay; the market target keeps being measured as 'mesa_libre'.",
   "min_reward_risk": 1.5,
   "round_number_buffer_pct": 0.3,
   "max_funding_against_pct": 0.05,
@@ -11,5 +11,6 @@
   "target_max_pct": null,
   "rally_lookback_days": 14,
   "rally_min_gain_pct": 25,
-  "rally_target_pct": 50
+  "rally_target_pct": 50,
+  "target_r": 3
 }

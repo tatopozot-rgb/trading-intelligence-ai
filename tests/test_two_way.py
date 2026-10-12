@@ -415,3 +415,21 @@ def test_a_close_that_failed_at_the_goal_is_retried(tmp_path):
     b.eq = Decimal("160")
     auto.step()
     assert not b.pos and len(calls) == 2
+
+
+def test_a_heartbeat_tells_the_owner_the_bot_is_alive_every_few_hours(tmp_path):
+    now = [NOW]
+    b = FakeBroker()
+    sent: list[str] = []
+    auto = T.TwoWayAuto(b, ["SOLUSDT"], tmp_path / "state.json", signal=lambda s, d, h=None, top=None: None,
+                        pause=lambda s: None, notify=sent.append, chatter=lambda m: None, clock=lambda: now[0],
+                        heartbeat_every_s=4 * 3600)
+    auto.watch()
+    assert not any("🫀" in m for m in sent)  # not at start-up
+    now[0] = NOW + timedelta(hours=4, minutes=1)
+    auto.watch()
+    beat = [m for m in sent if "🫀" in m]
+    assert len(beat) == 1 and "Saldo 100 USDT (revisado 2 veces)" in beat[0] and "Posiciones abiertas: 0" in beat[0]
+    now[0] += timedelta(minutes=30)
+    auto.watch()
+    assert len([m for m in sent if "🫀" in m]) == 1  # once per interval

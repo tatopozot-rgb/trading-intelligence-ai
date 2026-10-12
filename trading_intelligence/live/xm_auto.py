@@ -130,7 +130,7 @@ def main(argv: Optional[list[str]] = None, mt5: Optional[object] = None) -> int:
                       inside_every_min=args.cada_dentro, outside_every_min=args.cada_fuera,
                       notify=make_notify(console, from_env()),
                       desk_rules=None if args.sin_mesa else DeskRules.load(), journal_dir=args.diario or args.dir / "mesa",
-                      news_get=None if args.sin_mesa else desk_get)
+                      news_get=None if args.sin_mesa else desk_get, heartbeat_every_s=4 * 3600)
         print(f"XM DEMO · equity {acc.equity} {acc.currency} · {', '.join(args.simbolos)} · "
               f"cada {args.cada_dentro} min en {' '.join(args.ventanas)} (Ecuador), cada {args.cada_fuera} fuera")
         if args.una_vez:

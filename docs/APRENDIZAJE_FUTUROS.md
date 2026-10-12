@@ -98,6 +98,37 @@ tener un profit del 3% al 5% ... ese porcentaje después lo controles tu con lo 
   - 5x con riesgo de 15–30%: +59%, con una caída de 28,7%.
   - Es el camino al riesgo de 15–30%. Se decide con más operaciones y la aprobación escrita del dueño.
 
+## 3c. Ganancia que paga el riesgo: meta a 3 veces el riesgo (2026-10-12)
+
+Orden del dueño: "replantea la ganancia que recompense el riesgo con tus cálculos analizados y empieza a operar así ...
+aprender como operar con más riesgo".
+
+**Qué se probó:** la meta a 1,5, 2 y 3 veces lo que se arriesga, contra la meta que marca el mercado. Con comisiones y
+financiación reales, 37 USDT, 1x.
+
+| Variante | 60 días: resultado | Caída máx. | Operaciones | 30 días: resultado | Caída máx. |
+|---|---|---|---|---|---|
+| **Meta a 3 veces el riesgo** (`mesa_r3`) | **+50,6%** | **9,1%** | 50 | **+29,9%** | **6,7%** |
+| Meta del mercado (`mesa_libre`) | +57,8% (llegó a la meta del mes) | 18,0% | 47 | +25,0% | 12,7% |
+| Lo que corría (`mesa`: piso de 3% y modo alcista) | +48,8% | 17,0% | 45 | +16,1% | 16,3% |
+| Meta a 2 veces el riesgo | +25,5% | 13,4% | 45 | +14,6% | 8,5% |
+| Meta a 1,5 veces el riesgo | +32,1% | 9,1% | 31 | +8,1% | 8,9% |
+| Banda de 3–5% del dueño | +28,7% | 11,8% | 48 | +8,8% | 11,8% |
+
+**Decisión del líder:** desde hoy la meta es **3 veces el riesgo** (`target_r: 3` en `config/desk_rules.json`).
+- Gana casi lo mismo que la meta del mercado con **la mitad de la caída**. En los últimos 30 días ganó más.
+- Arregla también la práctica: en su primer día no abrió nada, porque el Escéptico rechazaba metas que pagaban solo
+  1,2 veces el riesgo. Ahora cada operación paga 3 a 1.
+- El piso de 3% y el modo alcista siguen. **Ojo:** el modo alcista restó cerca de 9 puntos en las dos ventanas, pero con
+  solo 2 a 4 entradas; no dice nada todavía y se mantiene porque lo pidió el dueño.
+- La meta del mercado se sigue midiendo cada lunes como `mesa_libre`.
+
+**Aprender a arriesgar más, sin tocar el dinero real:** una segunda cuenta de práctica de 30 USDT corre a **3x con
+posición máxima de 150%** (`--apalancamiento 3 --posicion-max 150 --dir live_runs/futures_auto_3x`), con su propio
+diario ("Mesa práctica 3x") y su propio reporte (`docs/shadow_futures_3x/`). En la prueba con datos reales, 3x llegó a
+la meta del mes (+58–59%) con una caída de 6–23%. Lo que se aprenda ahí alimenta la regla del §3; el dinero real sigue
+en 1x hasta que el dueño apruebe por escrito otro escalón.
+
 ## 4. El ciclo diario de aprendizaje
 
 1. Los bots operan y escriben el diario de la mesa.

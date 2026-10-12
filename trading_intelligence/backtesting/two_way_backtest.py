@@ -67,7 +67,10 @@ RISK_MIN, RISK_MAX, MAX_POSITION, MAX_OPEN, LEVERAGE = 0.01, 0.15, 0.50, 3, 1.0
 # "mesa" is what runs live: the desk with config/desk_rules.json's take profit and the bull-run mode.
 # "mesa_sin_alcista" drops the bull-run mode; "mesa_libre" has no take-profit band and no bull-run mode, as the
 # desk was on 2026-10-10; "mesa_meta_3_5" keeps the owner's 3-5% band (2026-10-11) to keep measuring it.
-DESK_VARIANTS = ("mesa", "mesa_sin_alcista", "mesa_libre", "mesa_meta_3_5")
+# "mesa_r1_5" / "mesa_r2" / "mesa_r3": the target at 1.5, 2 or 3 times the risk (owner, 2026-10-11: "replantea la
+# ganancia que recompense el riesgo"), to pick the reward that pays best.
+R_VARIANTS = {"mesa_r1_5": Decimal("1.5"), "mesa_r2": Decimal("2"), "mesa_r3": Decimal("3")}
+DESK_VARIANTS = ("mesa", "mesa_sin_alcista", "mesa_libre", "mesa_meta_3_5", *R_VARIANTS)
 ALL_VARIANTS = (*VARIANTS, *DESK_VARIANTS)
 VISION = "https://data.binance.vision/data/futures/um"
 VETO_LOOKAHEAD = 288  # bars (24 h) to score a veto
@@ -268,13 +271,15 @@ def simulate(prepared: dict[str, Prepared], variant: str, capital: float,
              rules: Optional[D.DeskRules] = None, sizing: Sizing = Sizing()) -> Result:
     res = Result(variant)
     desk = variant in DESK_VARIANTS
-    band = variant in ("mesa", "mesa_sin_alcista", "mesa_meta_3_5")
+    band = variant in ("mesa", "mesa_sin_alcista", "mesa_meta_3_5", *R_VARIANTS)
     ride = variant == "mesa"
     base = "tendencia_rango_1h_top" if desk else variant
     daily = {s: p.bars["close"].resample("1D").last().dropna() for s, p in prepared.items()} if ride else {}
     rules = rules or D.DeskRules.load()
     if variant == "mesa_meta_3_5":
         rules = replace(rules, target_min_pct=Decimal("3"), target_max_pct=Decimal("5"))
+    if variant in R_VARIANTS:
+        rules = replace(rules, target_r=R_VARIANTS[variant], target_min_pct=None, target_max_pct=None)
     cash = capital
     positions: dict[str, Pos] = {}
     times = sorted(set().union(*[set(p.bars.index) for p in prepared.values()]))
@@ -343,7 +348,7 @@ def simulate(prepared: dict[str, Prepared], variant: str, capital: float,
                 closes = pd.concat([past, pd.Series([close], index=[t])])
                 run = D.rally(sym, pd.DataFrame({"close": closes}), rules) is not None
             if band:
-                ftp = D.shape_target(Decimal(str(close)), plan.target, side, rules, run)
+                ftp = D.shape_target(Decimal(str(close)), plan.target, side, rules, run, plan.stop)
                 tp, plan = float(ftp), replace(plan, target=ftp)
             if desk:
                 mood = D.sentiment(p.funding[i], p.top_ratio[i], None)
@@ -398,7 +403,8 @@ def render(summaries: list[dict], meta: dict) -> str:
                      f"{s['por']['SELL']['operaciones']} ({s['por']['SELL']['neto']:+.2f}) | {s['final']} |")
     lines += ["", "Variantes de la mesa: **mesa** = lo que corre en vivo (meta según config/desk_rules.json y modo alcista); "
                   "**mesa_sin_alcista** = sin el modo alcista; **mesa_libre** = sin banda de meta ni modo alcista, como el "
-                  "2026-10-10; **mesa_meta_3_5** = la meta de 3-5% del dueño. Entradas en modo alcista (mesa): "
+                  "2026-10-10; **mesa_meta_3_5** = la meta de 3-5% del dueño; **mesa_r1_5 / mesa_r2 / mesa_r3** = meta a 1,5, 2 y 3 "
+                  "veces el riesgo. Entradas en modo alcista (mesa): "
                   + str(next((s.get("entradas_alcistas", 0) for s in summaries if s["variante"] == "mesa"), 0)) + "."]
     mesa = next((s for s in summaries if s["variante"] == "mesa"), None)
     if mesa is not None:

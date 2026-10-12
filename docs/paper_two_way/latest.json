@@ -1,5 +1,5 @@
 {
- "generated": "2026-10-09T13:32:44.713856+00:00",
+ "generated": "2026-10-12T06:09:35.529639+00:00",
  "start": "2026-10-12",
  "symbols": [
   "BTCUSDT",
@@ -16,9 +16,54 @@
   "DOTUSDT",
   "PAXGUSDT"
  ],
- "current_monday": "2026-10-05",
- "status": "PENDING",
+ "current_monday": "2026-10-12",
+ "status": "RUNNING",
  "weeks": [],
  "equity": 10000.0,
- "positions": {}
+ "max_dd_pct": 0.0,
+ "positions": {
+  "BTCUSDT": 720.6308335043992,
+  "ETHUSDT": 522.3233346517593,
+  "BNBUSDT": 769.2307692307693,
+  "SOLUSDT": 483.07293893862555,
+  "XRPUSDT": 391.541483209714,
+  "DOGEUSDT": 408.8780687358707,
+  "ADAUSDT": 380.6579143966092,
+  "LINKUSDT": 396.85881353551446,
+  "AVAXUSDT": 343.6719148078207,
+  "LTCUSDT": 474.4334873351975,
+  "TRXUSDT": -769.2307692307693,
+  "DOTUSDT": 327.0300166157193,
+  "PAXGUSDT": -769.2307692307693
+ },
+ "funding_sources": {
+  "BTCUSDT": "data.binance.vision",
+  "ETHUSDT": "data.binance.vision",
+  "BNBUSDT": "data.binance.vision",
+  "SOLUSDT": "data.binance.vision",
+  "XRPUSDT": "data.binance.vision",
+  "DOGEUSDT": "data.binance.vision",
+  "ADAUSDT": "data.binance.vision",
+  "LINKUSDT": "data.binance.vision",
+  "AVAXUSDT": "data.binance.vision",
+  "LTCUSDT": "data.binance.vision",
+  "TRXUSDT": "data.binance.vision",
+  "DOTUSDT": "data.binance.vision",
+  "PAXGUSDT": "data.binance.vision"
+ },
+ "real_funding_until": {
+  "BTCUSDT": "2026-09-30",
+  "ETHUSDT": "2026-09-30",
+  "BNBUSDT": "2026-09-30",
+  "SOLUSDT": "2026-09-30",
+  "XRPUSDT": "2026-09-30",
+  "DOGEUSDT": "2026-09-30",
+  "ADAUSDT": "2026-09-30",
+  "LINKUSDT": "2026-09-30",
+  "AVAXUSDT": "2026-09-30",
+  "LTCUSDT": "2026-09-30",
+  "TRXUSDT": "2026-09-30",
+  "DOTUSDT": "2026-09-30",
+  "PAXGUSDT": "2026-09-30"
+ }
 }

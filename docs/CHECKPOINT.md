@@ -161,3 +161,27 @@ only the latest work blocks. The history up to 2026-10-10 (sections 1–90) is i
 - **Real risk:** about 2% average, about 5% max.
 - **Risk scenarios:** 3x gave +57.8% (goal reached, 18% drawdown); 5x at 15–30% risk gave +59% (28.7% drawdown).
 - **Leader decision:** `target_max_pct` is off and the 3% floor stays. The bull-run mode stays, for rare big runs; it had only 4 entries in this window. The band keeps being measured as `mesa_meta_3_5`.
+
+### 97. Reward that pays the risk: target at 3R; a 3x practice account (2026-10-12)
+
+**Owner's words:** "replantea la ganancia que recompense el riesgo con tus cálculos analizados y empieza a operar así ... aprender como operar con más riesgo".
+
+**Measured** (fees, real funding, 37 USDT, 1x):
+
+| Variant | 60 days | Max DD | Trades | 30 days | Max DD |
+|---|---|---|---|---|---|
+| mesa_r3 (target 3R) | +50.6% | 9.1% | 50 | +29.9% | 6.7% |
+| mesa_libre (market target) | +57.8% (hit the monthly goal) | 18.0% | 47 | +25.0% | 12.7% |
+| mesa (3% floor + bull-run) | +48.8% | 17.0% | 45 | +16.1% | 16.3% |
+| mesa_r2 / mesa_r1_5 | +25.5% / +32.1% | 13.4% / 9.1% | 45 / 31 | +14.6% / +8.1% | 8.5% / 8.9% |
+
+**Decision:**
+- `config/desk_rules.json` `target_r: 3`. About the same gain as the market target with half the drawdown, and more in the last 30 days.
+- It also ends the practice account's 1.20:1 vetoes: no trade on its first day (report 2026-10-12: 0 trades, 11 vetoes that blocked a gain).
+- The 3% floor and the bull-run mode stay. The bull-run mode cost about 9 points in both windows, but with only 2–4 entries.
+- A second practice account at 3x, position max 150%, with its own diary and report (`docs/shadow_futures_3x/`). Practice only; real money stays at 1x.
+
+**Also:**
+- Quant: the first weekly two-way PAPER run is green: 11 longs and 2 shorts, starting 2026-10-12.
+- Local: no new messages since 2026-10-11 16:10 UTC. The owner confirmed that Telegram works.
+
