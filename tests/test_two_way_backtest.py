@@ -113,7 +113,9 @@ def test_the_backtest_rides_a_bull_run_in_the_live_desk_variant():
     p = {"SOLUSDT": B.prepare(fetch("SOLUSDT", "5m", start, END),
                               fetch("SOLUSDT", "1h", datetime(2026, 9, 19, tzinfo=timezone.utc), END), 200,
                               *_extras("SOLUSDT", start, END))}
-    live = B.simulate(p, "mesa", 37.0)
-    plain = B.simulate(p, "mesa_libre", 37.0)
+    riding = B.D.DeskRules(target_r=B.Decimal("3"), target_min_pct=None)  # the bull-run mode switched on
+    live = B.simulate(p, "mesa", 37.0, rules=riding)
+    plain = B.simulate(p, "mesa_libre", 37.0, rules=riding)
     assert live.rally_entries > 0 and plain.rally_entries == 0
     assert all(t["side"] == "BUY" for t in live.trades)
+    assert B.simulate(p, "mesa", 37.0).rally_entries == 0  # the live rules: bull-run mode off (2026-10-12)
