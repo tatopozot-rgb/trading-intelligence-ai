@@ -18,7 +18,7 @@
   "DOTUSDT",
   "PAXGUSDT"
  ],
- "status": "PENDING",
+ "status": "RUNNING",
  "stopped_reason": null,
  "stopped_at": null,
  "created": "2026-10-09T13:32:44.713856+00:00"
