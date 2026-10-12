@@ -163,8 +163,8 @@ def donchian_plan(m: Market, tf: str, n: int, salida: str) -> Plan:
         upper, lower = f["high"].rolling(n).max().shift(1), f["low"].rolling(n).min().shift(1)
         side = np.where(c > upper, 1.0, np.where(c < lower, -1.0, 0.0)) * a.notna()
         if salida.startswith("canal"):
-            k = int(salida[5:])
-            sl, ss = f["low"].rolling(k).min(), f["high"].rolling(k).max()
+            m_bars = int(salida[5:])
+            sl, ss = f["low"].rolling(m_bars).min(), f["high"].rolling(m_bars).max()
         else:
             k = float(salida[3:])
             sl, ss = c - k * a, c + k * a
