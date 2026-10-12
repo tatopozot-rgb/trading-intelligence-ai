@@ -623,6 +623,8 @@ class PaperFuturesBroker:
                  max_position_pct: Decimal = Decimal("50"), fee: Decimal = TAKER_FEE) -> None:
         self.market, self.state_path, self.leverage, self.max_position_pct, self.fee = market, Path(state_path), \
             leverage, max_position_pct, fee
+        if leverage > 1:  # a second practice account must be told apart on Telegram
+            self.name = f"🧪 Binance Futuros SIMULADO {leverage}x (dinero ficticio)"
         self.book: dict[str, Any] = json.loads(self.state_path.read_text(encoding="utf-8")) \
             if self.state_path.exists() else {"cash": str(capital), "positions": {}, "closed": []}
 

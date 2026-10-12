@@ -98,3 +98,16 @@ def test_evaluate_reports_insufficient_when_few_test_trades():
         if c["chosen"] is not None and c["test"]["trades"] < ss.MIN_TEST_TRADES:
             assert c["verdict"].startswith("insuficiente")
     assert "Segunda estrategia" in ss.render(res, {"desde": "a", "hasta": "b"})
+
+
+def test_desk_baseline_row_and_drawdown_adjusted_comparison():
+    assert ss.dd_adjusted(10.0, 5.0) == 2.0 and ss.dd_adjusted(5.0, 0.0) is None
+    d = _data(n=12 * 24 * 4)
+    desk = {"variant": "mesa_r3", "trades": 25, "win_rate": 40.0, "net_pct": 5.0, "max_dd_pct": 2.0,
+            "fees_usdt": 3.0, "funding_usdt": 0.1, "end": "fin del periodo"}
+    res = ss.evaluate(d, None, desk)
+    for c in res["candidates"].values():
+        if c["chosen"] is not None:
+            assert c["beats_desk"] is False or c["test"]["trades"] >= ss.MIN_TEST_TRADES
+    md = ss.render(res, {"desde": "a", "hasta": "b"})
+    assert "mesa_r3 (la mesa en vivo" in md and "Neto/caída" in md

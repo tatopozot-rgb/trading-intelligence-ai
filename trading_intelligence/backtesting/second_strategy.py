@@ -219,8 +219,8 @@ def simulate(d: Data, signals: list[Signal], lo: int, hi: int, capital: float = 
             pnl = gross - fee_out - p.fee_in - p.funding
             cash += gross - fee_out - p.funding
             run.trades.append({"symbol": sym, "side": p.s.side, "entry_at": d.times[p.s.i].isoformat(),
-                               "exit_at": t.isoformat(), "why": why, "pnl": pnl,
-                               "ret_pct": pnl / (p.qty * p.entry) * 100})
+                               "exit_at": t.isoformat(), "why": why, "pnl": pnl, "fees": fee_out + p.fee_in,
+                               "funding": p.funding, "ret_pct": pnl / (p.qty * p.entry) * 100})
             del pos[sym]
         marks = {s: float(d.bars[s]["close"].iloc[i]) for s in pos if not math.isnan(d.bars[s]["close"].iloc[i])}
         equity = cash + sum(((marks.get(s, p.entry) - p.entry) * p.qty if p.s.side == "BUY"
@@ -259,6 +259,8 @@ def summarize(run: Run, capital: float = CAPITAL) -> dict:
             "profit_factor": round(wins / losses, 2) if losses else (math.inf if wins else 0.0),
             "p_value": round(1.0 if math.isnan(p_value) else p_value, 4),
             "max_dd_pct": round(float(((peak - curve) / peak).max() * 100), 2), "skipped_min_notional": run.skipped,
+            "fees_usdt": round(sum(t.get("fees", 0.0) for t in run.trades), 2),
+            "funding_usdt": round(sum(t.get("funding", 0.0) for t in run.trades), 2),
             "buy": sum(1 for t in run.trades if t["side"] == "BUY"),
             "sell": sum(1 for t in run.trades if t["side"] == "SELL")}
 
@@ -276,11 +278,16 @@ def split_index(d: Data) -> tuple[int, int]:
     return base, base + int((len(d.times) - base) * FIT_FRACTION)
 
 
-def evaluate(d: Data, desk_daily: Optional[pd.Series] = None) -> dict:
+def dd_adjusted(net_pct: float, max_dd_pct: float) -> Optional[float]:
+    """Net return per unit of max drawdown (the leader's 'drawdown-adjusted return')."""
+    return round(net_pct / max_dd_pct, 2) if max_dd_pct > 0 else None
+
+
+def evaluate(d: Data, desk_daily: Optional[pd.Series] = None, desk: Optional[dict] = None) -> dict:
     n = len(d.times)
     base, split = split_index(d)
     out: dict = {"fit": [str(d.times[base]), str(d.times[split - 1])], "test": [str(d.times[split]), str(d.times[-1])],
-                 "candidates": {}}
+                 "candidates": {}, "desk": desk}
     for name, grid in GRIDS.items():
         fits = []
         for params in grid:
@@ -301,6 +308,12 @@ def evaluate(d: Data, desk_daily: Optional[pd.Series] = None) -> dict:
             b = desk_daily.reindex(days, fill_value=0.0)
             if a.std() > 0 and b.std() > 0:
                 corr = round(float(np.corrcoef(a, b)[0, 1]), 3)
+        test["dd_adjusted"] = dd_adjusted(test["net_pct"], test["max_dd_pct"])
+        beats_desk = None
+        if desk is not None:
+            desk_adj = dd_adjusted(desk["net_pct"], desk["max_dd_pct"])
+            beats_desk = (test["trades"] >= MIN_TEST_TRADES and test["dd_adjusted"] is not None
+                          and desk_adj is not None and test["dd_adjusted"] > desk_adj)
         if test["trades"] < MIN_TEST_TRADES:
             verdict = f"insuficiente: {test['trades']} operaciones fuera de muestra (< {MIN_TEST_TRADES})"
         elif test["net_pct"] > 0 and test["profit_factor"] >= 1.3 and test["p_value"] < 0.05:
@@ -310,7 +323,8 @@ def evaluate(d: Data, desk_daily: Optional[pd.Series] = None) -> dict:
         else:
             verdict = "no se sostiene fuera de muestra (pierde)"
         out["candidates"][name] = {"fit_grid": [{**p, **s} for p, _, s in fits], "chosen": params, "fit": fit,
-                                   "test": test, "corr_with_desk": corr, "verdict": verdict}
+                                   "test": test, "corr_with_desk": corr, "beats_desk": beats_desk,
+                                   "verdict": verdict}
     return out
 
 
@@ -336,8 +350,11 @@ def load(days: int, end: datetime, symbols: list[str], fetcher: tw.Fetcher = tw.
     return Data(times, bars, funding, top)
 
 
-def desk_daily_pnl(d: Data, fetcher: tw.Fetcher = tw.fetch) -> pd.Series:
-    """The live desk ('mesa') replayed over the test window, as daily P&L, for the correlation."""
+DESK_BASELINE = "mesa_r3"  # leader, 2026-10-12: the live desk's target is 3 x the risk
+
+
+def desk_baseline(d: Data, fetcher: tw.Fetcher = tw.fetch) -> tuple[pd.Series, dict]:
+    """The desk (mesa_r3) replayed over the same test window: daily P&L (for the correlation) and its summary."""
     _, split = split_index(d)
     start, end = d.times[split].to_pydatetime(), (d.times[-1] + BAR).to_pydatetime()
     prepared = {}
@@ -349,9 +366,13 @@ def desk_daily_pnl(d: Data, fetcher: tw.Fetcher = tw.fetch) -> pd.Series:
         except Exception:  # noqa: BLE001
             continue
         prepared[sym] = tw.prepare(m5, h1, tw.WARMUP, d.top.get(sym), d.funding.get(sym))
-    res = tw.simulate(prepared, "mesa", CAPITAL)
+    res = tw.simulate(prepared, DESK_BASELINE, CAPITAL)
     trades = [{"pnl": t["pnl"], "exit_at": t["at"]} for t in res.trades]
-    return daily_pnl(trades)
+    full = res.summary(CAPITAL)
+    summary = {"variant": DESK_BASELINE, "trades": full["operaciones"], "win_rate": full["acierto_pct"],
+               "net_pct": full["neto_pct"], "max_dd_pct": full["max_caida_pct"], "fees_usdt": full["comisiones_usdt"],
+               "funding_usdt": full["financiacion_usdt"], "end": full["final"]}
+    return daily_pnl(trades), summary
 
 
 def render(result: dict, meta: dict) -> str:
@@ -363,23 +384,32 @@ def render(result: dict, meta: dict) -> str:
              f"({result['test'][0][:10]} a {result['test'][1][:10]}). Solo cuenta lo que se sostiene fuera de muestra "
              f"con al menos {MIN_TEST_TRADES} operaciones.", "",
              "| Candidata | Parámetros elegidos | Ajuste: ops / neto % | Prueba: ops | Acierto | Neto % | Media/op | PF | p | "
-             "Máx. caída | Correlación con la mesa | Veredicto |", "|---|---|---|---|---|---|---|---|---|---|---|---|"]
+             "Máx. caída | Neto/caída | Comisiones | Correlación con la mesa | Veredicto |",
+             "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+    desk = result.get("desk")
+    if desk:
+        lines.append(f"| **mesa_r3 (la mesa en vivo, misma ventana de prueba)** | meta 3R | — | {desk['trades']} | "
+                     f"{desk['win_rate']}% | {desk['net_pct']:+.2f}% | — | — | — | {desk['max_dd_pct']}% | "
+                     f"{dd_adjusted(desk['net_pct'], desk['max_dd_pct'])} | {desk['fees_usdt']:.2f} | — | referencia |")
     for name, c in result["candidates"].items():
         if c["chosen"] is None:
-            lines.append(f"| {name} | — | — | — | — | — | — | — | — | — | — | {c['verdict']} |")
+            lines.append(f"| {name} | — | — | — | — | — | — | — | — | — | — | — | — | {c['verdict']} |")
             continue
         f, t = c["fit"], c["test"]
         lines.append(f"| {name} | {c['chosen']} | {f['trades']} / {f['net_pct']:+.2f}% | {t['trades']} | "
                      f"{t['win_rate']}% | {t['net_pct']:+.2f}% | {t['mean_ret_pct']:+.3f}% | {t['profit_factor']} | "
-                     f"{t['p_value']} | {t['max_dd_pct']}% | {c['corr_with_desk']} | {c['verdict']} |")
-    good = [n for n, c in result["candidates"].items() if c["verdict"] == "se sostiene fuera de muestra"]
+                     f"{t['p_value']} | {t['max_dd_pct']}% | {t['dd_adjusted']} | {t['fees_usdt']:.2f} | "
+                     f"{c['corr_with_desk']} | {c['verdict']} |")
+    good = [n for n, c in result["candidates"].items()
+            if c["verdict"] == "se sostiene fuera de muestra" and c.get("beats_desk") is not False]
     lines += ["", "## Nota", ""]
     if good:
         best = max(good, key=lambda n: result["candidates"][n]["test"]["net_pct"])
         c = result["candidates"][best]
         lines.append(f"**{best}** se sostiene fuera de muestra con {c['test']['trades']} operaciones "
                      f"(neto {c['test']['net_pct']:+.2f}%, p={c['test']['p_value']}). Vale un bot de práctica con "
-                     f"los parámetros {c['chosen']}. Correlación diaria con la mesa: {c['corr_with_desk']}.")
+                     f"los parámetros {c['chosen']}. Correlación diaria con la mesa: {c['corr_with_desk']}. "
+                     f"¿Mejor que mesa_r3 en neto/caída? {'sí' if c.get('beats_desk') else 'sin comparación'}.")
     else:
         lines.append("**Ninguna candidata se sostiene fuera de muestra** con 30 operaciones o más. No se recomienda un "
                      "bot de práctica con estas reglas; si se quiere seguir midiendo, la menos mala puede correr solo en "
@@ -399,8 +429,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     args = parser.parse_args(argv)
     end = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
     d = load(args.dias, end, args.simbolos)
-    desk = None if args.sin_mesa else desk_daily_pnl(d)
-    result = evaluate(d, desk)
+    daily, desk = (None, None) if args.sin_mesa else desk_baseline(d)
+    result = evaluate(d, daily, desk)
     meta = {"desde": (end - timedelta(days=args.dias)).date().isoformat(), "hasta": end.date().isoformat(),
             "simbolos": list(d.bars)}
     args.salida.mkdir(parents=True, exist_ok=True)
