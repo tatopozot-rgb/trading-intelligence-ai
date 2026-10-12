@@ -25,10 +25,18 @@
  "por_lado": {},
  "por_salida": {},
  "vetos": {
-  "evitó pérdida": 0,
-  "dejó pasar ganancia": 11,
-  "sin resultado": 0
+  "evitó pérdida": 69,
+  "dejó pasar ganancia": 14,
+  "sin resultado": 44
  },
- "abiertas": [],
+ "abiertas": [
+  {
+   "symbol": "TRXUSDT",
+   "side": "SELL",
+   "entry": "0.32896",
+   "sl": "0.33883",
+   "tp": "0.2993500000000000000000000000"
+  }
+ ],
  "operaciones_hoy": []
 }

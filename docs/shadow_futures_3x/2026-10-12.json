@@ -1,0 +1,42 @@
+{
+ "dia": "2026-10-12",
+ "capital_inicial": 30.0,
+ "cuenta": "práctica (dinero ficticio)",
+ "estado": "RUNNING",
+ "hoy": {
+  "operaciones": 0,
+  "ganadas": 0,
+  "acierto_pct": 0.0,
+  "neto_usdt": 0,
+  "esperanza_r": null,
+  "factor_beneficio": null
+ },
+ "acumulado": {
+  "operaciones": 0,
+  "ganadas": 0,
+  "acierto_pct": 0.0,
+  "neto_usdt": 0,
+  "esperanza_r": null,
+  "factor_beneficio": null
+ },
+ "neto_pct": 0.0,
+ "caida_max_pct": 0.0,
+ "por_moneda": {},
+ "por_lado": {},
+ "por_salida": {},
+ "vetos": {
+  "evitó pérdida": 0,
+  "dejó pasar ganancia": 0,
+  "sin resultado": 0
+ },
+ "abiertas": [
+  {
+   "symbol": "TRXUSDT",
+   "side": "SELL",
+   "entry": "0.32876",
+   "sl": "0.33863",
+   "tp": "0.2991500000000000000000000000"
+  }
+ ],
+ "operaciones_hoy": []
+}
