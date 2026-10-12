@@ -185,3 +185,36 @@ def test_study_end_to_end_without_network(monkeypatch):
     assert "mesa_r3" in report and "Veredicto" in report
     for s in res["familias"].values():
         assert not math.isnan(s["neto_pct"])
+
+
+def test_preregistered_rules_run_fixed_from_the_test_start():
+    n = 24 * (rt.WARMUP_DAYS + rt.FIT_DAYS + 60)
+    bars = {s: _bars(n, seed=k, drift=0.0003, vol=0.006) for k, s in enumerate(("BTCUSDT", "ETHUSDT", "SOLUSDT"))}
+    m = _market(bars)
+    days = pd.date_range(m.times[-1].normalize() - pd.Timedelta(days=59), periods=60, freq="1D")
+    res = rt.preregistered(m, 60, pd.Series(0.001, index=days), [])
+    assert set(res["reglas"]) == set(rt.PREREGISTERED)
+    test_start = m.times[-1] + pd.Timedelta(hours=1) - pd.Timedelta(days=60)
+    for s in res["reglas"].values():
+        assert sum(q["dias"] for q in s["trimestres"].values()) == 60
+        assert s["veredicto"]
+    report = rt.render_prereg(res, {"prueba_desde": str(test_start.date()), "hasta": "b"})
+    assert "ema_1d_20_50_atr3" in report and "tsmom_60d" in report
+
+
+def test_prereg_verdict_criteria():
+    s = {"neto_pct": 10.0, "neto_caida": 1.0, "operaciones": 150, "trimestres_positivos": 3,
+         "trimestres": {q: {} for q in ("a", "b", "c", "d")}}
+    assert rt.prereg_verdict(s, {"neto_caida": 0.5}).startswith("SE SOSTIENE")
+    assert rt.prereg_verdict({**s, "operaciones": 28}, {"neto_caida": 0.5}).startswith("muestra corta")
+    assert "mejor que la mesa" in rt.prereg_verdict(s, {"neto_caida": 2.0})
+    assert "trimestres" in rt.prereg_verdict({**s, "trimestres_positivos": 2}, {"neto_caida": 0.5})
+
+
+def test_desk_checks_table():
+    checks = [{"desde": "2025-01-01", "operaciones": 40, "final": "fin del periodo", "sin_minimo": 2,
+               "vetos": {"evitó pérdida": 3, "dejó pasar ganancia": 1},
+               "datos": {"BTCUSDT": {"velas_con_top_pct": 99.0}, "ETHUSDT": {"velas_con_top_pct": 0.0}}}]
+    table = rt.render_desk_checks(checks)
+    assert "0.0% / 49.5%" in table and "| 40 |" in table
+    assert rt.render_desk_checks([]) == ""

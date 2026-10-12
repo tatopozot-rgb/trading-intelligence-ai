@@ -524,6 +524,7 @@ def desk_window(ws: pd.Timestamp, we: pd.Timestamp, symbols: list[str], fetcher:
     start, end = ws.to_pydatetime(), we.to_pydatetime()
     warm = start - timedelta(minutes=5 * tw.WARMUP)
     prepared = {}
+    data: dict[str, dict] = {}
     for sym in symbols:
         try:
             m5 = fetcher(sym, "5m", warm, end)
@@ -532,8 +533,12 @@ def desk_window(ws: pd.Timestamp, we: pd.Timestamp, symbols: list[str], fetcher:
             continue
         top, fund = extras(sym, warm, end)
         prepared[sym] = tw.prepare(m5, h1, tw.WARMUP, top, fund)
+        # how much of the window has the top traders' ratio (the desk's base signal uses it)
+        covered = sum(1 for x in prepared[sym].top_ratio[tw.WARMUP:] if x is not None)
+        data[sym] = {"velas_5m": len(m5), "top_puntos": len(top), "financiacion_puntos": len(fund),
+                     "velas_con_top_pct": round(covered / max(1, len(m5) - tw.WARMUP) * 100, 1)}
     if not prepared:
-        return {"equity": {}, "trades": []}
+        return {"equity": {}, "trades": [], "datos": data}
     res = tw.simulate(prepared, DESK, CAPITAL)
     times = sorted(set().union(*[set(p.bars.index) for p in prepared.values()]))
     curve = pd.Series(res.equity_curve, index=pd.DatetimeIndex(times[:len(res.equity_curve)]))
@@ -545,7 +550,8 @@ def desk_window(ws: pd.Timestamp, we: pd.Timestamp, symbols: list[str], fetcher:
         eq.iloc[-1] = final  # every position is closed at the end of the window
     trades = [{"symbol": t["symbol"], "side": t["side"], "exit_at": t["at"], "pnl": t["pnl"], "fees": t["fees"],
                "funding": t["funding"]} for t in res.trades]
-    return {"equity": {d.isoformat(): float(v) for d, v in eq.items()}, "trades": trades, "final": res.end}
+    return {"equity": {d.isoformat(): float(v) for d, v in eq.items()}, "trades": trades, "final": res.end,
+            "datos": data, "sin_minimo": res.skipped_minimum, "vetos": res.vetoes}
 
 
 def _desk_job(job: tuple) -> dict:
@@ -554,7 +560,8 @@ def _desk_job(job: tuple) -> dict:
 
 
 def desk_benchmark(wins: list[tuple[pd.Timestamp, pd.Timestamp]], symbols: list[str], workers: int = 1,
-                   fetcher: tw.Fetcher = tw.fetch, extras: Extras = _public_extras) -> tuple[pd.Series, list[dict]]:
+                   fetcher: tw.Fetcher = tw.fetch,
+                   extras: Extras = _public_extras) -> tuple[pd.Series, list[dict], list[dict]]:
     jobs = [(ws, we, symbols) for ws, we in wins]
     if workers > 1:
         with ProcessPoolExecutor(max_workers=workers) as pool:
@@ -562,6 +569,9 @@ def desk_benchmark(wins: list[tuple[pd.Timestamp, pd.Timestamp]], symbols: list[
     else:
         results = [desk_window(ws, we, symbols, fetcher, extras) for ws, we, _ in jobs]
     parts, trades, stitched = [], [], CAPITAL
+    checks = [{"desde": ws.date().isoformat(), "operaciones": len(res["trades"]), "final": res.get("final"),
+               "sin_minimo": res.get("sin_minimo"), "vetos": res.get("vetos"), "datos": res.get("datos", {})}
+              for (ws, _), res in zip(wins, results)]
     for res in results:
         eq = pd.Series({pd.Timestamp(k): v for k, v in res["equity"].items()}, dtype=float)
         if eq.empty:
@@ -572,7 +582,7 @@ def desk_benchmark(wins: list[tuple[pd.Timestamp, pd.Timestamp]], symbols: list[
                    for t in res["trades"]]
         stitched *= float(np.prod(1 + r.to_numpy()))
         parts.append(r)
-    return (pd.concat(parts) if parts else pd.Series(dtype=float)), trades
+    return (pd.concat(parts) if parts else pd.Series(dtype=float)), trades, checks
 
 
 def btc_hold(m: Market, wins: list[tuple[pd.Timestamp, pd.Timestamp]]) -> pd.Series:
@@ -623,6 +633,105 @@ def study(m: Market, oos_days: int, desk_r: Optional[pd.Series] = None, desk_tra
             print(f"{name}: neto {s['neto_pct']:+.2f}%, caída {s['max_caida_pct']}%, {s['operaciones']} ops — "
                   f"{s['veredicto']}")
     return out
+
+
+PREREGISTERED: dict[str, tuple[str, dict]] = {  # docs/research/tendencia/PREREGISTRO.md (2026-10-12): never re-fit
+    "ema_1d_20_50_atr3": ("ema", {"tf": "1d", "rapida": 20, "lenta": 50, "atr": 3}),
+    "tsmom_60d": ("tsmom", {"dias": 60, "vol": 20, "mantener": 3}),
+}
+
+
+def prereg_verdict(s: dict, desk: Optional[dict]) -> str:
+    need_q = max(1, math.ceil(len(s["trimestres"]) * 0.75))
+    desk_ratio = desk.get("neto_caida") if desk else None
+    checks = {"neto positivo": s["neto_pct"] > 0,
+              "neto/caída mejor que la mesa": desk_ratio is None or (
+                  s["neto_caida"] is not None and s["neto_caida"] > desk_ratio),
+              f"positiva en {need_q}+ trimestres": s["trimestres_positivos"] >= need_q}
+    failed = [k for k, ok in checks.items() if not ok]
+    if failed:
+        return "NO se sostiene: falla " + ", ".join(failed)
+    if s["operaciones"] < MIN_OOS_TRADES:
+        return f"muestra corta, favorable ({s['operaciones']} operaciones < {MIN_OOS_TRADES})"
+    return "SE SOSTIENE en el año que no se usó para elegirla" + ("" if desk_ratio is not None else " (sin mesa)")
+
+
+def preregistered(m: Market, days: int, desk_r: Optional[pd.Series] = None,
+                  desk_trades: Optional[list[dict]] = None) -> dict:
+    """The pre-registered fixed rules over the last `days` days: start with CAPITAL, never re-fit."""
+    end = m.times[-1] + pd.Timedelta(hours=1)
+    test_start = end - pd.Timedelta(days=days)
+    lo = int(m.times.searchsorted(test_start))
+    wins = windows(test_start, end)
+    test_days = pd.date_range(test_start, end - DAY, freq="1D", tz="UTC")
+    desk = summarize(desk_r, desk_trades or []) if desk_r is not None and not desk_r.empty else None
+    btc_r = btc_hold(m, wins)
+    out: dict = {"ventanas": [(a.date().isoformat(), b.date().isoformat()) for a, b in wins], "mesa": desk,
+                 "btc": summarize(btc_r, [], desk_r) if not btc_r.empty else None, "reglas": {}}
+    for name, (family, params) in PREREGISTERED.items():
+        cb = run_combo(m, family, params, lo, False)
+        r = cb.r.reindex(test_days).fillna(0.0)
+        s = summarize(r, cb.trades, desk_r)
+        s["parametros"] = params
+        s["veredicto"] = prereg_verdict(s, desk)
+        out["reglas"][name] = s
+        print(f"{name}: neto {s['neto_pct']:+.2f}%, caída {s['max_caida_pct']}%, {s['operaciones']} ops — "
+              f"{s['veredicto']}")
+    return out
+
+
+def render_prereg(res: dict, meta: dict) -> str:
+    desk, btc = res.get("mesa"), res.get("btc")
+    lines = [f"# Preregistro: dos reglas de tendencia fijas en un año no usado ({meta['prueba_desde']} a "
+             f"{meta['hasta']})", "",
+             "Reglas escritas el 2026-10-12 en `PREREGISTRO.md`, elegidas en retrospectiva sobre 2025-10-12 a "
+             "2026-10-12 y probadas aquí sin cambiar nada en el año anterior. Parámetros fijos, nunca reajustados; "
+             "empiezan con 1.000 USDT. Mismos costes y tamaños que el estudio de tendencia. La mesa (mesa_r3) y comprar "
+             "y mantener BTC se miden en las mismas ventanas de 30 días.", "",
+             "| Estrategia | Operaciones | Neto % | Máx. caída | Neto/caída | Acierto | Ganancia media | Pérdida media | "
+             "Comisiones | Financiación | Correlación con la mesa | Trimestres positivos | Veredicto |",
+             "|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+
+    def row(name: str, s: dict, v: str) -> str:
+        return (f"| {name} | {s['operaciones']} | {s['neto_pct']:+.2f}% | {s['max_caida_pct']}% | "
+                f"{_fmt(s['neto_caida'])} | {s['acierto_pct']}% | {s['ganancia_media_usdt']:+.2f} | "
+                f"{s['perdida_media_usdt']:+.2f} | {s['comisiones_usdt']:.2f} | {s['financiacion_usdt']:+.2f} | "
+                f"{_fmt(s['correlacion_mesa'])} | {s['trimestres_positivos']} de {len(s['trimestres'])} | {v} |")
+
+    if desk:
+        lines.append(row("**mesa_r3 (la mesa en vivo)**", desk, "referencia"))
+    if btc:
+        lines.append(f"| BTC comprar y mantener | — | {btc['neto_pct']:+.2f}% | {btc['max_caida_pct']}% | "
+                     f"{_fmt(btc['neto_caida'])} | — | — | — | — | — | {_fmt(btc['correlacion_mesa'])} | "
+                     f"{btc['trimestres_positivos']} de {len(btc['trimestres'])} | referencia |")
+    for name, s in res["reglas"].items():
+        lines.append(row(name, s, s["veredicto"]))
+    rows = [("mesa_r3", desk), ("BTC", btc), *res["reglas"].items()]
+    quarters = sorted({q for _, s in rows if s for q in s["trimestres"]})
+    lines += ["", "## Por trimestre (neto %)", "", "| Estrategia | " + " | ".join(quarters) + " |",
+              "|---|" + "---|" * len(quarters)]
+    for name, s in rows:
+        if s:
+            lines.append(f"| {name} | " + " | ".join(
+                "—" if q not in s["trimestres"] else f"{s['trimestres'][q]['neto_pct']:+.2f}%" for q in quarters) + " |")
+    lines += ["", "Advertencias: el precio Spot aproxima al perpetuo; un año más de historia no garantiza el futuro."]
+    return "\n".join(lines) + "\n"
+
+
+def render_desk_checks(checks: list[dict]) -> str:
+    """How much top-trader data the desk replay had, window by window (its base signal uses it)."""
+    if not checks:
+        return ""
+    lines = ["", "## Datos de la mesa por ventana (control)", "",
+             "| Ventana | Operaciones | Sin mínimo | Vetos (evitó pérdida / dejó pasar ganancia) | Final | "
+             "Velas con top traders (mín. / media por moneda) |", "|---|---|---|---|---|---|"]
+    for c in checks:
+        pct = [d["velas_con_top_pct"] for d in c["datos"].values()]
+        v = c.get("vetos") or {}
+        cov = f"{min(pct)}% / {round(sum(pct) / len(pct), 1)}%" if pct else "—"
+        lines.append(f"| {c['desde']} | {c['operaciones']} | {c.get('sin_minimo')} | "
+                     f"{v.get('evitó pérdida', '—')} / {v.get('dejó pasar ganancia', '—')} | {c.get('final')} | {cov} |")
+    return "\n".join(lines) + "\n"
 
 
 def _fmt(x: Optional[float]) -> str:
@@ -723,26 +832,43 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--simbolos", nargs="+", default=list(tw.SYMBOLS))
     parser.add_argument("--sin-mesa", action="store_true", help="no medir mesa_r3 (mucho más rápido)")
     parser.add_argument("--procesos", type=int, default=4, help="procesos para medir la mesa")
+    parser.add_argument("--hasta", type=str, default=None, help="fin del periodo, AAAA-MM-DD (por defecto hoy)")
+    parser.add_argument("--preregistro", action="store_true",
+                        help="solo las reglas fijas de PREREGISTRO.md, sin walk-forward")
     parser.add_argument("--salida", type=Path, default=OUT_DIR)
     args = parser.parse_args(argv)
-    end = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    if args.hasta:
+        end = datetime.strptime(args.hasta, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    else:
+        end = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
     m = load(args.dias, end, args.simbolos)
     test_start = pd.Timestamp(end) - pd.Timedelta(days=args.dias)
-    desk_r, desk_trades = None, None
+    desk_r: Optional[pd.Series] = None
+    desk_trades: Optional[list[dict]] = None
+    checks: list[dict] = []
     if not args.sin_mesa:
-        desk_r, desk_trades = desk_benchmark(windows(test_start, pd.Timestamp(end)), list(m.bars), args.procesos)
+        desk_r, desk_trades, checks = desk_benchmark(windows(test_start, pd.Timestamp(end)), list(m.bars),
+                                                     args.procesos)
         print(f"mesa_r3: {len(desk_trades)} operaciones")
-    res = study(m, args.dias, desk_r, desk_trades)
     meta = {"prueba_desde": test_start.date().isoformat(), "hasta": end.date().isoformat(),
             "simbolos": list(m.bars), "dias_fuera_de_muestra": args.dias, "ajuste_dias": FIT_DAYS,
             "prueba_dias": TEST_DAYS, "comision": FEE, "deslizamiento": SLIP, "riesgo_stop": RISK,
-            "con_mesa": desk_r is not None}
+            "con_mesa": desk_r is not None, "preregistro": args.preregistro}
+    if args.preregistro:
+        res = preregistered(m, args.dias, desk_r, desk_trades)
+        report = render_prereg(res, meta)
+        name = "preregistro"
+    else:
+        res = study(m, args.dias, desk_r, desk_trades)
+        report = render(res, meta)
+        name = "tendencia"
+    res["control_mesa"] = checks
+    report += render_desk_checks(checks)
     args.salida.mkdir(parents=True, exist_ok=True)
     stamp = end.date().isoformat() + ("_sin_mesa" if args.sin_mesa else "")
-    (args.salida / f"tendencia_{stamp}.json").write_text(json.dumps({"meta": meta, **_jsonable(res)}, indent=1),
-                                                          encoding="utf-8")
-    report = render(res, meta)
-    (args.salida / f"tendencia_{stamp}.md").write_text(report, encoding="utf-8")
+    (args.salida / f"{name}_{stamp}.json").write_text(json.dumps({"meta": meta, **_jsonable(res)}, indent=1),
+                                                      encoding="utf-8")
+    (args.salida / f"{name}_{stamp}.md").write_text(report, encoding="utf-8")
     print(report)
     return 0
 
