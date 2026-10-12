@@ -25,7 +25,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from multiprocessing import Pool
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -130,7 +130,7 @@ def align(syms: dict[str, Sym]) -> tuple[np.ndarray, dict[str, Sym]]:
     for name, s in syms.items():
         pos = np.searchsorted(times, s.times)
 
-        def put(a: np.ndarray, fill: float | int | bool, dtype: object = float, _pos: np.ndarray = pos) -> np.ndarray:
+        def put(a: np.ndarray, fill: float | int | bool, dtype: Any = float, _pos: np.ndarray = pos) -> np.ndarray:
             full = np.full(len(times), fill, dtype=dtype)
             full[_pos] = a
             return full
