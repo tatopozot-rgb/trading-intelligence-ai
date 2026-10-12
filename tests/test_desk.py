@@ -105,7 +105,9 @@ def test_shape_target_and_rally_detection():
     assert D.shape_target(e, Decimal("104"), "BUY", rules, rally=True) == Decimal("150")
     off = D.DeskRules(target_min_pct=None, target_max_pct=None)
     assert D.shape_target(e, Decimal("112"), "BUY", off) == Decimal("112")
-    assert D.DeskRules.load().target_max_pct is None  # the live rules: 3% floor, no cap (2026-10-11 backtest)
+    live = D.DeskRules.load()  # the live rules = mesa_r3: 3x the risk, no band, no bull-run mode (2026-10-12)
+    assert live.target_r == 3 and live.target_min_pct is None and live.target_max_pct is None
+    assert live.rally_target_pct is None
     idx = pd.date_range("2026-09-20", periods=30, freq="1D")
     up = pd.DataFrame({"close": np.concatenate([np.full(15, 70.0), np.linspace(70, 100, 15)])}, index=idx)
     flat = pd.DataFrame({"close": np.full(30, 100.0)}, index=idx)
@@ -120,3 +122,12 @@ def test_the_target_can_be_a_multiple_of_the_risk():
     assert D.shape_target(e, Decimal("99"), "SELL", rules, stop=Decimal("104")) == Decimal("92")  # 2 x 4
     floor = D.DeskRules(target_r=Decimal("1.5"))  # with the 3% floor
     assert D.shape_target(e, Decimal("101"), "BUY", floor, stop=Decimal("99")) == Decimal("103")
+
+
+def test_bull_run_mode_can_be_switched_off():
+    off = D.DeskRules(target_r=Decimal("3"), target_min_pct=None, rally_target_pct=None)
+    idx = pd.date_range("2026-09-20", periods=30, freq="1D")
+    up = pd.DataFrame({"close": np.concatenate([np.full(15, 70.0), np.linspace(70, 100, 15)])}, index=idx)
+    assert D.rally("SOLUSDT", up, off) is None
+    e = Decimal("100")  # even if a caller passes rally=True, the target stays 3x the risk
+    assert D.shape_target(e, Decimal("104"), "BUY", off, rally=True, stop=Decimal("96")) == Decimal("112")
