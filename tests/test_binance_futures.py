@@ -268,6 +268,13 @@ def test_orders_left_by_a_position_closed_on_the_exchange_are_cleared(tmp_path):
 
 # --- SHADOW ------------------------------------------------------------------------------------------
 
+def test_shadow_name_shows_leverage_so_two_practice_accounts_differ(tmp_path):
+    market = F.FuturesMarket(None, transport=FakeFapi())
+    one = F.PaperFuturesBroker(market, Decimal("30"), tmp_path / "a.json")
+    three = F.PaperFuturesBroker(market, Decimal("30"), tmp_path / "b.json", leverage=3)
+    assert "3x" not in one.name and "3x" in three.name and one.name != three.name
+
+
 def test_shadow_simulates_a_short_stopped_out_with_fees(tmp_path):
     fake = FakeFapi()
     broker = F.PaperFuturesBroker(F.FuturesMarket(None, transport=fake), Decimal("37"), tmp_path / "paper.json")
