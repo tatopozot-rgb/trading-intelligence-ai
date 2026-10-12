@@ -738,7 +738,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             "prueba_dias": TEST_DAYS, "comision": FEE, "deslizamiento": SLIP, "riesgo_stop": RISK,
             "con_mesa": desk_r is not None}
     args.salida.mkdir(parents=True, exist_ok=True)
-    stamp = end.date().isoformat()
+    stamp = end.date().isoformat() + ("_sin_mesa" if args.sin_mesa else "")
     (args.salida / f"tendencia_{stamp}.json").write_text(json.dumps({"meta": meta, **_jsonable(res)}, indent=1),
                                                           encoding="utf-8")
     report = render(res, meta)
