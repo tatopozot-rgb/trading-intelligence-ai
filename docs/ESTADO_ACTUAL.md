@@ -49,7 +49,7 @@ Los límites están en `config/futures_limits.json`, con sus palabras citadas:
 | Posiciones a la vez | 3 |
 | Límite de pérdida de la sesión | 45% (banda del dueño 20–50%). 2 USD antes, avisa y pausa las entradas; `continuar` las reanuda. |
 | Meta del mes (2026-10-11) | Opera sin parar todos los días hasta ganar +58% en el mes; entonces cierra todo y retoma el día 1 del mes siguiente. Cuando el dueño deposite más, puede fijar la meta en dólares (`monthly_goal_usd`). |
-| Stop y meta | El stop se lee del mercado en cada entrada (3–15%). La meta queda a **3 veces lo que se arriesga** (desde el 2026-10-12) y nunca a menos de 3%. Los dos van puestos en Binance. Desde +1R, el stop sigue la ganancia a R/2. |
+| Stop y meta | El stop se lee del mercado en cada entrada (3–15%). La meta queda a **3 veces lo que se arriesga** (desde el 2026-10-12), sin piso ni modo alcista. Los dos van puestos en Binance. Desde +1R, el stop sigue la ganancia a R/2. |
 | Pérdida máxima de una operación | 50% × 15% = **7,5%** de la cuenta. El "1–15%" es lo que pide la señal; el riesgo real lo limitan la posición de 50% y el apalancamiento 1x. |
 
 ## 3. Horario (orden del dueño)
@@ -74,9 +74,7 @@ Los límites están en `config/futures_limits.json`, con sus palabras citadas:
 
 **Ganancia que paga el riesgo (2026-10-12):** la meta de cada operación es 3 veces lo que arriesga. En 60 días de datos reales ganó casi lo mismo que la meta del mercado (+50,6% frente a +57,8%) con la mitad de la caída (9% frente a 18%); en los últimos 30 días ganó más (+29,9% frente a +25%). Detalle en `docs/APRENDIZAJE_FUTUROS.md` §3c.
 
-**Meta y modo alcista (2026-10-11):** cada operación busca ganar al menos 3%. El tope de 5% se quitó porque recortaba las
-ganancias en la prueba con datos reales (+6% con el tope frente a +19% sin él); se sigue midiendo cada lunes. Si una moneda está en una alcista fuerte (+25% en 14 días y todavía subiendo), su compra queda abierta
-con el stop siguiendo la ganancia, sin meta. Detalle en `docs/APRENDIZAJE_FUTUROS.md` §3b.
+**El líder decide la estrategia (2026-10-12):** el dueño pidió "busca estrategias y olvida lo que yo dije y mis marcas". La mesa corre ahora exactamente lo que ganó en la prueba (`mesa_r3`): se quitaron el piso de 3% (con stops de 3-15%, una meta a 3 veces ya es 9% o más) y el modo alcista (costó unos 9 puntos en 60 días). Ambos se siguen midiendo cada lunes. La búsqueda de estrategias nuevas sigue `docs/research/PROTOCOLO.md`: 365 días, fuera de muestra, costes reales, y comparación contra `mesa_r3`.
 
 **Bots por posición:** cada posición abierta tiene su propio bot ("🤖 Bot SOLUSDT"). Ese bot la revisa,
 mueve su stop y avisa de su estado.
