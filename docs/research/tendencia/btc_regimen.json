@@ -1,0 +1,510 @@
+{
+ "a\u00f1os": [
+  {
+   "desde": "2024-10-12",
+   "hasta": "2025-10-12",
+   "mesa": {
+    "neto_pct": 4.85,
+    "max_caida_pct": 53.07,
+    "neto_caida": 0.09,
+    "operaciones": 692,
+    "acierto_pct": 43.1,
+    "ganancia_media_usdt": 14.52,
+    "perdida_media_usdt": -10.86,
+    "comisiones_usdt": 225.55,
+    "financiacion_usdt": 74.2,
+    "compras": 521,
+    "ventas": 171,
+    "correlacion_mesa": null,
+    "trimestres": {
+     "2024-T4": {
+      "neto_pct": 4.78,
+      "max_caida_pct": 30.17,
+      "dias": 81,
+      "operaciones": 127
+     },
+     "2025-T1": {
+      "neto_pct": -23.9,
+      "max_caida_pct": 39.64,
+      "dias": 90,
+      "operaciones": 154
+     },
+     "2025-T2": {
+      "neto_pct": -8.95,
+      "max_caida_pct": 26.28,
+      "dias": 91,
+      "operaciones": 227
+     },
+     "2025-T3": {
+      "neto_pct": 57.04,
+      "max_caida_pct": 13.44,
+      "dias": 92,
+      "operaciones": 156
+     },
+     "2025-T4": {
+      "neto_pct": -8.03,
+      "max_caida_pct": 20.73,
+      "dias": 11,
+      "operaciones": 28
+     }
+    },
+    "trimestres_positivos": 2
+   },
+   "btc": {
+    "neto_pct": 76.92,
+    "max_caida_pct": 28.1,
+    "neto_caida": 2.74,
+    "operaciones": 0,
+    "acierto_pct": 0.0,
+    "ganancia_media_usdt": 0.0,
+    "perdida_media_usdt": 0.0,
+    "comisiones_usdt": 0.0,
+    "financiacion_usdt": 0,
+    "compras": 0,
+    "ventas": 0,
+    "correlacion_mesa": null,
+    "trimestres": {
+     "2024-T4": {
+      "neto_pct": 49.63,
+      "max_caida_pct": 12.57,
+      "dias": 81,
+      "operaciones": 0
+     },
+     "2025-T1": {
+      "neto_pct": -11.78,
+      "max_caida_pct": 25.95,
+      "dias": 90,
+      "operaciones": 0
+     },
+     "2025-T2": {
+      "neto_pct": 29.8,
+      "max_caida_pct": 10.38,
+      "dias": 91,
+      "operaciones": 0
+     },
+     "2025-T3": {
+      "neto_pct": 6.44,
+      "max_caida_pct": 12.21,
+      "dias": 92,
+      "operaciones": 0
+     },
+     "2025-T4": {
+      "neto_pct": -2.99,
+      "max_caida_pct": 11.24,
+      "dias": 11,
+      "operaciones": 0
+     }
+    },
+    "trimestres_positivos": 3
+   },
+   "reglas": {
+    "btc_sma200": {
+     "neto_pct": 20.53,
+     "max_caida_pct": 33.26,
+     "neto_caida": 0.62,
+     "operaciones": 6,
+     "acierto_pct": 33.3,
+     "ganancia_media_usdt": 160.03,
+     "perdida_media_usdt": -28.7,
+     "comisiones_usdt": 6.66,
+     "financiacion_usdt": 91.31,
+     "compras": 6,
+     "ventas": 0,
+     "correlacion_mesa": null,
+     "trimestres": {
+      "2024-T4": {
+       "neto_pct": 37.48,
+       "max_caida_pct": 13.18,
+       "dias": 81,
+       "operaciones": 0
+      },
+      "2025-T1": {
+       "neto_pct": -23.78,
+       "max_caida_pct": 32.72,
+       "dias": 90,
+       "operaciones": 5
+      },
+      "2025-T2": {
+       "neto_pct": 13.84,
+       "max_caida_pct": 9.97,
+       "dias": 91,
+       "operaciones": 0
+      },
+      "2025-T3": {
+       "neto_pct": 4.56,
+       "max_caida_pct": 12.73,
+       "dias": 92,
+       "operaciones": 0
+      },
+      "2025-T4": {
+       "neto_pct": -3.38,
+       "max_caida_pct": 11.65,
+       "dias": 11,
+       "operaciones": 1
+      }
+     },
+     "trimestres_positivos": 3,
+     "dias_comprado_pct": 89.6,
+     "caida_vs_btc_pct": 5.16,
+     "captura_de_btc_pct": 26.7,
+     "veredicto": "NO se sostiene: falla positiva en 4+ trimestres"
+    },
+    "btc_sma50": {
+     "neto_pct": 53.42,
+     "max_caida_pct": 21.17,
+     "neto_caida": 2.52,
+     "operaciones": 12,
+     "acierto_pct": 33.3,
+     "ganancia_media_usdt": 194.15,
+     "perdida_media_usdt": -30.29,
+     "comisiones_usdt": 17.63,
+     "financiacion_usdt": 85.72,
+     "compras": 12,
+     "ventas": 0,
+     "correlacion_mesa": null,
+     "trimestres": {
+      "2024-T4": {
+       "neto_pct": 46.42,
+       "max_caida_pct": 11.73,
+       "dias": 81,
+       "operaciones": 1
+      },
+      "2025-T1": {
+       "neto_pct": -7.17,
+       "max_caida_pct": 11.79,
+       "dias": 90,
+       "operaciones": 3
+      },
+      "2025-T2": {
+       "neto_pct": 18.72,
+       "max_caida_pct": 9.35,
+       "dias": 91,
+       "operaciones": 3
+      },
+      "2025-T3": {
+       "neto_pct": -3.56,
+       "max_caida_pct": 12.76,
+       "dias": 92,
+       "operaciones": 4
+      },
+      "2025-T4": {
+       "neto_pct": -1.41,
+       "max_caida_pct": 9.67,
+       "dias": 11,
+       "operaciones": 1
+      }
+     },
+     "trimestres_positivos": 2,
+     "dias_comprado_pct": 67.4,
+     "caida_vs_btc_pct": -6.93,
+     "captura_de_btc_pct": 69.4,
+     "veredicto": "NO se sostiene: falla positiva en 4+ trimestres"
+    },
+    "btc_sma200_stop10": {
+     "neto_pct": 34.05,
+     "max_caida_pct": 15.42,
+     "neto_caida": 2.21,
+     "operaciones": 6,
+     "acierto_pct": 33.3,
+     "ganancia_media_usdt": 238.77,
+     "perdida_media_usdt": -34.25,
+     "comisiones_usdt": 7.77,
+     "financiacion_usdt": 34.66,
+     "compras": 6,
+     "ventas": 0,
+     "correlacion_mesa": null,
+     "trimestres": {
+      "2024-T4": {
+       "neto_pct": 38.77,
+       "max_caida_pct": 7.28,
+       "dias": 81,
+       "operaciones": 1
+      },
+      "2025-T1": {
+       "neto_pct": -9.87,
+       "max_caida_pct": 9.87,
+       "dias": 90,
+       "operaciones": 4
+      },
+      "2025-T2": {
+       "neto_pct": 7.18,
+       "max_caida_pct": 10.06,
+       "dias": 91,
+       "operaciones": 1
+      },
+      "2025-T3": {
+       "neto_pct": 0.0,
+       "max_caida_pct": 0.0,
+       "dias": 92,
+       "operaciones": 0
+      },
+      "2025-T4": {
+       "neto_pct": 0.0,
+       "max_caida_pct": 0.0,
+       "dias": 11,
+       "operaciones": 0
+      }
+     },
+     "trimestres_positivos": 2,
+     "dias_comprado_pct": 89.6,
+     "caida_vs_btc_pct": -12.68,
+     "captura_de_btc_pct": 44.3,
+     "veredicto": "NO se sostiene: falla positiva en 4+ trimestres"
+    }
+   }
+  },
+  {
+   "desde": "2025-10-12",
+   "hasta": "2026-10-12",
+   "mesa": {
+    "neto_pct": -53.06,
+    "max_caida_pct": 70.33,
+    "neto_caida": -0.75,
+    "operaciones": 743,
+    "acierto_pct": 39.6,
+    "ganancia_media_usdt": 4.39,
+    "perdida_media_usdt": -4.06,
+    "comisiones_usdt": 118.12,
+    "financiacion_usdt": 17.7,
+    "compras": 491,
+    "ventas": 252,
+    "correlacion_mesa": null,
+    "trimestres": {
+     "2025-T4": {
+      "neto_pct": -45.73,
+      "max_caida_pct": 45.85,
+      "dias": 81,
+      "operaciones": 178
+     },
+     "2026-T1": {
+      "neto_pct": -36.3,
+      "max_caida_pct": 41.34,
+      "dias": 90,
+      "operaciones": 238
+     },
+     "2026-T2": {
+      "neto_pct": -11.85,
+      "max_caida_pct": 14.16,
+      "dias": 91,
+      "operaciones": 174
+     },
+     "2026-T3": {
+      "neto_pct": 49.79,
+      "max_caida_pct": 10.73,
+      "dias": 92,
+      "operaciones": 142
+     },
+     "2026-T4": {
+      "neto_pct": 2.83,
+      "max_caida_pct": 3.29,
+      "dias": 11,
+      "operaciones": 11
+     }
+    },
+    "trimestres_positivos": 2
+   },
+   "btc": {
+    "neto_pct": -24.29,
+    "max_caida_pct": 49.1,
+    "neto_caida": -0.49,
+    "operaciones": 0,
+    "acierto_pct": 0.0,
+    "ganancia_media_usdt": 0.0,
+    "perdida_media_usdt": 0.0,
+    "comisiones_usdt": 0.0,
+    "financiacion_usdt": 0,
+    "compras": 0,
+    "ventas": 0,
+    "correlacion_mesa": null,
+    "trimestres": {
+     "2025-T4": {
+      "neto_pct": -20.78,
+      "max_caida_pct": 26.42,
+      "dias": 81,
+      "operaciones": 0
+     },
+     "2026-T1": {
+      "neto_pct": -22.09,
+      "max_caida_pct": 35.11,
+      "dias": 90,
+      "operaciones": 0
+     },
+     "2026-T2": {
+      "neto_pct": -14.15,
+      "max_caida_pct": 28.69,
+      "dias": 91,
+      "operaciones": 0
+     },
+     "2026-T3": {
+      "neto_pct": 42.64,
+      "max_caida_pct": 6.92,
+      "dias": 92,
+      "operaciones": 0
+     },
+     "2026-T4": {
+      "neto_pct": 0.18,
+      "max_caida_pct": 5.52,
+      "dias": 11,
+      "operaciones": 0
+     }
+    },
+    "trimestres_positivos": 2
+   },
+   "reglas": {
+    "btc_sma200": {
+     "neto_pct": 8.18,
+     "max_caida_pct": 13.0,
+     "neto_caida": 0.63,
+     "operaciones": 5,
+     "acierto_pct": 20.0,
+     "ganancia_media_usdt": 176.65,
+     "perdida_media_usdt": -23.72,
+     "comisiones_usdt": 4.8,
+     "financiacion_usdt": 11.45,
+     "compras": 5,
+     "ventas": 0,
+     "correlacion_mesa": null,
+     "trimestres": {
+      "2025-T4": {
+       "neto_pct": -9.49,
+       "max_caida_pct": 13.0,
+       "dias": 81,
+       "operaciones": 4
+      },
+      "2026-T1": {
+       "neto_pct": 0.0,
+       "max_caida_pct": 0.0,
+       "dias": 90,
+       "operaciones": 0
+      },
+      "2026-T2": {
+       "neto_pct": 0.0,
+       "max_caida_pct": 0.0,
+       "dias": 91,
+       "operaciones": 0
+      },
+      "2026-T3": {
+       "neto_pct": 19.65,
+       "max_caida_pct": 7.12,
+       "dias": 92,
+       "operaciones": 0
+      },
+      "2026-T4": {
+       "neto_pct": -0.11,
+       "max_caida_pct": 5.64,
+       "dias": 11,
+       "operaciones": 1
+      }
+     },
+     "trimestres_positivos": 1,
+     "dias_comprado_pct": 19.7,
+     "caida_vs_btc_pct": -36.1,
+     "captura_de_btc_pct": -33.7,
+     "veredicto": "NO se sostiene: falla positiva en 4+ trimestres"
+    },
+    "btc_sma50": {
+     "neto_pct": 14.06,
+     "max_caida_pct": 17.69,
+     "neto_caida": 0.79,
+     "operaciones": 12,
+     "acierto_pct": 16.7,
+     "ganancia_media_usdt": 166.86,
+     "perdida_media_usdt": -19.31,
+     "comisiones_usdt": 11.26,
+     "financiacion_usdt": 17.48,
+     "compras": 12,
+     "ventas": 0,
+     "correlacion_mesa": null,
+     "trimestres": {
+      "2025-T4": {
+       "neto_pct": -2.36,
+       "max_caida_pct": 2.47,
+       "dias": 81,
+       "operaciones": 2
+      },
+      "2026-T1": {
+       "neto_pct": -11.23,
+       "max_caida_pct": 17.4,
+       "dias": 90,
+       "operaciones": 4
+      },
+      "2026-T2": {
+       "neto_pct": 8.03,
+       "max_caida_pct": 9.43,
+       "dias": 91,
+       "operaciones": 2
+      },
+      "2026-T3": {
+       "neto_pct": 21.94,
+       "max_caida_pct": 7.12,
+       "dias": 92,
+       "operaciones": 3
+      },
+      "2026-T4": {
+       "neto_pct": -0.11,
+       "max_caida_pct": 5.64,
+       "dias": 11,
+       "operaciones": 1
+      }
+     },
+     "trimestres_positivos": 2,
+     "dias_comprado_pct": 44.4,
+     "caida_vs_btc_pct": -31.41,
+     "captura_de_btc_pct": -57.9,
+     "veredicto": "NO se sostiene: falla positiva en 4+ trimestres"
+    },
+    "btc_sma200_stop10": {
+     "neto_pct": 6.08,
+     "max_caida_pct": 14.68,
+     "neto_caida": 0.41,
+     "operaciones": 5,
+     "acierto_pct": 20.0,
+     "ganancia_media_usdt": 173.23,
+     "perdida_media_usdt": -28.11,
+     "comisiones_usdt": 4.71,
+     "financiacion_usdt": 11.23,
+     "compras": 5,
+     "ventas": 0,
+     "correlacion_mesa": null,
+     "trimestres": {
+      "2025-T4": {
+       "neto_pct": -11.24,
+       "max_caida_pct": 14.68,
+       "dias": 81,
+       "operaciones": 4
+      },
+      "2026-T1": {
+       "neto_pct": 0.0,
+       "max_caida_pct": 0.0,
+       "dias": 90,
+       "operaciones": 0
+      },
+      "2026-T2": {
+       "neto_pct": 0.0,
+       "max_caida_pct": 0.0,
+       "dias": 91,
+       "operaciones": 0
+      },
+      "2026-T3": {
+       "neto_pct": 19.65,
+       "max_caida_pct": 7.12,
+       "dias": 92,
+       "operaciones": 0
+      },
+      "2026-T4": {
+       "neto_pct": -0.11,
+       "max_caida_pct": 5.64,
+       "dias": 11,
+       "operaciones": 1
+      }
+     },
+     "trimestres_positivos": 1,
+     "dias_comprado_pct": 19.7,
+     "caida_vs_btc_pct": -34.42,
+     "captura_de_btc_pct": -25.0,
+     "veredicto": "NO se sostiene: falla positiva en 4+ trimestres"
+    }
+   }
+  }
+ ]
+}
