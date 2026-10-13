@@ -275,7 +275,7 @@ def render(result: dict) -> str:
         c = r["criterios"]
         marks = {True: "sí", False: "no"}
         lines += ["", f"Criterios: 100+ operaciones {marks[c['100_operaciones']]} · neto positivo y neto/caída mejor que "
-                      f"la mesa {marks[c['neto_y_neto_caida_mejor_que_mesa']]} · 3 de 4 trimestres completos "
+                      f"la mesa {marks[c['neto_y_neto_caida_mejor_que_mesa']] if r['mesa'] else '(la mesa no se midió en esta corrida)'} · 3 de 4 trimestres completos "
                       f"{marks[c['3_de_4_trimestres']]} ({r['trimestres_completos']}) · sin las 2 monedas que más "
                       f"aportaron sigue ganando {marks[c['sin_las_2_mejores_sigue_ganando']]}.",
                   "", "Monedas más operadas: " + ", ".join(f"{k} ({v})" for k, v in list(r["monedas_operadas"].items())[:10])
