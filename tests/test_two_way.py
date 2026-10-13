@@ -220,7 +220,8 @@ def test_nothing_reaches_telegram_as_opened_unless_the_account_shows_it_twice(tm
     sent.clear()
     auto2, _, sent2 = _engine(tmp_path / "y", sig)
     auto2.step()
-    assert any("Compré" in m and "Verificado 2 veces" in m and "Bot SOLUSDT" in m for m in sent2)
+    assert any("Compré" in m and "Verificado 2 veces" in m and "Bot SOLUSDT" in m and "El plan: stop en" in m
+               and "si llega gano" in m for m in sent2)
 
 
 def test_each_position_has_its_own_bot_that_watches_reports_and_trails(tmp_path):
@@ -430,6 +431,7 @@ def test_a_heartbeat_tells_the_owner_the_bot_is_alive_every_few_hours(tmp_path):
     auto.watch()
     beat = [m for m in sent if "🫀" in m]
     assert len(beat) == 1 and "Saldo 100 USDT (revisado 2 veces)" in beat[0] and "Posiciones abiertas: 0" in beat[0]
+    assert "Por qué: ninguna moneda dio una señal que pasara todas las reglas" in beat[0]  # the real reason, said
     now[0] += timedelta(minutes=30)
     auto.watch()
     assert len([m for m in sent if "🫀" in m]) == 1  # once per interval
