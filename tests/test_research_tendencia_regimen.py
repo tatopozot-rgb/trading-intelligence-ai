@@ -57,3 +57,8 @@ def test_year_report_and_render():
     assert set(y["reglas"]) == set(rr.VARIANTS)
     report = rr.render([y])
     assert "btc_sma200_stop10" in report and "Veredicto" in report
+
+
+def test_yearly_periods():
+    assert rr.yearly("2020-10-12", "2022-10-12") == [("2020-10-12", "2021-10-12", ""), ("2021-10-12", "2022-10-12", "")]
+    assert rr.yearly("2020-10-12", "2021-04-12") == [("2020-10-12", "2021-04-12", "")]
