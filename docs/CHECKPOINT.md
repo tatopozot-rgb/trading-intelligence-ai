@@ -320,3 +320,19 @@ only the latest work blocks. The history up to 2026-10-10 (sections 1–90) is i
 - **Fix:** the regime brake asked XM for `BTCUSDT`. XM calls it `BTCUSD`, so the brake read nothing and never acted. `XmBroker.candles` now maps the name (`XM_NAMES`). Test: `test_the_regime_brake_reads_btc_under_xms_own_name`.
 - **Hedging account:** works as is. Closes and stop moves go by position ticket, and only this bot's MAGIC is touched.
 - **GPT:** given a one-pass, read-only audit of the futures limits, `two_way.py` and `binance_futures.py` on the Notion Task Board (agent "Trading Codex"). No code, no keys, no real money.
+
+### 106. More XM demo agents on the same account (2026-10-13)
+
+- **Owner, 2026-10-13:** "me gustaria mas agentes que hagan mas operaciones en XM". He has also said the demo money may be lost while learning.
+- **What changed:** `xm_auto --agente NAME` runs another agent on the same DEMO account. Each agent has:
+  - its own MT5 magic number (`agent_magic`), so it sees and closes only its own positions;
+  - its own state folder (`live_runs/xm_auto_<name>`);
+  - its own Telegram name ("🧪 XM DEMO · NAME (dinero virtual)").
+- **New options:** `--margen-max` and `--spread-max` set that agent's entry caps.
+  - The defaults are unchanged (20% of free margin, 0.15% spread, 2x effective leverage), and so are `config/*_limits.json`.
+  - The looser values are for DEMO learning only. XmDemoTrader still refuses a real account.
+- **Agents ordered:**
+  - **Operador XM:** ETHUSD and OILCash on the default caps.
+  - **Cripto:** XM's other crypto symbols, spread up to 1.5% and margin up to 40%. The wide spreads are part of the lesson: they show what costs eat.
+  - **Índices:** US500Cash, AUDUSD and BTCUSD, margin up to 90%. In practice that allows one position at a time on a 1:1 account.
+- **Unchanged:** the regime brake (longs only while BTC is above its mean), the event brake, the loss limit of 45% and the 3-position cap apply to every agent.

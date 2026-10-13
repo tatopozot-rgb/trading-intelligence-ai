@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import zlib
 from dataclasses import replace
 from decimal import ROUND_DOWN, ROUND_UP, Decimal
 from pathlib import Path
@@ -35,7 +36,7 @@ from trading_intelligence.live.two_way import (
     TwoWayAuto,
     owner_continue,
 )
-from trading_intelligence.live.xm_demo import XmDemoTrader
+from trading_intelligence.live.xm_demo import MAGIC, XmDemoTrader
 from trading_intelligence.live.xm_mt5 import EntryCaps, XmError
 from trading_intelligence.strategy.two_way_signals import DEFAULT_VARIANT, VARIANTS, signal_for
 
@@ -46,8 +47,10 @@ XM_NAMES = {"BTCUSDT": "BTCUSD"}  # Binance name -> XM name
 class XmBroker:
     name, unit = "🧪 XM DEMO (dinero virtual)", "lotes"
 
-    def __init__(self, trader: XmDemoTrader, caps: EntryCaps = EntryCaps()) -> None:
+    def __init__(self, trader: XmDemoTrader, caps: EntryCaps = EntryCaps(), agent: str = "") -> None:
         self.trader, self.caps = trader, caps
+        if agent:
+            self.name = f"🧪 XM DEMO · {agent} (dinero virtual)"
 
     def equity(self) -> tuple[Decimal, str]:
         acc = self.trader._demo_account()
@@ -88,8 +91,13 @@ class XmBroker:
 
 
 def XmAuto(trader: XmDemoTrader, symbols: list[str], state_path: Path, *, caps: EntryCaps = EntryCaps(),
-           signal: Optional[Signal] = None, **kw) -> TwoWayAuto:
-    return TwoWayAuto(XmBroker(trader, caps), symbols, state_path, signal=signal, **kw)
+           signal: Optional[Signal] = None, agent: str = "", **kw) -> TwoWayAuto:
+    return TwoWayAuto(XmBroker(trader, caps, agent), symbols, state_path, signal=signal, **kw)
+
+
+def agent_magic(agent: str) -> int:
+    """The first agent keeps MAGIC; each named agent gets its own, stable across restarts."""
+    return MAGIC + 1 + zlib.crc32(agent.encode()) % 997 if agent else MAGIC
 
 
 def main(argv: Optional[list[str]] = None, mt5: Optional[object] = None) -> int:
@@ -108,11 +116,17 @@ def main(argv: Optional[list[str]] = None, mt5: Optional[object] = None) -> int:
     parser.add_argument("--aviso", default="2", help="se pregunta al dueño esta cantidad antes del límite")
     parser.add_argument("--meta", default="58", help="%% de ganancia que cierra todo y termina la sesión")
     parser.add_argument("--senal", choices=VARIANTS, default=DEFAULT_VARIANT, help="lógica de entrada")
-    parser.add_argument("--dir", type=Path, default=Path("live_runs/xm_auto"))
+    parser.add_argument("--dir", type=Path, help="estado del agente (por defecto live_runs/xm_auto[_agente])")
+    parser.add_argument("--agente", default="", help="nombre de otro agente en la misma cuenta DEMO: sus propias posiciones")
+    parser.add_argument("--margen-max", default=str(EntryCaps.max_margin_pct_of_free),
+                        help="%% del margen libre que puede usar una entrada")
+    parser.add_argument("--spread-max", default=str(EntryCaps.max_spread_pct), help="spread máximo en %% del precio")
     parser.add_argument("--diario", type=Path, help="carpeta del diario de la mesa (p. ej. la del vault de Obsidian)")
     parser.add_argument("--sin-mesa", action="store_true", help="sin Scout, Escéptico ni sentimiento (no recomendado)")
     parser.add_argument("--una-vez", action="store_true", help="una sola decisión y salir")
     args = parser.parse_args(argv)
+    if args.dir is None:
+        args.dir = Path("live_runs/xm_auto" + (f"_{args.agente.lower()}" if args.agente else ""))
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     if args.accion == "continuar":
         owner_continue(args.dir)
@@ -121,10 +135,12 @@ def main(argv: Optional[list[str]] = None, mt5: Optional[object] = None) -> int:
     if not Decimal("20") <= Decimal(args.limite_perdida) <= Decimal("50"):
         print("XM DEMO: el límite de pérdida debe estar entre 20 y 50% (banda del dueño)")
         return 1
-    trader = XmDemoTrader(args.dir / "orders.json", mt5)
+    trader = XmDemoTrader(args.dir / "orders.json", mt5, magic=agent_magic(args.agente))
+    caps = EntryCaps(max_spread_pct=Decimal(args.spread_max), max_margin_pct_of_free=Decimal(args.margen_max))
     try:
         acc = trader.connect()
-        auto = XmAuto(trader, args.simbolos, args.dir / "state.json", timeframe=args.temporalidad,
+        auto = XmAuto(trader, args.simbolos, args.dir / "state.json", caps=caps, agent=args.agente,
+                      timeframe=args.temporalidad,
                       risk_min_pct=Decimal(args.riesgo_min), risk_max_pct=Decimal(args.riesgo_max),
                       max_open=args.max_posiciones,
                       loss_limit_pct=Decimal(args.limite_perdida), warn_before=Decimal(args.aviso),
@@ -133,7 +149,7 @@ def main(argv: Optional[list[str]] = None, mt5: Optional[object] = None) -> int:
                       notify=make_notify(console, from_env()),
                       desk_rules=None if args.sin_mesa else DeskRules.load(), journal_dir=args.diario or args.dir / "mesa",
                       news_get=None if args.sin_mesa else desk_get, heartbeat_every_s=4 * 3600)
-        print(f"XM DEMO · equity {acc.equity} {acc.currency} · {', '.join(args.simbolos)} · "
+        print(f"XM DEMO{' · ' + args.agente if args.agente else ''} · equity {acc.equity} {acc.currency} · {', '.join(args.simbolos)} · "
               f"cada {args.cada_dentro} min en {' '.join(args.ventanas)} (Ecuador), cada {args.cada_fuera} fuera")
         if args.una_vez:
             auto.step()
