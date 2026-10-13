@@ -40,6 +40,7 @@ from trading_intelligence.live.xm_mt5 import EntryCaps, XmError
 from trading_intelligence.strategy.two_way_signals import DEFAULT_VARIANT, VARIANTS, signal_for
 
 DEFAULT_SYMBOLS = ("EURUSD", "GOLD", "BTCUSD")
+XM_NAMES = {"BTCUSDT": "BTCUSD"}  # Binance name -> XM name
 
 
 class XmBroker:
@@ -59,7 +60,8 @@ class XmBroker:
                 for sym, p in self.trader.positions().items()}
 
     def candles(self, symbol: str, timeframe: str, count: int) -> pd.DataFrame:
-        return self.trader.reader.candles(symbol, timeframe, count)
+        # XM names Binance's BTCUSDT "BTCUSD": without this the regime brake reads nothing and never acts
+        return self.trader.reader.candles(XM_NAMES.get(symbol, symbol), timeframe, count)
 
     def plan(self, symbol: str, side: str, risk_pct: Decimal, timeframe: str) -> Plan:
         p = self.trader.plan(symbol, side, risk_pct=risk_pct, caps=self.caps, timeframe=timeframe)
