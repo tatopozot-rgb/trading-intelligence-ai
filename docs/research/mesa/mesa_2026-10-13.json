@@ -1,0 +1,1282 @@
+{
+ "meta": {
+  "desde": "2025-10-13",
+  "hasta": "2026-10-13",
+  "simbolos": [
+   "BTCUSDT",
+   "ETHUSDT",
+   "BNBUSDT",
+   "SOLUSDT",
+   "XRPUSDT",
+   "DOGEUSDT",
+   "ADAUSDT",
+   "LINKUSDT",
+   "AVAXUSDT",
+   "LTCUSDT",
+   "TRXUSDT",
+   "DOTUSDT"
+  ],
+  "cobertura": {
+   "BTCUSDT": {
+    "top_traders_pct": 100.0,
+    "financiacion_pct": 100.0,
+    "interes_abierto_pct": 99.7
+   },
+   "ETHUSDT": {
+    "top_traders_pct": 100.0,
+    "financiacion_pct": 100.0,
+    "interes_abierto_pct": 99.7
+   },
+   "BNBUSDT": {
+    "top_traders_pct": 100.0,
+    "financiacion_pct": 100.0,
+    "interes_abierto_pct": 99.7
+   },
+   "SOLUSDT": {
+    "top_traders_pct": 100.0,
+    "financiacion_pct": 100.0,
+    "interes_abierto_pct": 99.7
+   },
+   "XRPUSDT": {
+    "top_traders_pct": 100.0,
+    "financiacion_pct": 100.0,
+    "interes_abierto_pct": 99.7
+   },
+   "DOGEUSDT": {
+    "top_traders_pct": 100.0,
+    "financiacion_pct": 100.0,
+    "interes_abierto_pct": 99.7
+   },
+   "ADAUSDT": {
+    "top_traders_pct": 100.0,
+    "financiacion_pct": 100.0,
+    "interes_abierto_pct": 99.7
+   },
+   "LINKUSDT": {
+    "top_traders_pct": 100.0,
+    "financiacion_pct": 100.0,
+    "interes_abierto_pct": 99.7
+   },
+   "AVAXUSDT": {
+    "top_traders_pct": 100.0,
+    "financiacion_pct": 100.0,
+    "interes_abierto_pct": 99.7
+   },
+   "LTCUSDT": {
+    "top_traders_pct": 100.0,
+    "financiacion_pct": 100.0,
+    "interes_abierto_pct": 99.7
+   },
+   "TRXUSDT": {
+    "top_traders_pct": 100.0,
+    "financiacion_pct": 100.0,
+    "interes_abierto_pct": 99.7
+   },
+   "DOTUSDT": {
+    "top_traders_pct": 100.0,
+    "financiacion_pct": 100.0,
+    "interes_abierto_pct": 99.7
+   }
+  }
+ },
+ "blocks": [
+  {
+   "from": "2025-10-13",
+   "trades": 55,
+   "win_rate": 34.5,
+   "net_pct": -25.2,
+   "max_dd_pct": 27.14,
+   "avg_win": 7.68,
+   "avg_loss": -11.05,
+   "fees": 15.99,
+   "funding": 0.98,
+   "long_n": 39,
+   "long_net_pct": -20.74,
+   "short_n": 16,
+   "short_net_pct": -4.47,
+   "end": "fin del bloque",
+   "skipped_liquidation": 0
+  },
+  {
+   "from": "2025-11-12",
+   "trades": 67,
+   "win_rate": 29.9,
+   "net_pct": -16.34,
+   "max_dd_pct": 19.51,
+   "avg_win": 13.47,
+   "avg_loss": -9.21,
+   "fees": 23.4,
+   "funding": 0.86,
+   "long_n": 43,
+   "long_net_pct": -19.15,
+   "short_n": 24,
+   "short_net_pct": 2.81,
+   "end": "fin del bloque",
+   "skipped_liquidation": 0
+  },
+  {
+   "from": "2025-12-12",
+   "trades": 67,
+   "win_rate": 38.8,
+   "net_pct": -11.97,
+   "max_dd_pct": 13.6,
+   "avg_win": 4.08,
+   "avg_loss": -5.5,
+   "fees": 20.29,
+   "funding": 3.19,
+   "long_n": 43,
+   "long_net_pct": -8.53,
+   "short_n": 24,
+   "short_net_pct": -3.44,
+   "end": "fin del bloque",
+   "skipped_liquidation": 0
+  },
+  {
+   "from": "2026-01-11",
+   "trades": 69,
+   "win_rate": 33.3,
+   "net_pct": -16.63,
+   "max_dd_pct": 21.01,
+   "avg_win": 12.04,
+   "avg_loss": -9.63,
+   "fees": 22.85,
+   "funding": 0.28,
+   "long_n": 38,
+   "long_net_pct": -19.22,
+   "short_n": 31,
+   "short_net_pct": 2.59,
+   "end": "fin del bloque",
+   "skipped_liquidation": 0
+  },
+  {
+   "from": "2026-02-10",
+   "trades": 81,
+   "win_rate": 33.3,
+   "net_pct": -20.7,
+   "max_dd_pct": 24.81,
+   "avg_win": 5.39,
+   "avg_loss": -6.53,
+   "fees": 20.48,
+   "funding": 2.09,
+   "long_n": 42,
+   "long_net_pct": -13.87,
+   "short_n": 39,
+   "short_net_pct": -6.83,
+   "end": "fin del bloque",
+   "skipped_liquidation": 0
+  },
+  {
+   "from": "2026-03-12",
+   "trades": 114,
+   "win_rate": 30.7,
+   "net_pct": -13.98,
+   "max_dd_pct": 20.11,
+   "avg_win": 5.64,
+   "avg_loss": -4.27,
+   "fees": 36.96,
+   "funding": 1.52,
+   "long_n": 60,
+   "long_net_pct": -4.55,
+   "short_n": 54,
+   "short_net_pct": -9.43,
+   "end": "fin del bloque",
+   "skipped_liquidation": 0
+  },
+  {
+   "from": "2026-04-11",
+   "trades": 59,
+   "win_rate": 37.3,
+   "net_pct": -8.39,
+   "max_dd_pct": 10.57,
+   "avg_win": 7.06,
+   "avg_loss": -6.47,
+   "fees": 19.12,
+   "funding": 2.37,
+   "long_n": 39,
+   "long_net_pct": -1.22,
+   "short_n": 20,
+   "short_net_pct": -7.17,
+   "end": "fin del bloque",
+   "skipped_liquidation": 0
+  },
+  {
+   "from": "2026-05-11",
+   "trades": 47,
+   "win_rate": 34.0,
+   "net_pct": -4.64,
+   "max_dd_pct": 13.27,
+   "avg_win": 11.12,
+   "avg_loss": -7.24,
+   "fees": 16.61,
+   "funding": 6.33,
+   "long_n": 34,
+   "long_net_pct": -11.68,
+   "short_n": 13,
+   "short_net_pct": 7.04,
+   "end": "fin del bloque",
+   "skipped_liquidation": 0
+  },
+  {
+   "from": "2026-06-10",
+   "trades": 50,
+   "win_rate": 48.0,
+   "net_pct": 0.86,
+   "max_dd_pct": 17.04,
+   "avg_win": 11.28,
+   "avg_loss": -10.08,
+   "fees": 17.11,
+   "funding": 6.17,
+   "long_n": 40,
+   "long_net_pct": 3.23,
+   "short_n": 10,
+   "short_net_pct": -2.37,
+   "end": "fin del bloque",
+   "skipped_liquidation": 0
+  },
+  {
+   "from": "2026-07-10",
+   "trades": 33,
+   "win_rate": 45.5,
+   "net_pct": 2.96,
+   "max_dd_pct": 6.69,
+   "avg_win": 7.12,
+   "avg_loss": -4.29,
+   "fees": 6.81,
+   "funding": 5.52,
+   "long_n": 25,
+   "long_net_pct": 4.82,
+   "short_n": 8,
+   "short_net_pct": -1.87,
+   "end": "fin del bloque",
+   "skipped_liquidation": 0
+  },
+  {
+   "from": "2026-08-09",
+   "trades": 41,
+   "win_rate": 46.3,
+   "net_pct": 13.39,
+   "max_dd_pct": 9.39,
+   "avg_win": 14.11,
+   "avg_loss": -6.1,
+   "fees": 14.07,
+   "funding": 6.46,
+   "long_n": 34,
+   "long_net_pct": 13.24,
+   "short_n": 7,
+   "short_net_pct": 0.14,
+   "end": "fin del bloque",
+   "skipped_liquidation": 0
+  },
+  {
+   "from": "2026-09-08",
+   "trades": 39,
+   "win_rate": 53.8,
+   "net_pct": 6.0,
+   "max_dd_pct": 14.3,
+   "avg_win": 16.46,
+   "avg_loss": -15.87,
+   "fees": 13.1,
+   "funding": 5.85,
+   "long_n": 37,
+   "long_net_pct": 6.95,
+   "short_n": 2,
+   "short_net_pct": -0.94,
+   "end": "fin del bloque",
+   "skipped_liquidation": 0
+  }
+ ],
+ "baseline_year": {
+  "net_pct": -65.51,
+  "max_dd_pct": 75.5,
+  "net_dd": -0.87,
+  "trades": 722,
+  "blocks_positive": 4,
+  "blocks": 12
+ },
+ "quarters": [
+  {
+   "from": "2025-10-13",
+   "to": "2026-01-11",
+   "net_pct": -44.81,
+   "max_dd_pct": 46.47,
+   "net_dd": -0.96,
+   "trades": 189,
+   "blocks_positive": 0,
+   "blocks": 3,
+   "btc_buy_hold_pct": -21.3,
+   "long_n": 125,
+   "long_net_pct": -48.42,
+   "short_n": 64,
+   "short_net_pct": -5.1,
+   "win_rate": 34.4
+  },
+  {
+   "from": "2026-01-11",
+   "to": "2026-04-11",
+   "net_pct": -43.08,
+   "max_dd_pct": 45.1,
+   "net_dd": -0.96,
+   "trades": 264,
+   "blocks_positive": 0,
+   "blocks": 3,
+   "btc_buy_hold_pct": -19.66,
+   "long_n": 140,
+   "long_net_pct": -37.64,
+   "short_n": 124,
+   "short_net_pct": -13.67,
+   "win_rate": 32.4
+  },
+  {
+   "from": "2026-04-11",
+   "to": "2026-07-10",
+   "net_pct": -11.65,
+   "max_dd_pct": 21.99,
+   "net_dd": -0.53,
+   "trades": 156,
+   "blocks_positive": 1,
+   "blocks": 3,
+   "btc_buy_hold_pct": -13.28,
+   "long_n": 113,
+   "long_net_pct": -9.67,
+   "short_n": 43,
+   "short_net_pct": -2.5,
+   "win_rate": 39.8
+  },
+  {
+   "from": "2026-07-10",
+   "to": "2026-10-08",
+   "net_pct": 24.25,
+   "max_dd_pct": 17.9,
+   "net_dd": 1.35,
+   "trades": 113,
+   "blocks_positive": 3,
+   "blocks": 3,
+   "btc_buy_hold_pct": 32.4,
+   "long_n": 96,
+   "long_net_pct": 25.01,
+   "short_n": 17,
+   "short_net_pct": -2.67,
+   "win_rate": 48.5
+  }
+ ],
+ "walk_forward": {
+  "chosen": [
+   {
+    "block_from": "2026-01-11",
+    "exits": "2.5R, trailing desde 1R a 0.5R, salida 72 h"
+   },
+   {
+    "block_from": "2026-02-10",
+    "exits": "3R, trailing desde 1.5R a 1R, salida 72 h"
+   },
+   {
+    "block_from": "2026-03-12",
+    "exits": "2.5R, trailing desde 1.5R a 1R"
+   },
+   {
+    "block_from": "2026-04-11",
+    "exits": "2.5R, trailing desde 1.5R a 1R, salida 72 h"
+   },
+   {
+    "block_from": "2026-05-11",
+    "exits": "2.5R, trailing desde 2R a 1R"
+   },
+   {
+    "block_from": "2026-06-10",
+    "exits": "2.5R, trailing desde 2R a 1R"
+   },
+   {
+    "block_from": "2026-07-10",
+    "exits": "5R, trailing desde 2R a 1R, salida 72 h"
+   },
+   {
+    "block_from": "2026-08-09",
+    "exits": "2.5R, trailing desde 1R a 0.5R"
+   },
+   {
+    "block_from": "2026-09-08",
+    "exits": "5R, trailing desde 1.5R a 1R, salida 72 h"
+   }
+  ],
+  "oos": {
+   "net_pct": -35.83,
+   "max_dd_pct": 47.34,
+   "net_dd": -0.76,
+   "trades": 509,
+   "blocks_positive": 3,
+   "blocks": 9
+  },
+  "baseline_same_blocks": {
+   "net_pct": -37.51,
+   "max_dd_pct": 55.76,
+   "net_dd": -0.67,
+   "trades": 533,
+   "blocks_positive": 4,
+   "blocks": 9
+  }
+ },
+ "skeptic": {
+  "per_setup": {
+   "rr": {
+    "setups": 0,
+    "solo": 0,
+    "evit\u00f3 p\u00e9rdida": 0,
+    "dej\u00f3 pasar ganancia": 0,
+    "sin resultado": 0,
+    "solo_evit\u00f3": 0,
+    "solo_dej\u00f3": 0
+   },
+   "redondo": {
+    "setups": 2863,
+    "solo": 2852,
+    "evit\u00f3 p\u00e9rdida": 547,
+    "dej\u00f3 pasar ganancia": 56,
+    "sin resultado": 2260,
+    "solo_evit\u00f3": 547,
+    "solo_dej\u00f3": 56
+   },
+   "financiacion": {
+    "setups": 174,
+    "solo": 163,
+    "evit\u00f3 p\u00e9rdida": 4,
+    "dej\u00f3 pasar ganancia": 0,
+    "sin resultado": 170,
+    "solo_evit\u00f3": 4,
+    "solo_dej\u00f3": 0
+   },
+   "sentimiento": {
+    "setups": 0,
+    "solo": 0,
+    "evit\u00f3 p\u00e9rdida": 0,
+    "dej\u00f3 pasar ganancia": 0,
+    "sin resultado": 0,
+    "solo_evit\u00f3": 0,
+    "solo_dej\u00f3": 0
+   }
+  },
+  "ablation": {
+   "rr": {
+    "net_pct": -65.51,
+    "max_dd_pct": 75.5,
+    "net_dd": -0.87,
+    "trades": 722,
+    "blocks_positive": 4,
+    "blocks": 12
+   },
+   "redondo": {
+    "net_pct": -56.5,
+    "max_dd_pct": 70.98,
+    "net_dd": -0.8,
+    "trades": 747,
+    "blocks_positive": 3,
+    "blocks": 12
+   },
+   "financiacion": {
+    "net_pct": -67.96,
+    "max_dd_pct": 76.25,
+    "net_dd": -0.89,
+    "trades": 723,
+    "blocks_positive": 3,
+    "blocks": 12
+   },
+   "sentimiento": {
+    "net_pct": -65.51,
+    "max_dd_pct": 75.5,
+    "net_dd": -0.87,
+    "trades": 722,
+    "blocks_positive": 4,
+    "blocks": 12
+   },
+   "todas": {
+    "net_pct": -62.2,
+    "max_dd_pct": 71.17,
+    "net_dd": -0.87,
+    "trades": 742,
+    "blocks_positive": 3,
+    "blocks": 12
+   }
+  },
+  "baseline": {
+   "net_pct": -65.51,
+   "max_dd_pct": 75.5,
+   "net_dd": -0.87,
+   "trades": 722,
+   "blocks_positive": 4,
+   "blocks": 12
+  }
+ },
+ "sizing": {
+  "calidad 1-15%, 1x": {
+   "net_pct": -65.51,
+   "max_dd_pct": 75.5,
+   "net_dd": -0.87,
+   "trades": 722,
+   "blocks_positive": 4,
+   "blocks": 12
+  },
+  "fijo 2%, 1x": {
+   "net_pct": -62.77,
+   "max_dd_pct": 73.15,
+   "net_dd": -0.86,
+   "trades": 723,
+   "blocks_positive": 4,
+   "blocks": 12
+  },
+  "fijo 5%, 1x": {
+   "net_pct": -65.2,
+   "max_dd_pct": 75.28,
+   "net_dd": -0.87,
+   "trades": 722,
+   "blocks_positive": 4,
+   "blocks": 12
+  },
+  "fijo 10%, 1x": {
+   "net_pct": -65.51,
+   "max_dd_pct": 75.5,
+   "net_dd": -0.87,
+   "trades": 722,
+   "blocks_positive": 4,
+   "blocks": 12
+  },
+  "calidad 1-15%, 3x": {
+   "net_pct": -95.47,
+   "max_dd_pct": 98.49,
+   "net_dd": -0.97,
+   "trades": 619,
+   "blocks_positive": 4,
+   "blocks": 12
+  },
+  "fijo 5%, 3x": {
+   "net_pct": -93.89,
+   "max_dd_pct": 97.71,
+   "net_dd": -0.96,
+   "trades": 663,
+   "blocks_positive": 4,
+   "blocks": 12
+  },
+  "fijo 10%, 3x": {
+   "net_pct": -95.32,
+   "max_dd_pct": 98.4,
+   "net_dd": -0.97,
+   "trades": 619,
+   "blocks_positive": 4,
+   "blocks": 12
+  },
+  "medio Kelly (walk-forward), 1x": {
+   "net_pct": -25.09,
+   "max_dd_pct": 44.6,
+   "net_dd": -0.56,
+   "trades": 532,
+   "blocks_positive": 4,
+   "blocks": 9
+  },
+  "medio Kelly (walk-forward), 3x": {
+   "net_pct": -20.69,
+   "max_dd_pct": 53.33,
+   "net_dd": -0.39,
+   "trades": 532,
+   "blocks_positive": 4,
+   "blocks": 9
+  },
+  "(misma ventana) calidad 1-15%, 1x": {
+   "net_pct": -37.51,
+   "max_dd_pct": 55.76,
+   "net_dd": -0.67,
+   "trades": 533,
+   "blocks_positive": 4,
+   "blocks": 9
+  }
+ },
+ "gates": {
+  "rows": {
+   "a": {
+    "name": "a) BTC sobre su media de 200 d\u00edas: solo largos; si no, fuera",
+    "quarters": [
+     {
+      "from": "2025-10-13",
+      "to": "2026-01-11",
+      "net_pct": -27.24,
+      "max_dd_pct": 28.71,
+      "net_dd": -0.95,
+      "trades": 36,
+      "blocks_positive": 0,
+      "blocks": 3,
+      "btc_buy_hold_pct": -21.3,
+      "long_n": 36,
+      "long_net_pct": -27.24,
+      "short_n": 0,
+      "short_net_pct": 0.0,
+      "win_rate": 27.8
+     },
+     {
+      "from": "2026-01-11",
+      "to": "2026-04-11",
+      "net_pct": 0.0,
+      "max_dd_pct": 0.0,
+      "net_dd": null,
+      "trades": 0,
+      "blocks_positive": 0,
+      "blocks": 3,
+      "btc_buy_hold_pct": -19.66,
+      "long_n": 0,
+      "long_net_pct": 0.0,
+      "short_n": 0,
+      "short_net_pct": 0.0,
+      "win_rate": 0.0
+     },
+     {
+      "from": "2026-04-11",
+      "to": "2026-07-10",
+      "net_pct": 0.0,
+      "max_dd_pct": 0.0,
+      "net_dd": null,
+      "trades": 0,
+      "blocks_positive": 0,
+      "blocks": 3,
+      "btc_buy_hold_pct": -13.28,
+      "long_n": 0,
+      "long_net_pct": 0.0,
+      "short_n": 0,
+      "short_net_pct": 0.0,
+      "win_rate": 0.0
+     },
+     {
+      "from": "2026-07-10",
+      "to": "2026-10-08",
+      "net_pct": 19.88,
+      "max_dd_pct": 19.76,
+      "net_dd": 1.01,
+      "trades": 68,
+      "blocks_positive": 2,
+      "blocks": 3,
+      "btc_buy_hold_pct": 32.4,
+      "long_n": 68,
+      "long_net_pct": 18.74,
+      "short_n": 0,
+      "short_net_pct": 0.0,
+      "win_rate": 56.8
+     }
+    ],
+    "year": {
+     "net_pct": -12.78,
+     "max_dd_pct": 33.87,
+     "net_dd": -0.38,
+     "trades": 104,
+     "blocks_positive": 2,
+     "blocks": 12
+    },
+    "quarters_positive": 1,
+    "passes": false
+   },
+   "b": {
+    "name": "b) BTC sobre su media de 50 d\u00edas: solo largos; si no, fuera",
+    "quarters": [
+     {
+      "from": "2025-10-13",
+      "to": "2026-01-11",
+      "net_pct": -9.13,
+      "max_dd_pct": 11.5,
+      "net_dd": -0.79,
+      "trades": 21,
+      "blocks_positive": 0,
+      "blocks": 3,
+      "btc_buy_hold_pct": -21.3,
+      "long_n": 21,
+      "long_net_pct": -9.44,
+      "short_n": 0,
+      "short_net_pct": 0.0,
+      "win_rate": 38.2
+     },
+     {
+      "from": "2026-01-11",
+      "to": "2026-04-11",
+      "net_pct": -11.16,
+      "max_dd_pct": 18.33,
+      "net_dd": -0.61,
+      "trades": 40,
+      "blocks_positive": 0,
+      "blocks": 3,
+      "btc_buy_hold_pct": -19.66,
+      "long_n": 40,
+      "long_net_pct": -11.51,
+      "short_n": 0,
+      "short_net_pct": 0.0,
+      "win_rate": 35.2
+     },
+     {
+      "from": "2026-04-11",
+      "to": "2026-07-10",
+      "net_pct": -8.25,
+      "max_dd_pct": 14.12,
+      "net_dd": -0.58,
+      "trades": 60,
+      "blocks_positive": 1,
+      "blocks": 3,
+      "btc_buy_hold_pct": -13.28,
+      "long_n": 60,
+      "long_net_pct": -7.93,
+      "short_n": 0,
+      "short_net_pct": 0.0,
+      "win_rate": 43.6
+     },
+     {
+      "from": "2026-07-10",
+      "to": "2026-10-08",
+      "net_pct": 25.04,
+      "max_dd_pct": 18.25,
+      "net_dd": 1.37,
+      "trades": 102,
+      "blocks_positive": 2,
+      "blocks": 3,
+      "btc_buy_hold_pct": 32.4,
+      "long_n": 102,
+      "long_net_pct": 25.58,
+      "short_n": 0,
+      "short_net_pct": 0.0,
+      "win_rate": 48.8
+     }
+    ],
+    "year": {
+     "net_pct": -7.39,
+     "max_dd_pct": 35.75,
+     "net_dd": -0.21,
+     "trades": 223,
+     "blocks_positive": 3,
+     "blocks": 12
+    },
+    "quarters_positive": 1,
+    "passes": false
+   },
+   "c": {
+    "name": "c) tendencia 4h de la moneda y diaria de BTC (medias 50) de acuerdo: ese lado; si no, fuera",
+    "quarters": [
+     {
+      "from": "2025-10-13",
+      "to": "2026-01-11",
+      "net_pct": -16.31,
+      "max_dd_pct": 18.84,
+      "net_dd": -0.87,
+      "trades": 101,
+      "blocks_positive": 1,
+      "blocks": 3,
+      "btc_buy_hold_pct": -21.3,
+      "long_n": 16,
+      "long_net_pct": -8.74,
+      "short_n": 85,
+      "short_net_pct": -8.05,
+      "win_rate": 34.7
+     },
+     {
+      "from": "2026-01-11",
+      "to": "2026-04-11",
+      "net_pct": -25.79,
+      "max_dd_pct": 35.47,
+      "net_dd": -0.73,
+      "trades": 211,
+      "blocks_positive": 0,
+      "blocks": 3,
+      "btc_buy_hold_pct": -19.66,
+      "long_n": 44,
+      "long_net_pct": -13.25,
+      "short_n": 167,
+      "short_net_pct": -14.54,
+      "win_rate": 27.3
+     },
+     {
+      "from": "2026-04-11",
+      "to": "2026-07-10",
+      "net_pct": 3.34,
+      "max_dd_pct": 14.06,
+      "net_dd": 0.24,
+      "trades": 103,
+      "blocks_positive": 1,
+      "blocks": 3,
+      "btc_buy_hold_pct": -13.28,
+      "long_n": 82,
+      "long_net_pct": 1.88,
+      "short_n": 21,
+      "short_net_pct": 1.91,
+      "win_rate": 34.6
+     },
+     {
+      "from": "2026-07-10",
+      "to": "2026-10-08",
+      "net_pct": -20.42,
+      "max_dd_pct": 30.18,
+      "net_dd": -0.68,
+      "trades": 168,
+      "blocks_positive": 1,
+      "blocks": 3,
+      "btc_buy_hold_pct": 32.4,
+      "long_n": 159,
+      "long_net_pct": -14.66,
+      "short_n": 9,
+      "short_net_pct": -3.69,
+      "win_rate": 32.0
+     }
+    ],
+    "year": {
+     "net_pct": -48.92,
+     "max_dd_pct": 50.26,
+     "net_dd": -0.97,
+     "trades": 583,
+     "blocks_positive": 3,
+     "blocks": 12
+    },
+    "quarters_positive": 1,
+    "passes": false
+   },
+   "d": {
+    "name": "d) largos sobre la media de 200 d\u00edas de BTC, cortos debajo",
+    "quarters": [
+     {
+      "from": "2025-10-13",
+      "to": "2026-01-11",
+      "net_pct": -37.85,
+      "max_dd_pct": 39.23,
+      "net_dd": -0.96,
+      "trades": 129,
+      "blocks_positive": 1,
+      "blocks": 3,
+      "btc_buy_hold_pct": -21.3,
+      "long_n": 36,
+      "long_net_pct": -26.97,
+      "short_n": 93,
+      "short_net_pct": -12.83,
+      "win_rate": 30.4
+     },
+     {
+      "from": "2026-01-11",
+      "to": "2026-04-11",
+      "net_pct": -15.67,
+      "max_dd_pct": 28.3,
+      "net_dd": -0.55,
+      "trades": 247,
+      "blocks_positive": 1,
+      "blocks": 3,
+      "btc_buy_hold_pct": -19.66,
+      "long_n": 0,
+      "long_net_pct": 0.0,
+      "short_n": 247,
+      "short_net_pct": -16.08,
+      "win_rate": 33.4
+     },
+     {
+      "from": "2026-04-11",
+      "to": "2026-07-10",
+      "net_pct": -2.72,
+      "max_dd_pct": 13.74,
+      "net_dd": -0.2,
+      "trades": 69,
+      "blocks_positive": 2,
+      "blocks": 3,
+      "btc_buy_hold_pct": -13.28,
+      "long_n": 0,
+      "long_net_pct": 0.0,
+      "short_n": 69,
+      "short_net_pct": -1.69,
+      "win_rate": 35.4
+     },
+     {
+      "from": "2026-07-10",
+      "to": "2026-10-08",
+      "net_pct": 16.72,
+      "max_dd_pct": 19.76,
+      "net_dd": 0.85,
+      "trades": 100,
+      "blocks_positive": 2,
+      "blocks": 3,
+      "btc_buy_hold_pct": 32.4,
+      "long_n": 68,
+      "long_net_pct": 18.92,
+      "short_n": 32,
+      "short_net_pct": -2.68,
+      "win_rate": 43.1
+     }
+    ],
+    "year": {
+     "net_pct": -40.49,
+     "max_dd_pct": 55.64,
+     "net_dd": -0.73,
+     "trades": 545,
+     "blocks_positive": 6,
+     "blocks": 12
+    },
+    "quarters_positive": 1,
+    "passes": false
+   },
+   "e": {
+    "name": "e) sin operar si BTC cae en 30 d\u00edas",
+    "quarters": [
+     {
+      "from": "2025-10-13",
+      "to": "2026-01-11",
+      "net_pct": -5.86,
+      "max_dd_pct": 11.31,
+      "net_dd": -0.52,
+      "trades": 38,
+      "blocks_positive": 0,
+      "blocks": 3,
+      "btc_buy_hold_pct": -21.3,
+      "long_n": 29,
+      "long_net_pct": -6.28,
+      "short_n": 9,
+      "short_net_pct": 0.35,
+      "win_rate": 35.6
+     },
+     {
+      "from": "2026-01-11",
+      "to": "2026-04-11",
+      "net_pct": -11.79,
+      "max_dd_pct": 18.36,
+      "net_dd": -0.64,
+      "trades": 121,
+      "blocks_positive": 1,
+      "blocks": 3,
+      "btc_buy_hold_pct": -19.66,
+      "long_n": 64,
+      "long_net_pct": -10.36,
+      "short_n": 57,
+      "short_net_pct": -1.78,
+      "win_rate": 46.6
+     },
+     {
+      "from": "2026-04-11",
+      "to": "2026-07-10",
+      "net_pct": -18.22,
+      "max_dd_pct": 19.99,
+      "net_dd": -0.91,
+      "trades": 87,
+      "blocks_positive": 0,
+      "blocks": 3,
+      "btc_buy_hold_pct": -13.28,
+      "long_n": 60,
+      "long_net_pct": -14.05,
+      "short_n": 27,
+      "short_net_pct": -5.35,
+      "win_rate": 28.6
+     },
+     {
+      "from": "2026-07-10",
+      "to": "2026-10-08",
+      "net_pct": 33.59,
+      "max_dd_pct": 16.17,
+      "net_dd": 2.08,
+      "trades": 108,
+      "blocks_positive": 2,
+      "blocks": 3,
+      "btc_buy_hold_pct": 32.4,
+      "long_n": 93,
+      "long_net_pct": 34.88,
+      "short_n": 15,
+      "short_net_pct": -2.19,
+      "win_rate": 55.1
+     }
+    ],
+    "year": {
+     "net_pct": -9.28,
+     "max_dd_pct": 39.38,
+     "net_dd": -0.24,
+     "trades": 354,
+     "blocks_positive": 3,
+     "blocks": 12
+    },
+    "quarters_positive": 1,
+    "passes": false
+   },
+   "f": {
+    "name": "f) sin entradas de 12 h antes a 12 h despu\u00e9s de cada decisi\u00f3n FOMC y dato de IPC (CPI) de EE. UU.",
+    "quarters": [
+     {
+      "from": "2025-10-13",
+      "to": "2026-01-11",
+      "net_pct": -43.43,
+      "max_dd_pct": 45.13,
+      "net_dd": -0.96,
+      "trades": 185,
+      "blocks_positive": 0,
+      "blocks": 3,
+      "btc_buy_hold_pct": -21.3,
+      "long_n": 122,
+      "long_net_pct": -45.93,
+      "short_n": 63,
+      "short_net_pct": -5.43,
+      "win_rate": 35.3
+     },
+     {
+      "from": "2026-01-11",
+      "to": "2026-04-11",
+      "net_pct": -46.57,
+      "max_dd_pct": 48.06,
+      "net_dd": -0.97,
+      "trades": 253,
+      "blocks_positive": 0,
+      "blocks": 3,
+      "btc_buy_hold_pct": -19.66,
+      "long_n": 137,
+      "long_net_pct": -38.14,
+      "short_n": 116,
+      "short_net_pct": -18.18,
+      "win_rate": 32.4
+     },
+     {
+      "from": "2026-04-11",
+      "to": "2026-07-10",
+      "net_pct": -8.54,
+      "max_dd_pct": 18.99,
+      "net_dd": -0.45,
+      "trades": 150,
+      "blocks_positive": 2,
+      "blocks": 3,
+      "btc_buy_hold_pct": -13.28,
+      "long_n": 108,
+      "long_net_pct": -5.93,
+      "short_n": 42,
+      "short_net_pct": -2.72,
+      "win_rate": 40.5
+     },
+     {
+      "from": "2026-07-10",
+      "to": "2026-10-08",
+      "net_pct": 25.19,
+      "max_dd_pct": 14.69,
+      "net_dd": 1.71,
+      "trades": 105,
+      "blocks_positive": 3,
+      "blocks": 3,
+      "btc_buy_hold_pct": 32.4,
+      "long_n": 87,
+      "long_net_pct": 25.53,
+      "short_n": 18,
+      "short_net_pct": -2.41,
+      "win_rate": 49.8
+     }
+    ],
+    "year": {
+     "net_pct": -65.39,
+     "max_dd_pct": 75.52,
+     "net_dd": -0.87,
+     "trades": 693,
+     "blocks_positive": 5,
+     "blocks": 12
+    },
+    "quarters_positive": 1,
+    "passes": false
+   },
+   "g1": {
+    "name": "g1) largos solo tras una purga: inter\u00e9s abierto \u22125% o m\u00e1s en 24 h con precio \u2265 \u22123% (en las \u00faltimas 24 h)",
+    "quarters": [
+     {
+      "from": "2025-10-13",
+      "to": "2026-01-11",
+      "net_pct": -34.55,
+      "max_dd_pct": 42.88,
+      "net_dd": -0.81,
+      "trades": 144,
+      "blocks_positive": 0,
+      "blocks": 3,
+      "btc_buy_hold_pct": -21.3,
+      "long_n": 88,
+      "long_net_pct": -33.61,
+      "short_n": 56,
+      "short_net_pct": -5.45,
+      "win_rate": 33.4
+     },
+     {
+      "from": "2026-01-11",
+      "to": "2026-04-11",
+      "net_pct": -51.36,
+      "max_dd_pct": 52.75,
+      "net_dd": -0.97,
+      "trades": 229,
+      "blocks_positive": 0,
+      "blocks": 3,
+      "btc_buy_hold_pct": -19.66,
+      "long_n": 101,
+      "long_net_pct": -42.1,
+      "short_n": 128,
+      "short_net_pct": -21.42,
+      "win_rate": 31.1
+     },
+     {
+      "from": "2026-04-11",
+      "to": "2026-07-10",
+      "net_pct": -16.29,
+      "max_dd_pct": 20.66,
+      "net_dd": -0.79,
+      "trades": 126,
+      "blocks_positive": 0,
+      "blocks": 3,
+      "btc_buy_hold_pct": -13.28,
+      "long_n": 71,
+      "long_net_pct": -13.14,
+      "short_n": 55,
+      "short_net_pct": -4.02,
+      "win_rate": 39.9
+     },
+     {
+      "from": "2026-07-10",
+      "to": "2026-10-08",
+      "net_pct": -10.51,
+      "max_dd_pct": 18.7,
+      "net_dd": -0.56,
+      "trades": 99,
+      "blocks_positive": 1,
+      "blocks": 3,
+      "btc_buy_hold_pct": 32.4,
+      "long_n": 68,
+      "long_net_pct": -7.67,
+      "short_n": 31,
+      "short_net_pct": -0.97,
+      "win_rate": 42.0
+     }
+    ],
+    "year": {
+     "net_pct": -76.15,
+     "max_dd_pct": 78.3,
+     "net_dd": -0.97,
+     "trades": 598,
+     "blocks_positive": 1,
+     "blocks": 12
+    },
+    "quarters_positive": 0,
+    "passes": false
+   },
+   "g2": {
+    "name": "g2) sin largos si el inter\u00e9s abierto sube 10% o m\u00e1s en 7 d\u00edas con el precio plano (\u00b13%)",
+    "quarters": [
+     {
+      "from": "2025-10-13",
+      "to": "2026-01-11",
+      "net_pct": -47.5,
+      "max_dd_pct": 49.07,
+      "net_dd": -0.97,
+      "trades": 191,
+      "blocks_positive": 0,
+      "blocks": 3,
+      "btc_buy_hold_pct": -21.3,
+      "long_n": 125,
+      "long_net_pct": -51.36,
+      "short_n": 66,
+      "short_net_pct": -6.17,
+      "win_rate": 33.6
+     },
+     {
+      "from": "2026-01-11",
+      "to": "2026-04-11",
+      "net_pct": -42.89,
+      "max_dd_pct": 44.92,
+      "net_dd": -0.95,
+      "trades": 260,
+      "blocks_positive": 0,
+      "blocks": 3,
+      "btc_buy_hold_pct": -19.66,
+      "long_n": 140,
+      "long_net_pct": -37.64,
+      "short_n": 120,
+      "short_net_pct": -13.46,
+      "win_rate": 32.0
+     },
+     {
+      "from": "2026-04-11",
+      "to": "2026-07-10",
+      "net_pct": -4.47,
+      "max_dd_pct": 16.49,
+      "net_dd": -0.27,
+      "trades": 150,
+      "blocks_positive": 1,
+      "blocks": 3,
+      "btc_buy_hold_pct": -13.28,
+      "long_n": 110,
+      "long_net_pct": -4.11,
+      "short_n": 40,
+      "short_net_pct": -0.59,
+      "win_rate": 42.5
+     },
+     {
+      "from": "2026-07-10",
+      "to": "2026-10-08",
+      "net_pct": 24.1,
+      "max_dd_pct": 17.9,
+      "net_dd": 1.35,
+      "trades": 109,
+      "blocks_positive": 3,
+      "blocks": 3,
+      "btc_buy_hold_pct": 32.4,
+      "long_n": 94,
+      "long_net_pct": 24.83,
+      "short_n": 15,
+      "short_net_pct": -2.61,
+      "win_rate": 49.5
+     }
+    ],
+    "year": {
+     "net_pct": -64.46,
+     "max_dd_pct": 74.97,
+     "net_dd": -0.86,
+     "trades": 710,
+     "blocks_positive": 4,
+     "blocks": 12
+    },
+    "quarters_positive": 1,
+    "passes": false
+   }
+  },
+  "walk_forward": {
+   "oos": {
+    "net_pct": 1.02,
+    "max_dd_pct": 23.12,
+    "net_dd": 0.04,
+    "trades": 151,
+    "blocks_positive": 2,
+    "blocks": 9
+   },
+   "chosen": [
+    {
+     "block_from": "2026-01-11",
+     "gate": "e"
+    },
+    {
+     "block_from": "2026-02-10",
+     "gate": "a"
+    },
+    {
+     "block_from": "2026-03-12",
+     "gate": "a"
+    },
+    {
+     "block_from": "2026-04-11",
+     "gate": "a"
+    },
+    {
+     "block_from": "2026-05-11",
+     "gate": "a"
+    },
+    {
+     "block_from": "2026-06-10",
+     "gate": "a"
+    },
+    {
+     "block_from": "2026-07-10",
+     "gate": "c"
+    },
+    {
+     "block_from": "2026-08-09",
+     "gate": "d"
+    },
+    {
+     "block_from": "2026-09-08",
+     "gate": "e"
+    }
+   ],
+   "baseline_same_blocks": {
+    "net_pct": -37.51,
+    "max_dd_pct": 55.76,
+    "net_dd": -0.67,
+    "trades": 533,
+    "blocks_positive": 4,
+    "blocks": 9
+   }
+  }
+ }
+}
