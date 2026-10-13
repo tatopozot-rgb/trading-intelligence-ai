@@ -90,6 +90,22 @@ class TelegramNotifier:
             return False
         return True
 
+    def replies(self, offset: int = 0) -> list[tuple[int, str]]:
+        """(update id, text) of the messages THIS chat sent to the bot after ``offset``; messages from any
+        other chat are dropped. Empty on any error: the caller simply asks again."""
+        url = self._url("getUpdates") + f"?offset={int(offset)}&timeout=0"
+        try:
+            answer = self._post(url, None, self.timeout)
+        except Exception as error:  # noqa: BLE001 - best effort, like send()
+            logger.warning("Telegram unreachable (%s)", type(error).__name__)
+            return []
+        out: list[tuple[int, str]] = []
+        for update in answer.get("result", []) if isinstance(answer, dict) else []:
+            message = update.get("message") or {}
+            if str((message.get("chat") or {}).get("id", "")) == self.chat_id and isinstance(update.get("update_id"), int):
+                out.append((update["update_id"], str(message.get("text", ""))))
+        return out
+
     def recent_chat_ids(self) -> list[str]:
         """Chat ids that recently wrote to the bot (setup step 3)."""
         answer = self._post(self._url("getUpdates"), None, self.timeout)
