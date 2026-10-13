@@ -336,3 +336,20 @@ only the latest work blocks. The history up to 2026-10-10 (sections 1–90) is i
   - **Cripto:** XM's other crypto symbols, spread up to 1.5% and margin up to 40%. The wide spreads are part of the lesson: they show what costs eat.
   - **Índices:** US500Cash, AUDUSD and BTCUSD, margin up to 90%. In practice that allows one position at a time on a 1:1 account.
 - **Unchanged:** the regime brake (longs only while BTC is above its mean), the event brake, the loss limit of 45% and the 3-position cap apply to every agent.
+
+### 107. Two new agents; Agent City becomes a live star map (2026-10-13)
+
+- **Owner, 2026-10-13:** "tienes la libertad de crear agentes… contrata… que la ciudad no este estatica tenga logica… media espacial".
+- **`verificador`:** checks that each Telegram notice matches the journals and state files. That covers the bot's name, real or fictitious money, the numbers, the reason given, and anything missing. It reads files only.
+- **`maestro-xm`:** reviews the three XM demo agents each day. It reports activity, what spread and swap cost, whether the brakes acted, and one lesson. It reads files only.
+- **Who runs them:** Claude local runs both daily, because the journals live on the owner's PC.
+- **Agent City artifact:** now an animated star map.
+  - Stations are bots; ships are agents.
+  - Each ship flies only the route of the work it really does.
+  - Ships turn back at the real-money shield.
+  - The data is still a snapshot that the leader republishes when something changes.
+- **Artifact review:** the earlier version had stale facts, now fixed:
+  - the practice desk was still shown with 30 USDT, though it moved to 50;
+  - the futures key was still shown as pending;
+  - the 3x practice was missing;
+  - the XM agents and their events were missing.
