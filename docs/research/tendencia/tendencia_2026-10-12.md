@@ -41,3 +41,21 @@ Investigación con datos públicos de Binance (sin cuenta, sin claves, sin órde
 **Ninguna estrategia de tendencia gana a la mesa** con las reglas del protocolo. La mejor fue **tsmom**: neto -3.53%, caída 29.74%, neto/caída -0.12 (mesa: -0.75), 122 operaciones, 3 de 5 trimestres positivos. Veredicto: pierde fuera de muestra.
 
 Advertencias: el precio Spot aproxima al perpetuo; un año es una sola historia de mercado; la mesa se mide con sus propias reglas de sesión (límite de pérdida y meta) reiniciadas cada 30 días; elegir parámetros con el pasado (walk-forward) es honesto pero no garantiza el futuro.
+
+## Datos de la mesa por ventana (control)
+
+| Ventana | Operaciones | Sin mínimo | Vetos (evitó pérdida / dejó pasar ganancia) | Final | Velas con top traders (mín. / media por moneda) |
+|---|---|---|---|---|---|
+| 2025-10-12 | 56 | 105 | 0 / 0 | fin del periodo | 100.0% / 100.0% |
+| 2025-11-11 | 68 | 0 | 1 / 0 | fin del periodo | 100.0% / 100.0% |
+| 2025-12-11 | 69 | 0 | 1 / 0 | fin del periodo | 100.0% / 100.0% |
+| 2026-01-10 | 68 | 0 | 0 / 0 | fin del periodo | 100.0% / 100.0% |
+| 2026-02-09 | 88 | 2 | 1 / 0 | fin del periodo | 100.0% / 100.0% |
+| 2026-03-11 | 103 | 3 | 3 / 0 | fin del periodo | 100.0% / 100.0% |
+| 2026-04-10 | 60 | 0 | 0 / 0 | fin del periodo | 100.0% / 100.0% |
+| 2026-05-10 | 49 | 0 | 0 / 0 | fin del periodo | 100.0% / 100.0% |
+| 2026-06-09 | 48 | 3 | 0 / 0 | fin del periodo | 100.0% / 100.0% |
+| 2026-07-09 | 43 | 1 | 0 / 0 | fin del periodo | 100.0% / 100.0% |
+| 2026-08-08 | 44 | 0 | 0 / 0 | fin del periodo | 100.0% / 100.0% |
+| 2026-09-07 | 41 | 13 | 0 / 0 | fin del periodo | 100.0% / 100.0% |
+| 2026-10-07 | 6 | 16 | 0 / 0 | fin del periodo | 100.0% / 100.0% |
