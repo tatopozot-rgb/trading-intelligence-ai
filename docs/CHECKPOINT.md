@@ -382,3 +382,19 @@ only the latest work blocks. The history up to 2026-10-10 (sections 1–90) is i
 - **The leader writes the report:** `docs/reportes/<YYYY-MM-DD>.md`, in plain Spanish, every evening (routine at 18:41 Ecuador). Sections: summary, operations, improvements, agents added or removed, analysis, risks. It holds no real-account balances, because the repo is public.
 - **The PDF:** `trading_intelligence/reports/pdf_diario.py` builds it on the owner's PC, adding each bot's numbers from `live_runs/**/state.json`. Those numbers are never committed. The PDF writer is self-contained (standard Helvetica), so no new package is needed.
 - **Sending:** `--enviar-outlook CORREO` uses Outlook desktop through COM, from the account already signed in, so no password is read or stored. A Windows task on the PC sends it daily at 19:30 Ecuador.
+
+### 111. Organized for a Claude update; options study opened (2026-10-13)
+
+- **Owner, 2026-10-13:** "ten todo organizado en Notion y en GitHub, para después cuando se actualice, solo se conecte y se cree en lo que tenga que crearse".
+- **`docs/ESTADO_ACTUAL.md` rewritten as the single entry point:**
+  - what runs where, with Windows task names;
+  - who does what (leader, Local, GPT, agents);
+  - the leader's routines with their ids;
+  - how to resume in a new session;
+  - pending reminders.
+- **`docs/AUTOMATIZACION.md`:** lists every routine, so they can be recreated. Notion has the same map ("Mapa de la empresa").
+- **Options:** the owner asked for a study only ("no vamos a empezar con esto … en un mes, dos meses empezamos").
+  - Two agents: `analista-opciones` (studies) and `riesgo-opciones` (rejects anything without defined risk, minimum fit, liquidity, a test with fees, or Ecuador access).
+  - Plan in `docs/opciones/ESTUDIO.md`: learn until 13-11, design until 13-12, then decide in December.
+  - A weekly study routine runs on Saturdays, and a reminder to the owner fires on 13-11.
+  - Naked option selling is excluded.
