@@ -153,3 +153,25 @@ def test_the_regime_brake_reads_btc_under_xms_own_name():
 
     A.XmBroker(type("T", (), {"reader": Reader()})()).candles("BTCUSDT", "1d", 55)
     assert asked == ["BTCUSD"]
+
+
+def test_a_second_agent_on_the_same_demo_account_keeps_to_its_own_positions(tmp_path):
+    first, m, sent = _auto(tmp_path, {"EURUSD": "BUY"})
+    first.step()
+    magic = A.agent_magic("Aprendiz")
+    assert magic != D.MAGIC and A.agent_magic("") == D.MAGIC
+    t = D.XmDemoTrader(tmp_path / "b.json", m, reader=XmReader(m, clock=lambda: NOW), magic=magic)
+    t.connect()
+    second = A.XmAuto(t, ["GOLD"], tmp_path / "b_state.json", agent="Aprendiz", signal=lambda *a, **k: "BUY",
+                      pause=lambda s: None, notify=sent.append, clock=lambda: NOW)
+    second.step()
+    assert [r["magic"] for r in m.sent if r["symbol"] == "GOLD"] == [magic]
+    assert set(t.positions()) == {"GOLD"} and set(first.broker.trader.positions()) == {"EURUSD"}
+    assert second.broker.name == "🧪 XM DEMO · Aprendiz (dinero virtual)"
+
+
+def test_the_cli_names_the_agent(tmp_path, capsys):
+    m = TradingMt5(equity=1_000_000.0)
+    assert A.main(["--simbolos", "EURUSD", "--dir", str(tmp_path), "--una-vez", "--agente", "Aprendiz",
+                   "--margen-max", "90", "--spread-max", "1.5"], mt5=m) == 0
+    assert "XM DEMO · Aprendiz" in capsys.readouterr().out

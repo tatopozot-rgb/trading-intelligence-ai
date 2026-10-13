@@ -100,8 +100,10 @@ def size_lots(sheet: Sheet, account: Account, stop_distance: Decimal, risk_pct: 
 
 
 class XmDemoTrader:
-    def __init__(self, journal: Path, mt5: Optional[object] = None, reader: Optional[XmReader] = None) -> None:
+    def __init__(self, journal: Path, mt5: Optional[object] = None, reader: Optional[XmReader] = None,
+                 magic: int = MAGIC) -> None:
         module = load_mt5() if mt5 is None else mt5
+        self.magic = magic  # one per agent: each agent sees and touches only its own positions
         self._mt5 = _DemoGate(module)
         self.reader = reader or XmReader(module)
         self.journal = Path(journal)
@@ -155,7 +157,7 @@ class XmDemoTrader:
     def positions(self) -> dict[str, object]:
         """This automator's open positions (its MAGIC), by symbol; the owner's manual trades are never touched."""
         return {str(p.symbol): p for p in (self._mt5.positions_get() or ())  # type: ignore[operator]
-                if int(getattr(p, "magic", -1)) == MAGIC}
+                if int(getattr(p, "magic", -1)) == self.magic}
 
     def _filling(self, symbol: str) -> int:
         mode = int(getattr(self._mt5.symbol_info(symbol), "filling_mode", 0))  # type: ignore[operator]
@@ -193,14 +195,14 @@ class XmDemoTrader:
         client = "TI-" + uuid.uuid4().hex[:12]
         return self._send({"action": TRADE_ACTION_DEAL, "symbol": plan.symbol, "volume": float(plan.lots),
                            "type": ORDER_TYPE[plan.side], "price": float(plan.price), "sl": float(plan.sl),
-                           "tp": float(plan.tp), "deviation": DEVIATION_POINTS, "magic": MAGIC, "comment": client,
+                           "tp": float(plan.tp), "deviation": DEVIATION_POINTS, "magic": self.magic, "comment": client,
                            "type_time": ORDER_TIME_GTC, "type_filling": self._filling(plan.symbol)})
 
     def move_stop(self, symbol: str, ticket: int, sl: Decimal, tp: Decimal) -> dict:
         """Moves an open position's stop (the stop that follows the gain); its target stays."""
         point = self.reader.sheet(symbol).point
         return self._send({"action": TRADE_ACTION_SLTP, "symbol": symbol, "position": ticket,
-                           "sl": float(sl.quantize(point)), "tp": float(tp.quantize(point)), "magic": MAGIC,
+                           "sl": float(sl.quantize(point)), "tp": float(tp.quantize(point)), "magic": self.magic,
                            "comment": "TI-sl-" + str(ticket)[-8:]})
 
     def close(self, symbol: str, ticket: int) -> dict:
@@ -214,7 +216,7 @@ class XmDemoTrader:
         price = sheet.bid if side == "SELL" else sheet.ask
         return self._send({"action": TRADE_ACTION_DEAL, "symbol": symbol, "volume": float(_dec(p.volume, "volumen")),
                            "type": ORDER_TYPE[side], "position": ticket, "price": float(price),
-                           "deviation": DEVIATION_POINTS, "magic": MAGIC, "comment": "TI-close-" + str(ticket)[-8:],
+                           "deviation": DEVIATION_POINTS, "magic": self.magic, "comment": "TI-close-" + str(ticket)[-8:],
                            "type_time": ORDER_TIME_GTC, "type_filling": self._filling(symbol)})
 
 
