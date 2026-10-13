@@ -62,3 +62,27 @@ def test_year_report_and_render():
 def test_yearly_periods():
     assert rr.yearly("2020-10-12", "2022-10-12") == [("2020-10-12", "2021-10-12", ""), ("2021-10-12", "2022-10-12", "")]
     assert rr.yearly("2020-10-12", "2021-04-12") == [("2020-10-12", "2021-04-12", "")]
+
+
+def test_two_means_and_two_day_confirmation():
+    days = 260
+    # 200 flat days, then above both means except one dip day below the 50-day mean
+    path = np.r_[np.full(200, 100.0), np.full(30, 120.0), [90.0], np.full(29, 125.0)]
+    b = _bars(np.repeat(path, 24))
+    both = rr.regime_signal(b.index, b["close"], (50, 200))
+    conf = rr.regime_signal(b.index, b["close"], (50, 200), confirm=2)
+    day = lambda d: 24 * d  # noqa: E731 - first hour of day d (acts on day d-1's close)
+    assert np.isnan(both[day(199)]) and both[day(201)] == 1.0
+    assert conf[day(201)] == 0.0 and conf[day(202)] == 1.0  # needs a second close above both
+    assert both[day(231)] == 0.0 and conf[day(231)] == 0.0  # the dip day: out at once
+    assert both[day(232)] == 1.0 and conf[day(232)] == 0.0 and conf[day(233)] == 1.0
+    assert len(both) == days * 24
+
+
+def test_regime_verdict_amended_bar():
+    s = {"neto_pct": 5.0, "neto_caida": 0.5, "operaciones": 4, "trimestres_no_negativos": 4,
+         "trimestres": {q: {} for q in "abcde"}}
+    assert rr.regime_verdict(s, None).startswith("cumple")
+    assert "no negativos" in rr.regime_verdict({**s, "trimestres_no_negativos": 3}, None)
+    assert "mesa" in rr.regime_verdict(s, {"neto_caida": 1.0})
+    assert "neto positivo" in rr.regime_verdict({**s, "neto_pct": -1.0}, None)

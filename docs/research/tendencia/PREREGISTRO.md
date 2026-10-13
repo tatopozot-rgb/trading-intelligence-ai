@@ -102,3 +102,48 @@ Además se informa (sin ser criterio de aprobación): la caída máxima frente a
 de la subida de BTC capturó en el año alcista y qué parte de la bajada evitó en el año bajista.
 
 Se publica el resultado tal cual, gane o pierda.
+
+---
+
+# Preregistro 3: BTC por encima de las dos medias (2026-10-13)
+
+Escrito el 2026-10-13, **antes** de correr ninguna prueba de estas reglas, a pedido del líder. Idea: `btc_sma200` evitó
+mejor los años bajistas y `btc_sma50` capturó mejor los alcistas, pero `btc_sma50` se dejó engañar por rebotes en 2022;
+exigir las dos medias a la vez podría juntar lo bueno de cada una.
+
+**Advertencia de selección, escrita antes de ver nada:** estas son las variantes 4 y 5 de la misma familia, probadas
+sobre los mismos datos 2020-2026 que ya se miraron para elegir la idea. Cuantas más variantes se prueban sobre los
+mismos datos, más fácil es que una gane por suerte. Por eso, aunque pase, sigue siendo "muestra corta" y necesita
+práctica hacia adelante (dinero ficticio) antes de contar como evidencia.
+
+## Reglas (lo demás igual que el preregistro 2)
+
+- Solo BTCUSDT, solo largos, todo el capital, 1x, velas de 1 hora, señal del cierre diario UTC ejecutada en la apertura
+  de la hora siguiente, comisión 0,05% y deslizamiento 0,02% por lado, financiación real cada 8 h cobrada cada hora,
+  1.000 USDT al empezar cada año; al empezar cada año se usa la última señal conocida.
+- `btc_sma50_200`: comprado cuando el cierre diario está por encima de su media simple de 50 días **y** por encima de
+  su media simple de 200 días (las dos del mismo día); si falla cualquiera de las dos, efectivo.
+- `btc_sma50_200_conf2`: entra solo cuando **dos cierres diarios seguidos** cumplen las dos condiciones; sale con el
+  **primer** cierre que no las cumple. Sin stop.
+
+## Años y comparación
+
+Seis años de prueba, del 12 de octubre al 12 de octubre: 2020-21, 2021-22, 2022-23, 2023-24, 2024-25 y 2025-26. Al lado,
+en la misma tabla, `btc_sma50` y `btc_sma200` del preregistro 2 (mismas reglas, sin cambios), comprar y mantener BTC y,
+en los dos últimos años, `mesa_r3` (números ya publicados).
+
+## Cómo se juzga (fijado ahora)
+
+Es una prueba nueva de régimen, así que se usa el criterio con la enmienda del líder del 2026-10-13. En **cada** año:
+
+1. Neto positivo.
+2. Trimestres no negativos (neto ≥ 0, un trimestre en efectivo cuenta) en al menos el 75% de los trimestres del año,
+   redondeando hacia arriba.
+3. Donde existe la mesa (2024-25 y 2025-26): neto / caída máxima mejor que el de `mesa_r3`.
+4. Al menos 100 operaciones: no llegará (una regla de régimen opera pocas veces), así que si cumple 1-3 en todos los
+   años se informa como "muestra corta, favorable en los seis años", no como prueba.
+
+Se informan también, sin ser criterio: el crecimiento compuesto de los seis años frente a BTC y a `btc_sma50`, la caída
+máxima de cada año frente a BTC y el resultado con el criterio original del preregistro 2 (trimestres positivos).
+
+Se publica el resultado tal cual, gane o pierda.

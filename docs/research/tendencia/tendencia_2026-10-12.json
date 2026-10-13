@@ -22,7 +22,8 @@
   "comision": 0.0005,
   "deslizamiento": 0.0002,
   "riesgo_stop": 0.05,
-  "con_mesa": true
+  "con_mesa": true,
+  "preregistro": false
  },
  "ventanas": [
   [
@@ -2291,5 +2292,1112 @@
    }
   },
   "trimestres_positivos": 2
- }
+ },
+ "control_mesa": [
+  {
+   "desde": "2025-10-12",
+   "operaciones": 56,
+   "final": "fin del periodo",
+   "sin_minimo": 105,
+   "vetos": {
+    "evit\u00f3 p\u00e9rdida": 0,
+    "dej\u00f3 pasar ganancia": 0,
+    "sin resultado": 4
+   },
+   "datos": {
+    "BTCUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "ETHUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "BNBUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "SOLUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "XRPUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "DOGEUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "ADAUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "LINKUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "AVAXUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "LTCUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "TRXUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "DOTUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    }
+   }
+  },
+  {
+   "desde": "2025-11-11",
+   "operaciones": 68,
+   "final": "fin del periodo",
+   "sin_minimo": 0,
+   "vetos": {
+    "evit\u00f3 p\u00e9rdida": 1,
+    "dej\u00f3 pasar ganancia": 0,
+    "sin resultado": 7
+   },
+   "datos": {
+    "BTCUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "ETHUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "BNBUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "SOLUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "XRPUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "DOGEUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "ADAUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "LINKUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "AVAXUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "LTCUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "TRXUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "DOTUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    }
+   }
+  },
+  {
+   "desde": "2025-12-11",
+   "operaciones": 69,
+   "final": "fin del periodo",
+   "sin_minimo": 0,
+   "vetos": {
+    "evit\u00f3 p\u00e9rdida": 1,
+    "dej\u00f3 pasar ganancia": 0,
+    "sin resultado": 25
+   },
+   "datos": {
+    "BTCUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 186,
+     "velas_con_top_pct": 100.0
+    },
+    "ETHUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 186,
+     "velas_con_top_pct": 100.0
+    },
+    "BNBUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 186,
+     "velas_con_top_pct": 100.0
+    },
+    "SOLUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 186,
+     "velas_con_top_pct": 100.0
+    },
+    "XRPUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 186,
+     "velas_con_top_pct": 100.0
+    },
+    "DOGEUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 186,
+     "velas_con_top_pct": 100.0
+    },
+    "ADAUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 186,
+     "velas_con_top_pct": 100.0
+    },
+    "LINKUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 186,
+     "velas_con_top_pct": 100.0
+    },
+    "AVAXUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 186,
+     "velas_con_top_pct": 100.0
+    },
+    "LTCUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 186,
+     "velas_con_top_pct": 100.0
+    },
+    "TRXUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 186,
+     "velas_con_top_pct": 100.0
+    },
+    "DOTUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 186,
+     "velas_con_top_pct": 100.0
+    }
+   }
+  },
+  {
+   "desde": "2026-01-10",
+   "operaciones": 68,
+   "final": "fin del periodo",
+   "sin_minimo": 0,
+   "vetos": {
+    "evit\u00f3 p\u00e9rdida": 0,
+    "dej\u00f3 pasar ganancia": 0,
+    "sin resultado": 2
+   },
+   "datos": {
+    "BTCUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 177,
+     "velas_con_top_pct": 100.0
+    },
+    "ETHUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 177,
+     "velas_con_top_pct": 100.0
+    },
+    "BNBUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 177,
+     "velas_con_top_pct": 100.0
+    },
+    "SOLUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 177,
+     "velas_con_top_pct": 100.0
+    },
+    "XRPUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 177,
+     "velas_con_top_pct": 100.0
+    },
+    "DOGEUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 177,
+     "velas_con_top_pct": 100.0
+    },
+    "ADAUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 177,
+     "velas_con_top_pct": 100.0
+    },
+    "LINKUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 177,
+     "velas_con_top_pct": 100.0
+    },
+    "AVAXUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 177,
+     "velas_con_top_pct": 100.0
+    },
+    "LTCUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 177,
+     "velas_con_top_pct": 100.0
+    },
+    "TRXUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 177,
+     "velas_con_top_pct": 100.0
+    },
+    "DOTUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 177,
+     "velas_con_top_pct": 100.0
+    }
+   }
+  },
+  {
+   "desde": "2026-02-09",
+   "operaciones": 88,
+   "final": "fin del periodo",
+   "sin_minimo": 2,
+   "vetos": {
+    "evit\u00f3 p\u00e9rdida": 1,
+    "dej\u00f3 pasar ganancia": 0,
+    "sin resultado": 16
+   },
+   "datos": {
+    "BTCUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 177,
+     "velas_con_top_pct": 100.0
+    },
+    "ETHUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 177,
+     "velas_con_top_pct": 100.0
+    },
+    "BNBUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 177,
+     "velas_con_top_pct": 100.0
+    },
+    "SOLUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 177,
+     "velas_con_top_pct": 100.0
+    },
+    "XRPUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 177,
+     "velas_con_top_pct": 100.0
+    },
+    "DOGEUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 177,
+     "velas_con_top_pct": 100.0
+    },
+    "ADAUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 177,
+     "velas_con_top_pct": 100.0
+    },
+    "LINKUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 177,
+     "velas_con_top_pct": 100.0
+    },
+    "AVAXUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 177,
+     "velas_con_top_pct": 100.0
+    },
+    "LTCUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 177,
+     "velas_con_top_pct": 100.0
+    },
+    "TRXUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 177,
+     "velas_con_top_pct": 100.0
+    },
+    "DOTUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 177,
+     "velas_con_top_pct": 100.0
+    }
+   }
+  },
+  {
+   "desde": "2026-03-11",
+   "operaciones": 103,
+   "final": "fin del periodo",
+   "sin_minimo": 3,
+   "vetos": {
+    "evit\u00f3 p\u00e9rdida": 3,
+    "dej\u00f3 pasar ganancia": 0,
+    "sin resultado": 14
+   },
+   "datos": {
+    "BTCUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "ETHUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "BNBUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "SOLUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "XRPUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "DOGEUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "ADAUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "LINKUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "AVAXUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "LTCUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "TRXUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "DOTUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    }
+   }
+  },
+  {
+   "desde": "2026-04-10",
+   "operaciones": 60,
+   "final": "fin del periodo",
+   "sin_minimo": 0,
+   "vetos": {
+    "evit\u00f3 p\u00e9rdida": 0,
+    "dej\u00f3 pasar ganancia": 0,
+    "sin resultado": 7
+   },
+   "datos": {
+    "BTCUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "ETHUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "BNBUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "SOLUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "XRPUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "DOGEUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "ADAUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "LINKUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "AVAXUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "LTCUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "TRXUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "DOTUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    }
+   }
+  },
+  {
+   "desde": "2026-05-10",
+   "operaciones": 49,
+   "final": "fin del periodo",
+   "sin_minimo": 0,
+   "vetos": {
+    "evit\u00f3 p\u00e9rdida": 0,
+    "dej\u00f3 pasar ganancia": 0,
+    "sin resultado": 3
+   },
+   "datos": {
+    "BTCUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "ETHUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "BNBUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "SOLUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "XRPUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "DOGEUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "ADAUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "LINKUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "AVAXUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "LTCUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "TRXUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "DOTUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    }
+   }
+  },
+  {
+   "desde": "2026-06-09",
+   "operaciones": 48,
+   "final": "fin del periodo",
+   "sin_minimo": 3,
+   "vetos": {
+    "evit\u00f3 p\u00e9rdida": 0,
+    "dej\u00f3 pasar ganancia": 0,
+    "sin resultado": 6
+   },
+   "datos": {
+    "BTCUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "ETHUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "BNBUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "SOLUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "XRPUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "DOGEUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "ADAUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "LINKUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "AVAXUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "LTCUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "TRXUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "DOTUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    }
+   }
+  },
+  {
+   "desde": "2026-07-09",
+   "operaciones": 43,
+   "final": "fin del periodo",
+   "sin_minimo": 1,
+   "vetos": {
+    "evit\u00f3 p\u00e9rdida": 0,
+    "dej\u00f3 pasar ganancia": 0,
+    "sin resultado": 3
+   },
+   "datos": {
+    "BTCUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 186,
+     "velas_con_top_pct": 100.0
+    },
+    "ETHUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 186,
+     "velas_con_top_pct": 100.0
+    },
+    "BNBUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 186,
+     "velas_con_top_pct": 100.0
+    },
+    "SOLUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 186,
+     "velas_con_top_pct": 100.0
+    },
+    "XRPUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 186,
+     "velas_con_top_pct": 100.0
+    },
+    "DOGEUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 186,
+     "velas_con_top_pct": 100.0
+    },
+    "ADAUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 186,
+     "velas_con_top_pct": 100.0
+    },
+    "LINKUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 186,
+     "velas_con_top_pct": 100.0
+    },
+    "AVAXUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 186,
+     "velas_con_top_pct": 100.0
+    },
+    "LTCUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 186,
+     "velas_con_top_pct": 100.0
+    },
+    "TRXUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 186,
+     "velas_con_top_pct": 100.0
+    },
+    "DOTUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 186,
+     "velas_con_top_pct": 100.0
+    }
+   }
+  },
+  {
+   "desde": "2026-08-08",
+   "operaciones": 44,
+   "final": "fin del periodo",
+   "sin_minimo": 0,
+   "vetos": {
+    "evit\u00f3 p\u00e9rdida": 0,
+    "dej\u00f3 pasar ganancia": 0,
+    "sin resultado": 18
+   },
+   "datos": {
+    "BTCUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "ETHUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "BNBUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "SOLUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "XRPUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "DOGEUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "ADAUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "LINKUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "AVAXUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "LTCUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "TRXUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    },
+    "DOTUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 183,
+     "velas_con_top_pct": 100.0
+    }
+   }
+  },
+  {
+   "desde": "2026-09-07",
+   "operaciones": 41,
+   "final": "fin del periodo",
+   "sin_minimo": 13,
+   "vetos": {
+    "evit\u00f3 p\u00e9rdida": 0,
+    "dej\u00f3 pasar ganancia": 0,
+    "sin resultado": 3
+   },
+   "datos": {
+    "BTCUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 90,
+     "velas_con_top_pct": 100.0
+    },
+    "ETHUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 90,
+     "velas_con_top_pct": 100.0
+    },
+    "BNBUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 90,
+     "velas_con_top_pct": 100.0
+    },
+    "SOLUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 90,
+     "velas_con_top_pct": 100.0
+    },
+    "XRPUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 90,
+     "velas_con_top_pct": 100.0
+    },
+    "DOGEUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 90,
+     "velas_con_top_pct": 100.0
+    },
+    "ADAUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 90,
+     "velas_con_top_pct": 100.0
+    },
+    "LINKUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 90,
+     "velas_con_top_pct": 100.0
+    },
+    "AVAXUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 90,
+     "velas_con_top_pct": 100.0
+    },
+    "LTCUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 90,
+     "velas_con_top_pct": 100.0
+    },
+    "TRXUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 90,
+     "velas_con_top_pct": 100.0
+    },
+    "DOTUSDT": {
+     "velas_5m": 8940,
+     "top_puntos": 9504,
+     "financiacion_puntos": 90,
+     "velas_con_top_pct": 100.0
+    }
+   }
+  },
+  {
+   "desde": "2026-10-07",
+   "operaciones": 6,
+   "final": "fin del periodo",
+   "sin_minimo": 16,
+   "vetos": {
+    "evit\u00f3 p\u00e9rdida": 0,
+    "dej\u00f3 pasar ganancia": 0,
+    "sin resultado": 6
+   },
+   "datos": {
+    "BTCUSDT": {
+     "velas_5m": 1740,
+     "top_puntos": 2016,
+     "financiacion_puntos": 0,
+     "velas_con_top_pct": 100.0
+    },
+    "ETHUSDT": {
+     "velas_5m": 1740,
+     "top_puntos": 2016,
+     "financiacion_puntos": 0,
+     "velas_con_top_pct": 100.0
+    },
+    "BNBUSDT": {
+     "velas_5m": 1740,
+     "top_puntos": 2016,
+     "financiacion_puntos": 0,
+     "velas_con_top_pct": 100.0
+    },
+    "SOLUSDT": {
+     "velas_5m": 1740,
+     "top_puntos": 2016,
+     "financiacion_puntos": 0,
+     "velas_con_top_pct": 100.0
+    },
+    "XRPUSDT": {
+     "velas_5m": 1740,
+     "top_puntos": 2016,
+     "financiacion_puntos": 0,
+     "velas_con_top_pct": 100.0
+    },
+    "DOGEUSDT": {
+     "velas_5m": 1740,
+     "top_puntos": 2016,
+     "financiacion_puntos": 0,
+     "velas_con_top_pct": 100.0
+    },
+    "ADAUSDT": {
+     "velas_5m": 1740,
+     "top_puntos": 2016,
+     "financiacion_puntos": 0,
+     "velas_con_top_pct": 100.0
+    },
+    "LINKUSDT": {
+     "velas_5m": 1740,
+     "top_puntos": 2016,
+     "financiacion_puntos": 0,
+     "velas_con_top_pct": 100.0
+    },
+    "AVAXUSDT": {
+     "velas_5m": 1740,
+     "top_puntos": 2016,
+     "financiacion_puntos": 0,
+     "velas_con_top_pct": 100.0
+    },
+    "LTCUSDT": {
+     "velas_5m": 1740,
+     "top_puntos": 2016,
+     "financiacion_puntos": 0,
+     "velas_con_top_pct": 100.0
+    },
+    "TRXUSDT": {
+     "velas_5m": 1740,
+     "top_puntos": 2016,
+     "financiacion_puntos": 0,
+     "velas_con_top_pct": 100.0
+    },
+    "DOTUSDT": {
+     "velas_5m": 1740,
+     "top_puntos": 2016,
+     "financiacion_puntos": 0,
+     "velas_con_top_pct": 100.0
+    }
+   }
+  }
+ ]
 }
