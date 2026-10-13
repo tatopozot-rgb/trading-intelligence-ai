@@ -264,3 +264,16 @@ only the latest work blocks. The history up to 2026-10-10 (sections 1–90) is i
 - Still, it had the smallest drawdowns of the five variants, and the best growth from 2020 to 2026 (×9.56, against ×7.37 for holding BTC).
 - It is the best of 5 variants on data already seen, so there will be no more history re-tests. It runs forward on paper only: `core_btc --medias 50,200 --estado live_runs/core_btc/paper_50_200.json`, next to the 50-day rule.
 - Open (desk owner): why 105 entries were skipped for minimum notional in the 2025-10-12 window, and 190 in 2025-08-08.
+
+### 101. Núcleo BTC can run with real money on Binance Spot (2026-10-13)
+- The owner, 2026-10-13: "mañana ya conecto las claves de binance y xm y pues a darle lider".
+- The leader's decision: the desk (`mesa_r3`) stays in practice. It lost −53% over 2025-26 and works only in bull markets.
+- The only rule that may touch real money is the Núcleo BTC (BTC above its 50-day mean, otherwise cash). It runs on Spot, without leverage, inside the limits the owner already approved in `config/live_limits.json`:
+  - One position is at most 40% of the session capital.
+  - At a 35% loss the session sells and stops.
+  - It warns 2 USD before that.
+- `core_btc --real --capital N` uses the Spot transport in `live/binance_live.py`:
+  - The key must have IP restriction and no withdrawals.
+  - Every order is journalled, and an unclear order is never resent.
+  - A STOP_LOSS sell rests on Binance 15% under the entry.
+- Only Claude local starts it, after the owner's written phrase. XM stays DEMO.
