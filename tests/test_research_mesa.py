@@ -170,3 +170,37 @@ def test_render_gates_says_when_none_passes():
     assert "Ningún filtro de régimen pasa el listón" in md and "Filtro elegido walk-forward" in md
     rows["d"]["passes"] = True
     assert "Pasan el listón" in rm.gate_verdict(out) and rm.GATE_NAMES["d"] in rm.gate_verdict(out)
+
+
+def test_macro_events_window_and_new_york_time():
+    ev = rm.macro_events()
+    fomc = pd.Timestamp("2026-09-16 18:00", tz="UTC")  # 14:00 EDT
+    cpi_winter = pd.Timestamp("2026-01-13 13:30", tz="UTC")  # 08:30 EST
+    assert fomc in ev and cpi_winter in ev
+    t = pd.DatetimeIndex([fomc - pd.Timedelta(hours=12), fomc + pd.Timedelta(hours=12, minutes=5),
+                          fomc - pd.Timedelta(hours=13)]).as_unit("ns").asi8
+    assert list(rm.near_event(t, ev)) == [True, False, False]
+
+
+def test_flush_masks():
+    n = 24 * 12 * 10
+    times = pd.date_range("2026-01-01", periods=n, freq="5min", tz="UTC").as_unit("ns").asi8
+    close = np.full(n, 100.0)
+    oi = np.full(n, 1000.0)
+    oi[3 * 288:] = 900.0  # OI -10% at day 3, price flat: a flush
+    g1, g2 = rm.flush_masks(close, oi, times)
+    assert g1[100] == rm.BOTH  # unknown 24 h ago: no gate
+    assert g1[2 * 288 + 10] == rm.SHORT  # no flush yet: no longs
+    # the 24 h drop reads as a flush until day 4; longs stay allowed 24 h after its last bar
+    assert g1[3 * 288 + 5] == rm.BOTH and g1[4 * 288 + 6] == rm.BOTH and g1[5 * 288 + 5] == rm.SHORT
+    oi2 = np.linspace(1000, 1300, n)  # OI +30% over 10 days, price flat: fragile leverage
+    _, g2 = rm.flush_masks(close, oi2, times)
+    assert g2[50] == rm.BOTH and g2[-1] == rm.SHORT
+
+
+def test_entry_only_gate_keeps_open_positions():
+    s = _sym(side_at=[(10, 1)], stop_pct=0.05)
+    flip = np.full(600, rm.BOTH, dtype=np.int8)
+    flip[50:] = rm.SHORT
+    rep = rm.replay({"X": s}, 0, 600, rules=D.DeskRules(), slippage=0.0, allow={"X": flip}, close_on_gate=False)
+    assert rep.trades[0]["why"] != "régimen" and rep.trades[0]["k1"] == 599
