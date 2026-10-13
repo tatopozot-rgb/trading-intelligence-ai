@@ -30,6 +30,7 @@ from typing import Any, Optional
 import numpy as np
 import pandas as pd
 
+from trading_intelligence.backtesting import real_data_validation as rdv
 from trading_intelligence.backtesting import two_way_backtest as tw
 from trading_intelligence.live import desk as D
 from trading_intelligence.strategy.exit_plan import plan_exits
@@ -119,7 +120,7 @@ def arrays(p: tw.Prepared, rules: D.DeskRules) -> Sym:
             continue
         stop[i] = float(plan.stop)
         near[i] = D._near_round(plan.stop, rules.round_number_buffer_pct) is not None
-    return Sym(pd.DatetimeIndex(bars.index).as_unit("ns").asi8,bars["open"].values.astype(float), bars["high"].values.astype(float),
+    return Sym(pd.DatetimeIndex(bars.index).as_unit("ns").asi8, bars["open"].values.astype(float), bars["high"].values.astype(float),
                bars["low"].values.astype(float), closes.astype(float), side, qual, stop, mood, funding, near)
 
 
@@ -138,6 +139,61 @@ def align(syms: dict[str, Sym]) -> tuple[np.ndarray, dict[str, Sym]]:
                         put(s.side, 0, np.int8), put(s.qual, 0.0), put(s.stop, np.nan), put(s.mood, 0.0),
                         put(s.funding, np.nan), put(s.near_round, False, bool))
     return times, out
+
+
+# ---------------------------------------------------------------------------
+# Regime gates (leader, 2026-10-12): which sides may be open at each bar. Bit 1 = longs, bit 2 = shorts.
+# Daily and 4h values count only once their bar has closed (no look-ahead); unknown (warm-up) = no gate.
+# ---------------------------------------------------------------------------
+
+LONG, SHORT, BOTH = 1, 2, 3
+GATE_NAMES = {
+    "a": "a) BTC sobre su media de 200 días: solo largos; si no, fuera",
+    "b": "b) BTC sobre su media de 50 días: solo largos; si no, fuera",
+    "c": "c) tendencia 4h de la moneda y diaria de BTC (medias 50) de acuerdo: ese lado; si no, fuera",
+    "d": "d) largos sobre la media de 200 días de BTC, cortos debajo",
+    "e": "e) sin operar si BTC cae en 30 días",
+}
+
+
+def trend(closes: pd.Series, interval: pd.Timedelta, n: int, times: np.ndarray) -> np.ndarray:
+    """+1 / -1 if the last CLOSED bar is above / below its n-bar mean as of each time; NaN while unknown."""
+    sma = closes.rolling(n).mean()
+    sign = np.where(sma.isna(), np.nan, np.sign(closes.values - sma.values))
+    avail = pd.DatetimeIndex(closes.index + interval).as_unit("ns").asi8
+    j = np.searchsorted(avail, times, side="right") - 1
+    return np.where(j >= 0, sign[np.clip(j, 0, None)], np.nan)
+
+
+def gates(times: np.ndarray, names: list[str], btc_d1: pd.Series, h4: dict[str, pd.Series]) -> dict[str, dict]:
+    day, four = pd.Timedelta(days=1), pd.Timedelta(hours=4)
+    b200, b50 = trend(btc_d1, day, 200, times), trend(btc_d1, day, 50, times)
+    ret =(btc_d1 / btc_d1.shift(30) - 1).values
+    avail = pd.DatetimeIndex(btc_d1.index + day).as_unit("ns").asi8
+    j = np.searchsorted(avail, times, side="right") - 1
+    r30 = np.where(j >= 0, ret[np.clip(j, 0, None)], np.nan)
+
+    def mask(cond_long: np.ndarray, cond_short: np.ndarray, unknown: np.ndarray) -> np.ndarray:
+        m = np.where(cond_long, LONG, 0) | np.where(cond_short, SHORT, 0)
+        return np.where(unknown, BOTH, m).astype(np.int8)
+
+    out: dict[str, dict] = {}
+    for g in GATE_NAMES:
+        per = {}
+        for name in names:
+            if g == "a":
+                per[name] = mask(b200 > 0, np.zeros(len(times), bool), np.isnan(b200))
+            elif g == "b":
+                per[name] = mask(b50 > 0, np.zeros(len(times), bool), np.isnan(b50))
+            elif g == "c":
+                c4 = trend(h4[name], four, 50, times) if name in h4 else np.full(len(times), np.nan)
+                per[name] = mask((c4 > 0) & (b50 > 0), (c4 < 0) & (b50 < 0), np.isnan(c4) | np.isnan(b50))
+            elif g == "d":
+                per[name] = mask(b200 > 0, b200 < 0, np.isnan(b200))
+            else:
+                per[name] = mask(r30 >= 0, r30 >= 0, np.isnan(r30))
+        out[g] = per
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -182,7 +238,10 @@ def vetoes(s: Sym, k: int, side: int, target_r: float, rules: D.DeskRules) -> li
 
 def replay(syms: dict[str, Sym], lo: int, hi: int, exits: Exits = BASELINE, sizing: Sizing = SIZINGS[0],
            rules_on: frozenset[str] = frozenset(RULES), rules: Optional[D.DeskRules] = None,
-           slippage: float = SLIPPAGE, capital: float = CAPITAL, risk_override: Optional[float] = None) -> Replay:
+           slippage: float = SLIPPAGE, capital: float = CAPITAL, risk_override: Optional[float] = None,
+           allow: Optional[dict[str, np.ndarray]] = None) -> Replay:
+    """`allow`: a regime gate per symbol (bit 1 longs, bit 2 shorts); a closed side is not opened, and a position
+    on it is closed at the bar's close ("régimen")."""
     rules = rules or D.DeskRules.load()
     res = Replay()
     cash = capital
@@ -220,6 +279,8 @@ def replay(syms: dict[str, Sym], lo: int, hi: int, exits: Exits = BASELINE, sizi
                 cash += close_pos(name, p, p.sl if hit_sl else p.tp, "stop" if hit_sl else "meta", k)
             elif sig != 0 and sig != p.side:
                 cash += close_pos(name, p, c, "señal contraria", k)
+            elif allow is not None and not allow[name][k] & (LONG if long else SHORT):
+                cash += close_pos(name, p, c, "régimen", k)
             elif exits.max_hold_bars is not None and k - p.k0 >= exits.max_hold_bars:
                 cash += close_pos(name, p, c, "tiempo", k)
             else:
@@ -244,6 +305,8 @@ def replay(syms: dict[str, Sym], lo: int, hi: int, exits: Exits = BASELINE, sizi
             sig = int(s.side[k])
             c = s.close[k]
             if sig == 0 or math.isnan(c) or math.isnan(s.stop[k]):
+                continue
+            if allow is not None and not allow[name][k] & (LONG if sig > 0 else SHORT):
                 continue
             sl = float(s.stop[k])
             if [v for v in vetoes(s, k, sig, exits.target_r, rules) if v in rules_on]:
@@ -365,11 +428,13 @@ def veto_audit(syms: dict[str, Sym], lo: int, hi: int, rules: D.DeskRules, targe
 
 SYMS: dict[str, Sym] = {}
 RULES_OBJ: Optional[D.DeskRules] = None
+GATES: dict[str, dict] = {}
 
 
 def _block(task: tuple) -> tuple:
-    key, lo, hi, exits, sizing, rules_on, risk = task
-    rep = replay(SYMS, lo, hi, exits, sizing, rules_on, RULES_OBJ, risk_override=risk)
+    key, lo, hi, exits, sizing, rules_on, risk, *gate = task
+    allow = GATES[gate[0]] if gate and gate[0] else None
+    rep = replay(SYMS, lo, hi, exits, sizing, rules_on, RULES_OBJ, risk_override=risk, allow=allow)
     return key, lo, stats(rep), rep.curve, [{k: t[k] for k in ("pnl", "side", "risk_usdt")} for t in rep.trades]
 
 
@@ -412,6 +477,7 @@ def experiments(times: np.ndarray, workers: int) -> dict:
               for r in RULES for lo, hi in bl]
     tasks += [(("rules_off", "todas"), lo, hi, BASELINE, SIZINGS[0], frozenset(), None) for lo, hi in bl]
     tasks += [(("sizing", z.name), lo, hi, BASELINE, z, frozenset(RULES), None) for z in SIZINGS for lo, hi in bl]
+    tasks += [(("gate", g), lo, hi, BASELINE, SIZINGS[0], frozenset(RULES), None, g) for g in GATES for lo, hi in bl]
     res = run_tasks(tasks, workers)
     base = res[("grid", BASELINE)]
     los = [lo for lo, _ in bl]
@@ -423,21 +489,48 @@ def experiments(times: np.ndarray, workers: int) -> dict:
 
     # 1. quarters (3 blocks each) for mesa_r3, with BTC buy-and-hold
     btc = SYMS.get("BTCUSDT")
-    quarters = []
-    for q in range(0, len(bl) - len(bl) % 3, 3):
-        qlos = los[q:q + 3]
-        st = [base[lo][0] for lo in qlos]
-        tot = chain(st, [base[lo][1] for lo in qlos])
-        a, b = bl[q][0], bl[q + 2][1] - 1
-        bh = None
-        if btc is not None and not math.isnan(btc.close[a]) and not math.isnan(btc.close[b]):
-            bh = round((btc.close[b] / btc.close[a] - 1) * 100, 2)
-        quarters.append({"from": str(pd.Timestamp(times[a], tz="UTC").date()),
+
+    def quarter_rows(per: dict) -> list[dict]:
+        rows = []
+        for q in range(0, len(bl) - len(bl) % 3, 3):
+            qlos = los[q:q + 3]
+            st = [per[lo][0] for lo in qlos]
+            tot = chain(st, [per[lo][1] for lo in qlos])
+            a, b = bl[q][0], bl[q + 2][1] - 1
+            bh = None
+            if btc is not None and not math.isnan(btc.close[a]) and not math.isnan(btc.close[b]):
+                bh = round((btc.close[b] / btc.close[a] - 1) * 100, 2)
+            rows.append({"from": str(pd.Timestamp(times[a], tz="UTC").date()),
                          "to": str(pd.Timestamp(times[b], tz="UTC").date()), **tot, "btc_buy_hold_pct": bh,
                          "long_n": sum(s["long_n"] for s in st), "long_net_pct": round(sum(s["long_net_pct"] for s in st), 2),
                          "short_n": sum(s["short_n"] for s in st),
                          "short_net_pct": round(sum(s["short_net_pct"] for s in st), 2),
                          "win_rate": round(np.mean([s["win_rate"] for s in st if s["trades"]]), 1) if any(s["trades"] for s in st) else 0.0})
+        return rows
+
+    quarters = quarter_rows(base)
+    # 5. regime gates: each gate per quarter and over the year, plus a gate chosen walk-forward
+    gate_rows = {}
+    for g in GATES:
+        qs = quarter_rows(res[("gate", g)])
+        year = series(("gate", g))["total"]
+        positive = sum(1 for x in qs if x["net_pct"] > 0)
+        gate_rows[g] = {"name": GATE_NAMES[g], "quarters": qs, "year": year, "quarters_positive": positive,
+                        "passes": positive >= 3 and len(qs) >= 4 and (year["net_dd"] or 0) > 1}
+    options: dict[str, dict] = {"ninguno": base, **{g: res[("gate", g)] for g in GATES}}
+    gate_wf = []
+    for j in range(FIT_BLOCKS, len(los)):
+        fit = los[j - FIT_BLOCKS: j]
+
+        def gscore(g: str, _fit: list[int] = fit) -> float:
+            c = chain([options[g][lo][0] for lo in _fit], [options[g][lo][1] for lo in _fit])
+            return c["net_pct"] / max(c["max_dd_pct"], 1.0)
+        gate_wf.append((los[j], max(options, key=gscore)))
+    gwf_total = chain([options[g][lo][0] for lo, g in gate_wf], [options[g][lo][1] for lo, g in gate_wf])
+    gates_out = {"rows": gate_rows,
+                 "walk_forward": {"oos": gwf_total, "chosen": [{"block_from": str(pd.Timestamp(times[lo], tz="UTC").date()),
+                                                                "gate": g} for lo, g in gate_wf],
+                                  "baseline_same_blocks": series(("grid", BASELINE), [lo for lo, _ in gate_wf])["total"]}}
     # 2. walk-forward exits: pick on the previous FIT_BLOCKS blocks by chained net/drawdown, test the next block
     wf, chosen = [], []
     for j in range(FIT_BLOCKS, len(los)):
@@ -475,24 +568,37 @@ def experiments(times: np.ndarray, workers: int) -> dict:
                                         for lo, g in wf],
                              "oos": wf_total, "baseline_same_blocks": base_oos["total"]},
             "skeptic": {"per_setup": audit, "ablation": ablation, "baseline": series(("grid", BASELINE))["total"]},
-            "sizing": sizing}
+            "sizing": sizing, "gates": gates_out}
 
 
 # ---------------------------------------------------------------------------
 # Data and report
 # ---------------------------------------------------------------------------
 
-def _load_symbol(args: tuple) -> tuple[str, Optional[Sym], str]:
+def coverage(values: list[Optional[float]], n: int) -> float:
+    """% of bars with a known value."""
+    known = sum(1 for v in values if v is not None and not (isinstance(v, float) and math.isnan(v)))
+    return round(known / n * 100, 1) if n else 0.0
+
+
+def _load_symbol(args: tuple) -> tuple[str, Optional[Sym], str, dict]:
     sym, warm_iso, end_iso = args
     warm, end = datetime.fromisoformat(warm_iso), datetime.fromisoformat(end_iso)
+    rdv.INTERVAL_MS.setdefault("4h", 14_400_000)
+    rdv.INTERVAL_MS.setdefault("1d", 86_400_000)
     try:
         m5 = tw.fetch(sym, "5m", warm, end)
         h1 = tw.fetch(sym, "1h", warm - timedelta(hours=tw.SLOW + 5), end)
+        h4 = rdv.fetch_klines(sym, "4h", warm - timedelta(days=30), end)["close"]
+        d1 = rdv.fetch_klines(sym, "1d", warm - timedelta(days=260), end)["close"]
     except Exception as error:  # noqa: BLE001 - one symbol's data must not stop the others
-        return sym, None, f"sin datos ({type(error).__name__})"
+        return sym, None, f"sin datos ({type(error).__name__})", {}
     top, funding = tw.fetch_top_traders(sym, warm, end), tw.fetch_funding(sym, warm, end)
     p = tw.prepare(m5, h1, tw.WARMUP, top, funding)
-    return sym, arrays(p, D.DeskRules.load()), f"{len(m5)} velas, top traders {len(top)}, financiación {len(funding)}"
+    n = len(p.bars)
+    extra = {"h4": h4, "d1": d1, "cov_top": coverage(p.top_ratio, n), "cov_funding": coverage(p.funding, n)}
+    note = f"{len(m5)} velas, top traders {len(top)} ({extra['cov_top']}% de velas), financiación {len(funding)}"
+    return sym, arrays(p, D.DeskRules.load()), note, extra
 
 
 def verdict(result: dict) -> list[str]:
@@ -512,6 +618,44 @@ def verdict(result: dict) -> list[str]:
                      f"({x['long_net_pct']:+.1f}%).")
     if not bearish:
         lines.append("Ningún trimestre fue claramente bajista para BTC (< −5%): la prueba de mercado bajista queda incompleta.")
+    if "gates" in result:
+        lines.append(gate_verdict(result["gates"]))
+    return lines
+
+
+def gate_verdict(gates_out: dict) -> str:
+    passing = [r["name"] for r in gates_out["rows"].values() if r["passes"]]
+    if passing:
+        return "**Pasan el listón (≥3 de 4 trimestres positivos y neto/caída > 1):** " + "; ".join(passing) + "."
+    return ("**Ningún filtro de régimen pasa el listón** (≥3 de 4 trimestres positivos y neto/caída > 1): la mesa es "
+            "una herramienta de mercado alcista y debería quedarse fuera el resto del tiempo.")
+
+
+def render_gates(gates_out: dict, base_quarters: list[dict]) -> list[str]:
+    rows = gates_out["rows"]
+    heads = [f"{q['from']} → {q['to']}" for q in base_quarters]
+    lines = ["## 5. Filtros de régimen (por trimestre)", "",
+             "Mismos 12 bloques que la sección 1. Los valores diarios y de 4h cuentan solo cuando su vela cerró (sin "
+             "mirar el futuro). Un filtro cerrado no abre ese lado y cierra al precio de la vela la posición que ya "
+             "estuviera abierta. Los filtros no tienen parámetros ajustados aquí; el año entero es fuera de muestra "
+             "para ellos, aunque se eligieron sabiendo que el año fue bajista hasta julio.", "",
+             gate_verdict(gates_out), "",
+             "| Filtro | " + " | ".join(heads) + " | Año: neto % / caída / neto/caída | Ops | Trimestres + | Pasa |",
+             "|---|" + "---|" * len(heads) + "---|---|---|---|"]
+    lines.append("| mesa_r3 sin filtro | " + " | ".join(f"{q['net_pct']:+.1f}%" for q in base_quarters) + " | | | "
+                 f"{sum(1 for q in base_quarters if q['net_pct'] > 0)} | no |")
+    for r in rows.values():
+        y = r["year"]
+        lines.append(f"| {r['name']} | " + " | ".join(f"{q['net_pct']:+.1f}%" for q in r["quarters"])
+                     + f" | {y['net_pct']:+.1f}% / {y['max_dd_pct']}% / {y['net_dd']} | {y['trades']} | "
+                     f"{r['quarters_positive']} | {'sí' if r['passes'] else 'no'} |")
+    wf = gates_out["walk_forward"]
+    o, b = wf["oos"], wf["baseline_same_blocks"]
+    lines += ["", f"**Filtro elegido walk-forward** (el mejor neto/caída de los 90 días anteriores, entre ninguno y a–e): "
+              f"{o['net_pct']:+.1f}% neto, caída {o['max_dd_pct']}%, neto/caída {o['net_dd']}, {o['trades']} operaciones, "
+              f"{o['blocks_positive']}/{o['blocks']} bloques positivos; mesa_r3 sin filtro en los mismos bloques: "
+              f"{b['net_pct']:+.1f}% / {b['max_dd_pct']}% / {b['net_dd']}.",
+              "Elegidos: " + "; ".join(f"{c['block_from']}: {c['gate']}" for c in wf["chosen"])]
     return lines
 
 
@@ -569,7 +713,15 @@ def render(result: dict, meta: dict) -> str:
     for name, s in result["sizing"].items():
         lines.append(f"| {name} | {s['net_pct']:+.1f}% | {s['max_dd_pct']}% | {s['net_dd']} | {s['trades']} |")
     lines += ["", "Medio Kelly se calcula en cada bloque con las operaciones de mesa_r3 de los 90 días anteriores (en R), "
-              "entre 1% y 15%; se compara con la fila \"(misma ventana)\".", "",
+              "entre 1% y 15%; se compara con la fila \"(misma ventana)\"."]
+    if "gates" in result:
+        lines += ["", *render_gates(result["gates"], result["quarters"])]
+    if meta.get("cobertura"):
+        lines += ["", "## Cobertura de datos (% de velas de 5 minutos con dato)", "",
+                  "| Moneda | Top traders | Financiación |", "|---|---|---|"]
+        for s, c in meta["cobertura"].items():
+            lines.append(f"| {s} | {c['top_traders_pct']}% | {c['financiacion_pct']}% |")
+    lines += ["",
               "Advertencias: el precio Spot aproxima al perpetuo; los últimos ~60 días se usaron para elegir 3R (dentro "
               "de muestra para mesa_r3); un año es pocos ciclos; los bloques empiezan sin posiciones. Un resultado pasado "
               "no promete uno futuro."]
@@ -577,24 +729,37 @@ def render(result: dict, meta: dict) -> str:
 
 
 def main(argv: Optional[list[str]] = None) -> int:
-    global SYMS, RULES_OBJ
+    global SYMS, RULES_OBJ, GATES
     parser = argparse.ArgumentParser(description="La mesa en un año: robustez y ajustes (investigación)")
     parser.add_argument("--dias", type=int, default=DAYS)
+    parser.add_argument("--hasta", default=None, help="fin del periodo, AAAA-MM-DD (por defecto: ahora)")
     parser.add_argument("--simbolos", nargs="+", default=list(tw.SYMBOLS))
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--salida", type=Path, default=OUT_DIR)
     args = parser.parse_args(argv)
-    end = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    if args.hasta:
+        end = datetime.fromisoformat(args.hasta).replace(tzinfo=timezone.utc)
+    else:
+        end = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
     warm = end - timedelta(days=args.dias) - timedelta(minutes=5 * tw.WARMUP)
     with Pool(max(1, args.workers)) as pool:
         loaded = pool.map(_load_symbol, [(s, warm.isoformat(), end.isoformat()) for s in args.simbolos])
-    for sym, _, note in loaded:
+    for sym, _, note, _ in loaded:
         print(f"{sym}: {note}")
-    times, SYMS = align({s: a for s, a, _ in loaded if a is not None})
+    extras = {s: x for s, a, _, x in loaded if a is not None}
+    times, SYMS = align({s: a for s, a, _, _ in loaded if a is not None})
+    if "BTCUSDT" in extras:
+        btc_d1 = extras["BTCUSDT"]["d1"]
+    else:
+        rdv.INTERVAL_MS.setdefault("1d", 86_400_000)
+        btc_d1 = rdv.fetch_klines("BTCUSDT", "1d", warm - timedelta(days=260), end)["close"]
+    GATES = gates(times, list(SYMS), btc_d1, {s: x["h4"] for s, x in extras.items()})
     RULES_OBJ = D.DeskRules.load()
     result = experiments(times, args.workers)
     meta = {"desde": (end - timedelta(days=args.dias)).date().isoformat(), "hasta": end.date().isoformat(),
-            "simbolos": list(SYMS)}
+            "simbolos": list(SYMS),
+            "cobertura": {s: {"top_traders_pct": x["cov_top"], "financiacion_pct": x["cov_funding"]}
+                          for s, x in extras.items()}}
     args.salida.mkdir(parents=True, exist_ok=True)
     stamp = end.date().isoformat()
     (args.salida / f"mesa_{stamp}.json").write_text(json.dumps({"meta": meta, **result}, indent=1, default=str),
@@ -603,7 +768,6 @@ def main(argv: Optional[list[str]] = None) -> int:
     (args.salida / f"mesa_{stamp}.md").write_text(report, encoding="utf-8")
     print(report)
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())
