@@ -4,10 +4,12 @@ pre-registered test in docs/research/tendencia/PREREGISTRO.md (Preregistro 2): h
 the daily close is above its 50-day simple mean, otherwise sit in cash. It was the only rule found that ended
 positive in both measured years (2024-25 +53% with a 21% drawdown while BTC made +77% with 28%; 2025-26 +14%
 with 18% while BTC lost 24% with 49%), but on few trades, so it is measured live, with fictitious money, before
-anything else.
+anything else. Variant `--medias 50,200` (Preregistro 3, PR #49): long only above BOTH means; it failed the bar
+(-4.8% in 2021-22) but had the smallest drawdowns, so it runs forward next to it, with no more history re-tests.
 
     python -m trading_intelligence.live.core_btc            # one pass (Task Scheduler, every hour)
     python -m trading_intelligence.live.core_btc resumen    # where the paper account stands
+    python -m trading_intelligence.live.core_btc --medias 50,200 --estado live_runs/core_btc/paper_50_200.json
 
 Rules (frozen as pre-registered): the signal uses CLOSED daily bars only (UTC); a change is acted on at the next
 pass after the daily close, at the current price; all the capital, no leverage; fee 0.05% and slippage 0.02% per
@@ -45,18 +47,21 @@ def closed_daily(daily: pd.DataFrame, now: datetime) -> pd.DataFrame:
     return daily[index + timedelta(days=1) <= pd.Timestamp(now)]
 
 
-def wants_long(closed: pd.DataFrame) -> Optional[bool]:
+def wants_long(closed: pd.DataFrame, means: Sequence[int] = (SMA_DAYS,)) -> Optional[bool]:
     closes = closed["close"].astype(float)
-    if len(closes) < SMA_DAYS:
+    if len(closes) < max(means):
         return None
-    return bool(closes.iloc[-1] > closes.tail(SMA_DAYS).mean())
+    return all(closes.iloc[-1] > closes.tail(n).mean() for n in means)
 
 
 class CoreBTC:
     def __init__(self, feed: Feed, state_path: Path = DEFAULT_STATE, capital: float = 30.0,
                  notify: Callable[[str], None] = telegram_notify.console,
-                 clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc)) -> None:
+                 clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
+                 means: Sequence[int] = (SMA_DAYS,)) -> None:
         self.feed, self.state_path, self.notify, self.clock = feed, Path(state_path), notify, clock
+        self.means = tuple(means)
+        self.label = " y ".join(str(n) for n in self.means)
         self.state = self._load(capital)
 
     def _load(self, capital: float) -> dict:
@@ -80,7 +85,7 @@ class CoreBTC:
 
     def step(self) -> Optional[str]:
         now = self.clock()
-        closed = closed_daily(self.feed.get_ohlcv(SYMBOL, "1d", SMA_DAYS + 10), now)
+        closed = closed_daily(self.feed.get_ohlcv(SYMBOL, "1d", max(self.means) + 10), now)
         if closed.empty:
             return None
         day = str(pd.Timestamp(closed.index[-1]).date())
@@ -93,14 +98,14 @@ class CoreBTC:
             self._save()
             return None
         s["day"] = day
-        want = wants_long(closed)
+        want = wants_long(closed, self.means)
         msg = None
         if want and s["qty"] == 0:
             fill = price * (1 + SLIPPAGE)
             qty = float(s["cash"]) / (fill * (1 + FEE))
             s["cash"], s["qty"], s["entry"] = 0.0, qty, fill
             s["trades"].append({"time": now.isoformat(), "side": "BUY", "price": fill, "qty": qty})
-            msg = (f"🧭 Núcleo BTC (práctica, dinero ficticio): BTC cerró sobre su media de {SMA_DAYS} días → COMPRO "
+            msg = (f"🧭 Núcleo BTC (práctica, dinero ficticio): BTC cerró sobre su media de {self.label} días → COMPRO "
                    f"{qty:.6f} BTC a {fill:,.0f}. Saldo {self.equity(price):.2f} USDT.")
         elif want is False and s["qty"] > 0:
             fill = price * (1 - SLIPPAGE)
@@ -108,7 +113,7 @@ class CoreBTC:
             pnl = cash - float(s["qty"]) * float(s["entry"])
             s["trades"].append({"time": now.isoformat(), "side": "SELL", "price": fill, "qty": s["qty"], "pnl": pnl})
             s["cash"], s["qty"], s["entry"] = float(s["cash"]) + cash, 0.0, None
-            msg = (f"🧭 Núcleo BTC (práctica, dinero ficticio): BTC cerró bajo su media de {SMA_DAYS} días → VENDO a "
+            msg = (f"🧭 Núcleo BTC (práctica, dinero ficticio): BTC cerró bajo su media de {self.label} días → VENDO a "
                    f"{fill:,.0f} y quedo en efectivo ({pnl:+.2f} USDT en la operación). Saldo {self.equity(price):.2f} USDT.")
         self._save()
         if msg:
@@ -120,7 +125,7 @@ class CoreBTC:
         s = self.state
         eq = self.equity(price)
         pos = f"comprado {s['qty']:.6f} BTC desde {s['entry']:,.0f}" if s["qty"] > 0 else "en efectivo"
-        return (f"🧭 Núcleo BTC (práctica): {pos}. Saldo {eq:.2f} USDT ({(eq / s['start_capital'] - 1) * 100:+.1f}% desde "
+        return (f"🧭 Núcleo BTC {self.label} (práctica): {pos}. Saldo {eq:.2f} USDT ({(eq / s['start_capital'] - 1) * 100:+.1f}% desde "
                 f"{s['start_capital']}), {len(s['trades'])} operaciones.")
 
 
@@ -129,12 +134,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("cmd", nargs="?", choices=("revisar", "resumen"), default="revisar")
     parser.add_argument("--capital", type=float, default=30.0)
     parser.add_argument("--estado", type=Path, default=DEFAULT_STATE)
+    parser.add_argument("--medias", default=str(SMA_DAYS), help="e.g. 50 or 50,200 (long only above all of them)")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     from trading_intelligence.data.binance_public_feed import BinancePublicKlines
 
     notify = telegram_notify.make_notify(telegram_notify.console, telegram_notify.from_env())
-    core = CoreBTC(BinancePublicKlines(), args.estado, args.capital, notify)
+    means = tuple(int(n) for n in args.medias.split(","))
+    core = CoreBTC(BinancePublicKlines(), args.estado, args.capital, notify, means=means)
     if args.cmd == "resumen":
         notify(core.summary())
         return 0

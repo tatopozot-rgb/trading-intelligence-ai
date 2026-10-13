@@ -258,3 +258,9 @@ only the latest work blocks. The history up to 2026-10-10 (sections 1–90) is i
 - Daily market intelligence and theory routine, written to `docs/inteligencia/`.
 
 **Still no real money:** no strategy passes the protocol in every regime.
+
+### 100. Trend Preregistro 3 measured; its rule joins the core BTC practice (2026-10-13)
+- PR #49: "BTC above both its 50- and 200-day means" **does not pass** (−4.8% in 2021-22; single losing quarters in bull years).
+- Still, it had the smallest drawdowns of the five variants, and the best growth from 2020 to 2026 (×9.56, against ×7.37 for holding BTC).
+- It is the best of 5 variants on data already seen, so there will be no more history re-tests. It runs forward on paper only: `core_btc --medias 50,200 --estado live_runs/core_btc/paper_50_200.json`, next to the 50-day rule.
+- Open (desk owner): why 105 entries were skipped for minimum notional in the 2025-10-12 window, and 190 in 2025-08-08.

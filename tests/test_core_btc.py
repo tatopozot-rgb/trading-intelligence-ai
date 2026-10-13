@@ -57,3 +57,12 @@ def test_summary_reports_the_paper_account(tmp_path):
     feed = Feed([100.0] * 61, start)
     core = C.CoreBTC(feed, tmp_path / "s.json", 30.0, lambda m: None, clock=lambda: _now(feed))
     assert "efectivo" in core.summary() and "30.00" in core.summary()
+
+
+def test_the_two_mean_variant_needs_both_means(tmp_path):
+    start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    # a long fall then a short rally: above the 50-day mean, still below the 200-day mean
+    feed = Feed(list(np.linspace(200, 100, 180)) + list(np.linspace(100, 130, 40)) + [130.0], start)
+    assert C.wants_long(C.closed_daily(feed.get_ohlcv("BTCUSDT", "1d"), _now(feed))) is True
+    core = C.CoreBTC(feed, tmp_path / "v.json", 30.0, lambda m: None, clock=lambda: _now(feed), means=(50, 200))
+    assert core.step() is None and core.state["qty"] == 0
