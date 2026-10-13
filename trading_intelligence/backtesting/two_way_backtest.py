@@ -354,7 +354,7 @@ def simulate(prepared: dict[str, Prepared], variant: str, capital: float,
                 tp, plan = float(ftp), replace(plan, target=ftp)
             if desk:
                 mood = D.sentiment(p.funding[i], p.top_ratio[i], None)
-                qual = max(0.0, min(1.0, qual + 0.2 * (mood.score if side == "BUY" else -mood.score)))
+                # no sentiment tilt on the size, as live (docs/research/sentimiento/)
                 verdict = D.skeptic(side, Decimal(str(close)), plan.stop, plan.target, mood, p.funding[i], rules)
                 if not verdict.approved:
                     res.vetoes[_veto_outcome(p, i, side, sl, tp)] += 1

@@ -620,9 +620,8 @@ class TwoWayAuto:
         if quiet is not None and quiet[0] == signal and self.clock() - quiet[1] < VETO_QUIET:
             return  # refused minutes ago for this same side: not re-proposed every 30 s
         mood, funding = self._mood(sym)
-        if mood is not None:
-            lean = mood.score if signal == "BUY" else -mood.score
-            quality = round(max(0.0, min(1.0, quality + 0.2 * lean)), 4)  # the Chief weighs the sentiment
+        # No sentiment tilt on the size (Quant, 2026-10-13, docs/research/sentimiento/): where the mood "agreed"
+        # most, longs did slightly worse at 24 h. The mood still feeds the Skeptic and the journal.
         risk = self.risk_for(quality)
         plan = self.broker.plan(sym, signal, risk, self.timeframe)
         run = self._rally(sym) if signal == "BUY" and self.desk_rules is not None else None

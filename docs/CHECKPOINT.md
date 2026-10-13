@@ -277,3 +277,11 @@ only the latest work blocks. The history up to 2026-10-10 (sections 1–90) is i
   - Every order is journalled, and an unclear order is never resent.
   - A STOP_LOSS sell rests on Binance 15% under the entry.
 - Only Claude local starts it, after the owner's written phrase. XM stays DEMO.
+
+### 102. Sentiment measured: no useful prediction; the size tilt is removed (2026-10-13)
+- Quant (`docs/research/sentimiento/`):
+  - The Skeptic's sentiment rule (−0.5) never fires: the top-traders ratio is almost always above 1, so the score leans bullish.
+  - Agreement and the 24 h result are slightly *negatively* related (Spearman −0.04/−0.05).
+  - Funding alone has no direction (0.003, 2020-26).
+  - The saturated-funding veto is a separate rule and stays.
+- The leader's decision: the +0.2 × sentiment tilt on the trade size is removed, in live practice and in the backtest. The mood still feeds the Skeptic and the journal. The inert rule stays until a normalized top-traders ratio is researched (not started).
