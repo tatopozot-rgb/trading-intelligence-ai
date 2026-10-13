@@ -363,3 +363,15 @@ only the latest work blocks. The history up to 2026-10-10 (sections 1–90) is i
 - **Cause:** `size_lots` capped size only by effective leverage (2x). On a 1:1 account, 2x exposure needs twice the equity in margin, so the order failed MT5's own check.
 - **Fix:** size is also capped at the agent's share of free margin (`max_margin_pct_of_free`), using MT5's margin per lot. Test: `test_size_lots_stays_inside_the_margin_a_1_to_1_account_can_carry`.
 - **City:** the owner chose the artifact as the city ("No es necesario si es que consumiría muchos recursos"). The 3D city's development is paused on a local branch, not merged.
+
+### 109. Run like a trading firm: Director de Operaciones, incident log, brakes fail closed (2026-10-13)
+
+- **Owner, 2026-10-13:** "funcionar como empresas que se dedican a esto, ten alguien revisando como se manejan funciones todo y anda mejorando".
+- **`director-operaciones`:** a weekly review. It covers:
+  - a scorecard per bot;
+  - live results against the backtest, with a return-to-practice rule at 1.5× the tested drawdown, or when the last 20 trades lose money while the test made money;
+  - separation of duties and change control;
+  - incidents and capital.
+  It reads files only. Claude local runs it weekly, because the data lives on the owner's PC.
+- **`docs/INCIDENTES.md`:** one row per failure, with root cause, fix and test. It starts with today's incidents.
+- **Fail closed:** when the regime brake cannot read BTC's daily bars, it now keeps its last reading. With no reading at all, it blocks new entries instead of trading without a brake. Open positions keep their stops, and nothing is closed on a data error. The heartbeat says why.

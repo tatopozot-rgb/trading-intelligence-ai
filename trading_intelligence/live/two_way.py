@@ -431,6 +431,9 @@ class TwoWayAuto:
         if self.desk_rules is not None and self.desk_rules.regime_btc_sma is not None and self._regime[1] is False:
             mirror.append(f"freno de mercado activo: BTC está bajo su media de {self.desk_rules.regime_btc_sma} días, "
                           f"así que no compro (en esos tramos la mesa perdió en la prueba de un año)")
+        elif self.desk_rules is not None and self.desk_rules.regime_btc_sma is not None and self._regime[0] is not None \
+                and self._regime[1] is None:
+            mirror.append("no puedo leer las velas diarias de BTC, así que no abro nada nuevo hasta poder leerlas")
         event = D.event_near(now) if self.desk_rules is not None else None
         if event is not None:
             mirror.append(f"cerca de un dato macro ({event}): no abro nada nuevo hasta 2 h después")
@@ -548,7 +551,8 @@ class TwoWayAuto:
 
     def _regime_up(self) -> Optional[bool]:
         """The regime brake (desk rule regime_btc_sma): is BTC above its N-day mean on closed daily bars? Checked at
-        most once an hour; None (no brake) when the rule is off or BTC's daily bars cannot be read."""
+        most once an hour; None when the rule is off. When BTC's daily bars cannot be read it keeps the last value
+        it read, and None then (rule on) means no new entries: the brake fails closed, never open."""
         if self.desk_rules is None or self.desk_rules.regime_btc_sma is None:
             return None
         now = self.clock()
@@ -558,9 +562,9 @@ class TwoWayAuto:
         days = self.desk_rules.regime_btc_sma
         try:
             up = D.btc_regime_up(self.broker.candles(REGIME_SYMBOL, "1d", days + 5), days, now)
-        except Exception as error:  # noqa: BLE001 - no BTC data: no brake, like the research
+        except Exception as error:  # noqa: BLE001 - no BTC data: keep what we last knew
             logger.warning("régimen: sin velas diarias de BTC (%s)", error)
-            up = None
+            up = before
         if up is not None and before is not None and up != before:
             self.chatter(f"🧭 {self.broker.name}: BTC cerró {'sobre' if up else 'bajo'} su media de {days} días. "
                          + ("Vuelvo a buscar compras." if up else "Freno de riesgo: no abro nada y cierro lo abierto."))
@@ -631,6 +635,8 @@ class TwoWayAuto:
             return
         if self.desk_rules is not None and D.event_near(self.clock()) is not None:
             return  # no new entries around FOMC/CPI (config/eventos.json); open positions keep their stops
+        if up is None and self.desk_rules is not None and self.desk_rules.regime_btc_sma is not None:
+            return  # the brake cannot read BTC: no new entries until it can (open positions keep their stops)
         if up is not None and (signal == "SELL" or not up):
             return  # the regime brake keeps the desk flat
         quiet = self._last_veto.get(sym)
