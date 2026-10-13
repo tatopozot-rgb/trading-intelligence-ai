@@ -89,3 +89,18 @@ Claude Leader) y guardar la memoria en Obsidian, para no gastar recursos recorda
   `config/futures_limits.json` aprobado por escrito por el dueño (margen aislado, apalancamiento máximo
   del archivo, que hoy es 1x). El dueño activó su cuenta de futuros el 2026-10-10. El dueño mueve él
   mismo los USDT entre Spot y Futuros.
+
+## Rutinas del líder (2026-10-13)
+
+They run on claude.ai and fire into the leader's session (`session_01AaCojVisJUfr9cmMs47yJA`). If a new session or an
+updated Claude takes over, recreate them from this list. Times are Ecuador time.
+
+| Id | Cuándo | Qué hace |
+|----|--------|----------|
+| `trig_01FnSxUzGVSSS92BiPESWF2R` | daily 06:52 | Market intelligence (WebSearch) into `docs/inteligencia/<date>.md`, one theory lesson from `docs/APRENDIZAJE_TEORIA.md`, and one public bot or strategy studied and tested into `docs/inteligencia/BOTS_PUBLICOS.md`. It messages the owner only for big events or a strategy that beats the desk in both years. |
+| `trig_01BkPE7QgQKuBiXYUUZHD5vE` | every 2 h | Reads Claude local's latest messages and acts on anything for the leader. Silent otherwise. |
+| `trig_013qzbkeQXYpG5jgscp4KWt6` | every 12 h | General monitor. |
+| `trig_018iafb7jhFaL48gb5HWs9Rz` | daily 18:41 | Writes `docs/reportes/<date>.md` (Spanish, no real balances) and merges it, for the 19:30 PDF that the PC emails. |
+| `trig_01Q47Xpwz7FxspbqUhPawX6y` | Saturdays 10:23 | Options study, following `.claude/agents/analista-opciones.md`, into `docs/opciones/`. |
+| `trig_01APn5fTGh7g42ZX1R818rXc` | 2026-11-13, one shot | Reminds the owner of the options study's progress. |
+| `trig_01V4DiXbXAfwEzCnDRo5zEBD` | 2026-10-14 09:40, one shot | Checks that real futures started on the PC. |

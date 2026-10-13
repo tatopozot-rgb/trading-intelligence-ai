@@ -6,43 +6,67 @@ status: living
 
 # Estado actual — Trading Intelligence AI
 
-> **Regla del dueño (2026-10-10):** "deben revisar obsidian y git para no revisar todo el hilo y solo
-> donde se quedaron". Cada agente empieza leyendo **Obsidian "Estado actual"** (`09 Checkpoints/Memoria
-> viva.md`, sección de arriba) y **este archivo**, y sigue desde aquí. No hace falta releer la
-> conversación ni el historial viejo.
->
-> Las novedades se anotan en `docs/CHECKPOINT.md`. El historial anterior al 2026-10-10 está en
-> `docs/archivo/`.
+> **Punto de entrada único.** Cualquier sesión nueva empieza aquí: el líder en la nube, Claude local, un hilo nuevo o
+> la versión unificada de Claude que llegue después. Este archivo dice qué corre, quién hace qué y cómo retomar.
+> Las novedades se anotan en `docs/CHECKPOINT.md` y las fallas en `docs/INCIDENTES.md`. La misma información está en
+> Notion: «Trading Intelligence AI — Operations Center», página «Mapa de la empresa».
 
-Actualizado: 2026-10-13 (Claude Leader).
+Actualizado: 2026-10-13 23:30 UTC (Claude Leader). Main en `1fde4c5`.
 
-> **ALERTA (2026-10-13):** probada con un año de datos (oct 2025 – oct 2026), la mesa **pierde −53%**: gana solo en el
-> trimestre alcista (+52%) y pierde más que BTC en los tres trimestres bajistas. Lo confirmaron tres réplicas
-> independientes (CHECKPOINT §98). **Nada de futuros con dinero real** hasta que una estrategia gane en 3 de 4 trimestres
-> fuera de muestra. La práctica 1 (dinero ficticio) sigue solo para aprender; la práctica 2 (3x) queda cancelada.
+## 0. Hoy en una línea
+
+El dueño escribió en el chat de Local «Activa futuros reales con 31 USDT». Arranca el **14-10 a las 09:30 de Ecuador**,
+después del IPC. Practican 4 bots en Binance (dinero ficticio) y 3 agentes en XM demo. Las opciones están **en estudio**
+(sin operar) hasta dic-2026.
 
 ## 1. Qué opera y dónde
 
-| Mercado | Estado | Cómo |
+| Bot | Dinero | Dónde corre | Estado |
+|---|---|---|---|
+| Futuros reales Binance | 31 USDT reales, 1x, aislado | PC, tarea `TradingIntelligence-FuturosReal` | Arranca 14-10 09:30 |
+| Mesa de futuros (práctica 1) | 50 USDT ficticios | PC, tarea propia | Corriendo |
+| Práctica 3x | 30 USDT ficticios, 3x | PC, tarea propia | Corriendo |
+| Núcleo BTC · 50 y · 50/200 | 30 USDT ficticios cada uno | PC, cada hora | Corriendo |
+| Operador XM (ETHUSD, OILCash) | XM demo, 1.000 USD virtuales | PC, `TradingIntelligence-XMDemo` | Corriendo |
+| XM Cripto (8 cripto, spread ≤1,5 %) | misma cuenta demo | PC, `TradingIntelligence-XMCripto` | Corriendo |
+| XM Índices (US500Cash, AUDUSD, BTCUSD) | misma cuenta demo | PC, `TradingIntelligence-XMIndices` | Corriendo |
+| Alarma de mercado | — | PC | Corriendo |
+| Binance Spot, vigilante `market_watch`, ciudad 3D | — | — | Detenidos por el dueño |
+
+Todos usan el mismo motor (`live/two_way.py`). XM necesita MT5 abierto con «Algo Trading» en verde. Tras un reinicio del
+PC, el dueño entra a Windows y abre MT5.
+
+## 1b. Organización: quién hace qué
+
+| Quién | Dónde | Qué hace |
 |---|---|---|
-| **Binance Futuros USDⓈ-M** (principal) | El código está listo, pero **sin dinero real**: la mesa pierde en mercados bajistas (ver alerta). Solo práctica hasta que pase un filtro de mercado. | `python -m trading_intelligence.live.binance_futures --modo real`. Hasta entonces se puede correr en `--modo shadow` (precios reales, sin dinero). |
-| **XM / MetaTrader 5** | Listo para DEMO; el dueño lo instala y conecta el lunes. | `python -m trading_intelligence.live.xm_auto`. El dinero real va en la fase 3, con la frase del dueño y los límites de XM. |
-| **Alarma de mercado** (`alarma`) | Nueva (2026-10-13), por orden del dueño: "si el mercado va a explotar ... me notifiques como loco hasta yo atender y aceptar la operación". Revisa cada minuto BTC, ETH y las monedas de la mesa; ante un choque (4% en 15 min, 7% en 1 h, 12% en 24 h, o el 70% de las monedas 6% en 1 h) avisa por Telegram cada minuto hasta que el dueño responda `ACEPTO <código>`, `NO <código>` o `VISTO <código>`. Solo opera con ACEPTO, a 1x, con stop en Binance y meta a 3 veces el riesgo. Expira en 1 hora sin respuesta. Opcional: Pushover hace sonar el teléfono hasta que se confirme. | `python -m trading_intelligence.live.alarma` (práctica). `--modo real` solo con la frase del dueño a Local. |
-| **Órdenes del dueño por Telegram** (`ordenes`) | Nuevo (2026-10-13), pedido del dueño: "detén en tal ganancia o que detenga ya". `CIERRA TRX` cierra esa posición al momento; `META TRX 5` la cierra al ganar 5% desde la entrada; `META TRX PRECIO 0.36` al llegar a ese precio. La alarma recibe el mensaje y cada bot que tenga esa posición la aplica (≈30 s) y confirma verificado 2 veces. Solo cierra o fija una salida; nunca abre ni sube el riesgo. Órdenes de más de 15 min se ignoran. | Funciona con la alarma corriendo. |
-| **Binance Spot** | **Detenido** por el dueño ("Para", 2026-10-10 08:44 UTC), sin vender ni mover nada. Sin USDT; solo restos. | No se reactiva sin su palabra a Local. |
-| **Vigilante del mercado** (`market_watch`) | **Desactivado** por el dueño ("Deten vigilante", 2026-10-10). La tarea no se borró. Mientras siga así, no hay avisos de mercado ni de "alcista brutal" por Telegram. | Se reactiva solo con su palabra a Local. |
+| **Líder** (Claude en la nube) | sesión `session_01AaCojVisJUfr9cmMs47yJA`, rama `ccr-b66a9a9e-okj2pl` | Ordena, programa, revisa y une PRs, escribe los reportes. No toca el PC ni mueve dinero. |
+| **Claude local** | PC del dueño, Remote Control `qosmio-wp-squishy-fairy` (`session_01W2LeDkr7cYE5bLEzwReHsx`) | Corre los bots, guarda las claves en Windows y ejecuta las órdenes del líder. El dinero real solo arranca con la frase del dueño escrita en su chat. |
+| **GPT** | Notion, Task Board (agente «Trading Codex») | Auditor externo con créditos limitados, una pasada por tarea. Se le ordena por Notion. |
+| **Agentes de análisis** | `.claude/agents/` | Scout, News, Sentiment, Charts, Escéptico, Chief (mesa); Compliance; Verificador; Maestro XM; Director de Operaciones; Analista de Opciones; Riesgo de Opciones. Ninguno ejecuta órdenes. |
 
-Las dos plataformas usan **el mismo sistema** (`live/two_way.py`), porque "los 2 mercados son futuros".
+**Rutinas del líder** (claude.ai, en esta sesión; hora de Ecuador):
 
-## 1b. Práctica y aprendizaje (orden del dueño, 2026-10-11)
+| Rutina | Cuándo | Qué hace |
+|---|---|---|
+| `trig_01FnSxUzGVSSS92BiPESWF2R` | diario 06:52 | Inteligencia de mercado, una lección de teoría, un bot público estudiado. |
+| `trig_01BkPE7QgQKuBiXYUUZHD5vE` | cada 2 h | Lee los mensajes de Local y actúa. |
+| `trig_013qzbkeQXYpG5jgscp4KWt6` | cada 12 h | Monitor general. |
+| `trig_018iafb7jhFaL48gb5HWs9Rz` | diario 18:41 | Escribe `docs/reportes/<fecha>.md` para el PDF del dueño. |
+| `trig_01Q47Xpwz7FxspbqUhPawX6y` | sábados 10:23 | Estudio del mercado de opciones (ver `docs/opciones/`). |
+| `trig_01APn5fTGh7g42ZX1R818rXc` | 13-11 09:00 | Recordatorio al dueño: avance del estudio de opciones. |
 
-- **Práctica con dinero ficticio:** Binance con 30 USDT desde ya, XM DEMO con 30 USD desde el lunes. Usa el mismo
-  motor y los mismos límites. Telegram la marca "🧪 SIMULADO".
-- **Reporte diario** de la práctica en `docs/shadow_futures/` (rama `local/practica`). El líder lo lee cada día y
-  GPT Work hace el análisis profundo (`docs/prompts/GPT_WORK_FUTUROS.md`).
-- **Segunda práctica, para aprender a arriesgar más:** otra cuenta ficticia de 30 USDT con apalancamiento 3x y posición máxima de 150% (`--apalancamiento 3 --posicion-max 150`, carpeta `live_runs/futures_auto_3x`). Solo existe en práctica; el dinero real sigue en 1x.
-- **Plan completo y regla para subir el riesgo a 15–30% real:** `docs/APRENDIZAJE_FUTUROS.md`.
-- **Dinero real:** cuando XM esté conectado, con la frase del dueño escrita a Local.
+**Tareas de Local** (en el PC): revisión diaria con Verificador y Maestro XM a las 19:07; Director de Operaciones los
+domingos a las 19:03; reporte PDF por Outlook a las 19:30 cuando el dueño lo confirme.
+
+## 1c. Cómo retomar (sesión nueva o actualización de Claude)
+
+1. Lee este archivo, las últimas secciones de `docs/CHECKPOINT.md` y `docs/INCIDENTES.md`.
+2. En Notion, lee «Mapa de la empresa» y el Task Board (lo pendiente de GPT y del dueño).
+3. Si no existe la sesión de Local, el dueño ejecuta `claude remote-control` en el PC. El líder no puede crear sesiones
+   en el PC.
+4. Vuelve a crear las rutinas de la tabla de arriba si no existen. Sus textos están en `docs/AUTOMATIZACION.md`.
+5. Nunca arranques dinero real por tu cuenta: solo Local, con la frase del dueño en su chat.
 
 ## 2. Límites aprobados por el dueño (Futuros)
 
@@ -118,28 +142,14 @@ conexión vuelva. Los stops siguen puestos en el servidor.
   reglas se revisan con más datos antes de cambiarlas.
 - El resultado se lee como una comparación entre variantes, no como una promesa.
 
-## 6. Lunes: checklist para operar con dinero real
+## 6. Pendiente que el líder debe recordar
 
-1. El dueño crea la **clave nueva de Binance con Futuros**: lectura y Futuros, IP restringida, **sin
-   retiros**. La guarda él mismo en Windows como `BINANCE_FUTURES_API_KEY` y
-   `BINANCE_FUTURES_SECRET_KEY`.
-2. Revisa que la cuenta de futuros esté en modo **unidireccional (One-way)** y que tenga saldo.
-3. Claude local actualiza a `main` y corre `binance_futures --modo real --una-vez`. Esa pasada
-   comprueba la clave, el modo y el saldo, y toma una decisión.
-4. Con la frase del dueño escrita a Local, lo deja corriendo con su vigilante.
-5. XM: el dueño instala MT5 (DEMO) e inicia sesión él mismo. Local corre `cuenta`, `fichas`, la prueba
-   de `xm_demo` y después `xm_auto`.
-
-### Pendiente que el líder debe recordar al dueño
-
-- **Tablero de operaciones en Notion.** Se arma cuando Futuros lleve unos días operando estable, desde el
-  jueves 2026-10-15. El bot del PC escribe en una tabla de Notion cada operación ya verificada en la cuenta.
-  Con una sola conexión, a una sola página, y la clave la guarda el dueño en Windows. Telegram sigue siendo el
-  aviso al momento y Notion no decide nada. Orden del dueño, 2026-10-10: "tienes que recordarlo porque si no
-  yo me olvido".
-- **Riesgo:** el dueño confirmó el 2026-10-10 que se mantienen sus porcentajes: "1% no es nada, debe ser 15%
-  y los porcentajes que yo ya puse". Sigue el 1–15% según la calidad de la señal, como dice
-  `config/futures_limits.json`. En la prueba de 30 días, el riesgo medio fue 12,9%.
+- **14-10 09:40:** confirmar que arrancaron los futuros reales (PID, saldo, 1x aislado) y avisar al dueño.
+- **Reporte PDF por Outlook:** espera el «sí» del dueño en el chat de Local y el Outlook clásico con su cuenta abierta.
+- **Tablero de operaciones en Notion:** se arma cuando Futuros lleve unos días estable, desde el 15-10. Orden del dueño,
+  2026-10-10: «tienes que recordarlo porque si no yo me olvido».
+- **Opciones:** recordar al dueño el 13-11 el avance del estudio; decidir en dic-2026 si se prueba en práctica.
+- **Decimales:** redondear la meta en los avisos de la práctica 3x (va con el próximo cambio del motor).
 
 ## 7. Reglas que nunca cambian
 
