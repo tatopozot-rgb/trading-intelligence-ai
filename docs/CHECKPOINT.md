@@ -375,3 +375,10 @@ only the latest work blocks. The history up to 2026-10-10 (sections 1–90) is i
   It reads files only. Claude local runs it weekly, because the data lives on the owner's PC.
 - **`docs/INCIDENTES.md`:** one row per failure, with root cause, fix and test. It starts with today's incidents.
 - **Fail closed:** when the regime brake cannot read BTC's daily bars, it now keeps its last reading. With no reading at all, it blocks new entries instead of trading without a brake. Open positions keep their stops, and nothing is closed on a data error. The heartbeat says why.
+
+### 110. Daily PDF report to the owner's email (2026-10-13)
+
+- **Owner, 2026-10-13:** "un reporte diario en pdf qué llegue a mi correo de Outlook explicando todo y los cambios que hiciste para mejorar, análisis y todo, mejoras realizadas igual si algún bot agente algo dejo de servir o se integró alguien más".
+- **The leader writes the report:** `docs/reportes/<YYYY-MM-DD>.md`, in plain Spanish, every evening (routine at 18:41 Ecuador). Sections: summary, operations, improvements, agents added or removed, analysis, risks. It holds no real-account balances, because the repo is public.
+- **The PDF:** `trading_intelligence/reports/pdf_diario.py` builds it on the owner's PC, adding each bot's numbers from `live_runs/**/state.json`. Those numbers are never committed. The PDF writer is self-contained (standard Helvetica), so no new package is needed.
+- **Sending:** `--enviar-outlook CORREO` uses Outlook desktop through COM, from the account already signed in, so no password is read or stored. A Windows task on the PC sends it daily at 19:30 Ecuador.
