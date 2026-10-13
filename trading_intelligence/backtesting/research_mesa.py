@@ -740,7 +740,7 @@ def render_gates(gates_out: dict, base_quarters: list[dict]) -> list[str]:
                      f"{r['quarters_positive']} | {'sí' if r['passes'] else 'no'} |")
     wf = gates_out["walk_forward"]
     o, b = wf["oos"], wf["baseline_same_blocks"]
-    lines += ["", f"**Filtro elegido walk-forward** (el mejor neto/caída de los 90 días anteriores, entre ninguno y a–e): "
+    lines += ["", f"**Filtro elegido walk-forward** (el mejor neto/caída de los 90 días anteriores, entre ninguno y a–g): "
               f"{o['net_pct']:+.1f}% neto, caída {o['max_dd_pct']}%, neto/caída {o['net_dd']}, {o['trades']} operaciones, "
               f"{o['blocks_positive']}/{o['blocks']} bloques positivos; mesa_r3 sin filtro en los mismos bloques: "
               f"{b['net_pct']:+.1f}% / {b['max_dd_pct']}% / {b['net_dd']}.",

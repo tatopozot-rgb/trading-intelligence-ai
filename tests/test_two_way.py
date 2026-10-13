@@ -433,3 +433,40 @@ def test_a_heartbeat_tells_the_owner_the_bot_is_alive_every_few_hours(tmp_path):
     now[0] += timedelta(minutes=30)
     auto.watch()
     assert len([m for m in sent if "🫀" in m]) == 1  # once per interval
+
+
+class RegimeBroker(FakeBroker):
+    """BTC daily bars that end above (up=True) or below (up=False) their 50-day mean."""
+
+    up = True
+
+    def candles(self, symbol, timeframe, count):
+        if timeframe != "1d":
+            return super().candles(symbol, timeframe, count)
+        closes = np.linspace(100, 150, count) if self.up else np.linspace(150, 100, count)
+        idx = pd.date_range(end=NOW - pd.Timedelta(hours=13), periods=count, freq="1D")
+        return pd.DataFrame({"close": closes}, index=idx)
+
+
+def test_the_regime_brake_allows_only_longs_above_btcs_mean_and_closes_the_rest(tmp_path):
+    rules = T.D.DeskRules(target_min_pct=None, regime_btc_sma=50, min_reward_risk=Decimal("1"))
+    sig = {"SOLUSDT": "SELL", "ETHUSDT": "BUY"}
+    b = RegimeBroker()
+    auto, b, sent = _engine(tmp_path, sig, broker=b, desk_rules=rules)
+    auto.step()
+    assert "SOLUSDT" not in b.pos and "ETHUSDT" in b.pos  # shorts are blocked even above the mean
+    b.up = False
+    auto._regime = (None, True)  # force a fresh read
+    auto.step()
+    assert "ETHUSDT" not in b.pos and "ETHUSDT" in b.closed  # below the mean: the long is closed
+    assert any("freno de riesgo" in m for m in sent)
+    auto.step()
+    assert not b.pos  # and nothing new opens
+
+
+def test_without_btc_data_the_brake_does_nothing(tmp_path):
+    rules = T.D.DeskRules(target_min_pct=None, regime_btc_sma=50, min_reward_risk=Decimal("1"))
+    sig = {"SOLUSDT": "SELL"}
+    auto, b, sent = _engine(tmp_path, sig, desk_rules=rules)  # FakeBroker serves 5m bars for "1d": too short
+    auto.step()
+    assert "SOLUSDT" in b.pos

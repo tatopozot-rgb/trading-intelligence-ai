@@ -50,6 +50,7 @@ from typing import Callable, Optional, Protocol
 import pandas as pd
 
 from trading_intelligence.live import desk as D
+from trading_intelligence.live import ordenes as O
 from trading_intelligence.live.operator import in_windows, parse_windows
 from trading_intelligence.live.telegram_notify import console
 from trading_intelligence.strategy.two_way_signals import signal_for
@@ -64,6 +65,7 @@ TRAIL_START_R, TRAIL_DISTANCE_R = Decimal("1"), Decimal("0.5")  # as on Spot
 RUNNING, WAITING_OWNER, STOPPED, GOAL, PAUSED_API = "RUNNING", "WAITING_OWNER", "STOPPED", "GOAL", "PAUSED_API"
 API_FAILURES_TO_PAUSE = 3  # kill switch: this many failed passes in a row stop new entries until one works
 VETO_QUIET = timedelta(minutes=30)  # a vetoed symbol/side is not re-proposed for this long
+REGIME_SYMBOL = "BTCUSDT"  # the regime brake reads BTC's daily bars
 VETO_TRACK = timedelta(hours=24)  # a veto's outcome is scored for this long
 CONTINUE_FILE = "CONTINUAR"
 VERIFY_PAUSE_S = 2.0  # between the two account reads that confirm a message
@@ -149,7 +151,8 @@ class TwoWayAuto:
                  desk_rules: Optional[D.DeskRules] = None, journal_dir: Optional[Path] = None,
                  news_get: Optional[D.Getter] = None, watch_every_s: int = 30, report_every_s: int = 120,
                  notify: Callable[[str], None] = console, chatter: Callable[[str], None] = console,
-                 goal_usd: Optional[Decimal] = None, heartbeat_every_s: Optional[int] = None, pause: Callable[[float], None] = time.sleep,
+                 goal_usd: Optional[Decimal] = None, heartbeat_every_s: Optional[int] = None,
+                 orders_path: Optional[Path] = None, pause: Callable[[float], None] = time.sleep,
                  clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc)) -> None:
         if max_open < 1 or not (0 < risk_min_pct <= risk_max_pct <= 15) or not (0 < loss_limit_pct <= 100):
             raise ValueError("max_open >= 1, 0 < risk_min_pct <= risk_max_pct <= 15, loss_limit_pct in (0, 100]")
@@ -182,6 +185,8 @@ class TwoWayAuto:
         self._last_veto: dict[str, tuple[str, datetime]] = {}
         self._rally_seen: dict[str, tuple[datetime, Optional[D.Alert]]] = {}
         self._fng: tuple[Optional[datetime], Optional[int]] = (None, None)
+        self._regime: tuple[Optional[datetime], Optional[bool]] = (None, None)
+        self.orders_path = orders_path  # the owner's Telegram orders (live/ordenes.py), written by the alarm
         self._failures = 0
 
     def decision_due(self) -> bool:
@@ -328,6 +333,7 @@ class TwoWayAuto:
             return
         self._last_watch = now
         try:
+            self._owner_orders(now)
             if self.state.known:
                 ours = self._reconcile()
                 for sym in list(self.state.known):
@@ -335,6 +341,8 @@ class TwoWayAuto:
                     if pos is None:
                         continue
                     price = self.broker.price(sym)
+                    if self._owner_target_hit(pos, price):
+                        continue
                     self._trail(pos, price)
                     self._report(pos, price, now)
             self._score_vetoes()
@@ -344,6 +352,51 @@ class TwoWayAuto:
         except (RuntimeError, ValueError) as error:
             self._note_once(f"watch:{str(error)[:40]}", f"bots: {error}")
         self.state.save(self.state_path)
+
+    def _owner_orders(self, now: datetime) -> None:
+        """The owner's Telegram orders for positions this bot holds: close now, or close at a gain he names."""
+        if self.orders_path is None:
+            return
+        name = self.broker.name
+        for order in O.pending(self.orders_path, self.state_path.parent / "ordenes.cursor", now):
+            info = self.state.known.get(order.symbol)
+            pos = self.broker.positions().get(order.symbol)
+            if info is None or pos is None or pos.ticket != info.get("ticket"):
+                continue  # not this bot's position; another bot (or none) holds it
+            if order.kind == "CIERRA":
+                self._close_by_owner(pos, "como ordenaste por Telegram")
+            elif order.kind == "META" and order.value is not None:
+                entry = Decimal(str(info.get("entry", pos.entry)))
+                target = O.target_price(entry, pos.side, order.value, order.is_price)
+                price = self.broker.price(order.symbol)
+                ahead = target > price if pos.side == "BUY" else target < price
+                if not ahead:
+                    self.notify(f"⚠️ 🤖 Bot {order.symbol} · {name}: la meta {target:.6g} ya quedó atrás del precio "
+                                f"({price}); si quieres salir ahora escribe CIERRA {order.symbol.removesuffix('USDT')}.")
+                    continue
+                info["owner_target"] = str(target)
+                self._event("OWNER_TARGET", f"{order.symbol} {target}")
+                self.notify(f"🎯 🤖 Bot {order.symbol} · {name}: cierro la {'compra' if pos.side == 'BUY' else 'venta en corto'} "
+                            f"cuando llegue a {target:.6g} (precio ahora {price}), como ordenaste. El stop sigue puesto.")
+
+    def _owner_target_hit(self, pos: Position, price: Decimal) -> bool:
+        info = self.state.known.get(pos.symbol, {})
+        target = info.get("owner_target")
+        if target is None:
+            return False
+        hit = price >= Decimal(target) if pos.side == "BUY" else price <= Decimal(target)
+        if hit:
+            self._close_by_owner(pos, f"llegó a tu meta de {Decimal(target):.6g}")
+        return hit
+
+    def _close_by_owner(self, pos: Position, why: str) -> None:
+        self.broker.close(pos)
+        self.state.known.pop(pos.symbol, None)
+        self._event("CLOSE", f"{pos.symbol} {pos.side}: orden del dueño")
+        confirmed = self._verified(pos.symbol, open_=False)
+        self.notify(f"✋ 🤖 Bot {pos.symbol} · {self.broker.name}: cerré la {'compra' if pos.side == 'BUY' else 'venta en corto'} "
+                    f"{why}. " + ("Verificado 2 veces en la cuenta." if confirmed else
+                                  "⚠️ La cuenta todavía la muestra abierta: la reviso en la próxima vuelta."))
 
     def _heartbeat(self, now: datetime) -> None:
         """Every few hours: the account's equity (two reads that agree), open positions and what the desk did."""
@@ -478,6 +531,27 @@ class TwoWayAuto:
         self._rally_seen[sym] = (now, alert)
         return alert
 
+    def _regime_up(self) -> Optional[bool]:
+        """The regime brake (desk rule regime_btc_sma): is BTC above its N-day mean on closed daily bars? Checked at
+        most once an hour; None (no brake) when the rule is off or BTC's daily bars cannot be read."""
+        if self.desk_rules is None or self.desk_rules.regime_btc_sma is None:
+            return None
+        now = self.clock()
+        at, before = self._regime
+        if at is not None and now - at < timedelta(hours=1):
+            return before
+        days = self.desk_rules.regime_btc_sma
+        try:
+            up = D.btc_regime_up(self.broker.candles(REGIME_SYMBOL, "1d", days + 5), days, now)
+        except Exception as error:  # noqa: BLE001 - no BTC data: no brake, like the research
+            logger.warning("régimen: sin velas diarias de BTC (%s)", error)
+            up = None
+        if up is not None and before is not None and up != before:
+            self.chatter(f"🧭 {self.broker.name}: BTC cerró {'sobre' if up else 'bajo'} su media de {days} días. "
+                         + ("Vuelvo a buscar compras." if up else "Freno de riesgo: no abro nada y cierro lo abierto."))
+        self._regime = (now, up)
+        return up
+
     def risk_for(self, quality: float) -> Decimal:
         """1% to 15% of equity with the signal's quality (0-1); never with past wins or losses."""
         q = Decimal(str(max(0.0, min(1.0, quality))))
@@ -511,6 +585,18 @@ class TwoWayAuto:
         s, name = self.state, self.broker.name
         signal, quality, data = self._signal(sym)
         pos = ours.get(sym)
+        up = self._regime_up()
+        if pos is not None and up is not None and (pos.side == "SELL" or not up):
+            self.broker.close(pos)  # the regime brake: only longs, and only while BTC is above its mean
+            ours.pop(sym)
+            s.known.pop(sym, None)
+            self._event("CLOSE", f"{sym} {pos.side}: freno de régimen")
+            confirmed = self._verified(sym, open_=False)
+            self.notify(f"🧭 🤖 Bot {sym} · {name}: cerré la {'compra' if pos.side == 'BUY' else 'venta en corto'} por el "
+                        f"freno de riesgo (solo compras, y solo con BTC sobre su media). "
+                        + ("Verificado 2 veces en la cuenta." if confirmed else
+                           "⚠️ La cuenta todavía la muestra abierta: la reviso en la próxima vuelta."))
+            return
         if pos is not None:
             riding = pos.side == "BUY" and bool(s.known.get(sym, {}).get("rally"))
             if signal is not None and signal != pos.side and not riding:  # a bull run ends only at the trailing stop
@@ -528,6 +614,8 @@ class TwoWayAuto:
             return
         if signal is None or s.status != RUNNING or s.halted or len(ours) >= self.max_open:
             return
+        if up is not None and (signal == "SELL" or not up):
+            return  # the regime brake keeps the desk flat
         quiet = self._last_veto.get(sym)
         if quiet is not None and quiet[0] == signal and self.clock() - quiet[1] < VETO_QUIET:
             return  # refused minutes ago for this same side: not re-proposed every 30 s

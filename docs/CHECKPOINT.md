@@ -228,3 +228,33 @@ only the latest work blocks. The history up to 2026-10-10 (sections 1–90) is i
   - Quant tests a regime gate: trade only when BTC is in an uptrend (200/50-day mean), flat otherwise.
   - Tendencia tests two fixed setups, pre-registered on 2026-10-12, on the year before (2024-10 → 2025-10).
 - The +58%/month goal is not supported by any evidence we have.
+
+### 99. Practice gets a risk brake, a core BTC bot, an alarm and Telegram orders; carry and trend measured (2026-10-13)
+
+**Owner's orders:**
+- "busca estrategias ... estúdialo en la teoría".
+- "si el mercado va a explotar ... me notifiques como loco hasta yo atender y aceptar la operación".
+- "manejes esto como una empresa de trading".
+- "detén en tal ganancia o que detenga ya".
+
+**Evidence:**
+- **Regime gates on the desk** (Quant, two years, `docs/research/mesa/`): no gate makes `mesa_r3` a winner. BTC above its 50-day mean, longs only, is the best brake:
+
+  | Year | Without brake | With brake |
+  |---|---|---|
+  | 2025-26 | −65.5% | −7.4% |
+  | 2024-25 (blind) | +17.6% | +78% |
+
+- **BTC régimen** (Tendencia, pre-registered, 2020-26, `docs/research/tendencia/`): `btc_sma50` compounded ×9.4 against ×7.4 for holding BTC, with lower drawdown in 4 of 6 years. It lost −49% in 2022. A better way to hold BTC, not a bear-market earner.
+- **Trend families, rotation, reversion, pairs:** nothing holds out of sample. The top-30 rotation result is survivorship bias; a point-in-time test is running.
+- **Funding carry** (Quant, 2020-26, `docs/research/carry/`): +5.5% a year with a 1.6% max drawdown, but about 0% in the last 12 months. Below cash at a 3.75–4% Fed rate. Kept as a tool for when funding is high again.
+
+**Built (practice only):**
+- `regime_btc_sma: 50` in the desk rules, wired into the engine.
+- `live/core_btc.py`, the Núcleo BTC bot.
+- `live/alarma.py`: shock alarm, repeated until the owner answers, trades only on `ACEPTO <code>`.
+- `live/ordenes.py`: `CIERRA <coin>` and `META <coin> <%|PRECIO p>` by Telegram.
+- `docs/EMPRESA.md`: company plan, with the gated path to third-party money (legal advice first; COIP art. 323).
+- Daily market intelligence and theory routine, written to `docs/inteligencia/`.
+
+**Still no real money:** no strategy passes the protocol in every regime.

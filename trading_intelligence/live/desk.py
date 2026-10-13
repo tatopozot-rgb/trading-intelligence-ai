@@ -74,6 +74,9 @@ class DeskRules:
     # Reward as a multiple of the risk taken (owner, 2026-10-11: "replantea la ganancia que recompense el riesgo"):
     # the target sits target_r times the stop distance away; None keeps the market's own target.
     target_r: Optional[Decimal] = None
+    # Regime brake (leader, 2026-10-13, from research_mesa over two years): only longs, and only while BTC's last
+    # closed daily close is above its N-day mean; otherwise flat. None switches it off.
+    regime_btc_sma: Optional[int] = None
 
     @classmethod
     def load(cls, path: Path = DEFAULT_RULES) -> "DeskRules":
@@ -86,12 +89,14 @@ class DeskRules:
                 int(d.get("scout_alert_every_min", 30)),
                 _opt_dec(d.get("target_min_pct", "3")), _opt_dec(d.get("target_max_pct")),
                 int(d.get("rally_lookback_days", 14)), float(d.get("rally_min_gain_pct", 25.0)),
-                _opt_dec(d.get("rally_target_pct", "50")), _opt_dec(d.get("target_r")))
+                _opt_dec(d.get("rally_target_pct", "50")), _opt_dec(d.get("target_r")),
+                None if d.get("regime_btc_sma") is None else int(d["regime_btc_sma"]))
         if r.min_reward_risk <= 0 or r.round_number_buffer_pct < 0 or r.scout_volume_mult <= 1:
             raise ValueError("desk rules out of range")
         if (r.target_min_pct is not None and r.target_max_pct is not None and not 0 < r.target_min_pct <= r.target_max_pct) \
                 or r.rally_lookback_days < 2 or r.rally_min_gain_pct <= 0 or (r.rally_target_pct is not None and r.rally_target_pct <= 0) \
-                or (r.target_r is not None and r.target_r <= 0):
+                or (r.target_r is not None and r.target_r <= 0) \
+                or (r.regime_btc_sma is not None and r.regime_btc_sma < 2):
             raise ValueError("desk rules out of range")
         return r
 
@@ -117,6 +122,17 @@ def shape_target(entry: Decimal, target: Decimal, side: str, rules: DeskRules, r
     if rules.target_max_pct is not None:
         pct = min(pct, rules.target_max_pct)
     return entry * (1 + sign * pct / 100)
+
+
+def btc_regime_up(daily: pd.DataFrame, days: int, now: datetime) -> Optional[bool]:
+    """True when BTC's last CLOSED daily close is above its ``days``-day mean; None without enough history."""
+    index = pd.DatetimeIndex(daily.index)
+    if index.tz is None:
+        index = index.tz_localize("UTC")
+    closes = daily[index + timedelta(days=1) <= pd.Timestamp(now)]["close"].astype(float)
+    if len(closes) < days:
+        return None
+    return bool(closes.iloc[-1] > closes.tail(days).mean())
 
 
 def rally(symbol: str, daily: pd.DataFrame, rules: DeskRules) -> Optional[Alert]:

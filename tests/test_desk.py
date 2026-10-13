@@ -107,7 +107,7 @@ def test_shape_target_and_rally_detection():
     assert D.shape_target(e, Decimal("112"), "BUY", off) == Decimal("112")
     live = D.DeskRules.load()  # the live rules = mesa_r3: 3x the risk, no band, no bull-run mode (2026-10-12)
     assert live.target_r == 3 and live.target_min_pct is None and live.target_max_pct is None
-    assert live.rally_target_pct is None
+    assert live.rally_target_pct is None and live.regime_btc_sma == 50
     idx = pd.date_range("2026-09-20", periods=30, freq="1D")
     up = pd.DataFrame({"close": np.concatenate([np.full(15, 70.0), np.linspace(70, 100, 15)])}, index=idx)
     flat = pd.DataFrame({"close": np.full(30, 100.0)}, index=idx)

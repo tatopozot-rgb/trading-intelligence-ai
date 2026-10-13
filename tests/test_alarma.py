@@ -162,3 +162,21 @@ def test_telegram_replies_only_from_the_owners_chat():
 
     n = T.TelegramNotifier("123456:" + "A" * 35, "123", post)
     assert n.replies(5) == [(5, "ACEPTO 1234")] and "offset=5" in urls[0]
+
+
+def test_the_alarm_passes_owner_orders_to_the_bots(tmp_path):
+    from trading_intelligence.live import ordenes as O
+
+    chat, broker, clock = Chat(), Broker(), Clock()
+    q = tmp_path / "ordenes.jsonl"
+    alarm = A.Alarm(Feed({}), ["BTCUSDT"], chat, broker, tmp_path / "a.json", Decimal("1"),
+                    console=lambda m: None, env={}, clock=clock, orders_path=q)
+    chat.inbox.append((1, "META TRX 5"))
+    chat.inbox.append((2, "hola"))
+    alarm.step()
+    assert any("Orden recibida" in m for m in chat.sent)
+    cursor = tmp_path / "c"
+    cursor.write_text("0")
+    orders = O.pending(q, cursor, clock.now)
+    assert len(orders) == 1 and orders[0].symbol == "TRXUSDT" and orders[0].value == Decimal("5")
+    assert alarm.state["offset"] == 3
