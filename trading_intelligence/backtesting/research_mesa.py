@@ -26,6 +26,7 @@ from decimal import Decimal
 from multiprocessing import Pool
 from pathlib import Path
 from typing import Any, Optional
+from zoneinfo import ZoneInfo
 
 import numpy as np
 import pandas as pd
@@ -153,7 +154,64 @@ GATE_NAMES = {
     "c": "c) tendencia 4h de la moneda y diaria de BTC (medias 50) de acuerdo: ese lado; si no, fuera",
     "d": "d) largos sobre la media de 200 días de BTC, cortos debajo",
     "e": "e) sin operar si BTC cae en 30 días",
+    "f": "f) sin entradas de 12 h antes a 12 h después de cada decisión FOMC y dato de IPC (CPI) de EE. UU.",
+    "g1": "g1) largos solo tras una purga: interés abierto −5% o más en 24 h con precio ≥ −3% (en las últimas 24 h)",
+    "g2": "g2) sin largos si el interés abierto sube 10% o más en 7 días con el precio plano (±3%)",
 }
+ENTRY_ONLY = frozenset({"f", "g1", "g2"})  # these gates only stop new entries; open positions run their course
+
+# US macro events (times in New York). FOMC: statement day, 14:00 ET (federalreserve.gov/monetarypolicy/
+# fomccalendars.htm). CPI: 8:30 ET (bls.gov/schedule/news_release/cpi.htm); 2025 shutdown: September CPI moved
+# to Oct 24, October CPI cancelled, November CPI on Dec 18 (bls.gov/bls/092025-cpi-reschedule-notice.htm).
+FOMC_DAYS = ("2024-11-07", "2024-12-18", "2025-01-29", "2025-03-19", "2025-05-07", "2025-06-18", "2025-07-30",
+             "2025-09-17", "2025-10-29", "2025-12-10", "2026-01-28", "2026-03-18", "2026-04-29", "2026-06-17",
+             "2026-07-29", "2026-09-16", "2026-10-28", "2026-12-09")
+CPI_DAYS = ("2024-10-10", "2024-11-13", "2024-12-11", "2025-01-15", "2025-02-12", "2025-03-12", "2025-04-10",
+            "2025-05-13", "2025-06-11", "2025-07-15", "2025-08-12", "2025-09-11", "2025-10-24", "2025-12-18",
+            "2026-01-13", "2026-02-13", "2026-03-11", "2026-04-10", "2026-05-12", "2026-06-10", "2026-07-14",
+            "2026-08-12", "2026-09-11", "2026-10-14", "2026-11-10", "2026-12-10")
+EVENT_HOURS = 12
+
+
+def macro_events() -> list[pd.Timestamp]:
+    ny = ZoneInfo("America/New_York")
+    out = [pd.Timestamp(f"{d} 14:00", tz=ny) for d in FOMC_DAYS] + [pd.Timestamp(f"{d} 08:30", tz=ny) for d in CPI_DAYS]
+    return sorted(t.tz_convert("UTC") for t in out)
+
+
+def near_event(times: np.ndarray, events: list[pd.Timestamp], hours: int = EVENT_HOURS) -> np.ndarray:
+    """True for bars within `hours` before or after any event."""
+    ev = np.array(sorted(pd.DatetimeIndex(events).as_unit("ns").asi8))
+    w = hours * 3_600_000_000_000
+    j = np.searchsorted(ev, times)
+    after = np.where(j < len(ev), ev[np.clip(j, 0, len(ev) - 1)] - times, np.iinfo(np.int64).max)
+    before = np.where(j > 0, times - ev[np.clip(j - 1, 0, None)], np.iinfo(np.int64).max)
+    return (after <= w) | (before <= w)
+
+
+def change_over(values: np.ndarray, times: np.ndarray, hours: float) -> np.ndarray:
+    """values[k] / (value as of times[k] - hours) - 1; NaN where unknown."""
+    lag = times - int(hours * 3_600_000_000_000)
+    j = np.searchsorted(times, lag, side="right") - 1
+    past = np.where(j >= 0, values[np.clip(j, 0, None)], np.nan)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        return values / past - 1
+
+
+def flush_masks(close: np.ndarray, oi: np.ndarray, times: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """g1: longs only within 24 h after OI fell >= 5% in 24 h with price >= -3%; g2: no longs while OI rose
+    >= 10% in 7 days with price within +-3%. Shorts are untouched. Unknown OI = no gate."""
+    c = pd.Series(close).ffill().values
+    o = pd.Series(oi).ffill().values
+    oi24, px24 = change_over(o, times, 24), change_over(c, times, 24)
+    oi7, px7 = change_over(o, times, 168), change_over(c, times, 168)
+    flush = (oi24 <= -0.05) & (px24 >= -0.03)
+    hit = np.where(flush, times, np.iinfo(np.int64).min)
+    recent = np.maximum.accumulate(hit) >= times - 24 * 3_600_000_000_000
+    g1 = np.where(np.isnan(oi24), BOTH, np.where(recent, BOTH, SHORT)).astype(np.int8)
+    fragile = (oi7 >= 0.10) & (np.abs(px7) <= 0.03)
+    g2 = np.where(np.isnan(oi7), BOTH, np.where(fragile, SHORT, BOTH)).astype(np.int8)
+    return g1, g2
 
 
 def trend(closes: pd.Series, interval: pd.Timedelta, n: int, times: np.ndarray) -> np.ndarray:
@@ -165,7 +223,8 @@ def trend(closes: pd.Series, interval: pd.Timedelta, n: int, times: np.ndarray) 
     return np.where(j >= 0, sign[np.clip(j, 0, None)], np.nan)
 
 
-def gates(times: np.ndarray, names: list[str], btc_d1: pd.Series, h4: dict[str, pd.Series]) -> dict[str, dict]:
+def gates(times: np.ndarray, names: list[str], btc_d1: pd.Series, h4: dict[str, pd.Series],
+          oi: Optional[dict[str, np.ndarray]] = None, close: Optional[dict[str, np.ndarray]] = None) -> dict[str, dict]:
     day, four = pd.Timedelta(days=1), pd.Timedelta(hours=4)
     b200, b50 = trend(btc_d1, day, 200, times), trend(btc_d1, day, 50, times)
     ret =(btc_d1 / btc_d1.shift(30) - 1).values
@@ -177,8 +236,14 @@ def gates(times: np.ndarray, names: list[str], btc_d1: pd.Series, h4: dict[str, 
         m = np.where(cond_long, LONG, 0) | np.where(cond_short, SHORT, 0)
         return np.where(unknown, BOTH, m).astype(np.int8)
 
-    out: dict[str, dict] = {}
-    for g in GATE_NAMES:
+    events = np.where(near_event(times, macro_events()), 0, BOTH).astype(np.int8)
+    out: dict[str, dict] = {"f": {name: events for name in names}, "g1": {}, "g2": {}}
+    for name in names:
+        if oi and close and name in oi:
+            out["g1"][name], out["g2"][name] = flush_masks(close[name], oi[name], times)
+        else:
+            out["g1"][name] = out["g2"][name] = np.full(len(times), BOTH, dtype=np.int8)
+    for g in ("a", "b", "c", "d", "e"):
         per = {}
         for name in names:
             if g == "a":
@@ -193,7 +258,7 @@ def gates(times: np.ndarray, names: list[str], btc_d1: pd.Series, h4: dict[str, 
             else:
                 per[name] = mask(r30 >= 0, r30 >= 0, np.isnan(r30))
         out[g] = per
-    return out
+    return {g: out[g] for g in GATE_NAMES}
 
 
 # ---------------------------------------------------------------------------
@@ -239,9 +304,9 @@ def vetoes(s: Sym, k: int, side: int, target_r: float, rules: D.DeskRules) -> li
 def replay(syms: dict[str, Sym], lo: int, hi: int, exits: Exits = BASELINE, sizing: Sizing = SIZINGS[0],
            rules_on: frozenset[str] = frozenset(RULES), rules: Optional[D.DeskRules] = None,
            slippage: float = SLIPPAGE, capital: float = CAPITAL, risk_override: Optional[float] = None,
-           allow: Optional[dict[str, np.ndarray]] = None) -> Replay:
+           allow: Optional[dict[str, np.ndarray]] = None, close_on_gate: bool = True) -> Replay:
     """`allow`: a regime gate per symbol (bit 1 longs, bit 2 shorts); a closed side is not opened, and a position
-    on it is closed at the bar's close ("régimen")."""
+    on it is closed at the bar's close ("régimen") unless `close_on_gate` is False (the gate only stops entries)."""
     rules = rules or D.DeskRules.load()
     res = Replay()
     cash = capital
@@ -279,7 +344,7 @@ def replay(syms: dict[str, Sym], lo: int, hi: int, exits: Exits = BASELINE, sizi
                 cash += close_pos(name, p, p.sl if hit_sl else p.tp, "stop" if hit_sl else "meta", k)
             elif sig != 0 and sig != p.side:
                 cash += close_pos(name, p, c, "señal contraria", k)
-            elif allow is not None and not allow[name][k] & (LONG if long else SHORT):
+            elif close_on_gate and allow is not None and not allow[name][k] & (LONG if long else SHORT):
                 cash += close_pos(name, p, c, "régimen", k)
             elif exits.max_hold_bars is not None and k - p.k0 >= exits.max_hold_bars:
                 cash += close_pos(name, p, c, "tiempo", k)
@@ -434,7 +499,8 @@ GATES: dict[str, dict] = {}
 def _block(task: tuple) -> tuple:
     key, lo, hi, exits, sizing, rules_on, risk, *gate = task
     allow = GATES[gate[0]] if gate and gate[0] else None
-    rep = replay(SYMS, lo, hi, exits, sizing, rules_on, RULES_OBJ, risk_override=risk, allow=allow)
+    rep = replay(SYMS, lo, hi, exits, sizing, rules_on, RULES_OBJ, risk_override=risk, allow=allow,
+                 close_on_gate=not (gate and gate[0] in ENTRY_ONLY))
     return key, lo, stats(rep), rep.curve, [{k: t[k] for k in ("pnl", "side", "risk_usdt")} for t in rep.trades]
 
 
@@ -581,6 +647,24 @@ def coverage(values: list[Optional[float]], n: int) -> float:
     return round(known / n * 100, 1) if n else 0.0
 
 
+def fetch_metrics(symbol: str, start: datetime, end: datetime) -> tuple[pd.Series, pd.Series]:
+    """Top traders' long/short position ratio and open interest (contracts), every 5 minutes, from the daily
+    'metrics' files of the public futures archive (one download for both). Empty where missing."""
+    top: dict[pd.Timestamp, float] = {}
+    oi: dict[pd.Timestamp, float] = {}
+    day = start.date()
+    while day <= end.date():
+        try:
+            for row in tw._zip_rows(f"{tw.VISION}/daily/metrics/{symbol}/{symbol}-metrics-{day.isoformat()}.zip"):
+                t = pd.Timestamp(row["create_time"], tz="UTC")
+                top[t] = float(row["sum_toptrader_long_short_ratio"])
+                oi[t] = float(row["sum_open_interest"])
+        except Exception:  # noqa: BLE001 - a missing day only leaves a gap
+            pass
+        day += timedelta(days=1)
+    return pd.Series(top, dtype=float).sort_index(), pd.Series(oi, dtype=float).sort_index()
+
+
 def _load_symbol(args: tuple) -> tuple[str, Optional[Sym], str, dict]:
     sym, warm_iso, end_iso = args
     warm, end = datetime.fromisoformat(warm_iso), datetime.fromisoformat(end_iso)
@@ -593,10 +677,13 @@ def _load_symbol(args: tuple) -> tuple[str, Optional[Sym], str, dict]:
         d1 = rdv.fetch_klines(sym, "1d", warm - timedelta(days=260), end)["close"]
     except Exception as error:  # noqa: BLE001 - one symbol's data must not stop the others
         return sym, None, f"sin datos ({type(error).__name__})", {}
-    top, funding = tw.fetch_top_traders(sym, warm, end), tw.fetch_funding(sym, warm, end)
+    (top, oi), funding = fetch_metrics(sym, warm, end), tw.fetch_funding(sym, warm, end)
     p = tw.prepare(m5, h1, tw.WARMUP, top, funding)
     n = len(p.bars)
-    extra = {"h4": h4, "d1": d1, "cov_top": coverage(p.top_ratio, n), "cov_funding": coverage(p.funding, n)}
+    oi_bars = oi.reindex(p.bars.index).values if not oi.empty else np.full(n, np.nan)
+    extra = {"h4": h4, "d1": d1, "oi": (pd.DatetimeIndex(p.bars.index).as_unit("ns").asi8, oi_bars),
+             "cov_top": coverage(p.top_ratio, n), "cov_funding": coverage(p.funding, n),
+             "cov_oi": round(float(np.isfinite(oi_bars).mean() * 100), 1) if n else 0.0}
     note = f"{len(m5)} velas, top traders {len(top)} ({extra['cov_top']}% de velas), financiación {len(funding)}"
     return sym, arrays(p, D.DeskRules.load()), note, extra
 
@@ -635,10 +722,12 @@ def render_gates(gates_out: dict, base_quarters: list[dict]) -> list[str]:
     rows = gates_out["rows"]
     heads = [f"{q['from']} → {q['to']}" for q in base_quarters]
     lines = ["## 5. Filtros de régimen (por trimestre)", "",
-             "Mismos 12 bloques que la sección 1. Los valores diarios y de 4h cuentan solo cuando su vela cerró (sin "
-             "mirar el futuro). Un filtro cerrado no abre ese lado y cierra al precio de la vela la posición que ya "
-             "estuviera abierta. Los filtros no tienen parámetros ajustados aquí; el año entero es fuera de muestra "
-             "para ellos, aunque se eligieron sabiendo que el año fue bajista hasta julio.", "",
+             "Mismos bloques que la sección 1. Los valores diarios y de 4h cuentan solo cuando su vela cerró (sin "
+             "mirar el futuro). En a–e un filtro cerrado no abre ese lado y cierra al precio de la vela la posición que "
+             "ya estuviera abierta; f y g solo impiden entradas nuevas. El interés abierto (g) son contratos, de los "
+             "archivos 'metrics' de data.binance.vision; sin dato, sin filtro. Los filtros no tienen parámetros "
+             "ajustados aquí, pero se propusieron después de ver el año 2025-10 → 2026-10: ese año no es una prueba "
+             "ciega para ellos, el anterior sí.", "",
              gate_verdict(gates_out), "",
              "| Filtro | " + " | ".join(heads) + " | Año: neto % / caída / neto/caída | Ops | Trimestres + | Pasa |",
              "|---|" + "---|" * len(heads) + "---|---|---|---|"]
@@ -718,9 +807,10 @@ def render(result: dict, meta: dict) -> str:
         lines += ["", *render_gates(result["gates"], result["quarters"])]
     if meta.get("cobertura"):
         lines += ["", "## Cobertura de datos (% de velas de 5 minutos con dato)", "",
-                  "| Moneda | Top traders | Financiación |", "|---|---|---|"]
+                  "| Moneda | Top traders | Financiación | Interés abierto |", "|---|---|---|---|"]
         for s, c in meta["cobertura"].items():
-            lines.append(f"| {s} | {c['top_traders_pct']}% | {c['financiacion_pct']}% |")
+            lines.append(f"| {s} | {c['top_traders_pct']}% | {c['financiacion_pct']}% | "
+                         f"{c.get('interes_abierto_pct', '—')}% |")
     lines += ["",
               "Advertencias: el precio Spot aproxima al perpetuo; los últimos ~60 días se usaron para elegir 3R (dentro "
               "de muestra para mesa_r3); un año es pocos ciclos; los bloques empiezan sin posiciones. Un resultado pasado "
@@ -753,12 +843,20 @@ def main(argv: Optional[list[str]] = None) -> int:
     else:
         rdv.INTERVAL_MS.setdefault("1d", 86_400_000)
         btc_d1 = rdv.fetch_klines("BTCUSDT", "1d", warm - timedelta(days=260), end)["close"]
-    GATES = gates(times, list(SYMS), btc_d1, {s: x["h4"] for s, x in extras.items()})
+    oi = {}
+    for s, x in extras.items():
+        t, v = x["oi"]
+        full = np.full(len(times), np.nan)
+        full[np.searchsorted(times, t)] = v
+        oi[s] = full
+    GATES = gates(times, list(SYMS), btc_d1, {s: x["h4"] for s, x in extras.items()}, oi,
+                  {s: a.close for s, a in SYMS.items()})
     RULES_OBJ = D.DeskRules.load()
     result = experiments(times, args.workers)
     meta = {"desde": (end - timedelta(days=args.dias)).date().isoformat(), "hasta": end.date().isoformat(),
             "simbolos": list(SYMS),
-            "cobertura": {s: {"top_traders_pct": x["cov_top"], "financiacion_pct": x["cov_funding"]}
+            "cobertura": {s: {"top_traders_pct": x["cov_top"], "financiacion_pct": x["cov_funding"],
+                              "interes_abierto_pct": x["cov_oi"]}
                           for s, x in extras.items()}}
     args.salida.mkdir(parents=True, exist_ok=True)
     stamp = end.date().isoformat()
