@@ -50,6 +50,7 @@ from typing import Callable, Optional, Protocol
 import pandas as pd
 
 from trading_intelligence.live import desk as D
+from trading_intelligence.live import ordenes as O
 from trading_intelligence.live.operator import in_windows, parse_windows
 from trading_intelligence.live.telegram_notify import console
 from trading_intelligence.strategy.two_way_signals import signal_for
@@ -150,7 +151,8 @@ class TwoWayAuto:
                  desk_rules: Optional[D.DeskRules] = None, journal_dir: Optional[Path] = None,
                  news_get: Optional[D.Getter] = None, watch_every_s: int = 30, report_every_s: int = 120,
                  notify: Callable[[str], None] = console, chatter: Callable[[str], None] = console,
-                 goal_usd: Optional[Decimal] = None, heartbeat_every_s: Optional[int] = None, pause: Callable[[float], None] = time.sleep,
+                 goal_usd: Optional[Decimal] = None, heartbeat_every_s: Optional[int] = None,
+                 orders_path: Optional[Path] = None, pause: Callable[[float], None] = time.sleep,
                  clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc)) -> None:
         if max_open < 1 or not (0 < risk_min_pct <= risk_max_pct <= 15) or not (0 < loss_limit_pct <= 100):
             raise ValueError("max_open >= 1, 0 < risk_min_pct <= risk_max_pct <= 15, loss_limit_pct in (0, 100]")
@@ -184,6 +186,7 @@ class TwoWayAuto:
         self._rally_seen: dict[str, tuple[datetime, Optional[D.Alert]]] = {}
         self._fng: tuple[Optional[datetime], Optional[int]] = (None, None)
         self._regime: tuple[Optional[datetime], Optional[bool]] = (None, None)
+        self.orders_path = orders_path  # the owner's Telegram orders (live/ordenes.py), written by the alarm
         self._failures = 0
 
     def decision_due(self) -> bool:
@@ -330,6 +333,7 @@ class TwoWayAuto:
             return
         self._last_watch = now
         try:
+            self._owner_orders(now)
             if self.state.known:
                 ours = self._reconcile()
                 for sym in list(self.state.known):
@@ -337,6 +341,8 @@ class TwoWayAuto:
                     if pos is None:
                         continue
                     price = self.broker.price(sym)
+                    if self._owner_target_hit(pos, price):
+                        continue
                     self._trail(pos, price)
                     self._report(pos, price, now)
             self._score_vetoes()
@@ -346,6 +352,51 @@ class TwoWayAuto:
         except (RuntimeError, ValueError) as error:
             self._note_once(f"watch:{str(error)[:40]}", f"bots: {error}")
         self.state.save(self.state_path)
+
+    def _owner_orders(self, now: datetime) -> None:
+        """The owner's Telegram orders for positions this bot holds: close now, or close at a gain he names."""
+        if self.orders_path is None:
+            return
+        name = self.broker.name
+        for order in O.pending(self.orders_path, self.state_path.parent / "ordenes.cursor", now):
+            info = self.state.known.get(order.symbol)
+            pos = self.broker.positions().get(order.symbol)
+            if info is None or pos is None or pos.ticket != info.get("ticket"):
+                continue  # not this bot's position; another bot (or none) holds it
+            if order.kind == "CIERRA":
+                self._close_by_owner(pos, "como ordenaste por Telegram")
+            elif order.kind == "META" and order.value is not None:
+                entry = Decimal(str(info.get("entry", pos.entry)))
+                target = O.target_price(entry, pos.side, order.value, order.is_price)
+                price = self.broker.price(order.symbol)
+                ahead = target > price if pos.side == "BUY" else target < price
+                if not ahead:
+                    self.notify(f"⚠️ 🤖 Bot {order.symbol} · {name}: la meta {target:.6g} ya quedó atrás del precio "
+                                f"({price}); si quieres salir ahora escribe CIERRA {order.symbol.removesuffix('USDT')}.")
+                    continue
+                info["owner_target"] = str(target)
+                self._event("OWNER_TARGET", f"{order.symbol} {target}")
+                self.notify(f"🎯 🤖 Bot {order.symbol} · {name}: cierro la {'compra' if pos.side == 'BUY' else 'venta en corto'} "
+                            f"cuando llegue a {target:.6g} (precio ahora {price}), como ordenaste. El stop sigue puesto.")
+
+    def _owner_target_hit(self, pos: Position, price: Decimal) -> bool:
+        info = self.state.known.get(pos.symbol, {})
+        target = info.get("owner_target")
+        if target is None:
+            return False
+        hit = price >= Decimal(target) if pos.side == "BUY" else price <= Decimal(target)
+        if hit:
+            self._close_by_owner(pos, f"llegó a tu meta de {Decimal(target):.6g}")
+        return hit
+
+    def _close_by_owner(self, pos: Position, why: str) -> None:
+        self.broker.close(pos)
+        self.state.known.pop(pos.symbol, None)
+        self._event("CLOSE", f"{pos.symbol} {pos.side}: orden del dueño")
+        confirmed = self._verified(pos.symbol, open_=False)
+        self.notify(f"✋ 🤖 Bot {pos.symbol} · {self.broker.name}: cerré la {'compra' if pos.side == 'BUY' else 'venta en corto'} "
+                    f"{why}. " + ("Verificado 2 veces en la cuenta." if confirmed else
+                                  "⚠️ La cuenta todavía la muestra abierta: la reviso en la próxima vuelta."))
 
     def _heartbeat(self, now: datetime) -> None:
         """Every few hours: the account's equity (two reads that agree), open positions and what the desk did."""

@@ -17,6 +17,8 @@ What happens:
 2. The same alarm again every minute until the owner answers from HIS chat:
    "ACEPTO <code>" opens the trade at the price of that moment; "NO <code>" drops it;
    "VISTO <code>" stops the repeats and the proposal stays open until it expires (1 hour).
+   The alarm is also the owner's Telegram inbox for orders on open positions ("CIERRA TRX", "META TRX 5"):
+   it hands them to every running bot through live/ordenes.py.
    Optional: with TI_PUSHOVER_TOKEN and TI_PUSHOVER_USER set, a Pushover emergency alert also rings the
    phone every 30 seconds until he acknowledges it (Pushover repeats it on its side).
 3. No answer in an hour: the alarm expires and nothing is traded.
@@ -44,6 +46,7 @@ from typing import Callable, Mapping, Optional, Protocol, Sequence
 import pandas as pd
 
 from trading_intelligence.live import desk as D
+from trading_intelligence.live import ordenes as O
 from trading_intelligence.live import telegram_notify
 
 logger = logging.getLogger(__name__)
@@ -134,11 +137,12 @@ class Alarm:
 
     def __init__(self, feed: Feed, symbols: Sequence[str], chat: Replies, broker: object, state_path: Path,
                  risk_pct: Decimal, console: Callable[[str], None] = telegram_notify.console,
-                 env: Optional[Mapping[str, str]] = None,
+                 env: Optional[Mapping[str, str]] = None, orders_path: Optional[Path] = None,
                  clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc)) -> None:
         self.feed, self.symbols, self.chat, self.broker = feed, list(symbols), chat, broker
         self.state_path, self.risk_pct, self.console, self.clock = Path(state_path), risk_pct, console, clock
         self.env = os.environ if env is None else env
+        self.orders_path = orders_path  # the owner's CIERRA / META orders go here for every bot (live/ordenes.py)
         self.state = self._load()
 
     def _load(self) -> dict:
@@ -174,9 +178,10 @@ class Alarm:
     def step(self) -> Optional[str]:
         """One pass: answers first, then repeats, then a new shock. Returns what happened (for logs/tests)."""
         now = self.clock()
+        texts = self._inbox(now)  # read every pass: old messages never accept a later alarm
         inc = self.state.get("incident")
         if inc:
-            return self._follow(inc, now)
+            return self._follow(inc, now, texts)
         bars = {}
         for sym in self.symbols:
             try:
@@ -189,7 +194,6 @@ class Alarm:
         last = self.state.get("last", {}).get(shock.direction)
         if last and now - datetime.fromisoformat(last) < COOLDOWN:
             return None
-        self._drain(now)  # old messages never accept a new alarm
         inc = {"code": f"{1000 + secrets.randbelow(9000)}", "direction": shock.direction, "symbol": shock.symbol,
                "text": shock.text, "started": now.isoformat(), "last_sent": now.isoformat(), "sent": 1, "seen": False}
         self.state["incident"] = inc
@@ -199,13 +203,32 @@ class Alarm:
         pushover(f"{shock.text}. Responde en Telegram: ACEPTO {inc['code']} / NO {inc['code']}", self.env)
         return "alarma"
 
-    def _drain(self, now: datetime) -> None:
-        for update_id, _ in self.chat.replies(int(self.state.get("offset", 0))):
-            self.state["offset"] = max(int(self.state.get("offset", 0)), update_id + 1)
-
-    def _follow(self, inc: dict, now: datetime) -> str:
+    def _inbox(self, now: datetime) -> list[str]:
+        """The owner's new messages. Orders on open positions (CIERRA / META) are passed to every bot; the rest
+        are returned for the alarm itself."""
+        texts = []
         for update_id, text in self.chat.replies(int(self.state.get("offset", 0))):
             self.state["offset"] = max(int(self.state.get("offset", 0)), update_id + 1)
+            order = O.parse(text)
+            if order is None:
+                texts.append(text)
+                continue
+            kind, symbol, value, is_price = order
+            if self.orders_path is not None:
+                O.enqueue(self.orders_path, kind, symbol, value, is_price, now)
+            what = (f"cerrar {symbol} ya" if kind == "CIERRA" else
+                    f"cerrar {symbol} {'al precio ' + str(value) if is_price else f'al ganar {value}%'}")
+            self._say(f"📨 Orden recibida: {what}. El bot que tiene esa posición la aplica en menos de un minuto y te "
+                      f"confirma cuando la cuenta lo muestre. Si ningún bot la tiene abierta, no cambia nada.")
+            own = self.broker.positions().get(symbol) if kind == "CIERRA" else None  # type: ignore[attr-defined]
+            if own is not None:
+                self.broker.close(own)  # type: ignore[attr-defined]
+                self._say(f"✋ Alarma · {self.broker_name()}: cerré {symbol} como ordenaste.")
+        self._save()
+        return texts
+
+    def _follow(self, inc: dict, now: datetime, texts: list[str]) -> str:
+        for text in texts:
             words = text.strip().upper().split()
             if len(words) != 2 or words[1] != inc["code"]:
                 continue
@@ -280,8 +303,9 @@ def main(argv: Optional[Sequence[str]] = None, env: Optional[Mapping[str, str]] 
         broker = F.PaperFuturesBroker(F.FuturesMarket(None), Decimal(args.capital), d / "paper.json",
                                       leverage=limits.max_leverage, max_position_pct=limits.max_position_pct)
     alarm = Alarm(BinancePublicKlines(), list(limits.symbols), chat, broker, d / "alarma.json", limits.risk_min_pct,
-                  env=env)
-    print(f"Alarma de mercado activa en {getattr(broker, 'name', args.modo)}: reviso cada {LOOP_SECONDS} s.")
+                  env=env, orders_path=O.DEFAULT_ORDERS)
+    print(f"Alarma de mercado activa en {getattr(broker, 'name', args.modo)}: reviso cada {LOOP_SECONDS} s. "
+          f"Órdenes por Telegram: CIERRA <moneda>, META <moneda> <% de ganancia>.", flush=True)
     while True:
         try:
             alarm.step()
