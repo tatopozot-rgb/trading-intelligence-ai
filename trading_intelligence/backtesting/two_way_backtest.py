@@ -268,7 +268,9 @@ def _veto_outcome(p: Prepared, i: int, side: str, sl: float, tp: float) -> str:
 
 
 def simulate(prepared: dict[str, Prepared], variant: str, capital: float,
-             rules: Optional[D.DeskRules] = None, sizing: Sizing = Sizing()) -> Result:
+             rules: Optional[D.DeskRules] = None, sizing: Sizing = Sizing(),
+             on_skip: Optional[Callable[[dict], None]] = None) -> Result:
+    """on_skip (research only): called with the sizing details of every entry refused for the minimum notional."""
     res = Result(variant)
     desk = variant in DESK_VARIANTS
     band = variant in ("mesa", "mesa_sin_alcista", "mesa_meta_3_5", *R_VARIANTS)
@@ -369,6 +371,13 @@ def simulate(prepared: dict[str, Prepared], variant: str, capital: float,
                       max(0.0, sizing.leverage * equity - used) * 0.95 / close)
             if qty * close < MIN_NOTIONAL.get(sym, DEFAULT_MIN_NOTIONAL):
                 res.skipped_minimum += 1
+                if on_skip is not None:
+                    on_skip({"symbol": sym, "i": i, "at": t, "side": side, "close": close, "stop": sl, "target": tp,
+                             "dist_pct": dist / close * 100, "risk": risk, "equity": equity, "used": used,
+                             "open": len(positions), "minimum": MIN_NOTIONAL.get(sym, DEFAULT_MIN_NOTIONAL),
+                             "by_risk": equity * risk / dist * close,
+                             "by_position": equity * sizing.max_position,
+                             "by_room": max(0.0, sizing.leverage * equity - used) * 0.95})
                 continue
             fee_in = qty * close * FEE
             cash -= fee_in
