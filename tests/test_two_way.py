@@ -466,9 +466,9 @@ def test_the_regime_brake_allows_only_longs_above_btcs_mean_and_closes_the_rest(
     assert not b.pos  # and nothing new opens
 
 
-def test_without_btc_data_the_brake_does_nothing(tmp_path):
+def test_without_btc_data_the_brake_fails_closed(tmp_path):
     rules = T.D.DeskRules(target_min_pct=None, regime_btc_sma=50, min_reward_risk=Decimal("1"))
-    sig = {"SOLUSDT": "SELL"}
+    sig = {"SOLUSDT": "BUY"}
     auto, b, sent = _engine(tmp_path, sig, desk_rules=rules)  # FakeBroker serves 5m bars for "1d": too short
     auto.step()
-    assert "SOLUSDT" in b.pos
+    assert "SOLUSDT" not in b.pos  # no new entry while the brake cannot read BTC

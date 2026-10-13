@@ -353,3 +353,32 @@ only the latest work blocks. The history up to 2026-10-10 (sections 1–90) is i
   - the futures key was still shown as pending;
   - the 3x practice was missing;
   - the XM agents and their events were missing.
+
+### 108. XM "No money" fixed: size inside the margin the account can carry (2026-10-13)
+
+- **What happened:** Local saw entries refused by MT5 with "No money".
+  - Operador XM on OILCash at 20:07 and 20:22 UTC.
+  - Índices on BTCUSD at 22:41 UTC.
+  - The account had 999.79 USD free and no positions.
+- **Cause:** `size_lots` capped size only by effective leverage (2x). On a 1:1 account, 2x exposure needs twice the equity in margin, so the order failed MT5's own check.
+- **Fix:** size is also capped at the agent's share of free margin (`max_margin_pct_of_free`), using MT5's margin per lot. Test: `test_size_lots_stays_inside_the_margin_a_1_to_1_account_can_carry`.
+- **City:** the owner chose the artifact as the city ("No es necesario si es que consumiría muchos recursos"). The 3D city's development is paused on a local branch, not merged.
+
+### 109. Run like a trading firm: Director de Operaciones, incident log, brakes fail closed (2026-10-13)
+
+- **Owner, 2026-10-13:** "funcionar como empresas que se dedican a esto, ten alguien revisando como se manejan funciones todo y anda mejorando".
+- **`director-operaciones`:** a weekly review. It covers:
+  - a scorecard per bot;
+  - live results against the backtest, with a return-to-practice rule at 1.5× the tested drawdown, or when the last 20 trades lose money while the test made money;
+  - separation of duties and change control;
+  - incidents and capital.
+  It reads files only. Claude local runs it weekly, because the data lives on the owner's PC.
+- **`docs/INCIDENTES.md`:** one row per failure, with root cause, fix and test. It starts with today's incidents.
+- **Fail closed:** when the regime brake cannot read BTC's daily bars, it now keeps its last reading. With no reading at all, it blocks new entries instead of trading without a brake. Open positions keep their stops, and nothing is closed on a data error. The heartbeat says why.
+
+### 110. Daily PDF report to the owner's email (2026-10-13)
+
+- **Owner, 2026-10-13:** "un reporte diario en pdf qué llegue a mi correo de Outlook explicando todo y los cambios que hiciste para mejorar, análisis y todo, mejoras realizadas igual si algún bot agente algo dejo de servir o se integró alguien más".
+- **The leader writes the report:** `docs/reportes/<YYYY-MM-DD>.md`, in plain Spanish, every evening (routine at 18:41 Ecuador). Sections: summary, operations, improvements, agents added or removed, analysis, risks. It holds no real-account balances, because the repo is public.
+- **The PDF:** `trading_intelligence/reports/pdf_diario.py` builds it on the owner's PC, adding each bot's numbers from `live_runs/**/state.json`. Those numbers are never committed. The PDF writer is self-contained (standard Helvetica), so no new package is needed.
+- **Sending:** `--enviar-outlook CORREO` uses Outlook desktop through COM, from the account already signed in, so no password is read or stored. A Windows task on the PC sends it daily at 19:30 Ecuador.
