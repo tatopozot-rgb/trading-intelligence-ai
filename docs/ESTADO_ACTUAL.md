@@ -82,6 +82,8 @@ Los límites están en `config/futures_limits.json`, con sus palabras citadas:
 
 **El líder decide la estrategia (2026-10-12):** el dueño pidió "busca estrategias y olvida lo que yo dije y mis marcas". La mesa corre ahora exactamente lo que ganó en la prueba (`mesa_r3`): se quitaron el piso de 3% (con stops de 3-15%, una meta a 3 veces ya es 9% o más) y el modo alcista (costó unos 9 puntos en 60 días). Ambos se siguen midiendo cada lunes. La búsqueda de estrategias nuevas sigue `docs/research/PROTOCOLO.md`: 365 días, fuera de muestra, costes reales, y comparación contra `mesa_r3`.
 
+**Freno de riesgo (2026-10-13):** la práctica solo compra, y solo mientras BTC cierra sobre su media de 50 días; si no, no abre nada y cierra lo abierto (`regime_btc_sma: 50`). En dos años de datos no volvió ganadora a la mesa, pero recortó el año malo de −65% a −7% (`docs/research/mesa/`). Junto a la mesa corre en práctica el **Núcleo BTC** (`live/core_btc.py`): BTC sobre su media de 50 días o efectivo; en 6 años creció ×9,4 frente a ×7,4 de tener BTC, pero perdió −49% en 2022.
+
 **Bots por posición:** cada posición abierta tiene su propio bot ("🤖 Bot SOLUSDT"). Ese bot la revisa,
 mueve su stop y avisa de su estado.
 
