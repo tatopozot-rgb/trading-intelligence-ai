@@ -1,4 +1,6 @@
 """Tests for research_mesa (synthetic data, no network)."""
+import copy
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -42,6 +44,14 @@ def test_replay_matches_the_desk_backtest_trade_for_trade(prepared):
     assert len(theirs.trades) > 0
     assert [(t["symbol"], t["side"], round(t["pnl"], 9)) for t in mine.trades] == \
            [(t["symbol"], t["side"], round(t["pnl"], 9)) for t in theirs.trades]
+
+
+def test_times_are_nanoseconds_so_report_dates_are_real(prepared):
+    p = copy.copy(next(iter(prepared.values())))
+    p.bars = p.bars.copy()
+    p.bars.index = p.bars.index.as_unit("ms")  # the downloaded klines come back in ms
+    s = rm.arrays(p, D.DeskRules.load())
+    assert pd.Timestamp(int(s.times[0]), tz="UTC") == p.bars.index[0]
 
 
 def test_slippage_costs_money(prepared):

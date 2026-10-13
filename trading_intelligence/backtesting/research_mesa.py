@@ -119,7 +119,7 @@ def arrays(p: tw.Prepared, rules: D.DeskRules) -> Sym:
             continue
         stop[i] = float(plan.stop)
         near[i] = D._near_round(plan.stop, rules.round_number_buffer_pct) is not None
-    return Sym(bars.index.values.astype("int64"), bars["open"].values.astype(float), bars["high"].values.astype(float),
+    return Sym(pd.DatetimeIndex(bars.index).as_unit("ns").asi8,bars["open"].values.astype(float), bars["high"].values.astype(float),
                bars["low"].values.astype(float), closes.astype(float), side, qual, stop, mood, funding, near)
 
 
