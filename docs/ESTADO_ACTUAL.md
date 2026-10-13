@@ -14,14 +14,20 @@ status: living
 > Las novedades se anotan en `docs/CHECKPOINT.md`. El historial anterior al 2026-10-10 está en
 > `docs/archivo/`.
 
-Actualizado: 2026-10-10 (Claude Leader).
+Actualizado: 2026-10-13 (Claude Leader).
+
+> **ALERTA (2026-10-13):** probada con un año de datos (oct 2025 – oct 2026), la mesa **pierde −53%**: gana solo en el
+> trimestre alcista (+52%) y pierde más que BTC en los tres trimestres bajistas. Lo confirmaron tres réplicas
+> independientes (CHECKPOINT §98). **Nada de futuros con dinero real** hasta que una estrategia gane en 3 de 4 trimestres
+> fuera de muestra. La práctica 1 (dinero ficticio) sigue solo para aprender; la práctica 2 (3x) queda cancelada.
 
 ## 1. Qué opera y dónde
 
 | Mercado | Estado | Cómo |
 |---|---|---|
-| **Binance Futuros USDⓈ-M** (principal) | Listo. Con dinero real **desde el lunes**, cuando el dueño conecte la clave nueva con Futuros y escriba su frase a Claude local. | `python -m trading_intelligence.live.binance_futures --modo real`. Hasta entonces se puede correr en `--modo shadow` (precios reales, sin dinero). |
+| **Binance Futuros USDⓈ-M** (principal) | El código está listo, pero **sin dinero real**: la mesa pierde en mercados bajistas (ver alerta). Solo práctica hasta que pase un filtro de mercado. | `python -m trading_intelligence.live.binance_futures --modo real`. Hasta entonces se puede correr en `--modo shadow` (precios reales, sin dinero). |
 | **XM / MetaTrader 5** | Listo para DEMO; el dueño lo instala y conecta el lunes. | `python -m trading_intelligence.live.xm_auto`. El dinero real va en la fase 3, con la frase del dueño y los límites de XM. |
+| **Alarma de mercado** (`alarma`) | Nueva (2026-10-13), por orden del dueño: "si el mercado va a explotar ... me notifiques como loco hasta yo atender y aceptar la operación". Revisa cada minuto BTC, ETH y las monedas de la mesa; ante un choque (4% en 15 min, 7% en 1 h, 12% en 24 h, o el 70% de las monedas 6% en 1 h) avisa por Telegram cada minuto hasta que el dueño responda `ACEPTO <código>`, `NO <código>` o `VISTO <código>`. Solo opera con ACEPTO, a 1x, con stop en Binance y meta a 3 veces el riesgo. Expira en 1 hora sin respuesta. Opcional: Pushover hace sonar el teléfono hasta que se confirme. | `python -m trading_intelligence.live.alarma` (práctica). `--modo real` solo con la frase del dueño a Local. |
 | **Binance Spot** | **Detenido** por el dueño ("Para", 2026-10-10 08:44 UTC), sin vender ni mover nada. Sin USDT; solo restos. | No se reactiva sin su palabra a Local. |
 | **Vigilante del mercado** (`market_watch`) | **Desactivado** por el dueño ("Deten vigilante", 2026-10-10). La tarea no se borró. Mientras siga así, no hay avisos de mercado ni de "alcista brutal" por Telegram. | Se reactiva solo con su palabra a Local. |
 

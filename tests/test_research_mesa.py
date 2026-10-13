@@ -1,4 +1,6 @@
 """Tests for research_mesa (synthetic data, no network)."""
+import copy
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -42,6 +44,14 @@ def test_replay_matches_the_desk_backtest_trade_for_trade(prepared):
     assert len(theirs.trades) > 0
     assert [(t["symbol"], t["side"], round(t["pnl"], 9)) for t in mine.trades] == \
            [(t["symbol"], t["side"], round(t["pnl"], 9)) for t in theirs.trades]
+
+
+def test_times_are_nanoseconds_so_report_dates_are_real(prepared):
+    p = copy.copy(next(iter(prepared.values())))
+    p.bars = p.bars.copy()
+    p.bars.index = p.bars.index.as_unit("ms")  # the downloaded klines come back in ms
+    s = rm.arrays(p, D.DeskRules.load())
+    assert pd.Timestamp(int(s.times[0]), tz="UTC") == p.bars.index[0]
 
 
 def test_slippage_costs_money(prepared):
@@ -114,3 +124,49 @@ def test_render_says_loudly_when_quarters_lose():
               "sizing": {"x": tot}}
     md = rm.render(result, {"desde": "a", "hasta": "b"})
     assert "ALERTA: mesa_r3 pierde en 1 de 1 trimestres" in md and "Trimestre bajista" in md
+
+
+def test_trend_uses_only_closed_bars():
+    days = pd.date_range("2026-01-01", periods=5, freq="1D", tz="UTC")
+    closes = pd.Series([10.0, 10.0, 10.0, 13.0, 7.0], index=days)
+    ns = pd.DatetimeIndex([days[3], days[4] - pd.Timedelta(minutes=5), days[4], days[4] + pd.Timedelta(days=1)])
+    got = rm.trend(closes, pd.Timedelta(days=1), 2, ns.as_unit("ns").asi8)
+    # day 3 (13) closes at day 4 00:00: before that the last closed day is day 2 (10 vs mean 10 -> 0)
+    assert list(got) == [0.0, 0.0, 1.0, -1.0]
+    assert np.isnan(rm.trend(closes, pd.Timedelta(days=1), 2, np.array([days[1].value]))[0])  # one closed day only
+
+
+def test_gates_masks():
+    days = pd.date_range("2025-01-01", periods=260, freq="1D", tz="UTC")
+    up = pd.Series(np.linspace(100, 200, 260), index=days)
+    down = pd.Series(np.linspace(200, 100, 260), index=days)
+    t = np.array([(days[-1] + pd.Timedelta(days=1)).value])
+    h4 = {"X": pd.Series(np.linspace(100, 50, 300), index=pd.date_range(days[-1] - pd.Timedelta(days=49), periods=300,
+                                                                          freq="4h", tz="UTC"))}
+    g_up, g_down = rm.gates(t, ["X"], up, h4), rm.gates(t, ["X"], down, h4)
+    assert g_up["a"]["X"][0] == rm.LONG and g_down["a"]["X"][0] == 0
+    assert g_up["d"]["X"][0] == rm.LONG and g_down["d"]["X"][0] == rm.SHORT
+    assert g_up["e"]["X"][0] == rm.BOTH and g_down["e"]["X"][0] == 0
+    assert g_up["c"]["X"][0] == 0 and g_down["c"]["X"][0] == rm.SHORT  # the coin falls on 4h: agrees only with a BTC fall
+
+
+def test_gate_blocks_entries_and_closes_a_position_on_the_closed_side():
+    s = _sym(side_at=[(10, 1), (20, 1)], stop_pct=0.05)
+    shut = {"X": np.zeros(600, dtype=np.int8)}
+    assert rm.replay({"X": s}, 0, 600, rules=D.DeskRules(), slippage=0.0, allow=shut).trades == []
+    flip = np.full(600, rm.BOTH, dtype=np.int8)
+    flip[50:] = rm.SHORT
+    rep = rm.replay({"X": s}, 0, 600, rules=D.DeskRules(), slippage=0.0, allow={"X": flip})
+    assert [(t["k0"], t["k1"], t["why"]) for t in rep.trades] == [(10, 50, "régimen")]
+
+
+def test_render_gates_says_when_none_passes():
+    tot = {"net_pct": -5.0, "max_dd_pct": 10.0, "net_dd": -0.5, "trades": 10, "blocks_positive": 1, "blocks": 3}
+    q = {"from": "a", "to": "b", "net_pct": 1.0}
+    rows = {g: {"name": rm.GATE_NAMES[g], "quarters": [q] * 4, "year": tot, "quarters_positive": 4, "passes": False}
+            for g in rm.GATE_NAMES}
+    out = {"rows": rows, "walk_forward": {"oos": tot, "baseline_same_blocks": tot, "chosen": [{"block_from": "x", "gate": "a"}]}}
+    md = "\n".join(rm.render_gates(out, [q] * 4))
+    assert "Ningún filtro de régimen pasa el listón" in md and "Filtro elegido walk-forward" in md
+    rows["d"]["passes"] = True
+    assert "Pasan el listón" in rm.gate_verdict(out) and rm.GATE_NAMES["d"] in rm.gate_verdict(out)
