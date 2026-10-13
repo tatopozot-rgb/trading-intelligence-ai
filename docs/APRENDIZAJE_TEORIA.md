@@ -43,7 +43,7 @@ marca "aplicado" solo cuando su regla está en el código o en un experimento me
 - **Hoy:** la mesa no mira la macro.
 - **Falta:**
   - Una nota diaria de inteligencia (`docs/inteligencia/`).
-  - Un filtro de eventos (no abrir cerca de FOMC/CPI), medido por Quant.
+  - ~~Un filtro de eventos~~ **aplicado** 2026-10-13: sin entradas ±2 h alrededor de FOMC/CPI (`config/eventos.json`); falta medir el tamaño de la ventana.
   - El estado de tasas y dólar como entrada del régimen.
 
 ## 4. Estructura de los futuros perpetuos

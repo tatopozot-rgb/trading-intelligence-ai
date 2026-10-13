@@ -2,7 +2,7 @@
 
 Simulación con datos públicos (PAPER): **sin cuenta, sin claves, sin órdenes reales**. Entradas cada 20 min (velas de 20 min); con posición abierta se revisa la salida cada 3 min (velas de 1 min): stop de la estrategia, su condición de salida y cierre forzado al final de la ventana. 10 USDT por operación, comisión 0.1% por lado + 5 bps. Horas en **Ecuador (UTC−5)**, UTC entre paréntesis. Reglas en `docs/PREREG_HORARIOS.md` (con las Enmiendas 1 y 2).
 
-Días forward: 2/14 (días hábiles lun–vie: 0/10) · días de referencia: 15
+Días forward: 3/14 (días hábiles lun–vie: 1/10) · días de referencia: 15
 
 Las reglas se aplican cuando el período forward esté completo (2026-10-10 → 2026-10-23).
 
@@ -10,86 +10,97 @@ Las reglas se aplican cuando el período forward esté completo (2026-10-10 → 
 
 | Día | tendencia: n / media % | rango: n / media % | ruptura: n / media % | baseline: n / media % |
 |---|---|---|---|---|
+| lunes | 3 / -0.293 | · | 51 / -0.416 | 169 / -0.767 |
 | sábado (aparte) | 1 / -0.268 | 2 / -0.345 | 85 / -0.269 | 169 / -0.212 |
 | domingo (no decide) | 6 / +0.303 | 7 / -0.333 | 99 / -0.195 | 169 / -0.160 |
 
 ## FORWARD — tendencia: neto % acumulado lun–vie por ventana × símbolo
 
-| Ventana |  | Todas |
-|---|---|
-| 19–21 Ecuador (00–02 UTC) |  | +0.00 |
-| 21–23 Ecuador (02–04 UTC) |  | +0.00 |
-| 23–01 Ecuador (04–06 UTC) |  | +0.00 |
-| 01–03 Ecuador (06–08 UTC) |  | +0.00 |
-| 03–05 Ecuador (08–10 UTC) |  | +0.00 |
-| 05–07 Ecuador (10–12 UTC) |  | +0.00 |
-| 07–09 Ecuador (12–14 UTC) |  | +0.00 |
-| 09–11 Ecuador (14–16 UTC) |  | +0.00 |
-| 11–13 Ecuador (16–18 UTC) |  | +0.00 |
-| 13–15 Ecuador (18–20 UTC) |  | +0.00 |
-| 15–17 Ecuador (20–22 UTC) |  | +0.00 |
-| 17–19 Ecuador (22–00 UTC) |  | +0.00 |
-| 07–10 Ecuador (12–15 UTC) — ventana del dueño |  | +0.00 |
+| Ventana | BTC | ETH | BNB | SOL | XRP | DOGE | ADA | LINK | AVAX | LTC | TRX | DOT | PAXG | Todas |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 19–21 Ecuador (00–02 UTC) | · | · | · | · | · | · | · | · | · | · | · | · | · | +0.00 |
+| 21–23 Ecuador (02–04 UTC) | · | · | · | · | · | · | · | · | · | · | -0.24 | · | · | -0.24 |
+| 23–01 Ecuador (04–06 UTC) | · | · | · | · | · | · | -0.26 | · | · | · | · | -0.38 | · | -0.64 |
+| 01–03 Ecuador (06–08 UTC) | · | · | · | · | · | · | · | · | · | · | · | · | · | +0.00 |
+| 03–05 Ecuador (08–10 UTC) | · | · | · | · | · | · | · | · | · | · | · | · | · | +0.00 |
+| 05–07 Ecuador (10–12 UTC) | · | · | · | · | · | · | · | · | · | · | · | · | · | +0.00 |
+| 07–09 Ecuador (12–14 UTC) | · | · | · | · | · | · | · | · | · | · | · | · | · | +0.00 |
+| 09–11 Ecuador (14–16 UTC) | · | · | · | · | · | · | · | · | · | · | · | · | · | +0.00 |
+| 11–13 Ecuador (16–18 UTC) | · | · | · | · | · | · | · | · | · | · | · | · | · | +0.00 |
+| 13–15 Ecuador (18–20 UTC) | · | · | · | · | · | · | · | · | · | · | · | · | · | +0.00 |
+| 15–17 Ecuador (20–22 UTC) | · | · | · | · | · | · | · | · | · | · | · | · | · | +0.00 |
+| 17–19 Ecuador (22–00 UTC) | · | · | · | · | · | · | · | · | · | · | · | · | · | +0.00 |
+| 07–10 Ecuador (12–15 UTC) — ventana del dueño | · | · | · | · | · | · | · | · | · | · | · | · | · | +0.00 |
 
 ## FORWARD — rango: neto % acumulado lun–vie por ventana × símbolo
 
-| Ventana |  | Todas |
-|---|---|
-| 19–21 Ecuador (00–02 UTC) |  | +0.00 |
-| 21–23 Ecuador (02–04 UTC) |  | +0.00 |
-| 23–01 Ecuador (04–06 UTC) |  | +0.00 |
-| 01–03 Ecuador (06–08 UTC) |  | +0.00 |
-| 03–05 Ecuador (08–10 UTC) |  | +0.00 |
-| 05–07 Ecuador (10–12 UTC) |  | +0.00 |
-| 07–09 Ecuador (12–14 UTC) |  | +0.00 |
-| 09–11 Ecuador (14–16 UTC) |  | +0.00 |
-| 11–13 Ecuador (16–18 UTC) |  | +0.00 |
-| 13–15 Ecuador (18–20 UTC) |  | +0.00 |
-| 15–17 Ecuador (20–22 UTC) |  | +0.00 |
-| 17–19 Ecuador (22–00 UTC) |  | +0.00 |
-| 07–10 Ecuador (12–15 UTC) — ventana del dueño |  | +0.00 |
+| Ventana | BTC | ETH | BNB | SOL | XRP | DOGE | ADA | LINK | AVAX | LTC | TRX | DOT | PAXG | Todas |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 19–21 Ecuador (00–02 UTC) | · | · | · | · | · | · | · | · | · | · | · | · | · | +0.00 |
+| 21–23 Ecuador (02–04 UTC) | · | · | · | · | · | · | · | · | · | · | · | · | · | +0.00 |
+| 23–01 Ecuador (04–06 UTC) | · | · | · | · | · | · | · | · | · | · | · | · | · | +0.00 |
+| 01–03 Ecuador (06–08 UTC) | · | · | · | · | · | · | · | · | · | · | · | · | · | +0.00 |
+| 03–05 Ecuador (08–10 UTC) | · | · | · | · | · | · | · | · | · | · | · | · | · | +0.00 |
+| 05–07 Ecuador (10–12 UTC) | · | · | · | · | · | · | · | · | · | · | · | · | · | +0.00 |
+| 07–09 Ecuador (12–14 UTC) | · | · | · | · | · | · | · | · | · | · | · | · | · | +0.00 |
+| 09–11 Ecuador (14–16 UTC) | · | · | · | · | · | · | · | · | · | · | · | · | · | +0.00 |
+| 11–13 Ecuador (16–18 UTC) | · | · | · | · | · | · | · | · | · | · | · | · | · | +0.00 |
+| 13–15 Ecuador (18–20 UTC) | · | · | · | · | · | · | · | · | · | · | · | · | · | +0.00 |
+| 15–17 Ecuador (20–22 UTC) | · | · | · | · | · | · | · | · | · | · | · | · | · | +0.00 |
+| 17–19 Ecuador (22–00 UTC) | · | · | · | · | · | · | · | · | · | · | · | · | · | +0.00 |
+| 07–10 Ecuador (12–15 UTC) — ventana del dueño | · | · | · | · | · | · | · | · | · | · | · | · | · | +0.00 |
 
 ## FORWARD — ruptura: neto % acumulado lun–vie por ventana × símbolo
 
-| Ventana |  | Todas |
-|---|---|
-| 19–21 Ecuador (00–02 UTC) |  | +0.00 |
-| 21–23 Ecuador (02–04 UTC) |  | +0.00 |
-| 23–01 Ecuador (04–06 UTC) |  | +0.00 |
-| 01–03 Ecuador (06–08 UTC) |  | +0.00 |
-| 03–05 Ecuador (08–10 UTC) |  | +0.00 |
-| 05–07 Ecuador (10–12 UTC) |  | +0.00 |
-| 07–09 Ecuador (12–14 UTC) |  | +0.00 |
-| 09–11 Ecuador (14–16 UTC) |  | +0.00 |
-| 11–13 Ecuador (16–18 UTC) |  | +0.00 |
-| 13–15 Ecuador (18–20 UTC) |  | +0.00 |
-| 15–17 Ecuador (20–22 UTC) |  | +0.00 |
-| 17–19 Ecuador (22–00 UTC) |  | +0.00 |
-| 07–10 Ecuador (12–15 UTC) — ventana del dueño |  | +0.00 |
+| Ventana | BTC | ETH | BNB | SOL | XRP | DOGE | ADA | LINK | AVAX | LTC | TRX | DOT | PAXG | Todas |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 19–21 Ecuador (00–02 UTC) | -0.55 | -0.64 | · | -0.78 | · | -0.51 | · | -0.80 | · | -0.72 | -0.27 | · | -0.25 | -4.51 |
+| 21–23 Ecuador (02–04 UTC) | · | · | · | · | · | · | · | · | · | -0.79 | -0.24 | · | · | -1.03 |
+| 23–01 Ecuador (04–06 UTC) | -0.23 | -0.17 | -0.39 | -0.04 | -0.52 | -0.29 | -0.26 | -0.57 | -0.06 | -0.28 | · | -0.38 | · | -3.19 |
+| 01–03 Ecuador (06–08 UTC) | -0.57 | -0.58 | -0.22 | -0.61 | -0.43 | -0.30 | -0.46 | -0.39 | · | +0.10 | · | -1.00 | · | -4.46 |
+| 03–05 Ecuador (08–10 UTC) | · | · | · | · | · | · | · | · | -0.12 | · | · | · | · | -0.12 |
+| 05–07 Ecuador (10–12 UTC) | · | · | · | · | · | -0.79 | -0.71 | -0.86 | · | · | · | -0.22 | -0.50 | -3.08 |
+| 07–09 Ecuador (12–14 UTC) | · | · | · | · | · | · | · | · | · | · | · | · | -0.30 | -0.30 |
+| 09–11 Ecuador (14–16 UTC) | · | · | · | · | · | · | · | · | · | · | · | · | · | +0.00 |
+| 11–13 Ecuador (16–18 UTC) | · | · | · | · | · | · | · | · | · | · | · | · | -0.22 | -0.22 |
+| 13–15 Ecuador (18–20 UTC) | -0.19 | -0.19 | -0.24 | -0.19 | -0.35 | -0.16 | · | -0.21 | · | -0.27 | · | -0.46 | · | -2.25 |
+| 15–17 Ecuador (20–22 UTC) | · | · | · | · | · | · | · | -1.16 | · | · | · | · | -0.41 | -1.57 |
+| 17–19 Ecuador (22–00 UTC) | · | · | · | · | · | · | · | · | · | · | · | · | · | +0.00 |
+| 07–10 Ecuador (12–15 UTC) — ventana del dueño | · | · | · | · | · | · | · | · | · | · | · | · | -0.46 | -0.46 |
 
 ## FORWARD — baseline: neto % acumulado lun–vie por ventana × símbolo
 
-| Ventana |  | Todas |
-|---|---|
-| 19–21 Ecuador (00–02 UTC) |  | +0.00 |
-| 21–23 Ecuador (02–04 UTC) |  | +0.00 |
-| 23–01 Ecuador (04–06 UTC) |  | +0.00 |
-| 01–03 Ecuador (06–08 UTC) |  | +0.00 |
-| 03–05 Ecuador (08–10 UTC) |  | +0.00 |
-| 05–07 Ecuador (10–12 UTC) |  | +0.00 |
-| 07–09 Ecuador (12–14 UTC) |  | +0.00 |
-| 09–11 Ecuador (14–16 UTC) |  | +0.00 |
-| 11–13 Ecuador (16–18 UTC) |  | +0.00 |
-| 13–15 Ecuador (18–20 UTC) |  | +0.00 |
-| 15–17 Ecuador (20–22 UTC) |  | +0.00 |
-| 17–19 Ecuador (22–00 UTC) |  | +0.00 |
-| 07–10 Ecuador (12–15 UTC) — ventana del dueño |  | +0.00 |
+| Ventana | BTC | ETH | BNB | SOL | XRP | DOGE | ADA | LINK | AVAX | LTC | TRX | DOT | PAXG | Todas |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 19–21 Ecuador (00–02 UTC) | -0.42 | -0.08 | -0.55 | -0.07 | -0.72 | -0.41 | -1.17 | -0.12 | -0.60 | -0.04 | -0.15 | -1.41 | +0.14 | -5.61 |
+| 21–23 Ecuador (02–04 UTC) | -0.36 | -0.13 | -0.41 | -0.21 | -0.18 | -0.07 | -0.06 | -0.46 | -0.69 | -0.01 | +0.00 | +0.18 | -0.46 | -2.85 |
+| 23–01 Ecuador (04–06 UTC) | +0.19 | +0.43 | -0.02 | +0.72 | +0.24 | +0.60 | +0.81 | +0.27 | +1.08 | +0.36 | -0.09 | +1.22 | -0.54 | +5.25 |
+| 01–03 Ecuador (06–08 UTC) | -0.34 | -0.34 | -0.16 | -0.53 | -0.36 | -0.08 | -0.22 | +0.11 | -0.47 | +0.28 | -0.42 | -0.30 | -0.54 | -3.38 |
+| 03–05 Ecuador (08–10 UTC) | -0.82 | -0.44 | -0.74 | -1.03 | -0.76 | -1.01 | -1.01 | -1.01 | +0.03 | -1.38 | -0.36 | -1.71 | -0.51 | -10.75 |
+| 05–07 Ecuador (10–12 UTC) | -0.49 | -0.86 | -0.51 | -0.98 | -0.82 | -0.38 | -0.89 | -0.84 | -0.85 | -1.07 | -0.27 | +0.66 | -0.42 | -7.71 |
+| 07–09 Ecuador (12–14 UTC) | -0.81 | -0.46 | -0.48 | -0.78 | -0.85 | -1.57 | -1.37 | -1.27 | -1.34 | -1.06 | -0.36 | -0.46 | -0.20 | -11.01 |
+| 09–11 Ecuador (14–16 UTC) | -0.59 | -0.75 | -0.61 | -1.72 | -1.30 | -1.45 | -2.43 | -1.49 | -2.14 | -2.06 | -0.45 | -2.12 | -0.41 | -17.50 |
+| 11–13 Ecuador (16–18 UTC) | -0.57 | -1.02 | -0.46 | -1.32 | -1.36 | -0.43 | -0.34 | -1.25 | -2.27 | -0.84 | -0.45 | -2.32 | -0.20 | -12.83 |
+| 13–15 Ecuador (18–20 UTC) | +0.13 | +0.08 | -0.02 | +0.20 | -0.09 | +0.11 | -0.14 | +0.34 | +0.28 | +0.03 | -0.33 | +0.19 | -0.31 | +0.50 |
+| 15–17 Ecuador (20–22 UTC) | -0.65 | -1.52 | -0.98 | -1.33 | -1.25 | -2.02 | -1.98 | -1.40 | -2.08 | -2.08 | -0.42 | -1.86 | -0.31 | -17.87 |
+| 17–19 Ecuador (22–00 UTC) | -1.17 | -2.04 | -1.49 | -1.66 | -1.06 | -2.13 | -2.68 | -1.98 | -2.25 | -1.37 | -0.51 | -2.63 | -0.26 | -21.23 |
+| 07–10 Ecuador (12–15 UTC) — ventana del dueño | -1.26 | -1.16 | -0.75 | -2.30 | -2.11 | -2.71 | -3.41 | -2.83 | -3.20 | -2.12 | -0.45 | -1.96 | -0.35 | -24.62 |
 
 ## FORWARD — mejores y peores celdas (lun–vie)
 
 **Mejores 5 (descriptivo, puede ser suerte):**
+- DOTUSDT · baseline · 23–01 Ecuador (04–06 UTC): +1.22% neto en 1 operación(es)
+- AVAXUSDT · baseline · 23–01 Ecuador (04–06 UTC): +1.08% neto en 1 operación(es)
+- ADAUSDT · baseline · 23–01 Ecuador (04–06 UTC): +0.81% neto en 1 operación(es)
+- SOLUSDT · baseline · 23–01 Ecuador (04–06 UTC): +0.72% neto en 1 operación(es)
+- DOTUSDT · baseline · 05–07 Ecuador (10–12 UTC): +0.66% neto en 1 operación(es)
 
 **Peores 5:**
+- ADAUSDT · baseline · 07–10 Ecuador (12–15 UTC) — ventana del dueño: -3.41% neto en 1 operación(es)
+- AVAXUSDT · baseline · 07–10 Ecuador (12–15 UTC) — ventana del dueño: -3.20% neto en 1 operación(es)
+- LINKUSDT · baseline · 07–10 Ecuador (12–15 UTC) — ventana del dueño: -2.83% neto en 1 operación(es)
+- DOGEUSDT · baseline · 07–10 Ecuador (12–15 UTC) — ventana del dueño: -2.71% neto en 1 operación(es)
+- ADAUSDT · baseline · 17–19 Ecuador (22–00 UTC): -2.68% neto en 1 operación(es)
 
 ## referencia: datos pasados — por día de la semana
 
