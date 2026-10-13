@@ -57,3 +57,48 @@ mantener BTC, en las mismas ventanas de 30 días del año de prueba. Una regla *
 Se publica el resultado tal cual, gane o pierda.
 
 Comando: `python -m trading_intelligence.backtesting.research_tendencia --hasta 2025-10-12 --preregistro`
+
+---
+
+# Preregistro 2: "BTC régimen" (2026-10-13)
+
+Escrito el 2026-10-13, **antes** de correr ninguna prueba de esta regla. Pedido por el líder como la referencia más
+simple que usan los profesionales. Se prueba sin cambiar nada en los dos años ya medidos: **2024-10-12 a 2025-10-12**
+y **2025-10-12 a 2026-10-12**.
+
+## Regla base: `btc_sma200`
+
+- Solo BTCUSDT, solo largos, 1x. Precio Spot de Binance como aproximación del perpetuo.
+- Cada cierre diario UTC: si el cierre está por encima de su media simple de 200 días, la regla quiere estar comprada;
+  si no, quiere estar en efectivo.
+- Se actúa en la apertura de la primera hora del día siguiente (velas de 1 hora). Al empezar cada año de prueba se
+  usa la última señal conocida y se entra (o no) en la apertura de la primera hora.
+- Tamaño: todo el capital (cantidad = capital / (precio × (1 + comisión))). Esto se aparta del tope de 50% por
+  posición del protocolo, a pedido del líder; sin apalancamiento.
+- Costes: comisión 0,05% y deslizamiento 0,02% por lado; financiación real de cada 8 h, cobrada cada hora
+  (los largos pagan si es positiva; 0,01% si falta).
+- Capital 1.000 USDT al empezar cada año.
+
+## Variantes
+
+- `btc_sma50`: igual, con la media simple de 50 días.
+- `btc_sma200_stop10`: la regla base más un stop que sigue al precio: se vende si el mínimo de una hora toca el
+  máximo alcanzado desde la entrada × 0,90 (un hueco por debajo se llena en la apertura). Tras salir por el stop,
+  no se vuelve a entrar hasta que un cierre diario quede por debajo de la media de 200 y luego otro vuelva por
+  encima (un cruce nuevo).
+
+## Cómo se juzga (fijado ahora)
+
+Igual que el preregistro 1, cada año por separado, contra `mesa_r3` y BTC comprar y mantener en las mismas fechas
+(los números de la mesa son los de `tendencia_2026-10-12.json` y `preregistro_2025-10-12.json`):
+
+1. Neto positivo.
+2. Neto / caída máxima (caída medida con el cierre diario) mejor que el de `mesa_r3`.
+3. Positiva en al menos el 75% de los trimestres (redondeando hacia arriba).
+4. Al menos 100 operaciones. Se sabe de antemano que una regla de régimen opera pocas veces (decenas como mucho),
+   así que no llegará: si cumple 1-3 se informa como "muestra corta, favorable", no como prueba.
+
+Además se informa (sin ser criterio de aprobación): la caída máxima frente a la de comprar y mantener BTC, y qué parte
+de la subida de BTC capturó en el año alcista y qué parte de la bajada evitó en el año bajista.
+
+Se publica el resultado tal cual, gane o pierda.
