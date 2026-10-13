@@ -93,7 +93,7 @@ def _esc(text: str) -> str:
 
 def build_pdf(blocks: list[tuple[str, str]], path: Path) -> Path:
     pages: list[list[str]] = [[]]
-    y = PAGE_H - MARGIN
+    y: float = PAGE_H - MARGIN
     for kind, text in blocks:
         font, size, lead = STYLES[kind]
         if kind in ("h1", "h2"):
@@ -166,7 +166,7 @@ def build(day: str, reports: Path, runs: Path, out: Path, now: Optional[datetime
 
 def send_outlook(pdf: Path, to: str, day: str) -> None:
     """Outlook desktop on Windows, through COM: it sends from the account already signed in there."""
-    import win32com.client  # type: ignore[import-not-found]  # pywin32, only on the owner's PC
+    import win32com.client  # pywin32, only on the owner's PC
 
     mail = win32com.client.Dispatch("Outlook.Application").CreateItem(0)
     mail.To, mail.Subject = to, f"Trading Intelligence AI - reporte diario {day}"
