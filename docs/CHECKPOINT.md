@@ -285,3 +285,18 @@ only the latest work blocks. The history up to 2026-10-10 (sections 1–90) is i
   - Funding alone has no direction (0.003, 2020-26).
   - The saturated-funding veto is a separate rule and stays.
 - The leader's decision: the +0.2 × sentiment tilt on the trade size is removed, in live practice and in the backtest. The mood still feeds the Skeptic and the journal. The inert rule stays until a normalized top-traders ratio is researched (not started).
+
+### 103. Real money: Binance Futures in USDT and XM; no coins held on Spot; Compliance agent (2026-10-13)
+- **Owner's decision on real futures:** "futuros reales es la única forma de llegar a saberlo ... de acabarse el dinero o perderlo sigues alimentándote".
+  - Real Binance USDⓈ-M Futures starts with his phrase and amount written to Claude local.
+  - It runs with the approved `config/futures_limits.json`: 1x, isolated margin, max 50% per position, loss limit 45%.
+  - The regime brake stays on. The leader advised against it, citing the −53% of 2025-26.
+- **Owner's rule on Spot:** "debes dejar todo como usdt xq btc no puedo no vender".
+  - Small Spot leftovers fall below Binance's minimum and can't be sold.
+  - So **every real-money result ends in USDT**: no coins held on Spot.
+  - `core_btc --real` (Spot) is not used. The Núcleo BTC keeps running in practice only.
+- **XM:** the bot is DEMO-only by design: it refuses a real account. Real XM needs three things:
+  - the demo working on the owner's account first;
+  - an XM real-money transport;
+  - XM limits approved by the owner.
+- **New agent:** `.claude/agents/compliance.md` reviews the technical and legal traps before any real-money plan: minimums and dust, settlement in USDT, account modes, costs, keys, Ecuadorian law, and the owner's understanding.
