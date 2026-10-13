@@ -300,3 +300,16 @@ only the latest work blocks. The history up to 2026-10-10 (sections 1–90) is i
   - an XM real-money transport;
   - XM limits approved by the owner.
 - **New agent:** `.claude/agents/compliance.md` reviews the technical and legal traps before any real-money plan: minimums and dust, settlement in USDT, account modes, costs, keys, Ecuadorian law, and the owner's understanding.
+
+### 104. Owner's capital plan; XM sizing trap; practice at 50 USDT (2026-10-13)
+- **Owner's plan:**
+  - Start real money with 50-100 USD and let it compound; he will rarely withdraw.
+  - If results show within a year, add about 1,000 USD.
+  - He prefers XM over Binance because of Binance's fees, and XM sometimes offers deposit promotions.
+- **The XM trap (Compliance), why XM real waits:**
+  - XM's minimum is 0.01 lot of a 100,000-unit contract: about 1,170 USD notional on EURUSD and over 2,000 USD on gold.
+  - With 50-100 USD, that is 12-40× the account, against the bot's cap of 2× effective leverage per position (`xm_mt5.EntryCaps`). Every entry would be refused unless leverage is accepted.
+  - The spread on that forced size (about 0.16 USD per EURUSD trade) is also about 0.3% of a 50 USD account per trade. Binance's 0.05% per side on a right-sized position costs less.
+  - XM becomes viable at 1x near 1,000 USD, which fits his one-year plan, or sooner with a micro-lot account type if XM offers one to him. Not verified.
+  - Deposit bonuses carry conditions and are not counted as capital.
+- **Practice:** practice 1 moves to 50 USDT fictitious, mirroring the plan. An XM MT5 DEMO ("Demo Bot", 1:1, 1,000 USD virtual) is being created for connection and learning.

@@ -531,7 +531,7 @@ def size_plan(market: FuturesMarket, symbol: str, side: str, equity: Decimal, ri
 
 class FuturesBroker:
     """REAL orders on Binance USDⓈ-M."""
-    name, unit = "Binance Futuros", "unidades"
+    name, unit = "💰 Binance Futuros · DINERO REAL", "unidades"  # never confusable with practice on Telegram
 
     def __init__(self, market: FuturesMarket, limits: FuturesLimits) -> None:
         if not limits.approved:
@@ -619,14 +619,14 @@ class FuturesBroker:
 
 class PaperFuturesBroker:
     """SHADOW: real public prices, simulated positions with their stop, target and taker fee."""
-    name, unit = "🧪 Binance Futuros SIMULADO (dinero ficticio)", "unidades"
+    name, unit = "🧪 Binance Futuros · PRÁCTICA SIMULADO (dinero ficticio)", "unidades"
 
     def __init__(self, market: FuturesMarket, capital: Decimal, state_path: Path, *, leverage: int = 1,
                  max_position_pct: Decimal = Decimal("50"), fee: Decimal = TAKER_FEE) -> None:
         self.market, self.state_path, self.leverage, self.max_position_pct, self.fee = market, Path(state_path), \
             leverage, max_position_pct, fee
         if leverage > 1:  # a second practice account must be told apart on Telegram
-            self.name = f"🧪 Binance Futuros SIMULADO {leverage}x (dinero ficticio)"
+            self.name = f"🧪 Binance Futuros · PRÁCTICA SIMULADO {leverage}x (dinero ficticio)"
         self.book: dict[str, Any] = json.loads(self.state_path.read_text(encoding="utf-8")) \
             if self.state_path.exists() else {"cash": str(capital), "positions": {}, "closed": []}
 

@@ -43,7 +43,7 @@ DEFAULT_SYMBOLS = ("EURUSD", "GOLD", "BTCUSD")
 
 
 class XmBroker:
-    name, unit = "XM DEMO", "lotes"
+    name, unit = "🧪 XM DEMO (dinero virtual)", "lotes"
 
     def __init__(self, trader: XmDemoTrader, caps: EntryCaps = EntryCaps()) -> None:
         self.trader, self.caps = trader, caps
