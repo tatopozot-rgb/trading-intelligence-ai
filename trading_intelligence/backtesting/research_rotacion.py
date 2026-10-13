@@ -394,12 +394,14 @@ def simulate(m: Market, signals: list[Signal], lo: int, hi: int, capital: float 
 # Metrics
 # ---------------------------------------------------------------------------
 
-def max_dd_pct(curve: pd.Series) -> float:
+def max_dd_pct(curve: pd.Series, capital: float = CAPITAL) -> float:
+    """Largest fall from a peak, in % of the starting capital. The test windows are summed, not
+    compounded (each starts at `capital`), so the fall is measured against that capital, not the peak."""
     if curve.empty:
         return 0.0
     v = curve.to_numpy(dtype=float)
-    peak = np.maximum.accumulate(v)
-    return float(((peak - v) / peak).max() * 100)
+    peak = np.maximum.accumulate(np.r_[capital, v])[1:]
+    return float(max(0.0, (peak - v).max()) / capital * 100)
 
 
 def net_dd(net_pct: float, dd_pct: float) -> Optional[float]:
@@ -617,7 +619,10 @@ def daily_net_dd(daily: pd.Series) -> Optional[float]:
 
 
 def verdict(oos: dict, desk: Optional[dict], corr: Optional[float], combo: Optional[dict],
-            desk_daily_ratio: Optional[float]) -> tuple[str, bool]:
+            desk_daily_ratio: Optional[float], biased: bool = False) -> tuple[str, bool]:
+    if biased:
+        return ("no cuenta: la lista de monedas es la de hoy (las que más subieron), sesgo de supervivencia",
+                False)
     if oos["operaciones"] < MIN_OOS_TRADES:
         return (f"muestra corta: {oos['operaciones']} operaciones fuera de muestra (< {MIN_OOS_TRADES})",
                 False)
@@ -629,8 +634,9 @@ def verdict(oos: dict, desk: Optional[dict], corr: Optional[float], combo: Optio
             and oos["neto_caida"] > desk["neto_caida"] and quarters_ok:
         return "GANA: mejor neto/caída que mesa_r3 y positiva en 3 de cada 4 trimestres", True
     if combo is not None and desk_daily_ratio is not None and corr is not None and abs(corr) < 0.3 \
-            and combo["neto_caida"] is not None and combo["neto_caida"] > desk_daily_ratio:
-        return "SUMA: gana algo, sin correlación con la mesa, y mitad y mitad mejora el neto/caída de la mesa", True
+            and combo["neto_caida"] is not None and combo["neto_caida"] > desk_daily_ratio and quarters_ok:
+        return ("SUMA: gana, sin correlación con la mesa, positiva en 3 de cada 4 trimestres, y mitad y mitad "
+                "mejora el neto/caída de la mesa", True)
     if not quarters_ok:
         return "positiva, pero no en 3 de cada 4 trimestres", False
     return "positiva, pero no mejora a mesa_r3", False
@@ -715,7 +721,8 @@ def render(result: dict, meta: dict) -> str:
     lines.append(_row("BTC comprar y mantener", btc, result.get("btc_corr"), "referencia"))
     for fam, r in result["familias"].items():
         lines.append(_row(FAMILY_NAMES.get(fam, fam), r["oos"], r.get("corr_mesa"), r["veredicto"]))
-    lines += ["", "Neto/caída = neto % dividido por la máxima caída %: cuánto se gana por cada punto de caída. "
+    lines += ["", "Neto/caída = neto % dividido por la máxima caída %: cuánto se gana por cada punto de caída. La máxima caída "
+              "se mide en % del capital de 1.000 USDT (las ventanas se suman, no se reinvierten). "
               "La mesa (mesa_r3) se repite con velas de 5 minutos y sus reglas reales, ventana por ventana, con el "
               "mismo deslizamiento agregado.", ""]
     for fam, r in result["familias"].items():
@@ -779,7 +786,8 @@ def study(m: Market, wins: list[Window], families: dict[str, Market],
             corr = correlation(daily, desk_daily)
             combo = half_and_half(daily, desk_daily)
         r["corr_mesa"], r["mitad_mesa"] = corr, combo
-        r["veredicto"], r["gana"] = verdict(r["oos"], desk_m, corr, combo, result.get("mesa_neto_caida_diaria"))
+        r["veredicto"], r["gana"] = verdict(r["oos"], desk_m, corr, combo, result.get("mesa_neto_caida_diaria"),
+                                           biased=fam == "rotacion_top30")
         result["familias"][fam] = r
         print(f"{fam}: {r['oos']['operaciones']} operaciones, neto {r['oos']['neto_pct']:+.2f}%, "
               f"caída {r['oos']['max_caida_pct']}% -> {r['veredicto']}")

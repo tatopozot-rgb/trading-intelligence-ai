@@ -165,7 +165,7 @@ def test_chain_metrics_and_quarters():
     assert full.iloc[-1] == pytest.approx(1050)
     s = rr.metrics([{"pnl": 100.0, "fees": 1.0, "funding": 0.5}, {"pnl": -50.0, "fees": 1.0, "funding": 0.0}], full)
     assert s["neto_pct"] == pytest.approx(5.0)
-    assert s["max_caida_pct"] == pytest.approx(50 / 1100 * 100, rel=1e-3)
+    assert s["max_caida_pct"] == pytest.approx(50 / 1000 * 100, rel=1e-3)  # in % of the capital
     assert s["acierto_pct"] == 50.0 and s["factor_beneficio"] == 2.0
     assert sum(s["trimestres"].values()) == pytest.approx(5.0, abs=0.05)
     assert set(s["trimestres"]) == {"2026-T1", "2026-T2"}
@@ -181,6 +181,15 @@ def test_verdict_rules():
     assert rr.verdict(weaker, desk, 0.1, {"neto_caida": 2.5}, 2.0)[0].startswith("SUMA")
     assert rr.verdict(weaker, desk, 0.6, {"neto_caida": 2.5}, 2.0)[1] is False
     assert rr.verdict({**oos, "neto_pct": -1.0}, desk, 0.1, None, None)[0] == "pierde fuera de muestra"
+    # adding to the desk also needs 3 positive quarters out of 4; a survivor-biased universe never counts
+    assert rr.verdict({**weaker, "trimestres_positivos": "3/5"}, desk, 0.1, {"neto_caida": 2.5}, 2.0)[1] is False
+    assert rr.verdict(oos, desk, 0.1, None, None, biased=True)[1] is False
+
+
+def test_drawdown_of_summed_windows_is_in_percent_of_capital():
+    idx = pd.date_range("2026-01-01", periods=4, freq="1h", tz="UTC")
+    assert rr.max_dd_pct(pd.Series([900.0, 400.0, -100.0, 0.0], index=idx)) == pytest.approx(110.0)
+    assert rr.max_dd_pct(pd.Series([1200.0, 1500.0, 1400.0, 1600.0], index=idx)) == pytest.approx(10.0)
 
 
 def test_study_end_to_end_without_the_desk(tmp_path):
