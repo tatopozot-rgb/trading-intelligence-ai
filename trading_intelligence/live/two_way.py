@@ -614,6 +614,8 @@ class TwoWayAuto:
             return
         if signal is None or s.status != RUNNING or s.halted or len(ours) >= self.max_open:
             return
+        if self.desk_rules is not None and D.event_near(self.clock()) is not None:
+            return  # no new entries around FOMC/CPI (config/eventos.json); open positions keep their stops
         if up is not None and (signal == "SELL" or not up):
             return  # the regime brake keeps the desk flat
         quiet = self._last_veto.get(sym)

@@ -1,0 +1,9 @@
+{
+  "_comment": "Macro events (UTC). The automatic desk opens no new position from 'hours' before to 'hours' after each one (theory §3: FOMC and CPI bring sharp moves and slippage). Open positions keep their stops. Updated by the leader's daily intelligence routine from docs/inteligencia/; it only blocks entries, never adds risk.",
+  "hours": 2,
+  "events": [
+    {"at": "2026-10-14T12:30:00Z", "name": "IPC (CPI) de EE. UU., septiembre"},
+    {"at": "2026-10-28T18:00:00Z", "name": "Decisión de la Fed (FOMC)"},
+    {"at": "2026-12-09T19:00:00Z", "name": "Decisión de la Fed (FOMC)"}
+  ]
+}

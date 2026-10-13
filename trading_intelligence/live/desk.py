@@ -37,6 +37,7 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 DEFAULT_RULES = Path("config/desk_rules.json")
+DEFAULT_EVENTS = Path("config/eventos.json")
 NEWS_FEEDS = ("https://www.coindesk.com/arc/outboundfeeds/rss/", "https://cointelegraph.com/rss")
 FEAR_GREED_URL = "https://api.alternative.me/fng/?limit=1"
 COIN_NAMES = {"BTC": ("bitcoin", "btc"), "ETH": ("ether", "ethereum", "eth"), "BNB": ("bnb", "binance coin"),
@@ -300,3 +301,19 @@ def journal(directory: Path, now: datetime, title: str, lines: list[str]) -> Non
     body = "\n".join(f"- {line}" for line in lines)
     with path.open("a", encoding="utf-8") as fh:
         fh.write(f"{head}## {now:%H:%M} UTC · {title}\n\n{body}\n\n")
+
+
+def event_near(now: datetime, path: Path = DEFAULT_EVENTS) -> Optional[str]:
+    """Name of a macro event (FOMC, CPI) within its blackout window around now, else None. Theory §3
+    (docs/APRENDIZAJE_TEORIA.md): those hours bring sharp moves and slippage, so the desk opens nothing new.
+    A missing or unreadable file blocks nothing."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        window = timedelta(hours=float(data.get("hours", 2)))
+        for e in data.get("events", []):
+            at = datetime.fromisoformat(str(e["at"]).replace("Z", "+00:00"))
+            if abs(now - at) <= window:
+                return str(e.get("name", "evento macro"))
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    return None

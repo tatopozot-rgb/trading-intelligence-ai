@@ -131,3 +131,18 @@ def test_bull_run_mode_can_be_switched_off():
     assert D.rally("SOLUSDT", up, off) is None
     e = Decimal("100")  # even if a caller passes rally=True, the target stays 3x the risk
     assert D.shape_target(e, Decimal("104"), "BUY", off, rally=True, stop=Decimal("96")) == Decimal("112")
+
+
+def test_event_window_blocks_only_around_listed_events(tmp_path):
+    import json as _json
+    from datetime import datetime as _dt
+    from datetime import timedelta as _td
+    from datetime import timezone as _tz
+
+    f = tmp_path / "e.json"
+    f.write_text(_json.dumps({"hours": 2, "events": [{"at": "2026-10-14T12:30:00Z", "name": "CPI"}]}))
+    at = _dt(2026, 10, 14, 12, 30, tzinfo=_tz.utc)
+    assert D.event_near(at - _td(hours=1), f) == "CPI"
+    assert D.event_near(at + _td(hours=2), f) == "CPI"
+    assert D.event_near(at + _td(hours=3), f) is None
+    assert D.event_near(at, tmp_path / "missing.json") is None
