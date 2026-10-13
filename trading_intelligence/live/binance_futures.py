@@ -54,6 +54,8 @@ from trading_intelligence.strategy.two_way_signals import DEFAULT_VARIANT, VARIA
 
 logger = logging.getLogger(__name__)
 
+ORDERS_PATH = Path("live_runs/ordenes.jsonl")  # shared with the market alarm (live/ordenes.py)
+
 FAPI_HOST, SPOT_HOST = "fapi.binance.com", "api.binance.com"
 KEY_VAR, SECRET_VAR = "BINANCE_FUTURES_API_KEY", "BINANCE_FUTURES_SECRET_KEY"
 # Owner, 2026-10-10: "usa la misma clave de ser necesario es la misma cuenta": without a futures-only key,
@@ -776,7 +778,8 @@ def main(argv: Optional[list[str]] = None, transport=None, env: Optional[Mapping
                           desk_rules=None if args.sin_mesa else DeskRules.load(),
                           journal_dir=args.diario or d / "mesa", news_get=None if args.sin_mesa else desk_get,
                           report_every_s=120 if args.modo == "real" else 1800, goal_usd=limits.monthly_goal_usd,
-                          heartbeat_every_s=4 * 3600)  # practice: status every 30 min
+                          heartbeat_every_s=4 * 3600,  # a verified status line every 4 h
+                          orders_path=ORDERS_PATH)  # the owner's CIERRA / META orders by Telegram
         equity, _ = auto.broker.equity()
         print(f"{auto.broker.name} · saldo {equity} USDT · {limits.max_leverage}x · riesgo {limits.risk_min_pct}-"
               f"{limits.risk_max_pct}% por operación según la señal · posición máx. {limits.max_position_pct}% · {limits.max_open} posiciones · límite de "
