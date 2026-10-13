@@ -185,3 +185,46 @@ only the latest work blocks. The history up to 2026-10-10 (sections 1–90) is i
 - Quant: the first weekly two-way PAPER run is green: 11 longs and 2 shorts, starting 2026-10-12.
 - Local: no new messages since 2026-10-11 16:10 UTC. The owner confirmed that Telegram works.
 
+
+### 98. One year of data: the desk only wins in a bull market (2026-10-12/13)
+
+**Owner's words:** "tú eres el líder, si no ganamos pues no tiene sentido, busca estrategias y olvida lo que yo dije y mis marcas, vamos mejorándolas con la práctica".
+
+**What the leader did:**
+- The live desk is now exactly `mesa_r3`: no 3% floor and no bull-run mode (PR #43).
+- One research workflow (`research-run.yml`) and a shared protocol (`docs/research/PROTOCOLO.md`): 365+ days, walk-forward, real costs, results per quarter, and a comparison against `mesa_r3`.
+- Three researchers: Quant (`research_mesa`), Tendencia (branch `research-tendencia`, PR #44) and Rotación (branch `research-rotacion`).
+
+**Result.** Three independent replays of `mesa_r3` over 2025-10 → 2026-10 (1000 USDT per 30-day block, fees, slippage 0.02%, real funding) agree:
+
+| Replay | Year | Max DD | Trades | Bear quarters | Bull quarter (jul–oct 2026) |
+|---|---|---|---|---|---|
+| Quant `research_mesa` (proven identical to `two_way_backtest`) | −53.2% | 73.7% | 715 | −39.7% / −40.9% / −13.8% | +52.5% |
+| Tendencia | −53.1% | 70.3% | 743 | −45.7% / −36.3% / −11.9% | +49.8% |
+| Rotación | −49.6% | — | 703 | −44.6% / −45.1% / −17.1% | +58.6% |
+
+- BTC buy-and-hold over the same period: −17% to −24%.
+- The desk loses more than BTC in every falling quarter. Its shorts lose too.
+- Every earlier gain (the 30/60-day checks, the second-strategy window) sat inside the one bull quarter.
+- Trade counts are higher than in the 37-USDT checks because, at 1000 USDT, minimum notionals no longer block entries.
+
+**What does not fix it** (Quant):
+- Exits: target 2.5–5R, other trailing settings and time exits all made it worse out of sample.
+- Skeptic rules: the round-number rule subtracts in net (−43.2% without it, −53.2% with it).
+- Sizing: fixed 2/5/10% gives the same result.
+- 3x loses −92% to −94%. **3x is discarded, and practice 2 (3x) is cancelled.**
+
+**Other strategies, out of sample over the year:**
+- Trend (Donchian, EMA, TS momentum): all lose. The best, TS momentum, made −3.5%.
+- Rotation over 12 coins: −75%.
+- 1h mean reversion: −38.6%.
+- Pairs: −3.2% (short sample).
+- Top-30 rotation showed +108%, but it is not counted: the list was chosen with hindsight (survivorship bias).
+
+**Leader decisions:**
+- **No real-money futures** until a strategy passes the protocol: positive in 3 of 4 quarters, out of sample.
+- Practice 1 (fictitious money) keeps running, for learning only.
+- Next:
+  - Quant tests a regime gate: trade only when BTC is in an uptrend (200/50-day mean), flat otherwise.
+  - Tendencia tests two fixed setups, pre-registered on 2026-10-12, on the year before (2024-10 → 2025-10).
+- The +58%/month goal is not supported by any evidence we have.
