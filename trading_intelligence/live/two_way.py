@@ -64,6 +64,7 @@ TRAIL_START_R, TRAIL_DISTANCE_R = Decimal("1"), Decimal("0.5")  # as on Spot
 RUNNING, WAITING_OWNER, STOPPED, GOAL, PAUSED_API = "RUNNING", "WAITING_OWNER", "STOPPED", "GOAL", "PAUSED_API"
 API_FAILURES_TO_PAUSE = 3  # kill switch: this many failed passes in a row stop new entries until one works
 VETO_QUIET = timedelta(minutes=30)  # a vetoed symbol/side is not re-proposed for this long
+REGIME_SYMBOL = "BTCUSDT"  # the regime brake reads BTC's daily bars
 VETO_TRACK = timedelta(hours=24)  # a veto's outcome is scored for this long
 CONTINUE_FILE = "CONTINUAR"
 VERIFY_PAUSE_S = 2.0  # between the two account reads that confirm a message
@@ -182,6 +183,7 @@ class TwoWayAuto:
         self._last_veto: dict[str, tuple[str, datetime]] = {}
         self._rally_seen: dict[str, tuple[datetime, Optional[D.Alert]]] = {}
         self._fng: tuple[Optional[datetime], Optional[int]] = (None, None)
+        self._regime: tuple[Optional[datetime], Optional[bool]] = (None, None)
         self._failures = 0
 
     def decision_due(self) -> bool:
@@ -478,6 +480,27 @@ class TwoWayAuto:
         self._rally_seen[sym] = (now, alert)
         return alert
 
+    def _regime_up(self) -> Optional[bool]:
+        """The regime brake (desk rule regime_btc_sma): is BTC above its N-day mean on closed daily bars? Checked at
+        most once an hour; None (no brake) when the rule is off or BTC's daily bars cannot be read."""
+        if self.desk_rules is None or self.desk_rules.regime_btc_sma is None:
+            return None
+        now = self.clock()
+        at, before = self._regime
+        if at is not None and now - at < timedelta(hours=1):
+            return before
+        days = self.desk_rules.regime_btc_sma
+        try:
+            up = D.btc_regime_up(self.broker.candles(REGIME_SYMBOL, "1d", days + 5), days, now)
+        except Exception as error:  # noqa: BLE001 - no BTC data: no brake, like the research
+            logger.warning("régimen: sin velas diarias de BTC (%s)", error)
+            up = None
+        if up is not None and before is not None and up != before:
+            self.chatter(f"🧭 {self.broker.name}: BTC cerró {'sobre' if up else 'bajo'} su media de {days} días. "
+                         + ("Vuelvo a buscar compras." if up else "Freno de riesgo: no abro nada y cierro lo abierto."))
+        self._regime = (now, up)
+        return up
+
     def risk_for(self, quality: float) -> Decimal:
         """1% to 15% of equity with the signal's quality (0-1); never with past wins or losses."""
         q = Decimal(str(max(0.0, min(1.0, quality))))
@@ -511,6 +534,18 @@ class TwoWayAuto:
         s, name = self.state, self.broker.name
         signal, quality, data = self._signal(sym)
         pos = ours.get(sym)
+        up = self._regime_up()
+        if pos is not None and up is not None and (pos.side == "SELL" or not up):
+            self.broker.close(pos)  # the regime brake: only longs, and only while BTC is above its mean
+            ours.pop(sym)
+            s.known.pop(sym, None)
+            self._event("CLOSE", f"{sym} {pos.side}: freno de régimen")
+            confirmed = self._verified(sym, open_=False)
+            self.notify(f"🧭 🤖 Bot {sym} · {name}: cerré la {'compra' if pos.side == 'BUY' else 'venta en corto'} por el "
+                        f"freno de riesgo (solo compras, y solo con BTC sobre su media). "
+                        + ("Verificado 2 veces en la cuenta." if confirmed else
+                           "⚠️ La cuenta todavía la muestra abierta: la reviso en la próxima vuelta."))
+            return
         if pos is not None:
             riding = pos.side == "BUY" and bool(s.known.get(sym, {}).get("rally"))
             if signal is not None and signal != pos.side and not riding:  # a bull run ends only at the trailing stop
@@ -528,6 +563,8 @@ class TwoWayAuto:
             return
         if signal is None or s.status != RUNNING or s.halted or len(ours) >= self.max_open:
             return
+        if up is not None and (signal == "SELL" or not up):
+            return  # the regime brake keeps the desk flat
         quiet = self._last_veto.get(sym)
         if quiet is not None and quiet[0] == signal and self.clock() - quiet[1] < VETO_QUIET:
             return  # refused minutes ago for this same side: not re-proposed every 30 s
