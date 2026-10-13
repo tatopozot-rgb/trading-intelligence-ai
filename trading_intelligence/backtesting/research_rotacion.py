@@ -176,7 +176,8 @@ def btc_above_mean(m: Market, days: int = 50) -> pd.Series:
 
 
 def rotation_signals(m: Market, lo: int, hi: int, lookback: int, rebalance: int, mode: str,
-                     _btc: Optional[pd.Series] = None) -> list[Signal]:
+                     _btc: Optional[pd.Series] = None, eligible: Optional[np.ndarray] = None) -> list[Signal]:
+    """`eligible` (bars x symbols, bool): only those coins are ranked at that bar (a point-in-time universe)."""
     ret = (m.close / m.close.shift(lookback * 24) - 1).values
     btc_ok = (_btc if _btc is not None else btc_above_mean(m)).values
     syms = m.symbols
@@ -189,7 +190,7 @@ def rotation_signals(m: Market, lo: int, hi: int, lookback: int, rebalance: int,
         out.append(Signal(start, sym, ((sym, side, weight),), i, "rebalanceo"))
 
     for i in rebalance_bars(m, lo, hi, rebalance):
-        r = ret[i - 1]
+        r = ret[i - 1] if eligible is None else np.where(eligible[i], ret[i - 1], np.nan)
         ranked = [syms[j] for j in np.argsort(-np.nan_to_num(r, nan=-np.inf)) if not math.isnan(r[j])]
         basket: dict[str, str] = {}
         if len(ranked) >= 4:
@@ -477,10 +478,11 @@ def windows(m: Market, days: int) -> list[Window]:
     return out[::-1]
 
 
-def _generator(family: str, m: Market) -> Callable[[dict, int, int], list[Signal]]:
+def _generator(family: str, m: Market, eligible: Optional[np.ndarray] = None
+               ) -> Callable[[dict, int, int], list[Signal]]:
     if family.startswith("rotacion"):
         btc = btc_above_mean(m)
-        return lambda p, lo, hi: rotation_signals(m, lo, hi, _btc=btc, **p)
+        return lambda p, lo, hi: rotation_signals(m, lo, hi, _btc=btc, eligible=eligible, **p)
     cache: dict[str, list[Signal]] = {}
     gen = reversion_signals if family == "reversion" else pairs_signals
 
@@ -498,8 +500,9 @@ def _score(s: dict) -> float:
     return s["neto_pct"] / max(s["max_caida_pct"], 1.0)
 
 
-def walk_forward(m: Market, family: str, grid: list[dict], wins: list[Window]) -> dict:
-    gen = _generator(family, m)
+def walk_forward(m: Market, family: str, grid: list[dict], wins: list[Window],
+                 eligible: Optional[np.ndarray] = None) -> dict:
+    gen = _generator(family, m, eligible)
     folds, curves, trades = [], [], []
     fixed: dict[str, list[Run]] = {json.dumps(p, default=str): [] for p in grid}
     for flo, lo, hi in wins:
