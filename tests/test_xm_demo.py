@@ -129,3 +129,16 @@ def test_the_stop_that_follows_the_gain_moves_on_xms_server(tmp_path):
     req = m.sent[-1]
     assert req["action"] == D.TRADE_ACTION_SLTP and req["position"] == 1001
     assert m.positions[0].sl == float(plan.price) and m.positions[0].tp == float(plan.tp)  # still open
+
+
+def test_size_lots_stays_inside_the_margin_a_1_to_1_account_can_carry():
+    from trading_intelligence.live.xm_mt5 import Account, EntryCaps, Sheet
+
+    d = Decimal
+    # BTCUSD-like: 0.01 lot = 830 USD notional and 830 USD margin on a 1:1 account with 1,000 free
+    sheet = Sheet("BTCUSD", "COMPLETO", d("83000"), d("83010"), d("10"), d("0.012"), d("0.01"), d("0.01"), d("100"),
+                  d("1"), d("830"), d("830"), d("0"), d("0"), 0, 0, d("0.01"), 1)
+    acc = Account("DEMO", "USD", 1, d("1000"), d("1000"), d("1000"), True)
+    # a tight stop and high risk ask for many lots; leverage 2x alone would allow 0.02 (1,660 of margin: "No money")
+    assert D.size_lots(sheet, acc, d("100"), d("15"), EntryCaps(max_margin_pct_of_free=d("90"))) == d("0.01")
+    assert D.size_lots(sheet, acc, d("100"), d("15"), EntryCaps(max_margin_pct_of_free=d("50"))) == 0

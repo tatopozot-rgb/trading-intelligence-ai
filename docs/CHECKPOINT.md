@@ -353,3 +353,13 @@ only the latest work blocks. The history up to 2026-10-10 (sections 1–90) is i
   - the futures key was still shown as pending;
   - the 3x practice was missing;
   - the XM agents and their events were missing.
+
+### 108. XM "No money" fixed: size inside the margin the account can carry (2026-10-13)
+
+- **What happened:** Local saw entries refused by MT5 with "No money".
+  - Operador XM on OILCash at 20:07 and 20:22 UTC.
+  - Índices on BTCUSD at 22:41 UTC.
+  - The account had 999.79 USD free and no positions.
+- **Cause:** `size_lots` capped size only by effective leverage (2x). On a 1:1 account, 2x exposure needs twice the equity in margin, so the order failed MT5's own check.
+- **Fix:** size is also capped at the agent's share of free margin (`max_margin_pct_of_free`), using MT5's margin per lot. Test: `test_size_lots_stays_inside_the_margin_a_1_to_1_account_can_carry`.
+- **City:** the owner chose the artifact as the city ("No es necesario si es que consumiría muchos recursos"). The 3D city's development is paused on a local branch, not merged.

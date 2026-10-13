@@ -93,7 +93,11 @@ def size_lots(sheet: Sheet, account: Account, stop_distance: Decimal, risk_pct: 
     loss_per_lot = stop_distance * per_lot_unit
     lots = account.equity * risk_pct / 100 / loss_per_lot
     max_by_leverage = caps.max_effective_leverage * account.equity / (mid * per_lot_unit)
-    lots = min(lots, max_by_leverage, sheet.volume_max)
+    # the margin MT5 will ask for, at the cap's share of free margin: a 1:1 account cannot carry 2x exposure
+    # ("No money" when the order is checked), so margin, not leverage, is often the binding cap
+    max_by_margin = (account.free_margin * caps.max_margin_pct_of_free / 100 / (sheet.min_lot_margin / sheet.volume_min)
+                     if sheet.min_lot_margin.is_finite() and sheet.min_lot_margin > 0 else max_by_leverage)
+    lots = min(lots, max_by_leverage, max_by_margin, sheet.volume_max)
     step = sheet.volume_step
     lots = (lots / step).to_integral_value(rounding=ROUND_DOWN) * step
     return lots if lots >= sheet.volume_min else Decimal("0")
