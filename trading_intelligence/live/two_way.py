@@ -318,8 +318,10 @@ class TwoWayAuto:
             if self._verified(sym, open_=False) or (sym in ours and ours[sym].ticket != info.get("ticket")):
                 del self.state.known[sym]
                 self._event("CLOSED_BY_EXCHANGE", sym)
+                plan = (f" Había entrado a {info.get('entry', '?')} con stop {info.get('stop', '?')} y meta "
+                        f"{info.get('target', '?')}; el saldo del próximo resumen muestra el resultado.")
                 self.notify(f"⚪ 🤖 Bot {sym} · {self.broker.name}: la posición se cerró en el servidor (llegó a su "
-                            f"stop o a su meta). Verificado 2 veces en la cuenta.")
+                            f"stop o a su meta). Verificado 2 veces en la cuenta.{plan}")
             ours = self.broker.positions()
         return ours
 
@@ -421,10 +423,23 @@ class TwoWayAuto:
         status = {RUNNING: "operando", WAITING_OWNER: "esperando tu 'continuar'", GOAL: "meta del mes cumplida",
                   STOPPED: "detenido", PAUSED_API: "en pausa por fallos de conexión"}.get(self.state.status,
                                                                                            self.state.status)
-        self.notify(f"🫀 {self.broker.name}: {status}. Saldo {min(first, second)} {currency} (revisado 2 veces). "
+        equity = min(first, second)
+        month_start = Decimal(self.state.month_start_equity)
+        month = (f" Este mes: {equity - month_start:+.2f} {currency} ({(equity / month_start - 1) * 100:+.1f}%)."
+                 if month_start > 0 else "")
+        mirror = []  # what is actually holding the desk back, so the owner sees the real reasons
+        if self.desk_rules is not None and self.desk_rules.regime_btc_sma is not None and self._regime[1] is False:
+            mirror.append(f"freno de mercado activo: BTC está bajo su media de {self.desk_rules.regime_btc_sma} días, "
+                          f"así que no compro (en esos tramos la mesa perdió en la prueba de un año)")
+        event = D.event_near(now) if self.desk_rules is not None else None
+        if event is not None:
+            mirror.append(f"cerca de un dato macro ({event}): no abro nada nuevo hasta 2 h después")
+        if count["OPEN"] == 0 and not mirror and self.state.status == RUNNING:
+            mirror.append("ninguna moneda dio una señal que pasara todas las reglas")
+        self.notify(f"🫀 {self.broker.name}: {status}. Saldo {equity} {currency} (revisado 2 veces).{month} "
                     f"Posiciones abiertas: {len(open_now)}. En las últimas {hours} h: {count['OPEN']} entradas, "
                     f"{count['CLOSE'] + count['CLOSED_BY_EXCHANGE']} cierres y {count['VETO']} propuestas rechazadas "
-                    f"por el Escéptico.")
+                    f"por el Escéptico." + (" Por qué: " + "; ".join(mirror) + "." if mirror else ""))
 
     def _report(self, pos: Position, price: Decimal, now: datetime) -> None:
         last = self._last_report.get(pos.symbol)
@@ -663,14 +678,23 @@ class TwoWayAuto:
                         f"No la doy por abierta hasta verla; la reviso en la próxima vuelta.")
             return
         verb = "Compré" if plan.side == "BUY" else "Vendí en corto"
-        why = "el mercado está subiendo" if plan.side == "BUY" else "el mercado está bajando"
+        why = (f"el mercado está subiendo (la tendencia de {self.timeframe} apunta arriba)" if plan.side == "BUY"
+               else f"el mercado está bajando (la tendencia de {self.timeframe} apunta abajo)")
         if run is not None:
             why = (f"{sym} está en {run.text}. 🚀 Modo alcista: no cierro en la meta; el stop sigue la ganancia "
                    f"y la operación queda abierta mientras siga subiendo")
+        checks = []
+        if up is True and self.desk_rules is not None and self.desk_rules.regime_btc_sma is not None:
+            checks.append(f"BTC está sobre su media de {self.desk_rules.regime_btc_sma} días (el freno de mercado "
+                          f"está apagado)")
+        reward = abs(plan.tp - plan.price) * plan.qty
+        if self.desk_rules is not None and mood is not None and plan.risk_money > 0:
+            checks.append(f"el Escéptico la aprobó: la meta paga {reward / plan.risk_money:.1f} veces lo que arriesga")
         self.notify(f"{'🟢' if plan.side == 'BUY' else '🔴'} 🤖 Bot {sym} · {name}: {verb} {plan.qty} {self.broker.unit} "
-                    f"a {plan.price} porque {why} (calidad de la señal {quality:.0%}, riesgo {risk}%). Stop en {plan.sl}, "
-                    f"meta en {plan.tp}, puestos en el servidor. Si toca el stop se pierden unos {plan.risk_money} "
-                    f"{currency}. Verificado 2 veces en la cuenta.")
+                    f"a {plan.price} porque {why}" + ("; " + "; ".join(checks) if checks else "") + ". "
+                    f"El plan: stop en {plan.sl} (si lo toca pierdo unos {plan.risk_money} {currency}) y meta en "
+                    f"{plan.tp} (si llega gano unos {reward:.2f} {currency}), puestos en el servidor. Calidad de la "
+                    f"señal {quality:.0%} → arriesgo {risk}% de la cuenta. Verificado 2 veces en la cuenta.")
 
     def run(self, max_iterations: Optional[int] = None, sleep: Callable[[float], None] = time.sleep) -> None:
         n = 0
