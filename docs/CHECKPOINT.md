@@ -313,3 +313,10 @@ only the latest work blocks. The history up to 2026-10-10 (sections 1–90) is i
   - XM becomes viable at 1x near 1,000 USD, which fits his one-year plan, or sooner with a micro-lot account type if XM offers one to him. Not verified.
   - Deposit bonuses carry conditions and are not counted as capital.
 - **Practice:** practice 1 moves to 50 USDT fictitious, mirroring the plan. An XM MT5 DEMO ("Demo Bot", 1:1, 1,000 USD virtual) is being created for connection and learning.
+
+### 105. XM demo live; regime brake fixed on XM; GPT audit ordered via Notion (2026-10-13)
+
+- **XM DEMO:** Local connected the hedging demo account (1,000 USD virtual). A test order on ETHUSD opened and closed (cost 0.21 USD virtual). `xm_auto` runs every 10 min (Windows task TradingIntelligence-XMDemo) on ETHUSD and OILCash, the only two of 23 symbols that pass the unchanged caps. The rest fail on minimum-lot margin, effective leverage above 2x, or spread above 0.15%. It needs MT5 open with Algo Trading on.
+- **Fix:** the regime brake asked XM for `BTCUSDT`. XM calls it `BTCUSD`, so the brake read nothing and never acted. `XmBroker.candles` now maps the name (`XM_NAMES`). Test: `test_the_regime_brake_reads_btc_under_xms_own_name`.
+- **Hedging account:** works as is. Closes and stop moves go by position ticket, and only this bot's MAGIC is touched.
+- **GPT:** given a one-pass, read-only audit of the futures limits, `two_way.py` and `binance_futures.py` on the Notion Task Board (agent "Trading Codex"). No code, no keys, no real money.

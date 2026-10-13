@@ -142,3 +142,14 @@ def test_the_engine_target_reaches_xm_on_its_price_precision(tmp_path):
     auto.step()
     sent_tp, target = Decimal(str(m.sent[0]["tp"])), Decimal(auto.state.known["EURUSD"]["target"])
     assert abs(sent_tp - target) < Decimal("0.001")  # the engine's (reshaped) target, not XM's own plan
+
+
+def test_the_regime_brake_reads_btc_under_xms_own_name():
+    asked: list[str] = []
+
+    class Reader:
+        def candles(self, symbol, timeframe, count):
+            asked.append(symbol)
+
+    A.XmBroker(type("T", (), {"reader": Reader()})()).candles("BTCUSDT", "1d", 55)
+    assert asked == ["BTCUSD"]
