@@ -37,3 +37,13 @@ def test_long_reports_flow_onto_more_pages(tmp_path):
     blocks = [("p", "palabra " * 60)] * 80
     data = R.build_pdf(blocks, tmp_path / "x.pdf").read_bytes()
     assert data.count(b"/Type /Page ") > 1
+
+
+def test_only_live_bots_are_listed_real_money_is_labeled_and_names_keep_underscores(tmp_path):
+    runs = tmp_path / "runs"
+    for folder in ("xm_auto_cripto", "futures_auto/real", "futures_auto_30_archivo_20261013", "futuros_shadow_prueba"):
+        (runs / folder).mkdir(parents=True)
+        (runs / folder / "state.json").write_text(json.dumps({"capital": "31", "known": {}, "events": []}), encoding="utf-8")
+    text = " ".join(t for _, t in R.bot_numbers(runs, datetime.now(timezone.utc)))
+    assert "xm_auto_cripto:" in text and "DINERO REAL - futures_auto/real" in text
+    assert "archivo" not in text and "prueba" not in text

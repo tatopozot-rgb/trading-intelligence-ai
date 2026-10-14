@@ -33,7 +33,8 @@ def _latin1(text: str) -> str:
 
 def _clean(text: str) -> str:
     text = re.sub(r"\[([^\]]+)\]\((https?://[^)]+)\)", r"\1 (\2)", text)  # [text](url) -> text (url)
-    text = re.sub(r"[*_`]{1,3}([^*_`]+)[*_`]{1,3}", r"\1", text)
+    text = re.sub(r"(\*{1,3})([^*]+)\1", r"\2", text)  # **bold** / *italic*; underscores stay (file and bot names)
+    text = re.sub(r"`([^`]+)`", r"\1", text)
     return _latin1(text.strip())
 
 
@@ -129,11 +130,23 @@ def build_pdf(blocks: list[tuple[str, str]], path: Path) -> Path:
     return path
 
 
+def _live(path: Path, root: Path, now: datetime) -> bool:
+    """A running bot's state: not an archive or a test folder, and written in the last 3 days."""
+    parts = [x.lower() for x in path.parent.relative_to(root).parts]
+    if any("archivo" in x or "prueba" in x for x in parts):
+        return False
+    try:
+        written = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
+    except OSError:
+        return False
+    return now - written < timedelta(days=3)
+
+
 def bot_numbers(root: Path, now: datetime) -> list[tuple[str, str]]:
     """One block per bot from its state.json: money, open positions and the last 24 h of events."""
     blocks: list[tuple[str, str]] = [("h2", "Números de los bots (leídos en tu PC al armar este PDF)")]
     since = now - timedelta(hours=24)
-    found = sorted(root.rglob("state.json")) if root.exists() else []
+    found = sorted(p for p in root.rglob("state.json") if _live(p, root, now)) if root.exists() else []
     if not found:
         return blocks + [("p", "No encontré estados de bots en esta PC.")]
     for path in found:
@@ -145,6 +158,8 @@ def bot_numbers(root: Path, now: datetime) -> list[tuple[str, str]]:
         events = [e for e in s.get("events", []) if str(e.get("at", "")) >= since.isoformat()[:19]]
         count = {k: sum(1 for e in events if e.get("kind") == k) for k in ("OPEN", "CLOSE", "SKIP")}
         name = str(path.parent.relative_to(root)).replace("\\", "/")
+        if "real" in path.parent.relative_to(root).parts:
+            name = "DINERO REAL · " + name
         state = "detenido por su freno" if s.get("halted") else str(s.get("status", "?")).lower()
         blocks.append(("li", _clean(f"{name}: capital de la sesión {s.get('capital', '?')}, al empezar el día "
                                     f"{s.get('day_start_equity', '?')}, posiciones abiertas {len(s.get('known', {}))}, "
