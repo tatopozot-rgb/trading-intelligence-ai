@@ -147,8 +147,6 @@ conexión vuelva. Los stops siguen puestos en el servidor.
 
 - **IP de la casa:** la clave de futuros solo acepta la IP de confianza. Si el internet cambia de IP, Binance da -2015
   y el bot real no arranca (falla cerrado). El dueño agrega la IP nueva en Binance. Si se repite: IP fija.
-- **Ventanas de PowerShell:** las tareas del PC abren ventanas y molestan al dueño. Hacer que corran ocultas (pythonw o
-  conhost --headless).
 - **Alejandro Cardona:** revisar sus notas o estrategia cuando el dueño las consiga (`docs/opciones/ESTUDIO.md`).
 - **Reporte PDF por Outlook:** espera el «sí» del dueño en el chat de Local y el Outlook clásico con su cuenta abierta.
 - **Tablero de operaciones en Notion:** se arma cuando Futuros lleve unos días estable, desde el 15-10. Orden del dueño,
