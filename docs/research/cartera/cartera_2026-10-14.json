@@ -1,0 +1,132 @@
+[
+ {
+  "label": "2024-10-12 \u2192 2025-10-06",
+  "rows": {
+   "mesa de pr\u00e1ctica": {
+    "net_pct": 81.15,
+    "max_dd_pct": 43.64,
+    "net_dd": 1.86,
+    "quarters": [
+     66.79,
+     -10.58,
+     -25.48,
+     62.99
+    ]
+   },
+   "EWMAC": {
+    "net_pct": 50.19,
+    "max_dd_pct": 42.83,
+    "net_dd": 1.17,
+    "quarters": [
+     52.23,
+     7.35,
+     -32.98,
+     37.14
+    ]
+   },
+   "cartera 50/50": {
+    "net_pct": 69.94,
+    "max_dd_pct": 39.72,
+    "net_dd": 1.76,
+    "quarters": [
+     59.6,
+     -1.81,
+     -27.99,
+     50.59
+    ]
+   },
+   "cartera 70/30": {
+    "net_pct": 75.49,
+    "max_dd_pct": 40.49,
+    "net_dd": 1.86,
+    "quarters": [
+     62.5,
+     -5.36,
+     -26.7,
+     55.68
+    ]
+   }
+  },
+  "btc_pct": 99.33,
+  "corr": 0.34,
+  "rebalance_cost_pct": {
+   "50/50": 0.027,
+   "70/30": 0.023
+  },
+  "judge": {
+   "50/50": {
+    "beats_desk": "False",
+    "dd_ok": false
+   },
+   "70/30": {
+    "beats_desk": "False",
+    "dd_ok": false
+   }
+  }
+ },
+ {
+  "label": "2025-10-13 \u2192 2026-10-07",
+  "rows": {
+   "mesa de pr\u00e1ctica": {
+    "net_pct": 6.6,
+    "max_dd_pct": 31.54,
+    "net_dd": 0.21,
+    "quarters": [
+     -8.44,
+     -10.84,
+     -3.06,
+     34.69
+    ]
+   },
+   "EWMAC": {
+    "net_pct": 23.04,
+    "max_dd_pct": 30.74,
+    "net_dd": 0.75,
+    "quarters": [
+     5.5,
+     7.46,
+     19.99,
+     -9.55
+    ]
+   },
+   "cartera 50/50": {
+    "net_pct": 21.15,
+    "max_dd_pct": 19.59,
+    "net_dd": 1.08,
+    "quarters": [
+     -1.41,
+     -0.34,
+     9.64,
+     12.47
+    ]
+   },
+   "cartera 70/30": {
+    "net_pct": 16.72,
+    "max_dd_pct": 16.58,
+    "net_dd": 1.01,
+    "quarters": [
+     -4.21,
+     -4.23,
+     4.85,
+     21.35
+    ]
+   }
+  },
+  "btc_pct": -27.52,
+  "corr": -0.15,
+  "rebalance_cost_pct": {
+   "50/50": 0.031,
+   "70/30": 0.024
+  },
+  "judge": {
+   "50/50": {
+    "beats_desk": "True",
+    "dd_ok": true
+   },
+   "70/30": {
+    "beats_desk": "True",
+    "dd_ok": true
+   }
+  }
+ }
+]
