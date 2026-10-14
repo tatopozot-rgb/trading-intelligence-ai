@@ -304,9 +304,11 @@ def vetoes(s: Sym, k: int, side: int, target_r: float, rules: D.DeskRules) -> li
 def replay(syms: dict[str, Sym], lo: int, hi: int, exits: Exits = BASELINE, sizing: Sizing = SIZINGS[0],
            rules_on: frozenset[str] = frozenset(RULES), rules: Optional[D.DeskRules] = None,
            slippage: float = SLIPPAGE, capital: float = CAPITAL, risk_override: Optional[float] = None,
-           allow: Optional[dict[str, np.ndarray]] = None, close_on_gate: bool = True) -> Replay:
+           allow: Optional[dict[str, np.ndarray]] = None, close_on_gate: bool = True,
+           entry_allow: Optional[dict[str, np.ndarray]] = None) -> Replay:
     """`allow`: a regime gate per symbol (bit 1 longs, bit 2 shorts); a closed side is not opened, and a position
-    on it is closed at the bar's close ("régimen") unless `close_on_gate` is False (the gate only stops entries)."""
+    on it is closed at the bar's close ("régimen") unless `close_on_gate` is False (the gate only stops entries).
+    `entry_allow`: a second mask, same bits, that only stops new entries (combined with `allow`)."""
     rules = rules or D.DeskRules.load()
     res = Replay()
     cash = capital
@@ -373,6 +375,8 @@ def replay(syms: dict[str, Sym], lo: int, hi: int, exits: Exits = BASELINE, sizi
                 continue
             if allow is not None and not allow[name][k] & (LONG if sig > 0 else SHORT):
                 continue
+            if entry_allow is not None and not entry_allow[name][k] & (LONG if sig > 0 else SHORT):
+                continue
             sl = float(s.stop[k])
             if [v for v in vetoes(s, k, sig, exits.target_r, rules) if v in rules_on]:
                 continue
@@ -382,7 +386,7 @@ def replay(syms: dict[str, Sym], lo: int, hi: int, exits: Exits = BASELINE, sizi
             if dist / c >= liq:
                 res.skipped_liquidation += 1
                 continue
-            qual = max(0.0, min(1.0, float(s.qual[k]) + 0.2 * (s.mood[k] if sig > 0 else -s.mood[k])))
+            qual = max(0.0, min(1.0, float(s.qual[k])))  # no sentiment tilt on the size, as the desk since f8912db
             if risk_override is not None:
                 risk = risk_override
             elif sizing.risk is not None:
