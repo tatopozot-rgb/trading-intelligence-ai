@@ -32,8 +32,8 @@ marca "aplicado" solo cuando su regla está en el código o en un experimento me
   régimen (tendencia de largo plazo, volatilidad, liquidez) y solo operan la estrategia que encaja; en caso de
   duda, se quedan quietos.
 - **Hoy:** la mesa gana solo en el régimen alcista y pierde en los demás (−53% en el año).
-- **Falta:** el interruptor de régimen que Quant está probando (BTC sobre su media de 200 o 50 días, tendencia
-  de 4 h, caída de 30 días).
+- ~~**Falta:** el interruptor de régimen~~ **aplicado** 2026-10-13: freno de mercado `regime_btc_sma` 50 (sin
+  entradas nuevas con BTC bajo su media de 50 días; si no puede leer los datos, tampoco abre).
 
 ## 3. Macro y liquidez
 
@@ -59,6 +59,7 @@ marca "aplicado" solo cuando su regla está en el código o en un experimento me
   - El interés abierto y las liquidaciones como datos de entrada (Binance los publica gratis en
     `data.binance.vision` y en su API).
   - Estudiar estrategias de "después de la cascada".
+  - Lección 2026-10-14: filtro "lado saturado" enviado a Quant para medir (no aplicado).
 
 ## 5. Volatilidad
 
