@@ -11,7 +11,7 @@ canal de Donchian (reglas "Turtle"), cruce de medias EMA y momento de serie temp
 
 | Fecha | Estrategia | Fuente | Estado |
 |---|---|---|---|
-| 2026-10-14 | EWMAC de Carver | [pysystemtrade](https://github.com/robcarver17/pysystemtrade) | No pasa (pierde con la mesa de práctica en 2024-25); gana los dos años. Se mide como cartera con la mesa |
+| 2026-10-14 | EWMAC de Carver | [pysystemtrade](https://github.com/robcarver17/pysystemtrade) | No pasa, ni sola ni en cartera con la mesa (2026-10-14). Archivada |
 
 ---
 
@@ -69,3 +69,17 @@ Se descartan las 3 monedas con menor convicción para respetar el tope de 3 posi
   - muestra corta: 58 y 67 entradas, menos de 100;
   - sin stops, un hueco grande pega entero.
 - No va a práctica ni a dinero real con este resultado.
+
+**Cartera mesa de práctica + EWMAC (Quant, 2026-10-14; preregistrada antes de correr; `docs/research/cartera/`):**
+
+| Año | Mesa sola, neto/caída (caída) | 50/50 | 70/30 |
+|---|---|---|---|
+| 2024-25 | 1,86 (43,6%) | 1,76 (39,7%) | 1,86 (40,5%) |
+| 2025-26 | 0,21 (31,5%) | 1,08 (19,6%) | 1,01 (16,6%) |
+
+- **No pasa.** En 2024-25 la caída supera el 35% y la cartera no gana a la mesa sola.
+- En 2025-26 la cartera es mucho mejor: 5 veces el neto/caída y la caída baja casi a la mitad.
+- Bajar el riesgo de las dos patas no cambia el neto/caída, así que no arreglaría el año 2024-25. **El líder
+  archiva la idea.** Se puede reabrir con datos nuevos o con más capital.
+- **Aprendizaje:** la mesa de práctica sola tuvo una caída de 44–47% en 2024-25, en el límite de pérdida de 45% del
+  dueño. Si eso pasa con dinero real, el freno de 45% la detiene, como está diseñado.
