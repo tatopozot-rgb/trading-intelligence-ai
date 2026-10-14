@@ -410,3 +410,15 @@ only the latest work blocks. The history up to 2026-10-10 (sections 1–90) is i
   - prices are shown with the entry's decimals.
   Test: `test_messages_use_the_brokers_money_not_quantity_times_price`.
 - **Leader's decision on the Maestro XM lesson:** one Índices position used 70% of the demo's margin and blocked the other agents. Índices takes no new entries (`--margen-max 40`), and its open AUDUSD keeps its stop and target.
+
+### 113. Daily PDF fixes; email waits on classic Outlook (2026-10-14)
+
+- **Owner's yes:** he confirmed the daily report by email in Local's chat ("Si quiero reporte diario de mi correo").
+  - Local installed pywin32 and built the 2026-10-13 PDF. It sent the PDF to him by Telegram, since the Local chat cannot attach files.
+  - Email waits until he adds his Hotmail account to classic Outlook, which has no profile today; he only uses the new Outlook. The 19:30 task is created after the first successful test send.
+- **Fixes in `pdf_diario.py`, from Local's review:**
+  - only bots whose state was written in the last 3 days are listed;
+  - archive and test folders are skipped;
+  - the real account is marked "DINERO REAL";
+  - underscores in names survive.
+- **Still open:** the Núcleo BTC bots (no `state.json`) are not listed yet. Practice 1's `known` showed 2 positions while 1 was open; this is to check in the next engine change.
