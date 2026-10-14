@@ -140,6 +140,12 @@ class State:
         tmp.replace(path)
 
 
+def _px(value: Decimal, like: Decimal) -> Decimal:
+    """A price shown with the decimals of a reference price (no 28-digit tails in the messages)."""
+    exp = like.as_tuple().exponent
+    return value.quantize(Decimal(1).scaleb(exp)) if isinstance(exp, int) and value.is_finite() else value
+
+
 class TwoWayAuto:
     def __init__(self, broker: Broker, symbols: list[str], state_path: Path, *, timeframe: str = "5m",
                  risk_min_pct: Decimal = Decimal("1"), risk_max_pct: Decimal = Decimal("15"), max_open: int = 3,
@@ -274,6 +280,7 @@ class TwoWayAuto:
     def step(self) -> None:
         s = self.state
         equity, currency = self.broker.equity()
+        self._equity = equity
         if Decimal(s.capital) <= 0:
             s.capital = str(equity)
         month = self.clock().strftime("%Y-%m")
@@ -453,12 +460,17 @@ class TwoWayAuto:
             return  # the account did not show it twice: the reconciliation will tell what happened
         info = self.state.known.get(pos.symbol, {})
         entry = Decimal(info.get("entry", pos.entry or price))
-        pnl = (price - entry) * pos.qty if pos.side == "BUY" else (entry - price) * pos.qty
+        move = price - entry if pos.side == "BUY" else entry - price
+        # money per unit of price for the whole position, from the broker's own risk figure (XM: contract size)
+        per_point = Decimal(info["per_point"]) if info.get("per_point") else pos.qty
+        pnl = move * per_point
         r = Decimal(info.get("r", "0"))
-        in_r = f" ({(pnl / (r * pos.qty)):+.2f}R)" if r > 0 and pos.qty > 0 else ""
+        in_r = f" ({move / r:+.2f}R)" if r > 0 else ""
+        stop, target = info.get("stop"), info.get("target")
         self.notify(f"📍 🤖 Bot {pos.symbol} · {self.broker.name}: {'compra' if pos.side == 'BUY' else 'venta en corto'} "
-                    f"abierta a {entry}, precio {price:.6g}, resultado {pnl:+.2f}{in_r}. Stop {info.get('stop', '?')}, "
-                    f"meta {info.get('target', '?')}. Posición confirmada en la cuenta.")
+                    f"abierta a {entry}, precio {price:.6g}, resultado {pnl:+.2f}{in_r}. "
+                    f"Stop {_px(Decimal(stop), entry) if stop else '?'}, meta {_px(Decimal(target), entry) if target else '?'}. "
+                    f"Posición confirmada en la cuenta.")
 
     def _score_vetoes(self) -> None:
         """Did the Skeptic's refusal avoid a loss? A refused long that would have hit its stop first did."""
@@ -668,9 +680,12 @@ class TwoWayAuto:
                             f"de {sym}: {'; '.join(verdict.reasons)}. Queda anotado y mediré si el veto acertó.")
                 return
         ticket = self.broker.open(plan)
+        stop_gap = abs(plan.price - plan.sl)
+        per_point = plan.risk_money / stop_gap if stop_gap > 0 and plan.risk_money > 0 else plan.qty
         ours[sym] = Position(sym, plan.side, plan.qty, ticket, plan.price)
         s.known[sym] = {"ticket": ticket, "side": plan.side, "entry": str(plan.price), "stop": str(plan.sl),
                         "target": str(plan.tp), "r": str(abs(plan.price - plan.sl)), "risk_pct": str(risk),
+                        "per_point": str(per_point),
                         "quality": quality, "rally": run is not None}
         self._event("OPEN", f"{plan.side} {plan.qty} {sym} @ {plan.price} SL {plan.sl} TP {plan.tp} "
                             f"riesgo {risk}% calidad {quality}")
@@ -693,14 +708,18 @@ class TwoWayAuto:
         if up is True and self.desk_rules is not None and self.desk_rules.regime_btc_sma is not None:
             checks.append(f"BTC está sobre su media de {self.desk_rules.regime_btc_sma} días (el freno de mercado "
                           f"está apagado)")
-        reward = abs(plan.tp - plan.price) * plan.qty
-        if self.desk_rules is not None and mood is not None and plan.risk_money > 0:
-            checks.append(f"el Escéptico la aprobó: la meta paga {reward / plan.risk_money:.1f} veces lo que arriesga")
+        reward = abs(plan.tp - plan.price) * per_point
+        if self.desk_rules is not None and mood is not None and stop_gap > 0:
+            checks.append(f"el Escéptico la aprobó: la meta paga {abs(plan.tp - plan.price) / stop_gap:.1f} veces lo "
+                          f"que arriesga")
+        equity = getattr(self, "_equity", Decimal("0"))
+        real_risk = (f"{plan.risk_money / equity * 100:.2f}% de la cuenta (la señal pedía {risk}%; lo ajustan los "
+                     f"topes y el tamaño mínimo)") if equity > 0 else f"{risk}% de la cuenta"
         self.notify(f"{'🟢' if plan.side == 'BUY' else '🔴'} 🤖 Bot {sym} · {name}: {verb} {plan.qty} {self.broker.unit} "
                     f"a {plan.price} porque {why}" + ("; " + "; ".join(checks) if checks else "") + ". "
-                    f"El plan: stop en {plan.sl} (si lo toca pierdo unos {plan.risk_money} {currency}) y meta en "
-                    f"{plan.tp} (si llega gano unos {reward:.2f} {currency}), puestos en el servidor. Calidad de la "
-                    f"señal {quality:.0%} → arriesgo {risk}% de la cuenta. Verificado 2 veces en la cuenta.")
+                    f"El plan: stop en {_px(plan.sl, plan.price)} (si lo toca pierdo unos {plan.risk_money:.2f} {currency}) "
+                    f"y meta en {_px(plan.tp, plan.price)} (si llega gano unos {reward:.2f} {currency}), puestos en el "
+                    f"servidor. Calidad de la señal {quality:.0%} → arriesgo {real_risk}. Verificado 2 veces en la cuenta.")
 
     def run(self, max_iterations: Optional[int] = None, sleep: Callable[[float], None] = time.sleep) -> None:
         n = 0

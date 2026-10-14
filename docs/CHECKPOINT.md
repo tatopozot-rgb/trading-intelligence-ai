@@ -398,3 +398,15 @@ only the latest work blocks. The history up to 2026-10-10 (sections 1–90) is i
   - Plan in `docs/opciones/ESTUDIO.md`: learn until 13-11, design until 13-12, then decide in December.
   - A weekly study routine runs on Saturdays, and a reminder to the owner fires on 13-11.
   - Naked option selling is excluded.
+
+### 112. Telegram mirror fixed: true money in the notices; XM Índices stops opening (2026-10-14)
+
+- **The Verificador's first run found false numbers in XM notices.** The target paid "0.0 veces", the gain was "0.00 USD" and the open result "±0.00". The notice said "arriesgo 11.50%", but that was the signal's request; the real risk was 0.28%. Targets showed 28 decimals.
+- **Cause:** money was computed as quantity × price change, without XM's 100,000 contract size. Binance looked right only because 1 unit is 1 coin.
+- **Fix in `two_way.py`:**
+  - money per price unit comes from the broker's own risk figure (`per_point`, stored with each position);
+  - the reward ratio uses price distances;
+  - the real risk is shown next to the requested one;
+  - prices are shown with the entry's decimals.
+  Test: `test_messages_use_the_brokers_money_not_quantity_times_price`.
+- **Leader's decision on the Maestro XM lesson:** one Índices position used 70% of the demo's margin and blocked the other agents. Índices takes no new entries (`--margen-max 40`), and its open AUDUSD keeps its stop and target.
