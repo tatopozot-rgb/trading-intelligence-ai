@@ -1,0 +1,34 @@
+{
+ "dia": "2026-10-14",
+ "capital_inicial": 50.0,
+ "cuenta": "práctica (dinero ficticio)",
+ "estado": "RUNNING",
+ "hoy": {
+  "operaciones": 0,
+  "ganadas": 0,
+  "acierto_pct": 0.0,
+  "neto_usdt": 0,
+  "esperanza_r": null,
+  "factor_beneficio": null
+ },
+ "acumulado": {
+  "operaciones": 0,
+  "ganadas": 0,
+  "acierto_pct": 0.0,
+  "neto_usdt": 0,
+  "esperanza_r": null,
+  "factor_beneficio": null
+ },
+ "neto_pct": 0.0,
+ "caida_max_pct": 0.0,
+ "por_moneda": {},
+ "por_lado": {},
+ "por_salida": {},
+ "vetos": {
+  "evitó pérdida": 0,
+  "dejó pasar ganancia": 0,
+  "sin resultado": 0
+ },
+ "abiertas": [],
+ "operaciones_hoy": []
+}

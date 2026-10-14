@@ -1,0 +1,69 @@
+{
+ "dia": "2026-10-14",
+ "capital_inicial": 30.0,
+ "cuenta": "práctica (dinero ficticio)",
+ "estado": "RUNNING",
+ "hoy": {
+  "operaciones": 0,
+  "ganadas": 0,
+  "acierto_pct": 0.0,
+  "neto_usdt": 0,
+  "esperanza_r": null,
+  "factor_beneficio": null
+ },
+ "acumulado": {
+  "operaciones": 1,
+  "ganadas": 1,
+  "acierto_pct": 100.0,
+  "neto_usdt": 0.107,
+  "esperanza_r": 0.04,
+  "factor_beneficio": null
+ },
+ "neto_pct": 0.36,
+ "caida_max_pct": 0.0,
+ "por_moneda": {
+  "TRXUSDT": {
+   "operaciones": 1,
+   "ganadas": 1,
+   "acierto_pct": 100.0,
+   "neto_usdt": 0.107,
+   "esperanza_r": 0.04,
+   "factor_beneficio": null
+  }
+ },
+ "por_lado": {
+  "SELL": {
+   "operaciones": 1,
+   "ganadas": 1,
+   "acierto_pct": 100.0,
+   "neto_usdt": 0.107,
+   "esperanza_r": 0.04,
+   "factor_beneficio": null
+  }
+ },
+ "por_salida": {
+  "señal contraria": {
+   "operaciones": 1,
+   "ganadas": 1,
+   "acierto_pct": 100.0,
+   "neto_usdt": 0.107,
+   "esperanza_r": 0.04,
+   "factor_beneficio": null
+  }
+ },
+ "vetos": {
+  "evitó pérdida": 0,
+  "dejó pasar ganancia": 0,
+  "sin resultado": 0
+ },
+ "abiertas": [
+  {
+   "symbol": "BTCUSDT",
+   "side": "BUY",
+   "entry": "83366.30",
+   "sl": "80865.30",
+   "tp": "90869.29999999999999999999998"
+  }
+ ],
+ "operaciones_hoy": []
+}
