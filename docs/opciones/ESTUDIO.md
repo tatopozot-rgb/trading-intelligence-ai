@@ -27,7 +27,7 @@ persona que sabe del tema; el líder lo acopla a este plan cuando llegue.
 |---|------|--------|
 | 1 | Lo básico: call, put, strike, vencimiento, prima | pendiente |
 | 2 | Las griegas y la volatilidad implícita | pendiente |
-| 3 | Dónde se opera: Binance Options, Deribit, OKX, Bybit (mínimos, comisiones, USDT, Ecuador) | pendiente |
+| 3 | Dónde se opera: Interactive Brokers (opciones de EE. UU.), Binance Options, Deribit, OKX, Bybit (mínimos, comisiones, Ecuador) | en curso |
 | 4 | Qué dicen las opciones a la mesa de futuros (put/call, sesgo, DVOL, vencimientos grandes) | pendiente |
 | 5 | Estrategias de riesgo limitado para 30–100 USDT | pendiente |
 | 6 | Plan de práctica: regla, tamaño, salida y prueba con comisiones | pendiente |
@@ -37,3 +37,24 @@ persona que sabe del tema; el líder lo acopla a este plan cuando llegue.
 - Nunca vender opciones «al descubierto» (pérdida sin límite).
 - Pérdida máxima conocida antes de entrar.
 - Todo se liquida en USDT.
+
+## Interactive Brokers (pedido del dueño, 2026-10-14)
+
+Orden del dueño: «necesito saber si podemos tener acceso a Interactive Brokers LLC para poder revisar ahí todo el
+mercado de opciones».
+
+- **Ecuador:** aparece en la lista oficial de países que pueden abrir cuenta
+  ([IBKR, países](https://www.interactivebrokers.com/en/accounts/open-account-country-list.php)). Compliance lo confirma
+  antes de cualquier práctica.
+- **Lo difícil es depositar desde Ecuador, no abrir la cuenta.** IBKR tiene una herramienta que muestra los métodos de
+  depósito según el país ([IBKR, cuentas](https://www.interactivebrokers.com/en/accounts/individual.php)).
+- **Datos de opciones de EE. UU. en vivo:** suscripción OPRA ~1,50 USD al mes para no profesionales. IBKR pide un saldo
+  mínimo en la cuenta para activarla; el monto exacto está sin confirmar
+  ([IBKR, datos](https://www.interactivebrokers.com/en/pricing/research-news-marketdata.php)). Los datos con retraso son
+  gratis y alcanzan para la fase de estudio.
+- **Conexión:** la abre el dueño con su usuario. Local se conectaría por la API de TWS o IB Gateway en su PC, en modo
+  **solo lectura**. Nunca se guardan usuario, clave ni datos de la cuenta en GitHub, Notion ni registros.
+- **Plan:**
+  1. Estudio con datos con retraso, en la fase 1.
+  2. Cuenta de práctica de IBKR en la fase 3.
+  3. Dinero real solo con límites de opciones escritos por el dueño.
