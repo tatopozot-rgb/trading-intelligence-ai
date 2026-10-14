@@ -11,7 +11,7 @@ canal de Donchian (reglas "Turtle"), cruce de medias EMA y momento de serie temp
 
 | Fecha | Estrategia | Fuente | Estado |
 |---|---|---|---|
-| 2026-10-14 | EWMAC de Carver | [pysystemtrade](https://github.com/robcarver17/pysystemtrade) | Enviada a Quant; sin resultado |
+| 2026-10-14 | EWMAC de Carver | [pysystemtrade](https://github.com/robcarver17/pysystemtrade) | No pasa (pierde con la mesa de práctica en 2024-25); gana los dos años. Se mide como cartera con la mesa |
 
 ---
 
@@ -52,4 +52,20 @@ ajuste, nunca sobre el periodo de prueba.
 
 Se descartan las 3 monedas con menor convicción para respetar el tope de 3 posiciones.
 
-**Estado:** enviada a Quant el 2026-10-14. Desde la nube no se pueden bajar los datos de Binance.
+**Resultado (Quant, 2026-10-14, preregistrado antes de correr; `docs/research/ewmac/`):**
+
+| Año | EWMAC neto | Caída | Neto/caída | Mesa de práctica (freno b) | BTC |
+|---|---|---|---|---|---|
+| 2024-10 → 2025-10 | +31,5% | 42,8% | 0,74 | 1,67 | +76,9% |
+| 2025-10 → 2026-10 | +14,4% | 30,7% | 0,47 | −0,21 | −28,8% |
+
+- **No pasa el listón:** le gana a la mesa de práctica solo en el año bajista.
+- **Es la primera estrategia que gana dinero en los dos años.** Gana con cortos en los trimestres bajistas y pierde
+  en los giros bruscos. En abril-julio de 2025 BTC subió 41% y EWMAC perdió 34%.
+- **Sus rachas son opuestas a las de la mesa.** Por eso el líder pidió medirla como cartera junto a la mesa, con su
+  propio preregistro.
+- **Cuidados:**
+  - su caída de 43% está pegada al límite de pérdida de 45%;
+  - muestra corta: 58 y 67 entradas, menos de 100;
+  - sin stops, un hueco grande pega entero.
+- No va a práctica ni a dinero real con este resultado.
