@@ -472,3 +472,28 @@ def test_without_btc_data_the_brake_fails_closed(tmp_path):
     auto, b, sent = _engine(tmp_path, sig, desk_rules=rules)  # FakeBroker serves 5m bars for "1d": too short
     auto.step()
     assert "SOLUSDT" not in b.pos  # no new entry while the brake cannot read BTC
+
+
+class ContractBroker(FakeBroker):
+    """XM-like: 0.01 lot of a pair with a 100,000 contract; the broker's plan carries the money at risk."""
+
+    def __init__(self):
+        super().__init__(equity="1000")
+        self.px = Decimal("0.69855")
+
+    def plan(self, symbol, side, risk_pct, timeframe):
+        return T.Plan(symbol, side, Decimal("0.01"), self.px, Decimal("0.69575"), Decimal("0.7069100000000000000000000003"),
+                      Decimal("2.80"))
+
+
+def test_messages_use_the_brokers_money_not_quantity_times_price(tmp_path):
+    b = ContractBroker()
+    auto, b, sent = _engine(tmp_path, {"AUDUSD": "BUY"}, broker=b)
+    auto.step()
+    opened = next(m for m in sent if "Compré" in m)
+    assert "gano unos 8.36 USDT" in opened and "pierdo unos 2.80 USDT" in opened
+    assert "meta en 0.70691 " in opened and "arriesgo 0.28% de la cuenta" in opened
+    b.px = Decimal("0.69883")
+    auto.watch()
+    status = next(m for m in sent if m.startswith("📍"))
+    assert "resultado +0.28 (+0.10R)" in status and "meta 0.70691." in status
