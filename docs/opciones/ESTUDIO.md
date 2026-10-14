@@ -58,3 +58,12 @@ mercado de opciones».
   1. Estudio con datos con retraso, en la fase 1.
   2. Cuenta de práctica de IBKR en la fase 3.
   3. Dinero real solo con límites de opciones escritos por el dueño.
+
+## Pendiente: Alejandro Cardona (dueño, 2026-10-14: «lo vemos después, tenlo en mente»)
+
+- **Quién es:** educador de opciones de EE. UU. Seminario «Creando Riqueza», libro *Crea tu propia riqueza*.
+- **Registro:** BrokerCheck de FINRA muestra un Alejandro Cardona con licencias de opciones (Series 4); sin confirmar
+  que sea la misma persona. No se encontraron sanciones.
+- **Publicidad sin verificar:** promete «3.000%» y «450% en un día». No hay un historial auditado.
+- **Siguiente paso:** cuando el dueño consiga sus notas o una estrategia concreta, el Analista de Opciones escribe sus
+  reglas, Riesgo de Opciones las revisa y se prueban con datos antes de cualquier práctica.
