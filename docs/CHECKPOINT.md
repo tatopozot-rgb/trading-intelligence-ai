@@ -422,3 +422,22 @@ only the latest work blocks. The history up to 2026-10-10 (sections 1–90) is i
   - the real account is marked "DINERO REAL";
   - underscores in names survive.
 - **Still open:** the Núcleo BTC bots (no `state.json`) are not listed yet. Practice 1's `known` showed 2 positions while 1 was open; this is to check in the next engine change.
+
+### 114. Real futures running; research day; options venue (2026-10-14)
+
+- **Real futures started at 09:54 Ecuador (14:54 UTC).**
+  - Process 53780, task `TradingIntelligence-FuturosReal`.
+  - Balance 31.687434 USDT, read twice and matching.
+  - The read-only guard passed: futures on; withdrawals, transfers, spot and margin off; IP-restricted. One-way mode, single-asset margin.
+  - Isolated margin and 1x are set per symbol before the first entry.
+  - The regime brake (`regime_btc_sma` 50, `config/desk_rules.json`) and the event brake also apply to real money. No entries yet: BTC is below its 50-day mean.
+- **First attempt failed closed** at 14:33 UTC with Binance -2015. The home internet changed its IP, and the key only accepts trusted IPs. The owner added the new IP, and nothing ran before that. Logged in `docs/INCIDENTES.md`.
+- **Research (Quant, all preregistered before running):**
+  - EWMAC (Carver/pysystemtrade) is the first strategy to make money in both years. It still fails the bar, losing to the practice desk in 2024-25.
+  - The 50/50 and 70/30 portfolios of the desk plus EWMAC fail the 35% drawdown bar in 2024-25. Archived.
+  - The crowded-side filter (L5/L10/L15, S12/S24) is rejected; its effect is noise.
+  - Practice desk re-measured under today's rules: 2024-25 +81.2% with a 46.9% drawdown; 2025-26 +6.6% with a 32.3% drawdown.
+  - Files: `docs/research/{ewmac,cartera,saturado}/`, `docs/inteligencia/BOTS_PUBLICOS.md`.
+- **Intel:** CPI day, regime defensive (`docs/inteligencia/2026-10-14.md`). Theory topic 2 is marked applied (regime brake). The topic 4 lesson was written.
+- **Options:** Interactive Brokers was added as a candidate venue at the owner's request (Ecuador is on IBKR's list). The plan is read-only API from the PC, delayed data while studying. Alejandro Cardona's material is pending; the owner will look for it.
+- **Owner's PC pause:** from 11:00 to 13:30 Ecuador all `TradingIntelligence-*` tasks were disabled, because PowerShell windows interrupted his work. Bots kept running. A one-shot `TradingIntelligence-ReanudarPausa` re-enables them. Next: make the tasks run without a window.

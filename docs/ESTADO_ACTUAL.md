@@ -11,19 +11,20 @@ status: living
 > Las novedades se anotan en `docs/CHECKPOINT.md` y las fallas en `docs/INCIDENTES.md`. La misma información está en
 > Notion: «Trading Intelligence AI — Operations Center», página «Mapa de la empresa».
 
-Actualizado: 2026-10-13 23:30 UTC (Claude Leader). Main en `1fde4c5`.
+Actualizado: 2026-10-14 16:20 UTC (Claude Leader). Main: el merge del PR de este día.
 
 ## 0. Hoy en una línea
 
-El dueño escribió en el chat de Local «Activa futuros reales con 31 USDT». Arranca el **14-10 a las 09:30 de Ecuador**,
-después del IPC. Practican 4 bots en Binance (dinero ficticio) y 3 agentes en XM demo. Las opciones están **en estudio**
-(sin operar) hasta dic-2026.
+**Futuros reales corriendo desde el 14-10 a las 09:54 de Ecuador** (31,69 USDT, 1x, aislado, sin retiros). Todavía
+sin operaciones, porque el freno de mercado está activo con BTC bajo su media de 50 días. Practican 4 bots en Binance
+(dinero ficticio) y 3 agentes en XM demo. Las opciones están **en estudio** (sin operar) hasta dic-2026, con
+Interactive Brokers como plataforma candidata.
 
 ## 1. Qué opera y dónde
 
 | Bot | Dinero | Dónde corre | Estado |
 |---|---|---|---|
-| Futuros reales Binance | 31 USDT reales, 1x, aislado | PC, tarea `TradingIntelligence-FuturosReal` | Arranca 14-10 09:30 |
+| Futuros reales Binance | 31,69 USDT reales, 1x, aislado | PC, tarea `TradingIntelligence-FuturosReal` (cada 10 min) | Corriendo desde 14-10 09:54 |
 | Mesa de futuros (práctica 1) | 50 USDT ficticios | PC, tarea propia | Corriendo |
 | Práctica 3x | 30 USDT ficticios, 3x | PC, tarea propia | Corriendo |
 | Núcleo BTC · 50 y · 50/200 | 30 USDT ficticios cada uno | PC, cada hora | Corriendo |
@@ -144,7 +145,11 @@ conexión vuelva. Los stops siguen puestos en el servidor.
 
 ## 6. Pendiente que el líder debe recordar
 
-- **14-10 09:40:** confirmar que arrancaron los futuros reales (PID, saldo, 1x aislado) y avisar al dueño.
+- **IP de la casa:** la clave de futuros solo acepta la IP de confianza. Si el internet cambia de IP, Binance da -2015
+  y el bot real no arranca (falla cerrado). El dueño agrega la IP nueva en Binance. Si se repite: IP fija.
+- **Ventanas de PowerShell:** las tareas del PC abren ventanas y molestan al dueño. Hacer que corran ocultas (pythonw o
+  conhost --headless).
+- **Alejandro Cardona:** revisar sus notas o estrategia cuando el dueño las consiga (`docs/opciones/ESTUDIO.md`).
 - **Reporte PDF por Outlook:** espera el «sí» del dueño en el chat de Local y el Outlook clásico con su cuenta abierta.
 - **Tablero de operaciones en Notion:** se arma cuando Futuros lleve unos días estable, desde el 15-10. Orden del dueño,
   2026-10-10: «tienes que recordarlo porque si no yo me olvido».
