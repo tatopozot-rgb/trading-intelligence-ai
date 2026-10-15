@@ -199,7 +199,7 @@ def trade_closed(name: str, symbol: str, side: str, why: str, pnl: Decimal, pnl_
         head = f"➖ Cerré la {_side(side)} en {coin(symbol)} sin ganar ni perder"
     share = f" ({_signed(pnl_pct, 1)}% de la cuenta)" if pnl_pct is not None else ""
     about = "" if exact else "unos "
-    note = "" if exact else " (aprox.: calculado con el precio de salida)"
+    note = "" if exact else " (aprox.: estimado con el precio de salida, no es el dato exacto de la cuenta)"
     move = f"\n• Entrada {price(entry)} → salida {price(exit_price)}" if entry and exit_price else ""
     check = "Confirmado 2 veces en la cuenta." if confirmed else \
         "⚠️ La cuenta todavía la muestra abierta: la reviso en la próxima vuelta."
