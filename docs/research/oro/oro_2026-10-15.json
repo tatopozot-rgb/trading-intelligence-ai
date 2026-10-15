@@ -1,0 +1,566 @@
+{
+ "oro": [
+  {
+   "from": "2024-10-12",
+   "to": "2025-10-12",
+   "rows": {
+    "londres": {
+     "net_pct": -7.72,
+     "max_dd_pct": 13.3,
+     "net_dd": -0.58,
+     "trades": 238,
+     "win_rate": 48.3,
+     "avg_trade_pct": -0.031,
+     "longs": 134,
+     "shorts": 104,
+     "exits": {
+      "meta": 68,
+      "hora": 99,
+      "stop": 71
+     },
+     "quarters": [
+      -9.37,
+      2.41,
+      3.06,
+      -3.52
+     ],
+     "pasa": "False"
+    },
+    "tortugas": {
+     "net_pct": -0.41,
+     "max_dd_pct": 6.25,
+     "net_dd": -0.07,
+     "trades": 14,
+     "win_rate": 28.6,
+     "avg_trade_pct": -0.016,
+     "longs": 8,
+     "shorts": 6,
+     "exits": {
+      "canal": 8,
+      "stop": 6
+     },
+     "quarters": [
+      -2.49,
+      3.5,
+      -2.52,
+      1.24
+     ],
+     "pasa": "False"
+    },
+    "noticia": {
+     "net_pct": -1.0,
+     "max_dd_pct": 1.69,
+     "net_dd": -0.59,
+     "trades": 5,
+     "win_rate": 40.0,
+     "avg_trade_pct": -0.199,
+     "longs": 3,
+     "shorts": 2,
+     "exits": {
+      "stop": 3,
+      "meta": 1,
+      "hora": 1
+     },
+     "quarters": [
+      0.0,
+      -1.21,
+      0.0,
+      0.21
+     ],
+     "pasa": "False"
+    },
+    "londres, costes \u00d72": {
+     "net_pct": -13.36,
+     "max_dd_pct": 15.62,
+     "net_dd": -0.86,
+     "trades": 238,
+     "win_rate": 46.6,
+     "avg_trade_pct": -0.057,
+     "longs": 134,
+     "shorts": 104,
+     "exits": {
+      "meta": 68,
+      "hora": 99,
+      "stop": 71
+     },
+     "quarters": [
+      -11.1,
+      0.81,
+      1.92,
+      -5.15
+     ],
+     "pasa": "False"
+    },
+    "tortugas, costes \u00d72": {
+     "net_pct": -1.59,
+     "max_dd_pct": 6.6,
+     "net_dd": -0.24,
+     "trades": 14,
+     "win_rate": 28.6,
+     "avg_trade_pct": -0.102,
+     "longs": 8,
+     "shorts": 6,
+     "exits": {
+      "canal": 8,
+      "stop": 6
+     },
+     "quarters": [
+      -2.68,
+      3.06,
+      -2.7,
+      0.84
+     ],
+     "pasa": "False"
+    },
+    "noticia, costes \u00d72": {
+     "net_pct": -1.61,
+     "max_dd_pct": 2.05,
+     "net_dd": -0.79,
+     "trades": 5,
+     "win_rate": 20.0,
+     "avg_trade_pct": -0.324,
+     "longs": 3,
+     "shorts": 2,
+     "exits": {
+      "stop": 3,
+      "meta": 1,
+      "hora": 1
+     },
+     "quarters": [
+      0.0,
+      -1.46,
+      0.0,
+      -0.16
+     ],
+     "pasa": "False"
+    }
+   },
+   "hold_pct": 49.62,
+   "desk": {
+    "l\u00edder": 1.67,
+    "re-medida": 1.73
+   }
+  },
+  {
+   "from": "2025-10-13",
+   "to": "2026-10-13",
+   "rows": {
+    "londres": {
+     "net_pct": 26.57,
+     "max_dd_pct": 7.14,
+     "net_dd": 3.72,
+     "trades": 232,
+     "win_rate": 56.5,
+     "avg_trade_pct": 0.105,
+     "longs": 122,
+     "shorts": 110,
+     "exits": {
+      "hora": 111,
+      "meta": 71,
+      "stop": 50
+     },
+     "quarters": [
+      -1.63,
+      6.74,
+      13.44,
+      6.26
+     ],
+     "pasa": "True"
+    },
+    "tortugas": {
+     "net_pct": 1.2,
+     "max_dd_pct": 8.13,
+     "net_dd": 0.15,
+     "trades": 10,
+     "win_rate": 60.0,
+     "avg_trade_pct": 0.123,
+     "longs": 6,
+     "shorts": 4,
+     "exits": {
+      "canal": 7,
+      "stop": 2,
+      "fin": 1
+     },
+     "quarters": [
+      0.04,
+      -0.21,
+      0.03,
+      1.35
+     ],
+     "pasa": "False"
+    },
+    "noticia": {
+     "net_pct": 0.16,
+     "max_dd_pct": 2.43,
+     "net_dd": 0.07,
+     "trades": 10,
+     "win_rate": 30.0,
+     "avg_trade_pct": 0.02,
+     "longs": 3,
+     "shorts": 7,
+     "exits": {
+      "stop": 7,
+      "meta": 3
+     },
+     "quarters": [
+      0.41,
+      -1.12,
+      -1.04,
+      1.95
+     ],
+     "pasa": "False"
+    },
+    "londres, costes \u00d72": {
+     "net_pct": 23.14,
+     "max_dd_pct": 7.67,
+     "net_dd": 3.02,
+     "trades": 232,
+     "win_rate": 56.5,
+     "avg_trade_pct": 0.093,
+     "longs": 122,
+     "shorts": 110,
+     "exits": {
+      "hora": 111,
+      "meta": 71,
+      "stop": 50
+     },
+     "quarters": [
+      -2.42,
+      6.17,
+      12.68,
+      5.49
+     ],
+     "pasa": "True"
+    },
+    "tortugas, costes \u00d72": {
+     "net_pct": 0.65,
+     "max_dd_pct": 8.28,
+     "net_dd": 0.08,
+     "trades": 10,
+     "win_rate": 60.0,
+     "avg_trade_pct": 0.069,
+     "longs": 6,
+     "shorts": 4,
+     "exits": {
+      "canal": 7,
+      "stop": 2,
+      "fin": 1
+     },
+     "quarters": [
+      -0.12,
+      -0.33,
+      -0.02,
+      1.13
+     ],
+     "pasa": "False"
+    },
+    "noticia, costes \u00d72": {
+     "net_pct": -0.35,
+     "max_dd_pct": 2.58,
+     "net_dd": -0.13,
+     "trades": 10,
+     "win_rate": 30.0,
+     "avg_trade_pct": -0.03,
+     "longs": 3,
+     "shorts": 7,
+     "exits": {
+      "stop": 7,
+      "meta": 3
+     },
+     "quarters": [
+      0.29,
+      -1.22,
+      -1.07,
+      1.69
+     ],
+     "pasa": "False"
+    }
+   },
+   "hold_pct": 3.37,
+   "desk": {
+    "l\u00edder": -0.21,
+    "re-medida": 0.2
+   }
+  }
+ ],
+ "btc": [
+  {
+   "from": "2024-10-12",
+   "to": "2025-10-12",
+   "rows": {
+    "londres": {
+     "net_pct": -14.78,
+     "max_dd_pct": 25.49,
+     "net_dd": -0.58,
+     "trades": 340,
+     "win_rate": 52.4,
+     "avg_trade_pct": -0.043,
+     "longs": 183,
+     "shorts": 157,
+     "exits": {
+      "hora": 116,
+      "meta": 125,
+      "stop": 99
+     },
+     "quarters": [
+      1.71,
+      10.13,
+      -15.55,
+      -9.91
+     ],
+     "pasa": "False"
+    },
+    "tortugas": {
+     "net_pct": -4.77,
+     "max_dd_pct": 10.61,
+     "net_dd": -0.45,
+     "trades": 21,
+     "win_rate": 19.0,
+     "avg_trade_pct": -0.221,
+     "longs": 10,
+     "shorts": 11,
+     "exits": {
+      "stop": 12,
+      "canal": 9
+     },
+     "quarters": [
+      0.8,
+      -0.62,
+      1.71,
+      -6.54
+     ],
+     "pasa": "False"
+    },
+    "noticia": {
+     "net_pct": -5.53,
+     "max_dd_pct": 5.79,
+     "net_dd": -0.96,
+     "trades": 11,
+     "win_rate": 45.5,
+     "avg_trade_pct": -0.513,
+     "longs": 4,
+     "shorts": 7,
+     "exits": {
+      "stop": 6,
+      "meta": 5
+     },
+     "quarters": [
+      -1.23,
+      -3.24,
+      0.68,
+      -1.81
+     ],
+     "pasa": "False"
+    },
+    "londres, costes \u00d72": {
+     "net_pct": -44.97,
+     "max_dd_pct": 47.1,
+     "net_dd": -0.95,
+     "trades": 340,
+     "win_rate": 49.1,
+     "avg_trade_pct": -0.172,
+     "longs": 183,
+     "shorts": 157,
+     "exits": {
+      "hora": 116,
+      "meta": 125,
+      "stop": 99
+     },
+     "quarters": [
+      -7.15,
+      0.34,
+      -25.22,
+      -21.0
+     ],
+     "pasa": "False"
+    },
+    "tortugas, costes \u00d72": {
+     "net_pct": -5.55,
+     "max_dd_pct": 11.32,
+     "net_dd": -0.49,
+     "trades": 21,
+     "win_rate": 19.0,
+     "avg_trade_pct": -0.26,
+     "longs": 10,
+     "shorts": 11,
+     "exits": {
+      "stop": 12,
+      "canal": 9
+     },
+     "quarters": [
+      0.47,
+      -0.54,
+      1.51,
+      -6.89
+     ],
+     "pasa": "False"
+    },
+    "noticia, costes \u00d72": {
+     "net_pct": -9.87,
+     "max_dd_pct": 9.87,
+     "net_dd": -1.0,
+     "trades": 11,
+     "win_rate": 18.2,
+     "avg_trade_pct": -0.937,
+     "longs": 4,
+     "shorts": 7,
+     "exits": {
+      "stop": 6,
+      "meta": 5
+     },
+     "quarters": [
+      -1.46,
+      -5.1,
+      -0.49,
+      -3.15
+     ],
+     "pasa": "False"
+    }
+   },
+   "hold_pct": 76.92,
+   "desk": {
+    "l\u00edder": 1.67,
+    "re-medida": 1.73
+   }
+  },
+  {
+   "from": "2025-10-13",
+   "to": "2026-10-13",
+   "rows": {
+    "londres": {
+     "net_pct": -17.8,
+     "max_dd_pct": 22.35,
+     "net_dd": -0.8,
+     "trades": 341,
+     "win_rate": 49.3,
+     "avg_trade_pct": -0.054,
+     "longs": 180,
+     "shorts": 161,
+     "exits": {
+      "hora": 127,
+      "stop": 89,
+      "meta": 125
+     },
+     "quarters": [
+      -3.67,
+      -1.29,
+      -7.97,
+      -6.07
+     ],
+     "pasa": "False"
+    },
+    "tortugas": {
+     "net_pct": 9.15,
+     "max_dd_pct": 3.25,
+     "net_dd": 2.82,
+     "trades": 13,
+     "win_rate": 38.5,
+     "avg_trade_pct": 0.692,
+     "longs": 7,
+     "shorts": 6,
+     "exits": {
+      "canal": 11,
+      "stop": 2
+     },
+     "quarters": [
+      0.68,
+      2.0,
+      3.51,
+      2.69
+     ],
+     "pasa": "True"
+    },
+    "noticia": {
+     "net_pct": -6.37,
+     "max_dd_pct": 6.49,
+     "net_dd": -0.98,
+     "trades": 9,
+     "win_rate": 22.2,
+     "avg_trade_pct": -0.724,
+     "longs": 3,
+     "shorts": 6,
+     "exits": {
+      "stop": 6,
+      "meta": 3
+     },
+     "quarters": [
+      -2.79,
+      0.0,
+      -1.25,
+      -2.46
+     ],
+     "pasa": "False"
+    },
+    "londres, costes \u00d72": {
+     "net_pct": -48.12,
+     "max_dd_pct": 49.12,
+     "net_dd": -0.98,
+     "trades": 341,
+     "win_rate": 45.5,
+     "avg_trade_pct": -0.189,
+     "longs": 180,
+     "shorts": 161,
+     "exits": {
+      "hora": 127,
+      "stop": 89,
+      "meta": 125
+     },
+     "quarters": [
+      -13.39,
+      -9.81,
+      -17.29,
+      -19.7
+     ],
+     "pasa": "False"
+    },
+    "tortugas, costes \u00d72": {
+     "net_pct": 8.69,
+     "max_dd_pct": 3.58,
+     "net_dd": 2.42,
+     "trades": 13,
+     "win_rate": 38.5,
+     "avg_trade_pct": 0.66,
+     "longs": 7,
+     "shorts": 6,
+     "exits": {
+      "canal": 11,
+      "stop": 2
+     },
+     "quarters": [
+      0.74,
+      2.01,
+      3.46,
+      2.23
+     ],
+     "pasa": "True"
+    },
+    "noticia, costes \u00d72": {
+     "net_pct": -10.12,
+     "max_dd_pct": 10.12,
+     "net_dd": -1.0,
+     "trades": 9,
+     "win_rate": 11.1,
+     "avg_trade_pct": -1.173,
+     "longs": 3,
+     "shorts": 6,
+     "exits": {
+      "stop": 6,
+      "meta": 3
+     },
+     "quarters": [
+      -3.59,
+      0.0,
+      -1.65,
+      -5.2
+     ],
+     "pasa": "False"
+    }
+   },
+   "hold_pct": -28.8,
+   "desk": {
+    "l\u00edder": -0.21,
+    "re-medida": 0.2
+   }
+  }
+ ]
+}

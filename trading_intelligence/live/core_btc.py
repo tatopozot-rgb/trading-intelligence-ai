@@ -102,6 +102,7 @@ class CoreBTC:
         day = str(pd.Timestamp(closed.index[-1]).date())
         price = float(self.feed.get_ohlcv(SYMBOL, "1h", 2)["close"].iloc[-1])
         s = self.state
+        s["equity"], s["equity_at"] = round(self.equity(price), 4), now.isoformat()  # for the 22:00 summary
         if self.trader is not None:  # real money: Binance Spot's own price
             return self._real_step(closed, day, float(self.trader.price(SYMBOL)), now)
         if s["qty"] > 0 and s.get("funding_day") != day:  # one day of funding per closed day held
@@ -281,7 +282,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     from trading_intelligence.data.binance_public_feed import BinancePublicKlines
 
-    notify = telegram_notify.make_notify(telegram_notify.console, telegram_notify.from_env())
+    # Practice trades are told once a day, in the 22:00 summary (live/resumen_diario.py), not one by one
+    # (owner, 2026-10-15); real money and the summary he asks for by hand still go to Telegram.
+    notify = telegram_notify.make_notify(telegram_notify.console, telegram_notify.from_env()) \
+        if args.real or args.cmd == "resumen" else telegram_notify.console
     means = tuple(int(n) for n in args.medias.split(","))
     trader = limits = None
     state = args.estado

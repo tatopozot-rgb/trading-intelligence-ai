@@ -50,6 +50,7 @@ from typing import Callable, Optional, Protocol
 import pandas as pd
 
 from trading_intelligence.live import desk as D
+from trading_intelligence.live import messages as M
 from trading_intelligence.live import ordenes as O
 from trading_intelligence.live.operator import in_windows, parse_windows
 from trading_intelligence.live.telegram_notify import console
@@ -69,6 +70,14 @@ REGIME_SYMBOL = "BTCUSDT"  # the regime brake reads BTC's daily bars
 VETO_TRACK = timedelta(hours=24)  # a veto's outcome is scored for this long
 CONTINUE_FILE = "CONTINUAR"
 VERIFY_PAUSE_S = 2.0  # between the two account reads that confirm a message
+# What reaches Telegram (owner, 2026-10-15: "las notificaciones más lógicas ... las de dinero ficticio a las 10 ...
+# lo de dinero real cuando empiece la operación y cuando termine"). Every message has a kind; the rest stays on the
+# console and in state.json, where the 22:00 summary (live/resumen_diario.py) reads it.
+#   alarma: a limit, a failure, an order the account does not confirm (always, at once)
+#   dueño:  the answer to the owner's own order (CIERRA, META, continuar)
+#   abre / cierra: one trade opened or closed;  aviso: monthly goal or a new month;  estado: periodic status
+PRACTICE_TELEGRAM = frozenset({"alarma", "dueño"})
+REAL_TELEGRAM = frozenset({"alarma", "dueño", "abre", "cierra", "aviso"})
 
 
 @dataclass(frozen=True)
@@ -119,6 +128,10 @@ class State:
     veto_score: dict = field(default_factory=lambda: {"evitó pérdida": 0, "dejó pasar ganancia": 0, "sin resultado": 0})
     month: str = ""  # the goal is monthly (owner, 2026-10-11): it starts again from this equity each month
     month_start_equity: str = "0"
+    name: str = ""  # the broker's name, for the daily summary
+    equity: str = ""  # the last equity read at a decision, for the daily summary
+    equity_at: str = ""
+    currency: str = ""
 
     @classmethod
     def load(cls, path: Path) -> "State":
@@ -131,6 +144,8 @@ class State:
                     list(d.get("events", [])), list(d.get("vetoes", [])))
         state.veto_score.update(d.get("veto_score", {}))
         state.month, state.month_start_equity = d.get("month", ""), d.get("month_start_equity", "0")
+        state.name, state.equity, state.equity_at = d.get("name", ""), d.get("equity", ""), d.get("equity_at", "")
+        state.currency = d.get("currency", "")
         return state
 
     def save(self, path: Path) -> None:
@@ -158,7 +173,7 @@ class TwoWayAuto:
                  news_get: Optional[D.Getter] = None, watch_every_s: int = 30, report_every_s: int = 120,
                  notify: Callable[[str], None] = console, chatter: Callable[[str], None] = console,
                  goal_usd: Optional[Decimal] = None, heartbeat_every_s: Optional[int] = None,
-                 orders_path: Optional[Path] = None, pause: Callable[[float], None] = time.sleep,
+                 orders_path: Optional[Path] = None, telegram: Optional[frozenset[str]] = None, pause: Callable[[float], None] = time.sleep,
                  clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc)) -> None:
         if max_open < 1 or not (0 < risk_min_pct <= risk_max_pct <= 15) or not (0 < loss_limit_pct <= 100):
             raise ValueError("max_open >= 1, 0 < risk_min_pct <= risk_max_pct <= 15, loss_limit_pct in (0, 100]")
@@ -176,6 +191,7 @@ class TwoWayAuto:
         # Skeptic, a stop being moved) stays on the console and in the desk journal (owner, 2026-10-11: "que el bot
         # de telegram envíe solo cosas ciertas revisadas")
         self.notify, self.chatter, self.pause, self.clock = notify, chatter, pause, clock
+        self.telegram = telegram  # the kinds that go to notify (Telegram); None: all of them
         self.goal_usd = goal_usd
         # a short "still alive" summary to Telegram (owner, 2026-10-11: "no he recibido una sola notificación")
         self.heartbeat_every_s = heartbeat_every_s
@@ -205,9 +221,13 @@ class TwoWayAuto:
         self._last_slot = slot
         return True
 
-    def _event(self, kind: str, text: str) -> None:
-        self.state.events.append({"at": self.clock().isoformat(), "kind": kind, "text": text})
+    def _event(self, kind: str, text: str, **fields: object) -> None:
+        self.state.events.append({"at": self.clock().isoformat(), "kind": kind, "text": text, **fields})
         del self.state.events[:-MAX_EVENTS]
+
+    def _tell(self, kind: str, text: str) -> None:
+        """notify (Telegram) for the kinds this bot sends there; the console otherwise."""
+        (self.notify if self.telegram is None or kind in self.telegram else self.chatter)(text)
 
     def _note_once(self, key: str, text: str) -> None:
         if key not in self._noted:
@@ -215,9 +235,16 @@ class TwoWayAuto:
             self._event("SKIP", text)
 
     def _close_all(self, ours: dict[str, Position]) -> None:
+        """Tries every position even if one close fails; the first failure is raised after all were tried."""
+        failed: Optional[Exception] = None
         for sym, pos in ours.items():
-            self.broker.close(pos)
-            self.state.known.pop(sym, None)
+            try:
+                self.broker.close(pos)
+                self.state.known.pop(sym, None)
+            except (RuntimeError, ValueError) as error:
+                failed = failed or error
+        if failed is not None:
+            raise failed
 
     def _guard(self, equity: Decimal, currency: str, ours: dict[str, Position]) -> dict[str, Position]:
         """Session loss limit (with the owner asked first), profit goal, optional daily stop."""
@@ -227,7 +254,7 @@ class TwoWayAuto:
             if s.status == WAITING_OWNER:
                 s.status, s.warn_acknowledged = RUNNING, True
                 self._event("OWNER", "continuar")
-                self.notify(f"✅ {name}: entendido, sigo operando hasta el límite de pérdida.")
+                self._tell("dueño", f"✅ {name}: entendido, sigo operando hasta el límite de pérdida.")
         if s.status in (STOPPED, GOAL) and ours:  # a close that failed (exchange down) is retried every pass
             self._close_all(ours)
             ours = self.broker.positions()
@@ -247,22 +274,28 @@ class TwoWayAuto:
             loss = capital - equity
         if s.status not in (STOPPED, GOAL) and loss >= limit:
             s.status = STOPPED
-            self._close_all(ours)
             self._event("STOPPED", f"pérdida {loss:.2f} >= {limit:.2f}")
-            self.notify(f"🛑 {name}: la pérdida llegó al límite de {self.loss_limit_pct}% ({loss:.2f} {currency}). "
+            try:
+                self._close_all(ours)
+            except (RuntimeError, ValueError):
+                self._tell("alarma", f"🛑 {name}: la pérdida llegó al límite de {self.loss_limit_pct}% ({loss:.2f} {currency}). "
+                            f"No abro nada más. Un cierre falló: lo reintento en cada vuelta y los stops siguen "
+                            f"puestos en Binance. Revisado 2 veces en la cuenta.")
+                raise
+            self._tell("alarma", f"🛑 {name}: la pérdida llegó al límite de {self.loss_limit_pct}% ({loss:.2f} {currency}). "
                         f"Cerré todas las posiciones y la sesión terminó. Revisado 2 veces en la cuenta.")
             return self.broker.positions()
         if s.status == RUNNING and not s.warn_acknowledged and loss > 0 and loss >= limit - self.warn_before:
             s.status = WAITING_OWNER
             self._event("WAITING_OWNER", f"pérdida {loss:.2f}, límite {limit:.2f}")
-            self.notify(f"⚠️ {name}: la pérdida es {loss:.2f} {currency}, a {limit - loss:.2f} del límite "
+            self._tell("alarma", f"⚠️ {name}: la pérdida es {loss:.2f} {currency}, a {limit - loss:.2f} del límite "
                         f"(revisado 2 veces en la cuenta). No abro operaciones nuevas (las abiertas siguen con su "
                         f"stop). ¿Continuar? Dile a Claude local: continuar.")
         if goal is not None and s.status in (RUNNING, WAITING_OWNER) and equity - month_start >= goal:
             s.status = GOAL
             self._close_all(ours)
             self._event("GOAL", f"ganancia del mes {equity - month_start:.2f}")
-            self.notify(f"🏆 {name}: ¡meta del mes cumplida! Ganancia de {equity - month_start:.2f} {currency} este "
+            self._tell("aviso", f"🏆 {name}: ¡meta del mes cumplida! Ganancia de {equity - month_start:.2f} {currency} este "
                         f"mes (meta {goal:.2f}). Cerré todo y vuelvo a operar el día 1 del mes que viene. "
                         f"Revisado 2 veces en la cuenta.")
             return self.broker.positions()
@@ -272,7 +305,7 @@ class TwoWayAuto:
                 s.halted = True
                 self._close_all(ours)
                 self._event("DAY_HALTED", f"equity {equity} <= {floor:.2f}")
-                self.notify(f"🛑 {name}: la cuenta perdió {self.daily_loss_pct}% hoy (equity {equity} {currency}). "
+                self._tell("alarma", f"🛑 {name}: la cuenta perdió {self.daily_loss_pct}% hoy (equity {equity} {currency}). "
                             f"Cerré las posiciones y no abro nada más hasta mañana (19:00 de Ecuador).")
                 return self.broker.positions()
         return ours
@@ -281,6 +314,8 @@ class TwoWayAuto:
         s = self.state
         equity, currency = self.broker.equity()
         self._equity = equity
+        s.name, s.equity, s.equity_at = self.broker.name, str(equity), self.clock().isoformat()
+        self._currency = s.currency = currency
         if Decimal(s.capital) <= 0:
             s.capital = str(equity)
         month = self.clock().strftime("%Y-%m")
@@ -290,7 +325,7 @@ class TwoWayAuto:
             if resumed:
                 s.status = RUNNING
                 self._event("MONTH", f"nuevo mes desde {equity}")
-                self.notify(f"🗓️ {self.broker.name}: empieza {month}. Retomo las operaciones; la meta del mes cuenta "
+                self._tell("aviso", f"🗓️ {self.broker.name}: empieza {month}. Retomo las operaciones; la meta del mes cuenta "
                             f"desde {equity} {currency}.")
         today = self.clock().date().isoformat()
         if s.day != today:
@@ -325,10 +360,7 @@ class TwoWayAuto:
             if self._verified(sym, open_=False) or (sym in ours and ours[sym].ticket != info.get("ticket")):
                 del self.state.known[sym]
                 self._event("CLOSED_BY_EXCHANGE", sym)
-                plan = (f" Había entrado a {info.get('entry', '?')} con stop {info.get('stop', '?')} y meta "
-                        f"{info.get('target', '?')}; el saldo del próximo resumen muestra el resultado.")
-                self.notify(f"⚪ 🤖 Bot {sym} · {self.broker.name}: la posición se cerró en el servidor (llegó a su "
-                            f"stop o a su meta). Verificado 2 veces en la cuenta.{plan}")
+                self._announce_close(sym, info, "servidor", self._exit_guess(sym, info))
             ours = self.broker.positions()
         return ours
 
@@ -380,12 +412,12 @@ class TwoWayAuto:
                 price = self.broker.price(order.symbol)
                 ahead = target > price if pos.side == "BUY" else target < price
                 if not ahead:
-                    self.notify(f"⚠️ 🤖 Bot {order.symbol} · {name}: la meta {target:.6g} ya quedó atrás del precio "
+                    self._tell("dueño", f"⚠️ 🤖 Bot {order.symbol} · {name}: la meta {target:.6g} ya quedó atrás del precio "
                                 f"({price}); si quieres salir ahora escribe CIERRA {order.symbol.removesuffix('USDT')}.")
                     continue
                 info["owner_target"] = str(target)
                 self._event("OWNER_TARGET", f"{order.symbol} {target}")
-                self.notify(f"🎯 🤖 Bot {order.symbol} · {name}: cierro la {'compra' if pos.side == 'BUY' else 'venta en corto'} "
+                self._tell("dueño", f"🎯 🤖 Bot {order.symbol} · {name}: cierro la {'compra' if pos.side == 'BUY' else 'venta en corto'} "
                             f"cuando llegue a {target:.6g} (precio ahora {price}), como ordenaste. El stop sigue puesto.")
 
     def _owner_target_hit(self, pos: Position, price: Decimal) -> bool:
@@ -399,13 +431,59 @@ class TwoWayAuto:
         return hit
 
     def _close_by_owner(self, pos: Position, why: str) -> None:
+        price = self._price_or(pos.symbol, pos.entry)
         self.broker.close(pos)
-        self.state.known.pop(pos.symbol, None)
+        info = self.state.known.pop(pos.symbol, {}) or {"side": pos.side, "entry": str(pos.entry)}
         self._event("CLOSE", f"{pos.symbol} {pos.side}: orden del dueño")
         confirmed = self._verified(pos.symbol, open_=False)
-        self.notify(f"✋ 🤖 Bot {pos.symbol} · {self.broker.name}: cerré la {'compra' if pos.side == 'BUY' else 'venta en corto'} "
-                    f"{why}. " + ("Verificado 2 veces en la cuenta." if confirmed else
-                                  "⚠️ La cuenta todavía la muestra abierta: la reviso en la próxima vuelta."))
+        self._announce_close(pos.symbol, info, f"✋ {why}", price, confirmed)
+
+    # --- what a closed trade made ----------------------------------------------------------------------
+
+    def _price_or(self, symbol: str, fallback: Decimal) -> Decimal:
+        try:
+            return self.broker.price(symbol)
+        except (RuntimeError, ValueError, ArithmeticError):
+            return fallback
+
+    def _exit_guess(self, symbol: str, info: dict) -> Decimal:
+        """The exchange closed it at its stop or its target: the one nearer the price now."""
+        entry = Decimal(str(info.get("entry", "0")))
+        price = self._price_or(symbol, entry)
+        levels = [Decimal(str(info[k])) for k in ("stop", "target") if info.get(k)]
+        return min(levels, key=lambda x: abs(x - price)) if levels else price
+
+    def _close_outcome(self, symbol: str, info: dict, exit_hint: Decimal) -> tuple[Decimal, Decimal, bool]:
+        """(result, exit price, exact): the broker's own figure when it has one, else an estimate from the exit."""
+        realized = getattr(self.broker, "realized", None)
+        if realized is not None:
+            try:
+                got = realized(symbol, info)
+            except (RuntimeError, ValueError, ArithmeticError, KeyError, TypeError) as error:
+                logger.warning("%s: no pude leer el resultado exacto (%s)", symbol, error)
+                got = None
+            if got is not None:
+                return Decimal(got[0]), Decimal(got[1]), True
+        entry = Decimal(str(info.get("entry", exit_hint)))
+        move = exit_hint - entry if info.get("side") == "BUY" else entry - exit_hint
+        per_point = Decimal(str(info.get("per_point") or info.get("qty") or "0"))
+        return (move * per_point).quantize(Decimal("0.01")), exit_hint, False
+
+    def _announce_close(self, symbol: str, info: dict, why: str, exit_hint: Decimal, confirmed: bool = True) -> None:
+        side = str(info.get("side", "BUY"))
+        pnl, exit_price, exact = self._close_outcome(symbol, info, exit_hint)
+        if why == "servidor":  # which of its orders closed it
+            stop, target = info.get("stop"), info.get("target")
+            near_target = target is not None and (stop is None or abs(exit_price - Decimal(str(target)))
+                                                  < abs(exit_price - Decimal(str(stop))))
+            why = "meta" if near_target else ("stop_ganancia" if pnl > 0 else "stop")
+        base = Decimal(str(info.get("equity") or "0"))
+        pct = (pnl / base * 100).quantize(Decimal("0.01")) if base > 0 else None
+        self._event("RESULT", f"{symbol} {side}: {pnl}", symbol=symbol, side=side, pnl=str(pnl),
+                    pct=None if pct is None else str(pct), exact=exact, why=why)
+        entry = Decimal(str(info["entry"])) if info.get("entry") else None
+        self._tell("cierra", M.trade_closed(self.broker.name, symbol, side, why, pnl, pct,
+                                            getattr(self, "_currency", "USDT"), entry, exit_price, exact, confirmed))
 
     def _heartbeat(self, now: datetime) -> None:
         """Every few hours: the account's equity (two reads that agree), open positions and what the desk did."""
@@ -446,7 +524,7 @@ class TwoWayAuto:
             mirror.append(f"cerca de un dato macro ({event}): no abro nada nuevo hasta 2 h después")
         if count["OPEN"] == 0 and not mirror and self.state.status == RUNNING:
             mirror.append("ninguna moneda dio una señal que pasara todas las reglas")
-        self.notify(f"🫀 {self.broker.name}: {status}. Saldo {equity} {currency} (revisado 2 veces).{month} "
+        self._tell("estado", f"🫀 {self.broker.name}: {status}. Saldo {equity} {currency} (revisado 2 veces).{month} "
                     f"Posiciones abiertas: {len(open_now)}. En las últimas {hours} h: {count['OPEN']} entradas, "
                     f"{count['CLOSE'] + count['CLOSED_BY_EXCHANGE']} cierres y {count['VETO']} propuestas rechazadas "
                     f"por el Escéptico." + (" Por qué: " + "; ".join(mirror) + "." if mirror else ""))
@@ -467,7 +545,7 @@ class TwoWayAuto:
         r = Decimal(info.get("r", "0"))
         in_r = f" ({move / r:+.2f}R)" if r > 0 else ""
         stop, target = info.get("stop"), info.get("target")
-        self.notify(f"📍 🤖 Bot {pos.symbol} · {self.broker.name}: {'compra' if pos.side == 'BUY' else 'venta en corto'} "
+        self._tell("estado", f"📍 🤖 Bot {pos.symbol} · {self.broker.name}: {'compra' if pos.side == 'BUY' else 'venta en corto'} "
                     f"abierta a {entry}, precio {price:.6g}, resultado {pnl:+.2f}{in_r}. "
                     f"Stop {_px(Decimal(stop), entry) if stop else '?'}, meta {_px(Decimal(target), entry) if target else '?'}. "
                     f"Posición confirmada en la cuenta.")
@@ -618,28 +696,24 @@ class TwoWayAuto:
         pos = ours.get(sym)
         up = self._regime_up()
         if pos is not None and up is not None and (pos.side == "SELL" or not up):
+            price = self._price_or(sym, pos.entry)
             self.broker.close(pos)  # the regime brake: only longs, and only while BTC is above its mean
             ours.pop(sym)
-            s.known.pop(sym, None)
+            info = s.known.pop(sym, {}) or {"side": pos.side, "entry": str(pos.entry)}
             self._event("CLOSE", f"{sym} {pos.side}: freno de régimen")
             confirmed = self._verified(sym, open_=False)
-            self.notify(f"🧭 🤖 Bot {sym} · {name}: cerré la {'compra' if pos.side == 'BUY' else 'venta en corto'} por el "
-                        f"freno de riesgo (solo compras, y solo con BTC sobre su media). "
-                        + ("Verificado 2 veces en la cuenta." if confirmed else
-                           "⚠️ La cuenta todavía la muestra abierta: la reviso en la próxima vuelta."))
+            self._announce_close(sym, info, "freno", price, confirmed)
             return
         if pos is not None:
             riding = pos.side == "BUY" and bool(s.known.get(sym, {}).get("rally"))
             if signal is not None and signal != pos.side and not riding:  # a bull run ends only at the trailing stop
+                price = self._price_or(sym, pos.entry)
                 self.broker.close(pos)
                 ours.pop(sym)
-                s.known.pop(sym, None)
+                info = s.known.pop(sym, {}) or {"side": pos.side, "entry": str(pos.entry)}
                 self._event("CLOSE", f"{sym} {pos.side}: señal {signal}")
                 confirmed = self._verified(sym, open_=False)
-                self.notify(f"🔁 🤖 Bot {sym} · {name}: cerré la {'compra' if pos.side == 'BUY' else 'venta en corto'}: "
-                            f"el mercado cambió de dirección. "
-                            + ("Verificado 2 veces en la cuenta." if confirmed else
-                               "⚠️ La cuenta todavía la muestra abierta: la reviso en la próxima vuelta."))
+                self._announce_close(sym, info, "señal", price, confirmed)
             else:
                 self._trail(pos, Decimal(str(data["close"].iloc[-1])))
             return
@@ -685,17 +759,18 @@ class TwoWayAuto:
         ours[sym] = Position(sym, plan.side, plan.qty, ticket, plan.price)
         s.known[sym] = {"ticket": ticket, "side": plan.side, "entry": str(plan.price), "stop": str(plan.sl),
                         "target": str(plan.tp), "r": str(abs(plan.price - plan.sl)), "risk_pct": str(risk),
-                        "per_point": str(per_point),
-                        "quality": quality, "rally": run is not None}
+                        "per_point": str(per_point), "qty": str(plan.qty),
+                        "quality": quality, "rally": run is not None, "opened": self.clock().isoformat(),
+                        "equity": str(getattr(self, "_equity", ""))}
         self._event("OPEN", f"{plan.side} {plan.qty} {sym} @ {plan.price} SL {plan.sl} TP {plan.tp} "
-                            f"riesgo {risk}% calidad {quality}")
+                            f"riesgo {risk}% calidad {quality}", symbol=sym, side=plan.side)
         self._journal(f"Chief ejecuta {plan.side} {sym}", [
             f"entrada {plan.price}, stop {plan.sl}, meta {plan.tp}, cantidad {plan.qty}, riesgo {risk}% "
             f"(calidad {quality:.0%}), pérdida máxima {plan.risk_money} {currency}",
             *([f"sentimiento {mood.score:+.2f} {mood.parts}"] if mood is not None else []),
             *[f"noticia: [{h.title}]({h.link}) · {h.source} · {h.published}" for h in headlines]])
         if not self._verified(sym, open_=True):
-            self.notify(f"⚠️ 🤖 Bot {sym} · {name}: envié la orden pero la cuenta no la muestra 2 veces seguidas. "
+            self._tell("alarma", f"⚠️ 🤖 Bot {sym} · {name}: envié la orden pero la cuenta no la muestra 2 veces seguidas. "
                         f"No la doy por abierta hasta verla; la reviso en la próxima vuelta.")
             return
         verb = "Compré" if plan.side == "BUY" else "Vendí en corto"
@@ -715,22 +790,29 @@ class TwoWayAuto:
         equity = getattr(self, "_equity", Decimal("0"))
         real_risk = (f"{plan.risk_money / equity * 100:.2f}% de la cuenta (la señal pedía {risk}%; lo ajustan los "
                      f"topes y el tamaño mínimo)") if equity > 0 else f"{risk}% de la cuenta"
-        self.notify(f"{'🟢' if plan.side == 'BUY' else '🔴'} 🤖 Bot {sym} · {name}: {verb} {plan.qty} {self.broker.unit} "
-                    f"a {plan.price} porque {why}" + ("; " + "; ".join(checks) if checks else "") + ". "
-                    f"El plan: stop en {_px(plan.sl, plan.price)} (si lo toca pierdo unos {plan.risk_money:.2f} {currency}) "
-                    f"y meta en {_px(plan.tp, plan.price)} (si llega gano unos {reward:.2f} {currency}), puestos en el "
-                    f"servidor. Calidad de la señal {quality:.0%} → arriesgo {real_risk}. Verificado 2 veces en la cuenta.")
+        # the detail (why, the desk's checks, the signal's quality) stays on the console and in the desk journal;
+        # Telegram gets the short version: side, entry, stop, target and what is at stake
+        self.chatter(f"{'🟢' if plan.side == 'BUY' else '🔴'} 🤖 Bot {sym} · {name}: {verb} {plan.qty} {self.broker.unit} "
+                     f"a {plan.price} porque {why}" + ("; " + "; ".join(checks) if checks else "") + ". "
+                     f"El plan: stop en {_px(plan.sl, plan.price)} (si lo toca pierdo unos {plan.risk_money:.2f} {currency}) "
+                     f"y meta en {_px(plan.tp, plan.price)} (si llega gano unos {reward:.2f} {currency}), puestos en el "
+                     f"servidor. Calidad de la señal {quality:.0%} → arriesgo {real_risk}. Verificado 2 veces en la cuenta.")
+        self._tell("abre", M.trade_opened(name, sym, plan.side, plan.price, plan.sl, plan.tp, plan.risk_money, reward,
+                                          plan.risk_money / equity * 100 if equity > 0 else None, currency,
+                                          rally=run is not None))
 
     def run(self, max_iterations: Optional[int] = None, sleep: Callable[[float], None] = time.sleep) -> None:
         n = 0
-        while (max_iterations is None or n < max_iterations) and self.state.status != STOPPED:
+        while max_iterations is None or n < max_iterations:
+            if self.state.status == STOPPED and not self._still_open():
+                break  # the loss limit closed everything: the session ends only with nothing left open
             n += 1
             if self.decision_due():
                 try:
                     self.step()
                     if self.state.status == PAUSED_API:
                         self.state.status = RUNNING
-                        self.notify(f"✅ {self.broker.name}: la conexión volvió; retomo las entradas nuevas.")
+                        self._tell("alarma", f"✅ {self.broker.name}: la conexión volvió; retomo las entradas nuevas.")
                     self._failures = 0
                 except (RuntimeError, ValueError) as error:  # terminal closed, exchange down: retry next slot
                     logger.warning("%s: %s", self.broker.name, error)
@@ -738,11 +820,19 @@ class TwoWayAuto:
                     self._failures += 1
                     if self._failures >= API_FAILURES_TO_PAUSE and self.state.status == RUNNING:
                         self.state.status = PAUSED_API  # kill switch: no new entries while the API fails
-                        self.notify(f"🛑 {self.broker.name}: {self._failures} fallos seguidos de conexión. No abro "
+                        self._tell("alarma", f"🛑 {self.broker.name}: {self._failures} fallos seguidos de conexión. No abro "
                                     f"nada nuevo hasta que vuelva; los stops siguen puestos en el servidor.")
                     self.state.save(self.state_path)
             self.watch()  # each position's bot, the veto scoring and the Scout, every 30 s
             sleep(10)
+
+    def _still_open(self) -> bool:
+        """After the loss limit the engine keeps running, retrying the close every pass, while the account
+        still shows a position; an account it cannot read counts as open (audit 2026-10-12, H1)."""
+        try:
+            return bool(self.broker.positions())
+        except (RuntimeError, ValueError):
+            return True
 
 
 def owner_continue(state_dir: Path) -> None:

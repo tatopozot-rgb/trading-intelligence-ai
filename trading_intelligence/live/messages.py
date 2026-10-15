@@ -152,3 +152,56 @@ def window_closed(every_min: int) -> str:
 def error(detail: str) -> str:
     return (f"⚠️ Hubo un problema al hablar con Binance ({detail}). El sistema lo reintenta solo en la "
             "próxima vuelta y no repite órdenes dudosas. Si este aviso se repite, díselo a Claude local.")
+
+
+# --- one trade, opened or closed (two-way engine). Owner, 2026-10-15: "lo de dinero real cuando empiece la
+# operación y cuando termine ganancia profit, palabras entendibles": one short message each, money first. ---
+
+def _signed(value: Decimal, decimals: int = 2) -> str:
+    return ("+" if value > 0 else "-" if value < 0 else "") + num(abs(value), decimals)
+
+
+def _side(side: str) -> str:
+    return "COMPRA" if side == "BUY" else "VENTA EN CORTO"
+
+
+CLOSE_REASONS = {
+    "meta": "llegó a la meta 🎯",
+    "stop": "tocó el stop 🛑 (la protección contra pérdidas)",
+    "stop_ganancia": "el stop que seguía la ganancia la cerró 🛡️",
+    "señal": "el mercado cambió de dirección 🔁",
+    "freno": "freno de riesgo 🧭 (solo compras, y solo con BTC sobre su media)",
+}
+
+
+def trade_opened(name: str, symbol: str, side: str, entry: Decimal, stop: Decimal, target: Decimal,
+                 risk_money: Decimal, reward: Decimal, risk_pct: Optional[Decimal], currency: str,
+                 rally: bool = False) -> str:
+    how = "gano si el precio sube" if side == "BUY" else "gano si el precio baja"
+    share = f" ({num(risk_pct, 1)}% de la cuenta)" if risk_pct is not None else ""
+    run = "\n🚀 Modo alcista: no cierro en la meta; el stop sigue la ganancia mientras siga subiendo." if rally else ""
+    return (f"{name}\n{'🟢' if side == 'BUY' else '🔴'} Abrí una {_side(side)} en {coin(symbol)} ({how})\n"
+            f"• Entrada: {price(entry)}\n"
+            f"• 🛑 Stop: {price(stop)} → si lo toca, pierdo unos {num(risk_money)} {currency}{share}\n"
+            f"• 🎯 Meta: {price(target)} → si llega, gano unos {num(reward)} {currency}{run}\n"
+            f"Stop y meta ya están puestos en el servidor. Confirmado 2 veces en la cuenta. {NOTHING_TO_DO}")
+
+
+def trade_closed(name: str, symbol: str, side: str, why: str, pnl: Decimal, pnl_pct: Optional[Decimal],
+                 currency: str, entry: Optional[Decimal], exit_price: Optional[Decimal], exact: bool,
+                 confirmed: bool = True) -> str:
+    """why: a CLOSE_REASONS key, or the owner's own words."""
+    if pnl > 0:
+        head = f"✅ Cerré la {_side(side)} en {coin(symbol)} con GANANCIA"
+    elif pnl < 0:
+        head = f"❌ Cerré la {_side(side)} en {coin(symbol)} con PÉRDIDA"
+    else:
+        head = f"➖ Cerré la {_side(side)} en {coin(symbol)} sin ganar ni perder"
+    share = f" ({_signed(pnl_pct, 1)}% de la cuenta)" if pnl_pct is not None else ""
+    about = "" if exact else "unos "
+    note = "" if exact else " (aprox.: estimado con el precio de salida, no es el dato exacto de la cuenta)"
+    move = f"\n• Entrada {price(entry)} → salida {price(exit_price)}" if entry and exit_price else ""
+    check = "Confirmado 2 veces en la cuenta." if confirmed else \
+        "⚠️ La cuenta todavía la muestra abierta: la reviso en la próxima vuelta."
+    return (f"{name}\n{head}\n• Motivo: {CLOSE_REASONS.get(why, why)}\n"
+            f"• Resultado: {about}{_signed(pnl)} {currency}{share}{note}{move}\n{check}")

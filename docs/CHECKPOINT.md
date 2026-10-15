@@ -442,3 +442,23 @@ only the latest work blocks. The history up to 2026-10-10 (sections 1–90) is i
 - **Options:** Interactive Brokers was added as a candidate venue at the owner's request (Ecuador is on IBKR's list). The plan is read-only API from the PC, delayed data while studying. Alejandro Cardona's material is pending; the owner will look for it.
 - **Owner's PC pause:** from 11:00 to 13:30 Ecuador all `TradingIntelligence-*` tasks were disabled, because PowerShell windows interrupted his work. Bots kept running. A one-shot `TradingIntelligence-ReanudarPausa` re-enables them. Next: make the tasks run without a window.
 - **Windows fixed (14:25 Ecuador):** the 9 tasks that opened a console now run as `conhost.exe --headless cmd.exe /c "<.cmd>"`, like the other four. They are Alarma, Practica, Practica3x, NucleoBTC, ReportePractica, XMDemo, XMCripto, XMIndices and FuturosReal. Each ran with result 0. FuturosReal was changed last, on its own, and PID 53780 kept running. The old actions are in `ops\acciones_tareas_antes.txt` on the PC, to undo the change.
+
+### 115. Audit fixes C1, C2 and H1: a real position is never left without a stop (2026-10-15)
+
+- **Why now:** the 2026-10-12 audit asked for these before real money. Real futures started on 14-10, and on 15-10 the bot opened SOL and AVAX. Local checked both (read-only): stop and target are live on Binance, risk 2.37% and 1.82%.
+- **C1, a fill left without a stop:**
+  - `FuturesBroker.positions()` (every pass and at start) now checks that each open position has a STOP_MARKET on the exit side. If one is missing, it places one at the widest band (15%) from the entry. If Binance refuses it, the position is closed reduce-only.
+  - `unresolved()` now treats every state except FILLED, REJECTED, NOT_FOUND, CANCELED and EXPIRED as pending, so a NEW or PARTIALLY_FILLED order blocks new entries until Binance says how it ended.
+- **C2:** `close()` sends the reduce-only close first and cancels the stop and target after it. A close that fails leaves the stop in place.
+- **H1:** at the 45% loss limit, a failed close no longer ends the session. The engine keeps running and retries the close every pass while the account shows a position, and the owner is told. One failed close no longer skips the other positions.
+- **Unchanged:** `config/futures_limits.json`, `config/live_limits.json`, sizing, signals and the desk.
+- **Still open from the audit:** H2 (the trailing-stop fallback), H3 (deposits counted as profit), M1–M4, and the out-of-sample evidence.
+- **Tests:** 9 new ones (plus the close-order test rewritten) in `tests/test_binance_futures.py` and `tests/test_two_way.py`.
+- **To go live:** the owner's yes, then Local updates the PC to main and restarts `TradingIntelligence-FuturosReal`.
+
+### 116. Fix to §115: Binance sends the algo order kind as "orderType" (2026-10-15)
+
+- **Found by Local before installing #72**, on the real account's `/fapi/v1/openAlgoOrders` response: the kind of each conditional order comes as `orderType`, and `type` comes back empty.
+- With #72 as merged, the check would not have seen SOL's and AVAX's stops. It would have tried to add a stop every pass and, if Binance refused, closed the position. The PC was not updated, so nothing ran with it.
+- The same field also broke the trailing stop since before #72: `move_stop` never found the old stop, so old stops were never cancelled.
+- **Fix:** `algo_kind()` reads `orderType` (falling back to `type`) in the stop check and in `move_stop`. The test fake now returns real-shaped rows (`orderType`, `type` empty, boolean `closePosition`, numeric `algoId`), and a new test uses exact rows like the real account's.

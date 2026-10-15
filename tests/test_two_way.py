@@ -106,6 +106,50 @@ def test_at_the_loss_limit_everything_closes_and_the_session_ends(tmp_path):
     assert not b.pos  # the loop does not trade after the end
 
 
+class StuckBroker(FakeBroker):
+    """Closes fail while the exchange refuses them."""
+
+    def __init__(self):
+        super().__init__()
+        self.refuse = 0
+
+    def close(self, position):
+        if self.refuse > 0:
+            self.refuse -= 1
+            raise RuntimeError("close timed out")
+        super().close(position)
+
+
+def test_at_the_loss_limit_a_failed_close_is_retried_until_nothing_is_open(tmp_path):
+    sig = {"SOLUSDT": "BUY", "ETHUSDT": "BUY"}
+    b = StuckBroker()
+    auto, b, sent = _engine(tmp_path, sig, broker=b)
+    auto.step()
+    assert set(b.pos) == {"SOLUSDT", "ETHUSDT"}
+    b.eq, b.refuse = Decimal("55"), 3
+    auto.run(max_iterations=1, sleep=lambda s: None)
+    assert auto.state.status == T.STOPPED and b.pos  # audit H1: still open, and the loop did not end
+    assert any("lo reintento" in m for m in sent)
+    for _ in range(5):  # the next decision slots: the close is retried each time
+        auto._last_slot = None
+        auto.run(max_iterations=1, sleep=lambda s: None)
+    assert not b.pos and set(b.closed) == {"SOLUSDT", "ETHUSDT"}
+    calls = len(b.closed)
+    auto.run(max_iterations=5, sleep=lambda s: None)  # nothing left open: the session ends at once
+    assert len(b.closed) == calls
+
+
+def test_one_failed_close_does_not_skip_the_others(tmp_path):
+    sig = {"SOLUSDT": "BUY", "ETHUSDT": "BUY"}
+    b = StuckBroker()
+    auto, b, sent = _engine(tmp_path, sig, broker=b)
+    auto.step()
+    b.refuse = 1
+    with pytest.raises(RuntimeError):
+        auto._close_all(dict(b.pos))
+    assert len(b.closed) == 1 and len(b.pos) == 1
+
+
 def test_at_the_monthly_goal_everything_closes_and_trading_resumes_next_month(tmp_path):
     sig = {"SOLUSDT": "SELL"}
     now = [NOW]

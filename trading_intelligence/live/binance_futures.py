@@ -49,7 +49,15 @@ from trading_intelligence.live.binance_live import HttpResponse, Journal, LiveEr
 from trading_intelligence.live.desk import DeskRules
 from trading_intelligence.live.desk import _get as desk_get
 from trading_intelligence.live.telegram_notify import console, from_env, make_notify
-from trading_intelligence.live.two_way import DEFAULT_WINDOWS, Plan, Position, TwoWayAuto, owner_continue
+from trading_intelligence.live.two_way import (
+    DEFAULT_WINDOWS,
+    PRACTICE_TELEGRAM,
+    REAL_TELEGRAM,
+    Plan,
+    Position,
+    TwoWayAuto,
+    owner_continue,
+)
 from trading_intelligence.strategy.two_way_signals import DEFAULT_VARIANT, VARIANTS, signal_for
 
 logger = logging.getLogger(__name__)
@@ -70,7 +78,12 @@ CRYPTO_MIN_STOP_PCT, CRYPTO_MAX_STOP_PCT = Decimal("3"), Decimal("15")  # owner,
 INTERVALS = frozenset({"1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "1d"})
 DEFAULT_LIMITS = Path("config/futures_limits.json")
 CLIENT_PREFIX = "TIF-"
+# Final states of a market order. Anything else (NEW, PARTIALLY_FILLED, a lost answer) still blocks new
+# orders until Binance says how it ended (audit 2026-10-12, C1).
+SETTLED = ("FILLED", "REJECTED", "NOT_FOUND", "CANCELED", "EXPIRED", "EXPIRED_IN_MATCH")
 
+
+LOOKBACK_DAYS = 7  # how far back a closed trade with no recorded opening time is looked up
 
 class FuturesError(LiveError):
     pass
@@ -416,6 +429,11 @@ class FuturesMarket:
                 out[str(p.get("symbol"))] = (amt, Decimal(str(p.get("entryPrice", "0"))))
         return out
 
+    def user_trades(self, symbol: str, since_ms: int) -> list[dict]:
+        """The account's own fills on ``symbol`` since ``since_ms`` (read only: the result of a closed trade)."""
+        data = self._signed_ok("GET", "/fapi/v1/userTrades", {"symbol": symbol, "startTime": str(int(since_ms))})
+        return [r for r in data if isinstance(r, dict)] if isinstance(data, list) else []
+
     def open_algos(self) -> list[dict]:
         data = self._signed_ok("GET", "/fapi/v1/openAlgoOrders", {})
         rows = data.get("orders", data) if isinstance(data, dict) else data
@@ -434,7 +452,7 @@ class FuturesMarket:
     def unresolved(self) -> list[str]:
         if self.journal is None:
             return []
-        return [cid for cid, r in self.journal.read().items() if r.get("state") in ("PENDING_SEND", "UNCERTAIN")]
+        return [cid for cid, r in self.journal.read().items() if r.get("state") not in SETTLED]
 
     def _set(self, cid: str, **fields: object) -> None:
         assert self.journal is not None
@@ -498,6 +516,12 @@ class FuturesMarket:
                         accept_codes=(ORDER_NOT_FOUND,))
 
 
+def algo_kind(algo: Mapping[str, Any]) -> str:
+    """The order type of a row from /fapi/v1/openAlgoOrders. Binance sends it as "orderType" ("type" comes
+    back empty); "type" is read only as a fallback."""
+    return str(algo.get("orderType") or algo.get("type") or "")
+
+
 def size_plan(market: FuturesMarket, symbol: str, side: str, equity: Decimal, risk_pct: Decimal, timeframe: str,
               leverage: int, max_position_pct: Decimal, free_margin: Optional[Decimal] = None) -> Plan:
     """Stop and target read from the market for that side (owner's crypto band 3-15%), size from risk."""
@@ -541,16 +565,70 @@ class FuturesBroker:
     def equity(self) -> tuple[Decimal, str]:
         return self.market.balance(), "USDT"
 
+    def realized(self, symbol: str, info: Mapping[str, Any]) -> Optional[tuple[Decimal, Decimal]]:
+        """(net result in USDT after fees, average exit price) of the last trade on ``symbol``, from Binance's own
+        fills: its last run of entry fills and the exits after it. Without info["opened"] (positions opened
+        before it was recorded) it looks back LOOKBACK_DAYS. None while Binance shows no exit fill, or no entry
+        in the window. Read only: no order is sent."""
+        opened = info.get("opened")
+        if opened:
+            since = int(datetime.fromisoformat(str(opened)).timestamp() * 1000) - 60_000
+        else:
+            since = int(time.time() * 1000) - LOOKBACK_DAYS * 86_400_000 + 60_000  # Binance allows at most 7 days
+        entry_side = "BUY" if info.get("side") == "BUY" else "SELL"
+        exit_side = "SELL" if entry_side == "BUY" else "BUY"
+        rows = sorted(self.market.user_trades(symbol, since), key=lambda r: int(r.get("time", 0) or 0))
+        entries = [i for i, r in enumerate(rows) if r.get("side") == entry_side]
+        if not entries:
+            return None
+        start = entries[-1]
+        while start > 0 and rows[start - 1].get("side") == entry_side:
+            start -= 1
+        rows = rows[start:]
+        exits = [r for r in rows if r.get("side") == exit_side]
+        qty = sum((Decimal(str(r.get("qty", "0"))) for r in exits), Decimal("0"))
+        if qty <= 0:
+            return None
+        avg = sum((Decimal(str(r.get("price", "0"))) * Decimal(str(r.get("qty", "0"))) for r in exits),
+                  Decimal("0")) / qty
+        fees = sum((Decimal(str(r.get("commission", "0"))) for r in rows if r.get("commissionAsset") == "USDT"),
+                   Decimal("0"))
+        pnl = sum((Decimal(str(r.get("realizedPnl", "0"))) for r in exits), Decimal("0")) - fees
+        return pnl.quantize(Decimal("0.0001")), avg
+
     def positions(self) -> dict[str, Position]:
-        """Our symbols' positions; stop/target orders left behind by a closed position are cancelled."""
+        """Our symbols' positions; stop/target orders left behind by a closed position are cancelled, and an
+        open position without a stop on Binance gets one (audit 2026-10-12, C1). Runs at start and every pass."""
         amounts = {s: v for s, v in self.market.position_amounts().items() if s in self.limits.symbols}
-        for algo in self.market.open_algos():
+        algos = self.market.open_algos()
+        for algo in algos:
             sym = str(algo.get("symbol"))
             if sym in self.limits.symbols and sym not in amounts and \
                     str(algo.get("clientAlgoId", "")).startswith(CLIENT_PREFIX):
                 self.market.cancel_algo(sym, str(algo.get("algoId")))
-        return {s: Position(s, "BUY" if amt > 0 else "SELL", abs(amt), f"{s}:{'L' if amt > 0 else 'S'}", entry)
-                for s, (amt, entry) in amounts.items()}
+        out = {s: Position(s, "BUY" if amt > 0 else "SELL", abs(amt), f"{s}:{'L' if amt > 0 else 'S'}", entry)
+               for s, (amt, entry) in amounts.items()}
+        for sym, pos in out.items():
+            exit_side = "SELL" if pos.side == "BUY" else "BUY"
+            if not any(a.get("symbol") == sym and algo_kind(a) == "STOP_MARKET" and a.get("side") == exit_side
+                       for a in algos):
+                self._protect(pos)
+        return out
+
+    def _protect(self, pos: Position) -> None:
+        """A position found without a stop (a lost answer between the fill and the stop, a crash, a stop
+        cancelled by hand) gets one at the widest band from its entry; if Binance refuses it, it is closed."""
+        long = pos.side == "BUY"
+        exit_side = "SELL" if long else "BUY"
+        band = CRYPTO_MAX_STOP_PCT / 100
+        base = pos.entry if pos.entry > 0 else self.market.mid(pos.symbol)
+        stop = self.market.rules(pos.symbol).round_price(base * (1 - band if long else 1 + band), up=not long)
+        logger.warning("%s: open position without a stop on Binance; placing one at %s", pos.symbol, stop)
+        try:
+            self.market.conditional(pos.symbol, exit_side, "STOP_MARKET", stop)
+        except LiveError:
+            self.market.market(pos.symbol, exit_side, pos.qty, reduce_only=True)
+            raise FuturesError(f"{pos.symbol}: estaba sin stop y Binance no aceptó uno nuevo; cerré la posición")
 
     def candles(self, symbol: str, timeframe: str, count: int) -> pd.DataFrame:
         return self.market.candles(symbol, timeframe, count)
@@ -586,11 +664,16 @@ class FuturesBroker:
         return f"{plan.symbol}:{'L' if plan.side == 'BUY' else 'S'}"
 
     def close(self, position: Position) -> None:
-        for algo in self.market.open_algos():
-            if algo.get("symbol") == position.symbol and str(algo.get("clientAlgoId", "")).startswith(CLIENT_PREFIX):
-                self.market.cancel_algo(position.symbol, str(algo.get("algoId")))
+        """The close goes first and the stop and target are cancelled after it, so a close that fails
+        (timeout, 429, an unclear order) leaves the position still protected (audit 2026-10-12, C2)."""
         self.market.market(position.symbol, "SELL" if position.side == "BUY" else "BUY", position.qty,
                            reduce_only=True)
+        for algo in self.market.open_algos():
+            if algo.get("symbol") == position.symbol and str(algo.get("clientAlgoId", "")).startswith(CLIENT_PREFIX):
+                try:
+                    self.market.cancel_algo(position.symbol, str(algo.get("algoId")))
+                except LiveError as error:  # the position is gone; positions() clears the leftover next pass
+                    logger.warning("%s: leftover order not cancelled yet (%s)", position.symbol, error)
 
     def move_stop(self, position: Position, stop: Decimal, target: Decimal) -> None:
         """The stop that follows the gain: the new stop goes in first, then the old one is cancelled, so the
@@ -600,7 +683,7 @@ class FuturesBroker:
         rules = self.market.rules(position.symbol)
         stop = rules.round_price(stop, up=position.side != "BUY")
         old = [str(a.get("algoId")) for a in self.market.open_algos()
-               if a.get("symbol") == position.symbol and a.get("type") == "STOP_MARKET"
+               if a.get("symbol") == position.symbol and algo_kind(a) == "STOP_MARKET"
                and str(a.get("clientAlgoId", "")).startswith(CLIENT_PREFIX)]
         try:
             self.market.conditional(position.symbol, exit_side, "STOP_MARKET", stop)
@@ -718,6 +801,14 @@ class PaperFuturesBroker:
         self.book["positions"][position.symbol]["sl"] = str(stop)
         self._save()
 
+    def realized(self, symbol: str, info: Mapping[str, Any]) -> Optional[tuple[Decimal, Decimal]]:
+        """(net result after fees, exit price) of the last simulated close of ``symbol``."""
+        opened = str(info.get("opened") or "")
+        for row in reversed(self.book.get("closed", [])):
+            if row.get("symbol") == symbol and str(row.get("at", "")) >= opened:
+                return Decimal(str(row["pnl"])), Decimal(str(row["exit"]))
+        return None
+
 
 def main(argv: Optional[list[str]] = None, transport=None, env: Optional[Mapping[str, str]] = None) -> int:
     parser = argparse.ArgumentParser(description="Binance Futuros: operador automático en los dos sentidos")
@@ -775,6 +866,7 @@ def main(argv: Optional[list[str]] = None, transport=None, env: Optional[Mapping
                           profit_target_pct=limits.profit_target_pct, windows=args.ventanas,
                           inside_every_min=args.cada_dentro, outside_every_min=args.cada_fuera,
                           signal=signal_for(args.senal), notify=make_notify(console, from_env()),
+                          telegram=REAL_TELEGRAM if args.modo == "real" else PRACTICE_TELEGRAM,
                           desk_rules=None if args.sin_mesa else DeskRules.load(),
                           journal_dir=args.diario or d / "mesa", news_get=None if args.sin_mesa else desk_get,
                           report_every_s=120 if args.modo == "real" else 1800, goal_usd=limits.monthly_goal_usd,
