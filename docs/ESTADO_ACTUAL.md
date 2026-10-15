@@ -54,7 +54,7 @@ PC, el dueño entra a Windows y abre MT5.
 | `trig_01BkPE7QgQKuBiXYUUZHD5vE` | cada 2 h | Lee los mensajes de Local y actúa. |
 | `trig_013qzbkeQXYpG5jgscp4KWt6` | cada 12 h | Monitor general. |
 | `trig_018iafb7jhFaL48gb5HWs9Rz` | diario 18:41 | Escribe `docs/reportes/<fecha>.md` para el PDF del dueño. |
-| `trig_01Q47Xpwz7FxspbqUhPawX6y` | sábados 10:23 | Estudio del mercado de opciones (ver `docs/opciones/`). |
+| `trig_014ApvPMy36u7dzWoWrfxpkL` | sábados 10:23 | Estudio del mercado de opciones (hilo de opciones; ver `docs/opciones/`). |
 | `trig_01APn5fTGh7g42ZX1R818rXc` | 13-11 09:00 | Recordatorio al dueño: avance del estudio de opciones. |
 
 **Tareas de Local** (en el PC): revisión diaria con Verificador y Maestro XM a las 19:07; Director de Operaciones los
