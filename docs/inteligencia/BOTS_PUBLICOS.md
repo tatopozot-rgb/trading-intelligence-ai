@@ -138,3 +138,21 @@ dirección. En cripto se hizo muy popular en Corea, con bots para el exchange Up
   (con el freno b) dio 1,67 en 2024-25 y −0,21 en 2025-26.
 - Con menos de 100 operaciones en un año, se informa como muestra corta.
 - El dinero real no cambia por este estudio.
+
+**Resultado (Quant, 2026-10-15, preregistrado antes de correr; `docs/research/breakout/`):** **no pasa.** Pierde
+en los dos años, en las dos versiones, con k = 0,5:
+
+| Año | Pura (A): neto / caída / neto/caída | Con frenos (B) | Mesa de práctica | BTC |
+|---|---|---|---|---|
+| 2024-25 | −55,7% / 72,5% / −0,77 | −59,5% / 73,0% / −0,81 | 1,67 | +76,9% |
+| 2025-26 | −64,7% / 66,3% / −0,98 | −21,2% / 24,7% / −0,86 | −0,21 | −28,8% |
+
+- Más de 1.000 operaciones al año en la versión pura, así que no es mala suerte de muestra. La operación media
+  pierde entre −0,18% y −0,44%, después de costes. Acierta en ~40% de las operaciones.
+- Comprar la ruptura del día y salir a la mañana siguiente no tiene ventaja en estas 12 monedas. Los costes
+  (~0,14% por operación de ida y vuelta) se comen lo poco que haya.
+- La sensibilidad confirma que el resultado no depende de k: con k = 0,25 pierde mucho más (−89% y −90%) y con
+  k = 0,75 pierde menos, pero sigue perdiendo en los dos años (−14% y −46% pura). Elegir k = 0,75 viendo esto sería
+  justo el sobreajuste que el preregistro prohíbe.
+- Lo que dijo el propio Williams se cumple: la idea ya no funciona, al menos aquí.
+
