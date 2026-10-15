@@ -183,7 +183,7 @@ sintéticos; este es el primero con datos reales, largos y cortos, y con costes.
 - Ninguna de las 4 combinaciones gana a la mesa en los dos años. La única que le gana un año (diario con frenos,
   2024-25) tiene 10 operaciones: es muestra corta y en 2025-26 pierde.
 - En 4 h hay muestra suficiente (400+ operaciones al año en la versión pura) y pierde en los dos años: la operación
-  media pierde −0,2% a −0,5% después de costes y acierta ~42%. Más de la mitad de las salidas son por stop: en
+  media pierde −0,2% a −0,5% después de costes y acierta ~42%. Cerca de la mitad de las salidas son por stop: en
   estas monedas, salirse de la banda suele ser el inicio de un movimiento, no un exceso que vuelve.
 - La sensibilidad no lo salva: con 2,5 desviaciones en 4 h la versión pura gana +5,5% en 2025-26, pero pierde
   −51% en 2024-25. Elegirla por eso sería sobreajuste.
