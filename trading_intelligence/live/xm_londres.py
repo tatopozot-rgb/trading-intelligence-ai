@@ -92,8 +92,12 @@ class LondonBot:
     def __init__(self, trader: XmDemoTrader, state_path: Path, notify: Callable[[str], None],
                  clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
                  candles: Optional[Candles] = None, offset: Optional[Callable[[], int]] = None,
-                 symbol: str = SYMBOL, risk_pct: Decimal = RISK_PCT) -> None:
+                 symbol: str = SYMBOL, risk_pct: Decimal = RISK_PCT,
+                 alarm: Optional[Callable[[str], None]] = None) -> None:
+        # notify: the day's trades (the console; the owner reads them in the 22:00 summary, live/resumen_diario.py);
+        # alarm: what goes to Telegram at once (an order XM refused)
         self.trader, self.state_path, self.notify, self.clock = trader, Path(state_path), notify, clock
+        self.alarm = alarm or notify
         self.symbol, self.risk_pct = symbol, risk_pct
         self.candles = candles or trader.reader.candles
         self.offset = offset or self._tick_offset
@@ -122,12 +126,18 @@ class LondonBot:
             self.state.update({"day": str(day.date()), "done": False, "note": ""})
         pos = self.trader.positions().get(self.symbol)
         try:
+            if pos is None and self.state.get("open"):  # its stop or its target closed it on XM's server
+                self._closed(now, "servidor", None)
             if pos is not None:
                 if now.hour >= EXIT_AT:
                     self.trader.close(self.symbol, int(getattr(pos, "ticket")))
-                    msg = f"{TAG}: 20:00 UTC, cierro la posición {getattr(pos, 'ticket')}."
-                    self.state["trades"].append({"t": now.isoformat(), "accion": "cierre 20:00",
-                                                 "ticket": str(getattr(pos, "ticket"))})
+                    result = ""
+                    if self.state.get("open"):
+                        result = f" ({self._closed(now, 'cierre 20:00', self._mid()):+.2f} aprox.)"
+                    else:  # opened before the results were recorded
+                        self.state["trades"].append({"t": now.isoformat(), "accion": "cierre 20:00",
+                                                     "ticket": str(getattr(pos, "ticket"))})
+                    msg = f"{TAG}: 20:00 UTC, cierro la posición {getattr(pos, 'ticket')}{result}."
                     self.notify(msg)
                     return msg
                 return "posición abierta: stop y meta descansan en XM"
@@ -165,16 +175,48 @@ class LondonBot:
             opened = self.trader.open(plan)
         except XmError as error:
             note = f"no entro: {error}"
-            self.notify(f"{TAG}: {note}")
+            self.alarm(f"⚠️ {TAG}: {note}")
             return self._done(note)
         self.state["trades"].append({"t": now.isoformat(), "accion": "entrada", "lado": side, "lotes": str(plan.lots),
                                      "precio": str(plan.price), "sl": str(plan.sl), "tp": str(plan.tp),
                                      "rango": [s.low, s.high], "orden": str(opened.get("order"))})
+        try:
+            self.state["moneda"] = str(self.trader._demo_account().currency)  # for the 22:00 summary
+        except XmError:
+            pass
+        self.state["open"] = {"lado": side, "precio": str(plan.price), "sl": str(plan.sl), "tp": str(plan.tp),
+                              "riesgo": str(plan.risk_money)}
         msg = (f"{TAG}: rompió el rango asiático {s.low:.2f}-{s.high:.2f} → {'COMPRO' if s.side > 0 else 'VENDO'} "
                f"{plan.lots} lotes a {plan.price} · stop {plan.sl} · meta {plan.tp} · riesgo {plan.risk_money}.")
         self.notify(msg)
         self._done("operé hoy")
         return msg
+
+    def _mid(self) -> Optional[Decimal]:
+        try:
+            sheet = self.trader.reader.sheet(self.symbol)
+            return (Decimal(str(sheet.bid)) + Decimal(str(sheet.ask))) / 2
+        except (XmError, ValueError, ArithmeticError):
+            return None
+
+    def _closed(self, now: datetime, how: str, exit_price: Optional[Decimal]) -> Decimal:
+        """Records the result of the open trade, estimated from its exit (the account is shared with the other
+        XM agents, so its equity does not tell this bot's result): at the stop or the target, whichever is nearer
+        the price now, when XM's server closed it."""
+        o = self.state.pop("open")
+        entry, sl, tp, risk = (Decimal(o[k]) for k in ("precio", "sl", "tp", "riesgo"))
+        sign = 1 if o["lado"] == "BUY" else -1
+        price = self._mid()
+        if exit_price is None:
+            near = price if price is not None else entry
+            exit_price = tp if abs(tp - near) < abs(sl - near) else sl
+        if how == "servidor":
+            how = "meta" if exit_price == tp else "stop"
+        per_point = risk / abs(entry - sl) if entry != sl else Decimal("0")
+        pnl = (sign * (exit_price - entry) * per_point).quantize(Decimal("0.01"))
+        self.state["trades"].append({"t": now.isoformat(), "accion": "cierre", "motivo": how, "lado": o["lado"],
+                                     "salida": str(exit_price), "pnl": str(pnl), "estimado": True})
+        return pnl
 
     def summary(self) -> str:
         acc = self.trader._demo_account()
@@ -192,10 +234,11 @@ def main(argv: Optional[list[str]] = None, mt5: Optional[object] = None) -> int:
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     trader = XmDemoTrader(args.dir / "orders.json", mt5, magic=agent_magic(AGENT))
-    notify = make_notify(console, from_env())
+    telegram = make_notify(console, from_env())
+    notify = telegram if args.cmd == "resumen" else console  # its trades go in the 22:00 summary
     try:
         trader.connect()
-        bot = LondonBot(trader, args.dir / "state.json", notify, symbol=args.simbolo)
+        bot = LondonBot(trader, args.dir / "state.json", notify, symbol=args.simbolo, alarm=telegram)
         if args.cmd == "resumen":
             notify(bot.summary())
         else:

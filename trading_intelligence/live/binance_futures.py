@@ -49,7 +49,15 @@ from trading_intelligence.live.binance_live import HttpResponse, Journal, LiveEr
 from trading_intelligence.live.desk import DeskRules
 from trading_intelligence.live.desk import _get as desk_get
 from trading_intelligence.live.telegram_notify import console, from_env, make_notify
-from trading_intelligence.live.two_way import DEFAULT_WINDOWS, Plan, Position, TwoWayAuto, owner_continue
+from trading_intelligence.live.two_way import (
+    DEFAULT_WINDOWS,
+    PRACTICE_TELEGRAM,
+    REAL_TELEGRAM,
+    Plan,
+    Position,
+    TwoWayAuto,
+    owner_continue,
+)
 from trading_intelligence.strategy.two_way_signals import DEFAULT_VARIANT, VARIANTS, signal_for
 
 logger = logging.getLogger(__name__)
@@ -419,6 +427,11 @@ class FuturesMarket:
                 out[str(p.get("symbol"))] = (amt, Decimal(str(p.get("entryPrice", "0"))))
         return out
 
+    def user_trades(self, symbol: str, since_ms: int) -> list[dict]:
+        """The account's own fills on ``symbol`` since ``since_ms`` (read only: the result of a closed trade)."""
+        data = self._signed_ok("GET", "/fapi/v1/userTrades", {"symbol": symbol, "startTime": str(int(since_ms))})
+        return [r for r in data if isinstance(r, dict)] if isinstance(data, list) else []
+
     def open_algos(self) -> list[dict]:
         data = self._signed_ok("GET", "/fapi/v1/openAlgoOrders", {})
         rows = data.get("orders", data) if isinstance(data, dict) else data
@@ -549,6 +562,26 @@ class FuturesBroker:
 
     def equity(self) -> tuple[Decimal, str]:
         return self.market.balance(), "USDT"
+
+    def realized(self, symbol: str, info: Mapping[str, Any]) -> Optional[tuple[Decimal, Decimal]]:
+        """(net result in USDT after fees, average exit price) of the trade opened at info["opened"], from
+        Binance's own fills. None while Binance shows no exit fill. Read only: no order is sent."""
+        opened = info.get("opened")
+        if not opened:
+            return None
+        since = int(datetime.fromisoformat(str(opened)).timestamp() * 1000) - 60_000
+        exit_side = "SELL" if info.get("side") == "BUY" else "BUY"
+        rows = self.market.user_trades(symbol, since)
+        exits = [r for r in rows if r.get("side") == exit_side]
+        qty = sum((Decimal(str(r.get("qty", "0"))) for r in exits), Decimal("0"))
+        if qty <= 0:
+            return None
+        avg = sum((Decimal(str(r.get("price", "0"))) * Decimal(str(r.get("qty", "0"))) for r in exits),
+                  Decimal("0")) / qty
+        fees = sum((Decimal(str(r.get("commission", "0"))) for r in rows if r.get("commissionAsset") == "USDT"),
+                   Decimal("0"))
+        pnl = sum((Decimal(str(r.get("realizedPnl", "0"))) for r in exits), Decimal("0")) - fees
+        return pnl.quantize(Decimal("0.0001")), avg
 
     def positions(self) -> dict[str, Position]:
         """Our symbols' positions; stop/target orders left behind by a closed position are cancelled, and an
@@ -755,6 +788,14 @@ class PaperFuturesBroker:
         self.book["positions"][position.symbol]["sl"] = str(stop)
         self._save()
 
+    def realized(self, symbol: str, info: Mapping[str, Any]) -> Optional[tuple[Decimal, Decimal]]:
+        """(net result after fees, exit price) of the last simulated close of ``symbol``."""
+        opened = str(info.get("opened") or "")
+        for row in reversed(self.book.get("closed", [])):
+            if row.get("symbol") == symbol and str(row.get("at", "")) >= opened:
+                return Decimal(str(row["pnl"])), Decimal(str(row["exit"]))
+        return None
+
 
 def main(argv: Optional[list[str]] = None, transport=None, env: Optional[Mapping[str, str]] = None) -> int:
     parser = argparse.ArgumentParser(description="Binance Futuros: operador automático en los dos sentidos")
@@ -812,6 +853,7 @@ def main(argv: Optional[list[str]] = None, transport=None, env: Optional[Mapping
                           profit_target_pct=limits.profit_target_pct, windows=args.ventanas,
                           inside_every_min=args.cada_dentro, outside_every_min=args.cada_fuera,
                           signal=signal_for(args.senal), notify=make_notify(console, from_env()),
+                          telegram=REAL_TELEGRAM if args.modo == "real" else PRACTICE_TELEGRAM,
                           desk_rules=None if args.sin_mesa else DeskRules.load(),
                           journal_dir=args.diario or d / "mesa", news_get=None if args.sin_mesa else desk_get,
                           report_every_s=120 if args.modo == "real" else 1800, goal_usd=limits.monthly_goal_usd,

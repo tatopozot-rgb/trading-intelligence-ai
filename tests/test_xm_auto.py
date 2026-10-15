@@ -30,7 +30,8 @@ def test_a_rising_market_buys_and_a_falling_one_sells_short_with_sl_and_tp_on_th
     assert by["GOLD"]["type"] == 1 and by["GOLD"]["tp"] < by["GOLD"]["price"] < by["GOLD"]["sl"]
     assert all(r["magic"] == D.MAGIC for r in m.sent)
     assert set(auto.state.known) == {"EURUSD", "GOLD"}
-    assert any("Compré" in s and "subiendo" in s for s in sent) and any("Vendí en corto" in s and "bajando" in s for s in sent)
+    assert any("Abrí una COMPRA en EURUSD" in s and "gano si el precio sube" in s for s in sent)
+    assert any("Abrí una VENTA EN CORTO en GOLD" in s and "gano si el precio baja" in s for s in sent)
 
 
 def test_the_opposite_signal_closes_and_the_next_decision_turns_around(tmp_path):
@@ -40,7 +41,7 @@ def test_the_opposite_signal_closes_and_the_next_decision_turns_around(tmp_path)
     sig["EURUSD"] = "SELL"
     auto.step()  # closes the buy, opens nothing in the same pass
     assert "position" in m.sent[-1] and not m.positions and "EURUSD" not in auto.state.known
-    assert any("Bot EURUSD" in s and "cerré la compra" in s and "Verificado 2 veces" in s for s in sent)
+    assert any("Cerré la COMPRA en EURUSD" in s and "cambió de dirección" in s and "Confirmado 2 veces" in s for s in sent)
     auto.step()
     assert m.positions[0].type == 1  # now short
 
@@ -62,7 +63,7 @@ def test_a_position_closed_by_its_stop_or_target_on_the_server_is_reported(tmp_p
     m.positions.clear()  # XM's server executed the SL or the TP
     sig["EURUSD"] = None
     auto.step()
-    assert "EURUSD" not in auto.state.known and any("Bot EURUSD" in s and "se cerró en el servidor" in s for s in sent)
+    assert "EURUSD" not in auto.state.known and any("Cerré la COMPRA en EURUSD" in s and ("meta" in s or "stop" in s) for s in sent)
 
 
 def test_the_daily_loss_guard_closes_and_stops_entries_until_the_next_day(tmp_path):
