@@ -501,6 +501,12 @@ class FuturesMarket:
                         accept_codes=(ORDER_NOT_FOUND,))
 
 
+def algo_kind(algo: Mapping[str, Any]) -> str:
+    """The order type of a row from /fapi/v1/openAlgoOrders. Binance sends it as "orderType" ("type" comes
+    back empty); "type" is read only as a fallback."""
+    return str(algo.get("orderType") or algo.get("type") or "")
+
+
 def size_plan(market: FuturesMarket, symbol: str, side: str, equity: Decimal, risk_pct: Decimal, timeframe: str,
               leverage: int, max_position_pct: Decimal, free_margin: Optional[Decimal] = None) -> Plan:
     """Stop and target read from the market for that side (owner's crypto band 3-15%), size from risk."""
@@ -558,7 +564,7 @@ class FuturesBroker:
                for s, (amt, entry) in amounts.items()}
         for sym, pos in out.items():
             exit_side = "SELL" if pos.side == "BUY" else "BUY"
-            if not any(a.get("symbol") == sym and a.get("type") == "STOP_MARKET" and a.get("side") == exit_side
+            if not any(a.get("symbol") == sym and algo_kind(a) == "STOP_MARKET" and a.get("side") == exit_side
                        for a in algos):
                 self._protect(pos)
         return out
@@ -631,7 +637,7 @@ class FuturesBroker:
         rules = self.market.rules(position.symbol)
         stop = rules.round_price(stop, up=position.side != "BUY")
         old = [str(a.get("algoId")) for a in self.market.open_algos()
-               if a.get("symbol") == position.symbol and a.get("type") == "STOP_MARKET"
+               if a.get("symbol") == position.symbol and algo_kind(a) == "STOP_MARKET"
                and str(a.get("clientAlgoId", "")).startswith(CLIENT_PREFIX)]
         try:
             self.market.conditional(position.symbol, exit_side, "STOP_MARKET", stop)

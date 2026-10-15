@@ -112,10 +112,16 @@ class FakeFapi:
                 return _resp({"code": -2021, "msg": "Order would immediately trigger."}, 400)
             algo_id = str(self.next_algo)
             self.next_algo += 1
-            self.algos[algo_id] = {**q, "algoId": algo_id, "algoStatus": "NEW"}
+            # the shape of a real /fapi/v1/openAlgoOrders row: the type comes back as "orderType", "type" is
+            # empty and closePosition is a boolean
+            self.algos[algo_id] = {"algoId": int(algo_id), "clientAlgoId": q["clientAlgoId"], "algoType": "CONDITIONAL",
+                                   "orderType": q["type"], "type": None, "symbol": q["symbol"], "side": q["side"],
+                                   "positionSide": "BOTH", "quantity": "0", "algoStatus": "NEW",
+                                   "triggerPrice": q["triggerPrice"], "workingType": q["workingType"],
+                                   "closePosition": q["closePosition"] == "true", "reduceOnly": True}
             return _resp({"algoId": algo_id, "clientAlgoId": q["clientAlgoId"], "algoStatus": "NEW"})
         if path == "/fapi/v1/algoOrder" and method == "DELETE":
-            self.algos.pop(q["algoId"], None)
+            self.algos.pop(str(q["algoId"]), None)
             return _resp({"algoId": q["algoId"], "code": "200"})
         raise AssertionError(f"unexpected call {method} {path}")
 
@@ -198,9 +204,9 @@ def test_an_entry_gets_isolated_margin_its_leverage_a_stop_and_a_target_on_the_a
     assert ("POST", "/fapi/v1/marginType") in paths and ("POST", "/fapi/v1/leverage") in paths
     lev = next(q for m, p, q in fake.calls if p == "/fapi/v1/leverage")
     assert lev["leverage"] == "1" and fake.positions["SOLUSDT"] == -plan.qty
-    kinds = {a["type"]: a for a in fake.algos.values()}
+    kinds = {a["orderType"]: a for a in fake.algos.values()}
     assert set(kinds) == {"STOP_MARKET", "TAKE_PROFIT_MARKET"}
-    assert all(a["closePosition"] == "true" and a["side"] == "BUY" and a["algoType"] == "CONDITIONAL"
+    assert all(a["closePosition"] is True and a["side"] == "BUY" and a["algoType"] == "CONDITIONAL"
                and a["workingType"] == "MARK_PRICE" for a in kinds.values())
     assert Decimal(kinds["STOP_MARKET"]["triggerPrice"]) == plan.sl
     journal = json.loads((tmp_path / "orders.json").read_text())["orders"]
@@ -270,7 +276,7 @@ def test_a_close_that_fails_leaves_the_stop_on_binance(tmp_path):
     with pytest.raises(F.FuturesError):
         broker.close(pos)
     assert fake.positions["SOLUSDT"] == pos.qty
-    assert any(a["type"] == "STOP_MARKET" for a in fake.algos.values())
+    assert any(a["orderType"] == "STOP_MARKET" for a in fake.algos.values())
 
 
 @pytest.mark.parametrize("state", ["NEW", "PARTIALLY_FILLED"])
@@ -290,18 +296,37 @@ def test_a_position_found_without_a_stop_gets_one_at_the_widest_band(tmp_path):
     broker, fake = _real(tmp_path)
     fake.positions["SOLUSDT"] = Decimal("0.1")  # filled, then the PC went off before the stop
     assert "SOLUSDT" in broker.positions()
-    stops = [a for a in fake.algos.values() if a["type"] == "STOP_MARKET"]
-    assert len(stops) == 1 and stops[0]["side"] == "SELL" and stops[0]["closePosition"] == "true"
+    stops = [a for a in fake.algos.values() if a["orderType"] == "STOP_MARKET"]
+    assert len(stops) == 1 and stops[0]["side"] == "SELL" and stops[0]["closePosition"] is True
     assert Decimal(stops[0]["triggerPrice"]) == Decimal("127.50")  # entry 150 minus 15%
     broker.positions()
-    assert len([a for a in fake.algos.values() if a["type"] == "STOP_MARKET"]) == 1  # not placed twice
+    assert len([a for a in fake.algos.values() if a["orderType"] == "STOP_MARKET"]) == 1  # not placed twice
+
+
+def test_a_position_whose_stop_binance_lists_as_ordertype_is_left_alone(tmp_path):
+    """Rows as /fapi/v1/openAlgoOrders really sends them: the kind is in "orderType" and "type" is empty."""
+    broker, fake = _real(tmp_path)
+    fake.positions["SOLUSDT"] = Decimal("0.1")
+    fake.algos = {
+        "901": {"algoId": 901, "clientAlgoId": "TIF-aaa", "algoType": "CONDITIONAL", "orderType": "STOP_MARKET",
+                "type": None, "symbol": "SOLUSDT", "side": "SELL", "positionSide": "BOTH", "quantity": "0",
+                "algoStatus": "NEW", "triggerPrice": "146.00", "workingType": "MARK_PRICE",
+                "closePosition": True, "reduceOnly": True},
+        "902": {"algoId": 902, "clientAlgoId": "TIF-bbb", "algoType": "CONDITIONAL",
+                "orderType": "TAKE_PROFIT_MARKET", "type": None, "symbol": "SOLUSDT", "side": "SELL",
+                "positionSide": "BOTH", "quantity": "0", "algoStatus": "NEW", "triggerPrice": "160.00",
+                "workingType": "MARK_PRICE", "closePosition": True, "reduceOnly": True}}
+    for _ in range(3):
+        assert "SOLUSDT" in broker.positions()
+    assert set(fake.algos) == {"901", "902"} and fake.positions["SOLUSDT"] == Decimal("0.1")
+    assert not [c for c in fake.calls if c[0] in ("POST", "DELETE")]  # nothing placed, cancelled or closed
 
 
 def test_a_short_found_without_a_stop_gets_one_above(tmp_path):
     broker, fake = _real(tmp_path)
     fake.positions["SOLUSDT"] = Decimal("-0.1")
     broker.positions()
-    stop = next(a for a in fake.algos.values() if a["type"] == "STOP_MARKET")
+    stop = next(a for a in fake.algos.values() if a["orderType"] == "STOP_MARKET")
     assert stop["side"] == "BUY" and Decimal(stop["triggerPrice"]) == Decimal("172.50")
 
 
@@ -330,7 +355,7 @@ def test_a_fill_whose_answer_is_lost_for_good_is_protected_on_the_next_pass(tmp_
         broker.open(plan)  # filled on Binance, but no stop was placed
     assert fake.positions["SOLUSDT"] == plan.qty and not fake.algos
     broker.positions()  # the next pass of the engine
-    assert any(a["type"] == "STOP_MARKET" for a in fake.algos.values())
+    assert any(a["orderType"] == "STOP_MARKET" for a in fake.algos.values())
 
 
 def test_orders_left_by_a_position_closed_on_the_exchange_are_cleared(tmp_path):
@@ -397,9 +422,9 @@ def test_the_stop_that_follows_the_gain_goes_in_before_the_old_one_is_cancelled(
     broker, fake = _real(tmp_path)
     plan = broker.plan("SOLUSDT", "BUY", Decimal("1"), "5m")
     broker.open(plan)
-    old = [k for k, a in fake.algos.items() if a["type"] == "STOP_MARKET"]
+    old = [k for k, a in fake.algos.items() if a["orderType"] == "STOP_MARKET"]
     broker.move_stop(broker.positions()["SOLUSDT"], plan.price - Decimal("1"), plan.tp)
-    stops = [a for a in fake.algos.values() if a["type"] == "STOP_MARKET"]
+    stops = [a for a in fake.algos.values() if a["orderType"] == "STOP_MARKET"]
     assert len(stops) == 1 and old[0] not in fake.algos and Decimal(stops[0]["triggerPrice"]) == plan.price - 1
     placed = [i for i, (m, p, q) in enumerate(fake.calls) if p == "/fapi/v1/algoOrder" and m == "POST"][-1]
     cancelled = [i for i, (m, p, q) in enumerate(fake.calls) if p == "/fapi/v1/algoOrder" and m == "DELETE"][-1]
@@ -443,7 +468,7 @@ def test_a_reshaped_target_is_rounded_to_the_exchange_tick(tmp_path):
     plan = broker.plan("SOLUSDT", "BUY", Decimal("1"), "5m")
     from dataclasses import replace
     broker.open(replace(plan, tp=plan.price * Decimal("1.03123")))  # the engine's 3% floor: not on the tick
-    tp = next(a for a in fake.algos.values() if a["type"] == "TAKE_PROFIT_MARKET")
+    tp = next(a for a in fake.algos.values() if a["orderType"] == "TAKE_PROFIT_MARKET")
     assert Decimal(tp["triggerPrice"]) % Decimal("0.01") == 0  # SOLUSDT tick 0.01, as Binance requires
 
 
