@@ -1,0 +1,290 @@
+{
+ "meta": {
+  "simbolos": [
+   "ADAUSDT",
+   "AVAXUSDT",
+   "BNBUSDT",
+   "BTCUSDT",
+   "DOGEUSDT",
+   "DOTUSDT",
+   "ETHUSDT",
+   "LINKUSDT",
+   "LTCUSDT",
+   "SOLUSDT",
+   "TRXUSDT",
+   "XRPUSDT"
+  ]
+ },
+ "years": [
+  {
+   "from": "2024-10-12",
+   "to": "2025-10-12",
+   "rows": {
+    "A pura, k=0.5": {
+     "net_pct": -55.73,
+     "max_dd_pct": 72.54,
+     "net_dd": -0.77,
+     "trades": 1053,
+     "win_rate": 41.1,
+     "avg_trade_pct": -0.194,
+     "longs": 591,
+     "shorts": 462,
+     "both_hit": 389,
+     "quarters": [
+      -8.4,
+      -35.77,
+      -35.99,
+      17.58
+     ],
+     "k": 0.5,
+     "version": "A pura"
+    },
+    "A pura, k=0.25": {
+     "net_pct": -89.94,
+     "max_dd_pct": 91.98,
+     "net_dd": -0.98,
+     "trades": 1093,
+     "win_rate": 39.2,
+     "avg_trade_pct": -0.586,
+     "longs": 545,
+     "shorts": 548,
+     "both_hit": 1649,
+     "quarters": [
+      -32.78,
+      -67.91,
+      -48.14,
+      -10.05
+     ],
+     "k": 0.25,
+     "version": "A pura"
+    },
+    "A pura, k=0.75": {
+     "net_pct": -14.39,
+     "max_dd_pct": 58.77,
+     "net_dd": -0.24,
+     "trades": 894,
+     "win_rate": 41.6,
+     "avg_trade_pct": -0.001,
+     "longs": 524,
+     "shorts": 370,
+     "both_hit": 102,
+     "quarters": [
+      60.01,
+      -30.9,
+      -32.06,
+      13.96
+     ],
+     "k": 0.75,
+     "version": "A pura"
+    },
+    "B con frenos, k=0.5": {
+     "net_pct": -59.45,
+     "max_dd_pct": 73.04,
+     "net_dd": -0.81,
+     "trades": 533,
+     "win_rate": 40.5,
+     "avg_trade_pct": -0.443,
+     "longs": 533,
+     "shorts": 0,
+     "both_hit": 0,
+     "quarters": [
+      8.15,
+      -17.5,
+      -26.44,
+      -38.21
+     ],
+     "k": 0.5,
+     "version": "B con frenos"
+    },
+    "B con frenos, k=0.25": {
+     "net_pct": -73.97,
+     "max_dd_pct": 81.38,
+     "net_dd": -0.91,
+     "trades": 658,
+     "win_rate": 38.6,
+     "avg_trade_pct": -0.56,
+     "longs": 658,
+     "shorts": 0,
+     "both_hit": 0,
+     "quarters": [
+      -11.51,
+      -29.39,
+      -28.4,
+      -41.83
+     ],
+     "k": 0.25,
+     "version": "B con frenos"
+    },
+    "B con frenos, k=0.75": {
+     "net_pct": -4.49,
+     "max_dd_pct": 49.54,
+     "net_dd": -0.09,
+     "trades": 404,
+     "win_rate": 45.0,
+     "avg_trade_pct": 0.044,
+     "longs": 404,
+     "shorts": 0,
+     "both_hit": 0,
+     "quarters": [
+      69.81,
+      -16.54,
+      -11.98,
+      -23.44
+     ],
+     "k": 0.75,
+     "version": "B con frenos"
+    }
+   },
+   "btc_pct": 76.92,
+   "desk": {
+    "l\u00edder": 1.67,
+    "re-medida": 1.73
+   },
+   "judge": {
+    "A pura": {
+     "l\u00edder": "False",
+     "re-medida": "False"
+    },
+    "B con frenos": {
+     "l\u00edder": "False",
+     "re-medida": "False"
+    }
+   }
+  },
+  {
+   "from": "2025-10-13",
+   "to": "2026-10-13",
+   "rows": {
+    "A pura, k=0.5": {
+     "net_pct": -64.65,
+     "max_dd_pct": 66.27,
+     "net_dd": -0.98,
+     "trades": 1037,
+     "win_rate": 39.5,
+     "avg_trade_pct": -0.279,
+     "longs": 552,
+     "shorts": 485,
+     "both_hit": 444,
+     "quarters": [
+      -52.41,
+      -5.18,
+      -16.46,
+      -6.21
+     ],
+     "k": 0.5,
+     "version": "A pura"
+    },
+    "A pura, k=0.25": {
+     "net_pct": -88.88,
+     "max_dd_pct": 88.88,
+     "net_dd": -1.0,
+     "trades": 1095,
+     "win_rate": 36.4,
+     "avg_trade_pct": -0.569,
+     "longs": 551,
+     "shorts": 544,
+     "both_hit": 1623,
+     "quarters": [
+      -62.22,
+      -32.22,
+      -34.4,
+      -33.8
+     ],
+     "k": 0.25,
+     "version": "A pura"
+    },
+    "A pura, k=0.75": {
+     "net_pct": -46.18,
+     "max_dd_pct": 52.82,
+     "net_dd": -0.87,
+     "trades": 888,
+     "win_rate": 39.6,
+     "avg_trade_pct": -0.192,
+     "longs": 458,
+     "shorts": 430,
+     "both_hit": 115,
+     "quarters": [
+      -22.99,
+      -1.27,
+      -30.05,
+      1.2
+     ],
+     "k": 0.75,
+     "version": "A pura"
+    },
+    "B con frenos, k=0.5": {
+     "net_pct": -21.23,
+     "max_dd_pct": 24.73,
+     "net_dd": -0.86,
+     "trades": 351,
+     "win_rate": 38.5,
+     "avg_trade_pct": -0.181,
+     "longs": 351,
+     "shorts": 0,
+     "both_hit": 0,
+     "quarters": [
+      -2.63,
+      -7.07,
+      -13.9,
+      1.11
+     ],
+     "k": 0.5,
+     "version": "B con frenos"
+    },
+    "B con frenos, k=0.25": {
+     "net_pct": -35.84,
+     "max_dd_pct": 35.84,
+     "net_dd": -1.0,
+     "trades": 418,
+     "win_rate": 37.1,
+     "avg_trade_pct": -0.295,
+     "longs": 418,
+     "shorts": 0,
+     "both_hit": 0,
+     "quarters": [
+      -3.4,
+      -7.61,
+      -13.07,
+      -17.29
+     ],
+     "k": 0.25,
+     "version": "B con frenos"
+    },
+    "B con frenos, k=0.75": {
+     "net_pct": -10.27,
+     "max_dd_pct": 20.35,
+     "net_dd": -0.5,
+     "trades": 263,
+     "win_rate": 42.2,
+     "avg_trade_pct": -0.102,
+     "longs": 263,
+     "shorts": 0,
+     "both_hit": 0,
+     "quarters": [
+      1.87,
+      -6.65,
+      -13.26,
+      8.78
+     ],
+     "k": 0.75,
+     "version": "B con frenos"
+    }
+   },
+   "btc_pct": -28.8,
+   "desk": {
+    "l\u00edder": -0.21,
+    "re-medida": 0.2
+   },
+   "judge": {
+    "A pura": {
+     "l\u00edder": "False",
+     "re-medida": "False"
+    },
+    "B con frenos": {
+     "l\u00edder": "False",
+     "re-medida": "False"
+    }
+   }
+  }
+ ]
+}
