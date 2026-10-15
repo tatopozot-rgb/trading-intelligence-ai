@@ -12,6 +12,7 @@ canal de Donchian (reglas "Turtle"), cruce de medias EMA y momento de serie temp
 | Fecha | Estrategia | Fuente | Estado |
 |---|---|---|---|
 | 2026-10-14 | EWMAC de Carver | [pysystemtrade](https://github.com/robcarver17/pysystemtrade) | No pasa, ni sola ni en cartera con la mesa (2026-10-14). Archivada |
+| 2026-10-15 | Ruptura de volatilidad de Larry Williams | *Long-Term Secrets to Short-Term Trading* (1999), cap. 4; [resumen LuxAlgo](https://www.luxalgo.com/library/concept/volatility-breakout/) | Enviada a Quant para probar |
 
 ---
 
@@ -83,3 +84,57 @@ Se descartan las 3 monedas con menor convicción para respetar el tope de 3 posi
   archiva la idea.** Se puede reabrir con datos nuevos o con más capital.
 - **Aprendizaje:** la mesa de práctica sola tuvo una caída de 44–47% en 2024-25, en el límite de pérdida de 45% del
   dueño. Si eso pasa con dinero real, el freno de 45% la detiene, como está diseñado.
+
+---
+
+## 2026-10-15 · Ruptura de volatilidad de Larry Williams
+
+**Qué es.** Larry Williams es un trader de futuros que ganó un campeonato real de trading en 1987. Usa esta idea
+desde 1982 y la publicó en *Long-Term Secrets to Short-Term Trading* (1999), capítulo 4, "Volatility Breakouts".
+La idea: si el precio se aleja de la apertura más que una parte del rango de ayer, el día probablemente siga en esa
+dirección. En cripto se hizo muy popular en Corea, con bots para el exchange Upbit.
+([resumen LuxAlgo](https://www.luxalgo.com/library/concept/volatility-breakout/),
+[indicador abierto en TradingView](https://www.tradingview.com/script/P8cxeiJy/))
+
+**Reglas, en simple (fijadas hoy por el líder, antes de probar):**
+
+1. Velas diarias UTC. Rango de ayer = máximo − mínimo de ayer.
+2. **Compra** si hoy el precio sube hasta apertura + 0,5 × rango de ayer. **Venta en corto** si baja hasta
+   apertura − 0,5 × rango de ayer. Se entra al precio del disparo, más el deslizamiento.
+3. Se sale en la apertura del día siguiente. Sin stop, como el original.
+4. Si en la misma vela se tocan los dos disparos, se cuenta la peor de las dos operaciones, porque la vela diaria no
+   dice cuál se tocó primero.
+5. Máximo 3 posiciones, cada una con un tercio del capital y sin apalancamiento (1x). Si se disparan más de 3, se
+   toman las 3 con más volumen en USDT ayer.
+
+**En qué se diferencia de lo que ya probamos:**
+
+- La "ruptura" de 2026-10-12 usaba el rango de la sesión de Asia en velas de 5 minutos, solo BTC y ETH, y 90 días
+  (`docs/research/segunda_estrategia_2026-10-12.md`).
+- Esta usa el rango del día anterior, mantiene la posición un día y opera las 12 monedas de la mesa durante dos
+  años.
+
+**Señales de sobreajuste: altas.**
+
+- El factor k (0,5) se elige casi siempre con el mejor resultado del pasado. Las fuentes usan desde 0,25 hasta 0,6.
+- Las versiones populares de cripto eligen k por moneda.
+- Un script cerrado en TradingView dice ser "la mejor estrategia para BTC y ETH" sin mostrar su código. Es
+  publicidad.
+- El propio Williams escribió que la idea funciona peor en los últimos años.
+- Por eso k queda fijo en 0,5 antes de probar. k = 0,25 y 0,75 se informan solo para ver la sensibilidad, nunca para
+  elegir.
+
+**Cómo se prueba con nuestros datos:**
+
+- Las 12 monedas de la mesa, en dos versiones:
+  - (A) pura, con largos y cortos;
+  - (B) con los frenos de la mesa: régimen b y sin entradas los días de FOMC o IPC.
+- Comisión 0,05% y deslizamiento 0,02% por lado, más la financiación real (se cuenta el día completo).
+- Años 2024-25 y 2025-26, contra la mesa de práctica y contra mantener BTC.
+
+**Cómo se juzga (fijado hoy):**
+
+- Pasa a práctica solo si su neto/caída supera al de la mesa de práctica en **los dos años**. La mesa de práctica
+  (con el freno b) dio 1,67 en 2024-25 y −0,21 en 2025-26.
+- Con menos de 100 operaciones en un año, se informa como muestra corta.
+- El dinero real no cambia por este estudio.
