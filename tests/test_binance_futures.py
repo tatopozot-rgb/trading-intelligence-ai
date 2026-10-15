@@ -251,12 +251,86 @@ def test_an_unclear_order_blocks_new_entries(tmp_path):
     assert not fake.positions
 
 
-def test_close_cancels_the_stop_and_target_first_then_reduces_only(tmp_path):
+def test_close_reduces_first_and_only_then_cancels_the_stop_and_target(tmp_path):
     broker, fake = _real(tmp_path)
     broker.open(broker.plan("SOLUSDT", "BUY", Decimal("1"), "5m"))
     pos = broker.positions()["SOLUSDT"]
     broker.close(pos)
     assert not fake.algos and fake.positions["SOLUSDT"] == 0
+    closed = [i for i, (m, p, q) in enumerate(fake.calls) if p == "/fapi/v1/order" and m == "POST"][-1]
+    cancelled = [i for i, (m, p, q) in enumerate(fake.calls) if p == "/fapi/v1/algoOrder" and m == "DELETE"]
+    assert cancelled and closed < min(cancelled)  # audit C2: never a moment without a stop
+
+
+def test_a_close_that_fails_leaves_the_stop_on_binance(tmp_path):
+    broker, fake = _real(tmp_path)
+    broker.open(broker.plan("SOLUSDT", "BUY", Decimal("1"), "5m"))
+    pos = broker.positions()["SOLUSDT"]
+    fake.order_mode = "gone"  # the close never reaches Binance
+    with pytest.raises(F.FuturesError):
+        broker.close(pos)
+    assert fake.positions["SOLUSDT"] == pos.qty
+    assert any(a["type"] == "STOP_MARKET" for a in fake.algos.values())
+
+
+@pytest.mark.parametrize("state", ["NEW", "PARTIALLY_FILLED"])
+def test_an_order_still_new_or_partly_filled_blocks_new_entries(tmp_path, state):
+    broker, fake = _real(tmp_path)
+    broker.market._set("TIF-x", state=state, symbol="SOLUSDT")
+    fake.orders["TIF-x"] = {"status": state, "executedQty": "0", "avgPrice": "0"}
+    with pytest.raises(Unreconciled):
+        broker.open(broker.plan("SOLUSDT", "BUY", Decimal("1"), "5m"))
+    assert not fake.positions
+    fake.orders["TIF-x"]["status"] = "CANCELED"  # once Binance says how it ended, trading goes on
+    broker.open(broker.plan("SOLUSDT", "BUY", Decimal("1"), "5m"))
+    assert fake.positions["SOLUSDT"] > 0
+
+
+def test_a_position_found_without_a_stop_gets_one_at_the_widest_band(tmp_path):
+    broker, fake = _real(tmp_path)
+    fake.positions["SOLUSDT"] = Decimal("0.1")  # filled, then the PC went off before the stop
+    assert "SOLUSDT" in broker.positions()
+    stops = [a for a in fake.algos.values() if a["type"] == "STOP_MARKET"]
+    assert len(stops) == 1 and stops[0]["side"] == "SELL" and stops[0]["closePosition"] == "true"
+    assert Decimal(stops[0]["triggerPrice"]) == Decimal("127.50")  # entry 150 minus 15%
+    broker.positions()
+    assert len([a for a in fake.algos.values() if a["type"] == "STOP_MARKET"]) == 1  # not placed twice
+
+
+def test_a_short_found_without_a_stop_gets_one_above(tmp_path):
+    broker, fake = _real(tmp_path)
+    fake.positions["SOLUSDT"] = Decimal("-0.1")
+    broker.positions()
+    stop = next(a for a in fake.algos.values() if a["type"] == "STOP_MARKET")
+    assert stop["side"] == "BUY" and Decimal(stop["triggerPrice"]) == Decimal("172.50")
+
+
+def test_a_position_without_a_stop_that_binance_refuses_to_protect_is_closed(tmp_path):
+    broker, fake = _real(tmp_path)
+    fake.positions["SOLUSDT"] = Decimal("0.1")
+    fake.fail_algo_type = "STOP_MARKET"
+    with pytest.raises(F.FuturesError, match="cerré la posición"):
+        broker.positions()
+    assert fake.positions["SOLUSDT"] == 0
+
+
+def test_a_fill_whose_answer_is_lost_for_good_is_protected_on_the_next_pass(tmp_path):
+    broker, fake = _real(tmp_path)
+    fake.order_mode = "lost"
+    plan = broker.plan("SOLUSDT", "BUY", Decimal("1"), "5m")
+    orig = fake.__call__
+
+    def lookup_fails(method, url, headers, timeout):
+        if "/fapi/v1/order" in url and method == "GET":
+            return HttpResponse(500, {}, b"")
+        return orig(method, url, headers, timeout)
+
+    broker.market._transport = lookup_fails
+    with pytest.raises(Unreconciled):
+        broker.open(plan)  # filled on Binance, but no stop was placed
+    assert fake.positions["SOLUSDT"] == plan.qty and not fake.algos
+    broker.positions()  # the next pass of the engine
+    assert any(a["type"] == "STOP_MARKET" for a in fake.algos.values())
 
 
 def test_orders_left_by_a_position_closed_on_the_exchange_are_cleared(tmp_path):
