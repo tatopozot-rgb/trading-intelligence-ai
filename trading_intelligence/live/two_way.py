@@ -215,9 +215,16 @@ class TwoWayAuto:
             self._event("SKIP", text)
 
     def _close_all(self, ours: dict[str, Position]) -> None:
+        """Tries every position even if one close fails; the first failure is raised after all were tried."""
+        failed: Optional[Exception] = None
         for sym, pos in ours.items():
-            self.broker.close(pos)
-            self.state.known.pop(sym, None)
+            try:
+                self.broker.close(pos)
+                self.state.known.pop(sym, None)
+            except (RuntimeError, ValueError) as error:
+                failed = failed or error
+        if failed is not None:
+            raise failed
 
     def _guard(self, equity: Decimal, currency: str, ours: dict[str, Position]) -> dict[str, Position]:
         """Session loss limit (with the owner asked first), profit goal, optional daily stop."""
@@ -247,8 +254,14 @@ class TwoWayAuto:
             loss = capital - equity
         if s.status not in (STOPPED, GOAL) and loss >= limit:
             s.status = STOPPED
-            self._close_all(ours)
             self._event("STOPPED", f"pérdida {loss:.2f} >= {limit:.2f}")
+            try:
+                self._close_all(ours)
+            except (RuntimeError, ValueError):
+                self.notify(f"🛑 {name}: la pérdida llegó al límite de {self.loss_limit_pct}% ({loss:.2f} {currency}). "
+                            f"No abro nada más. Un cierre falló: lo reintento en cada vuelta y los stops siguen "
+                            f"puestos en Binance. Revisado 2 veces en la cuenta.")
+                raise
             self.notify(f"🛑 {name}: la pérdida llegó al límite de {self.loss_limit_pct}% ({loss:.2f} {currency}). "
                         f"Cerré todas las posiciones y la sesión terminó. Revisado 2 veces en la cuenta.")
             return self.broker.positions()
@@ -723,7 +736,9 @@ class TwoWayAuto:
 
     def run(self, max_iterations: Optional[int] = None, sleep: Callable[[float], None] = time.sleep) -> None:
         n = 0
-        while (max_iterations is None or n < max_iterations) and self.state.status != STOPPED:
+        while max_iterations is None or n < max_iterations:
+            if self.state.status == STOPPED and not self._still_open():
+                break  # the loss limit closed everything: the session ends only with nothing left open
             n += 1
             if self.decision_due():
                 try:
@@ -743,6 +758,14 @@ class TwoWayAuto:
                     self.state.save(self.state_path)
             self.watch()  # each position's bot, the veto scoring and the Scout, every 30 s
             sleep(10)
+
+    def _still_open(self) -> bool:
+        """After the loss limit the engine keeps running, retrying the close every pass, while the account
+        still shows a position; an account it cannot read counts as open (audit 2026-10-12, H1)."""
+        try:
+            return bool(self.broker.positions())
+        except (RuntimeError, ValueError):
+            return True
 
 
 def owner_continue(state_dir: Path) -> None:

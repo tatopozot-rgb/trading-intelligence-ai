@@ -70,6 +70,9 @@ CRYPTO_MIN_STOP_PCT, CRYPTO_MAX_STOP_PCT = Decimal("3"), Decimal("15")  # owner,
 INTERVALS = frozenset({"1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "1d"})
 DEFAULT_LIMITS = Path("config/futures_limits.json")
 CLIENT_PREFIX = "TIF-"
+# Final states of a market order. Anything else (NEW, PARTIALLY_FILLED, a lost answer) still blocks new
+# orders until Binance says how it ended (audit 2026-10-12, C1).
+SETTLED = ("FILLED", "REJECTED", "NOT_FOUND", "CANCELED", "EXPIRED", "EXPIRED_IN_MATCH")
 
 
 class FuturesError(LiveError):
@@ -434,7 +437,7 @@ class FuturesMarket:
     def unresolved(self) -> list[str]:
         if self.journal is None:
             return []
-        return [cid for cid, r in self.journal.read().items() if r.get("state") in ("PENDING_SEND", "UNCERTAIN")]
+        return [cid for cid, r in self.journal.read().items() if r.get("state") not in SETTLED]
 
     def _set(self, cid: str, **fields: object) -> None:
         assert self.journal is not None
@@ -542,15 +545,38 @@ class FuturesBroker:
         return self.market.balance(), "USDT"
 
     def positions(self) -> dict[str, Position]:
-        """Our symbols' positions; stop/target orders left behind by a closed position are cancelled."""
+        """Our symbols' positions; stop/target orders left behind by a closed position are cancelled, and an
+        open position without a stop on Binance gets one (audit 2026-10-12, C1). Runs at start and every pass."""
         amounts = {s: v for s, v in self.market.position_amounts().items() if s in self.limits.symbols}
-        for algo in self.market.open_algos():
+        algos = self.market.open_algos()
+        for algo in algos:
             sym = str(algo.get("symbol"))
             if sym in self.limits.symbols and sym not in amounts and \
                     str(algo.get("clientAlgoId", "")).startswith(CLIENT_PREFIX):
                 self.market.cancel_algo(sym, str(algo.get("algoId")))
-        return {s: Position(s, "BUY" if amt > 0 else "SELL", abs(amt), f"{s}:{'L' if amt > 0 else 'S'}", entry)
-                for s, (amt, entry) in amounts.items()}
+        out = {s: Position(s, "BUY" if amt > 0 else "SELL", abs(amt), f"{s}:{'L' if amt > 0 else 'S'}", entry)
+               for s, (amt, entry) in amounts.items()}
+        for sym, pos in out.items():
+            exit_side = "SELL" if pos.side == "BUY" else "BUY"
+            if not any(a.get("symbol") == sym and a.get("type") == "STOP_MARKET" and a.get("side") == exit_side
+                       for a in algos):
+                self._protect(pos)
+        return out
+
+    def _protect(self, pos: Position) -> None:
+        """A position found without a stop (a lost answer between the fill and the stop, a crash, a stop
+        cancelled by hand) gets one at the widest band from its entry; if Binance refuses it, it is closed."""
+        long = pos.side == "BUY"
+        exit_side = "SELL" if long else "BUY"
+        band = CRYPTO_MAX_STOP_PCT / 100
+        base = pos.entry if pos.entry > 0 else self.market.mid(pos.symbol)
+        stop = self.market.rules(pos.symbol).round_price(base * (1 - band if long else 1 + band), up=not long)
+        logger.warning("%s: open position without a stop on Binance; placing one at %s", pos.symbol, stop)
+        try:
+            self.market.conditional(pos.symbol, exit_side, "STOP_MARKET", stop)
+        except LiveError:
+            self.market.market(pos.symbol, exit_side, pos.qty, reduce_only=True)
+            raise FuturesError(f"{pos.symbol}: estaba sin stop y Binance no aceptó uno nuevo; cerré la posición")
 
     def candles(self, symbol: str, timeframe: str, count: int) -> pd.DataFrame:
         return self.market.candles(symbol, timeframe, count)
@@ -586,11 +612,16 @@ class FuturesBroker:
         return f"{plan.symbol}:{'L' if plan.side == 'BUY' else 'S'}"
 
     def close(self, position: Position) -> None:
-        for algo in self.market.open_algos():
-            if algo.get("symbol") == position.symbol and str(algo.get("clientAlgoId", "")).startswith(CLIENT_PREFIX):
-                self.market.cancel_algo(position.symbol, str(algo.get("algoId")))
+        """The close goes first and the stop and target are cancelled after it, so a close that fails
+        (timeout, 429, an unclear order) leaves the position still protected (audit 2026-10-12, C2)."""
         self.market.market(position.symbol, "SELL" if position.side == "BUY" else "BUY", position.qty,
                            reduce_only=True)
+        for algo in self.market.open_algos():
+            if algo.get("symbol") == position.symbol and str(algo.get("clientAlgoId", "")).startswith(CLIENT_PREFIX):
+                try:
+                    self.market.cancel_algo(position.symbol, str(algo.get("algoId")))
+                except LiveError as error:  # the position is gone; positions() clears the leftover next pass
+                    logger.warning("%s: leftover order not cancelled yet (%s)", position.symbol, error)
 
     def move_stop(self, position: Position, stop: Decimal, target: Decimal) -> None:
         """The stop that follows the gain: the new stop goes in first, then the old one is cancelled, so the
