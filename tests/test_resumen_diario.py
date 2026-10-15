@@ -164,6 +164,15 @@ def _runs(tmp_path: Path, now: datetime = NOW) -> Path:
         "events": [{"at": at, "kind": "RESULT", "symbol": "SOLUSDT", "side": "BUY", "pnl": "0.41", "exact": True}]},
            age=timedelta(hours=2), now=now)
     _write(runs / "futures_auto" / "real" / "orders.json", {"x": {}}, now=now)
+    # the 3x practice account, from before the bots kept their name and their closes' results
+    _write(runs / "futures_auto_3x" / "shadow" / "state.json", {
+        "capital": "37", "status": "RUNNING", "known": {},
+        "events": [{"at": at, "kind": "OPEN", "text": "BUY 1 ETHUSDT @ 2500 SL 2400 TP 2700"},
+                   {"at": at, "kind": "CLOSED_BY_EXCHANGE", "text": "ETHUSDT"},
+                   {"at": at, "kind": "CLOSE", "text": "XRPUSDT BUY: señal SELL"}]}, now=now)
+    _write(runs / "futures_auto_3x" / "shadow" / "paper.json", {"cash": "40", "positions": {}, "closed": [
+        {"symbol": "ETHUSDT", "pnl": "-0.75", "exit": "2400", "at": at},
+        {"symbol": "XRPUSDT", "pnl": "0.20", "exit": "2.5", "at": (now - timedelta(days=2)).isoformat()}]}, now=now)
     _write(runs / "viejo" / "state.json", {"known": {}, "events": []}, age=timedelta(days=5), now=now)
     return runs
 
@@ -177,14 +186,21 @@ def test_the_summary_tells_each_practice_bot_and_a_conclusion(tmp_path):
     assert "Desde que empezó: +4,1%" in text and "Sigue abierta: AVAX (venta)" in text
     assert "BTC compra" not in text  # two days ago: not today's
     assert "🧪 XM DEMO · Cripto\n• Cerró 1: BTC ❌ -40,00 USD aprox.\n" in text  # its CLOSE is the same trade
-    assert "PRÁCTICA SIMULADO\n" in text  # "(dinero ficticio)" is said once, in the title
+    assert "🧪 Futuros práctica 1x\n" in text  # "(dinero ficticio)" is said once, in the title
     assert "Núcleo BTC 50" in text and "Sin operaciones" in text and "Desde que empezó: +4,0%" in text
     assert "Londres oro" in text and "Oro ✅ +85,30 USD aprox." in text
     assert "viejo" not in text  # retired five days ago
     assert "💰 Dinero real" in text and "resultado +0,41 USDT" in text and "ADA (compra)" in text
     assert "⚠️ no da señales de vida" in text  # the real bot wrote its state 2 h ago
-    assert "📌 Conclusión: buen día en práctica 👍 (3 cerradas: 2 ganadas y 1 perdidas)" in text
+    assert "📌 Conclusión: día parejo en práctica (4 cerradas: 2 ganadas y 2 perdidas)" in text
     assert "El mejor fue 🧪 XM DEMO · Londres oro (+85,30 USD)" in text and "hoy abrió 0 y cerró 1" in text
+
+
+def test_both_practice_futures_accounts_have_clear_names_and_old_closes_their_recorded_result(tmp_path):
+    text = R.render(R.find_bots(_runs(tmp_path), NOW - timedelta(hours=24), NOW), NOW)
+    assert "🧪 Futuros práctica 1x\n" in text and "🧪 Futuros práctica 3x\n" in text and "shadow" not in text
+    assert "• Cerró 1: ETH ❌ -0,75 USDT\n" in text  # from the account's own book; XRP was two days ago
+    assert "sin resultado" not in text
 
 
 def test_a_quiet_day_says_so():

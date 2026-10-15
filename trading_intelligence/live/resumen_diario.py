@@ -47,7 +47,6 @@ class Bot:
     currency: str = ""
     opened: list[tuple[str, str]] = field(default_factory=list)  # (symbol, side)
     closed: list[tuple[str, Decimal, bool]] = field(default_factory=list)  # (symbol, result, exact)
-    closed_unknown: int = 0  # closes recorded before results were kept
     pct: Optional[Decimal] = None  # the window's result, % of the account
     since_start: Optional[Decimal] = None  # % since the bot started (own account only)
     open_now: list[str] = field(default_factory=list)
@@ -94,10 +93,8 @@ def _pct(value: Decimal) -> str:
 
 def _motor(path: Path, d: dict, since: datetime) -> Bot:
     real = "real" in [p.lower() for p in path.parent.parts] or "DINERO REAL" in str(d.get("name", ""))
-    # the header already says it is fictitious money
-    name = re.sub(r"\s*\(dinero (ficticio|virtual)\)", "", str(d.get("name") or path.parent.name))
-    bot = Bot(name, path, "motor", real, str(d.get("currency", "")))
-    closes = 0
+    currency = str(d.get("currency") or ("USDT" if "futures_auto" in path.as_posix() else ""))  # older states
+    bot = Bot(_motor_name(path, d, real), path, "motor", real, currency)
     for e in d.get("events", []):
         at = _at(e.get("at"))
         if at is None or at < since:
@@ -113,13 +110,13 @@ def _motor(path: Path, d: dict, since: datetime) -> Bot:
             pnl = _d(e.get("pnl"))
             if pnl is not None:
                 bot.closed.append((str(e.get("symbol", "?")), pnl, bool(e.get("exact"))))
-        elif kind in ("CLOSE", "CLOSED_BY_EXCHANGE"):
-            closes += 1
-    bot.closed_unknown = max(0, closes - len(bot.closed))
+    book = _paper_closes(path.parent / "paper.json", since)
+    if book is not None:  # a practice futures account keeps every close with its result: the full record
+        bot.closed = book
     equity, capital = _d(d.get("equity")), _d(d.get("capital"))
     if equity and equity > 0 and bot.closed:
         bot.pct = bot.result / equity * 100
-    if equity and capital and capital > 0 and "XM" not in name:  # XM agents share one demo account
+    if equity and capital and capital > 0 and "XM" not in bot.name:  # XM agents share one demo account
         bot.since_start = (equity / capital - 1) * 100
     bot.open_now = [f"{coin(s)} ({_side(str(v.get('side', 'BUY')))})" for s, v in d.get("known", {}).items()
                     if isinstance(v, dict)]
@@ -133,6 +130,39 @@ def _motor(path: Path, d: dict, since: datetime) -> Bot:
     return bot
 
 
+def _motor_name(path: Path, d: dict, real: bool) -> str:
+    """A clear name. Practice futures accounts are told apart by their leverage, from the folder
+    (live_runs/futures_auto/shadow is 1x, live_runs/futures_auto_3x/shadow is 3x); the header already says the
+    practice money is fictitious."""
+    folder = path.parent.parent.name if path.parent.name in ("shadow", "real") else path.parent.name
+    if not real and folder.startswith("futures_auto"):
+        lev = re.search(r"(\d+)x", folder) or re.search(r"(\d+)x", str(d.get("name", "")))
+        return f"🧪 Futuros práctica {lev.group(1) if lev else 1}x"
+    name = str(d.get("name") or "")
+    if not name and folder.startswith("xm_auto"):
+        agent = folder.removeprefix("xm_auto").strip("_")
+        name = f"🧪 XM DEMO · {agent.capitalize()}" if agent else "🧪 XM DEMO"
+    if not name and real:
+        name = "💰 Binance Futuros · DINERO REAL"
+    return re.sub(r"\s*\(dinero (ficticio|virtual)\)", "", name or folder)
+
+
+def _paper_closes(path: Path, since: datetime) -> Optional[list[tuple[str, Decimal, bool]]]:
+    """The closes of a practice futures account since ``since``, from its own book; None without a book."""
+    if not path.exists():
+        return None
+    try:
+        book = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    out = []
+    for row in book.get("closed", []) if isinstance(book, dict) else []:
+        at, pnl = _at(row.get("at")), _d(row.get("pnl"))
+        if at is not None and at >= since and pnl is not None:
+            out.append((str(row.get("symbol", "?")), pnl, True))
+    return out
+
+
 def _londres(path: Path, d: dict, since: datetime) -> Bot:
     bot = Bot("🧪 XM DEMO · Londres oro", path, "londres", False, str(d.get("moneda", "")))
     for t in d.get("trades", []):
@@ -143,8 +173,6 @@ def _londres(path: Path, d: dict, since: datetime) -> Bot:
             bot.opened.append(("Oro", str(t.get("lado", "BUY"))))
         elif t.get("accion") == "cierre" and _d(t.get("pnl")) is not None:
             bot.closed.append(("Oro", _d(t["pnl"]) or Decimal("0"), not t.get("estimado")))
-        elif str(t.get("accion", "")).startswith("cierre"):
-            bot.closed_unknown += 1
     if d.get("open"):
         bot.open_now = [f"Oro ({_side(str(d['open'].get('lado', 'BUY')))})"]
     return bot
@@ -224,13 +252,11 @@ def _block(bot: Bot) -> list[str]:
     lines = [bot.name]
     if bot.opened:
         lines.append(f"• Abrió {len(bot.opened)}: " + ", ".join(f"{coin(s)} {_side(v)}" for s, v in bot.opened))
-    if bot.closed or bot.closed_unknown:
+    if bot.closed:
         parts = [f"{coin(s)} {'✅' if r > 0 else '❌' if r < 0 else '➖'} {_money(r, bot.currency)}{'' if ok else ' aprox.'}"
                  for s, r, ok in bot.closed]
-        if bot.closed_unknown:
-            parts.append(f"{bot.closed_unknown} sin resultado registrado")
-        lines.append(f"• Cerró {len(bot.closed) + bot.closed_unknown}: " + ", ".join(parts))
-    if not bot.opened and not bot.closed and not bot.closed_unknown:
+        lines.append(f"• Cerró {len(bot.closed)}: " + ", ".join(parts))
+    if not bot.opened and not bot.closed:
         lines.append("• Sin operaciones: ninguna señal pasó todas las reglas.")
     if bot.closed:
         share = f" ({_pct(bot.pct)} de la cuenta)" if bot.pct is not None else ""
@@ -290,7 +316,7 @@ def render(bots: Sequence[Bot], now: datetime) -> str:
             result = f", resultado {_money(bot.result, bot.currency)}" if bot.closed else ""
             alive = " ⚠️ no da señales de vida" if bot.silent else ""
             held = f" Abiertas: {', '.join(bot.open_now)}." if bot.open_now else ""
-            out.append(f"• {bot.name}: hoy abrió {len(bot.opened)} y cerró {len(bot.closed) + bot.closed_unknown}"
+            out.append(f"• {bot.name}: hoy abrió {len(bot.opened)} y cerró {len(bot.closed)}"
                        f"{result}.{held}{alive}")
         out.append("")
     out.append(conclusion(practice))
