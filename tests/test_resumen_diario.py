@@ -203,6 +203,13 @@ def test_both_practice_futures_accounts_have_clear_names_and_old_closes_their_re
     assert "sin resultado" not in text
 
 
+def test_each_sentence_of_the_conclusion_starts_with_a_capital_letter():
+    loser = R.Bot("🧪 XM DEMO · Cripto", Path("x"), "motor", False, "USD", closed=[("BTC", Decimal("-40"), False)])
+    other = R.Bot("🧪 Futuros práctica 1x", Path("y"), "motor", False, "USDT", closed=[("SOL", Decimal("-1"), True)])
+    text = R.conclusion([loser, other])
+    assert "no se toca nada real. El que más perdió fue 🧪 XM DEMO · Cripto (-40,00 USD)." in text
+
+
 def test_a_quiet_day_says_so():
     assert "día tranquilo" in R.conclusion([R.Bot("x", Path("x"), "motor", False)])
 

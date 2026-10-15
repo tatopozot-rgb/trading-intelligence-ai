@@ -298,7 +298,8 @@ def conclusion(bots: Sequence[Bot]) -> str:
         detail.append(f"El mejor fue {best.name} ({_money(best.result, best.currency)})")
     if worst.result < 0 and worst is not best:
         detail.append(f"el que más perdió fue {worst.name} ({_money(worst.result, worst.currency)})")
-    return head + (" " + "; ".join(detail) + "." if detail else "") + tail
+    text = "; ".join(detail)
+    return head + (" " + text[:1].upper() + text[1:] + "." if text else "") + tail  # each sentence starts upper
 
 
 def render(bots: Sequence[Bot], now: datetime) -> str:
