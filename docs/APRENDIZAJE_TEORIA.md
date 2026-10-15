@@ -72,6 +72,13 @@ marca "aplicado" solo cuando su regla está en el código o en un experimento me
   - Mirar el riesgo de las 3 posiciones juntas: en las caídas se mueven a la vez.
   - Lección 2026-10-15: "freno de volatilidad" (sin entradas con la volatilidad de 7 días de BTC en el 10% más
     alto del año) enviado a Quant para medir (no aplicado).
+  - **Resultado (Quant, 2026-10-15, preregistrado; `docs/research/volatilidad/`): no ayuda.** En la mesa de
+    práctica, el freno V90 empeora el neto/caída en los dos años: 1,52 contra 1,73 en 2024-25 y −0,30 contra 0,20
+    en 2025-26. Quita muy pocas operaciones (11 y 3), pero algunas eran buenas; probablemente porque después de días
+    bruscos también vienen rebotes fuertes. V80 es peor todavía. V95 (activo solo ~3% del tiempo) mejora 2024-25
+    (1,93) y empata 2025-26; es informativo y no decide: elegirlo ahora sería sobreajuste.
+    Sin el freno de régimen, V90 mejora un poco, pero sigue perdiendo en 2025-26 (−50% contra −62%). Conclusión: el
+    stop por volatilidad que ya usa la mesa basta; no frenar las entradas por la volatilidad de BTC.
 
 ## 6. Ventaja estadística y cómo no engañarse
 
