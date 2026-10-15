@@ -12,7 +12,7 @@ canal de Donchian (reglas "Turtle"), cruce de medias EMA y momento de serie temp
 | Fecha | Estrategia | Fuente | Estado |
 |---|---|---|---|
 | 2026-10-14 | EWMAC de Carver | [pysystemtrade](https://github.com/robcarver17/pysystemtrade) | No pasa, ni sola ni en cartera con la mesa (2026-10-14). Archivada |
-| 2026-10-15 | Ruptura de volatilidad de Larry Williams | *Long-Term Secrets to Short-Term Trading* (1999), cap. 4; [resumen LuxAlgo](https://www.luxalgo.com/library/concept/volatility-breakout/) | Enviada a Quant para probar |
+| 2026-10-15 | Ruptura de volatilidad de Larry Williams | *Long-Term Secrets to Short-Term Trading* (1999), cap. 4; [resumen LuxAlgo](https://www.luxalgo.com/library/concept/volatility-breakout/) | No pasa: pierde en los dos años, con y sin frenos (2026-10-15). Archivada |
 
 ---
 
