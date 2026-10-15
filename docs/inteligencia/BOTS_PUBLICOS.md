@@ -13,6 +13,7 @@ canal de Donchian (reglas "Turtle"), cruce de medias EMA y momento de serie temp
 |---|---|---|---|
 | 2026-10-14 | EWMAC de Carver | [pysystemtrade](https://github.com/robcarver17/pysystemtrade) | No pasa, ni sola ni en cartera con la mesa (2026-10-14). Archivada |
 | 2026-10-15 | Ruptura de volatilidad de Larry Williams | *Long-Term Secrets to Short-Term Trading* (1999), cap. 4; [resumen LuxAlgo](https://www.luxalgo.com/library/concept/volatility-breakout/) | No pasa: pierde en los dos años, con y sin frenos (2026-10-15). Archivada |
+| 2026-10-15 | Rebote a la media en lateral (Bollinger 20/2 + ADX < 20), diario y 4 h | Bollinger, *Bollinger on Bollinger Bands* (2001); Wilder, *New Concepts in Technical Trading Systems* (1978) | No pasa en ningún marco ni versión (2026-10-15). Archivada |
 
 ---
 
@@ -155,4 +156,37 @@ en los dos años, en las dos versiones, con k = 0,5:
   k = 0,75 pierde menos, pero sigue perdiendo en los dos años (−14% y −46% pura). Elegir k = 0,75 viendo esto sería
   justo el sobreajuste que el preregistro prohíbe.
 - Lo que dijo el propio Williams se cumple: la idea ya no funciona, al menos aquí.
+
+---
+
+## 2026-10-15 · Rebote a la media en mercado lateral (Bollinger + ADX), diario y 4 h
+
+**Qué es.** La idea clásica de las bandas de Bollinger: cuando el precio se sale de su banda y el mercado no tiene
+tendencia (ADX de Wilder bajo 20), apostar a que vuelve a su media. Encargo del líder del 2026-10-15, en diario y
+4 h porque en 1 h ya falló (PR #46). El intento del 2026-10-06 (`BollingerReversion`) se probó solo con datos
+sintéticos; este es el primero con datos reales, largos y cortos, y con costes.
+
+**Reglas, en simple** (preregistro completo en `docs/research/rango/PREREGISTRO.md`):
+
+1. Si una vela cierra bajo la banda inferior (20 velas, 2 desviaciones) y el ADX 14 está bajo 20, se compra en la
+   apertura siguiente. Sobre la banda superior, se vende en corto.
+2. Sale cuando una vela cierra de vuelta en la media de 20, o por un stop de 1,5 ATR, o a las 10 velas.
+3. Tres posiciones como máximo, un tercio del capital cada una, 1x, con comisión, deslizamiento y financiación reales.
+
+**Resultado** (`docs/research/rango/rango_2026-10-15.md`), neto/caída de la regla base:
+
+| Año | Diario A | Diario B (frenos) | 4 h A | 4 h B (frenos) | Mesa de práctica | BTC |
+|---|---|---|---|---|---|---|
+| 2024-25 | −0,75 (−34%) | 1,77 (+16%, 10 ops) | −1,00 (−53%) | −0,90 (−20%) | 1,67 | +76,9% |
+| 2025-26 | −0,96 (−27%) | −0,22 (−2%, 6 ops) | −0,76 (−28%) | −0,59 (−7%) | −0,21 | −28,8% |
+
+- Ninguna de las 4 combinaciones gana a la mesa en los dos años. La única que le gana un año (diario con frenos,
+  2024-25) tiene 10 operaciones: es muestra corta y en 2025-26 pierde.
+- En 4 h hay muestra suficiente (400+ operaciones al año en la versión pura) y pierde en los dos años: la operación
+  media pierde −0,2% a −0,5% después de costes y acierta ~42%. Más de la mitad de las salidas son por stop: en
+  estas monedas, salirse de la banda suele ser el inicio de un movimiento, no un exceso que vuelve.
+- La sensibilidad no lo salva: con 2,5 desviaciones en 4 h la versión pura gana +5,5% en 2025-26, pero pierde
+  −51% en 2024-25. Elegirla por eso sería sobreajuste.
+- Con este estudio el rebote a la media queda probado en 1 h, 4 h y diario, y falla en los tres. No se vuelve a
+  probar otra variante de lo mismo.
 
