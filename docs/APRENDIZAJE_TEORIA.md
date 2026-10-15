@@ -67,7 +67,11 @@ marca "aplicado" solo cuando su regla está en el código o en un experimento me
   anteceder a movimientos grandes. El tamaño de la posición debe bajar cuando la volatilidad sube, para
   arriesgar lo mismo en dinero.
 - **Hoy:** el stop se fija por volatilidad (3–15%) y el tamaño se ajusta al stop.
-- **Falta:** usar el régimen de volatilidad (implícita o realizada) para decidir si se opera.
+- **Falta:**
+  - Usar el régimen de volatilidad (implícita o realizada) para decidir si se opera.
+  - Mirar el riesgo de las 3 posiciones juntas: en las caídas se mueven a la vez.
+  - Lección 2026-10-15: "freno de volatilidad" (sin entradas con la volatilidad de 7 días de BTC en el 10% más
+    alto del año) enviado a Quant para medir (no aplicado).
 
 ## 6. Ventaja estadística y cómo no engañarse
 
