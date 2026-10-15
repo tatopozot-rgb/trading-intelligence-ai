@@ -42,3 +42,13 @@ def test_the_cli_writes_markdown_and_json(tmp_path):
     assert R.main(["--dir", str(d), "--salida", str(out), "--dia", "2026-10-11"]) == 0
     assert (out / "2026-10-11.md").exists() and json.loads((out / "2026-10-11.json").read_text())["acumulado"][
         "operaciones"] == 0
+
+
+def test_today_is_the_owners_ecuador_day_not_the_utc_one(tmp_path):
+    # The report runs at 19:30 Ecuador, 00:30 UTC of the next day: trades of the Ecuador evening count as today.
+    d = _run(tmp_path, [_t("BTCUSDT", "BUY", "1.0", "1.0", "meta", "2026-10-13T15:00:00+00:00"),
+                        _t("ETHUSDT", "BUY", "1.0", "1.0", "meta", "2026-10-14T00:20:00+00:00"),  # 19:20 Ecuador, 13-10
+                        _t("SOLUSDT", "BUY", "1.0", "1.0", "meta", "2026-10-14T05:30:00+00:00")])  # 00:30 Ecuador, 14-10
+    assert R.build(d, date(2026, 10, 13))["hoy"]["operaciones"] == 2
+    assert R.build(d, date(2026, 10, 14))["hoy"]["operaciones"] == 1
+    assert R._local_day("not a date") is None and R._local_day("2026-10-14T03:00:00") == date(2026, 10, 13)

@@ -10,11 +10,21 @@ from __future__ import annotations
 
 import argparse
 import json
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
 
 MIN_SAMPLE = 30  # trades before any conclusion counts
+ECUADOR = timezone(timedelta(hours=-5))  # the owner's day; the report runs at 19:30 there, 00:30 UTC of the next day
+
+
+def _local_day(at: Any) -> Optional[date]:
+    """The Ecuador date of a trade's ISO timestamp (naive timestamps are UTC)."""
+    try:
+        t = datetime.fromisoformat(str(at))
+    except ValueError:
+        return None
+    return (t if t.tzinfo else t.replace(tzinfo=timezone.utc)).astimezone(ECUADOR).date()
 
 
 def _f(x: Any) -> float:
@@ -52,7 +62,7 @@ def build(run_dir: Path, day: date, capital: Optional[float] = None) -> dict:
         peak = max(peak, equity)
         if peak > 0:
             dd = max(dd, (peak - equity) / peak * 100)
-    today = [t for t in closed if str(t.get("at", ""))[:10] == day.isoformat()]
+    today = [t for t in closed if _local_day(t.get("at", "")) == day]
     total = stats(closed)
     return {"dia": day.isoformat(), "capital_inicial": start, "cuenta": "práctica (dinero ficticio)",
             "estado": state.get("status"), "hoy": stats(today), "acumulado": total,
@@ -95,10 +105,10 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="Reporte diario de la práctica de futuros")
     parser.add_argument("--dir", type=Path, default=Path("live_runs/futures_auto/shadow"))
     parser.add_argument("--salida", type=Path, default=Path("docs/shadow_futures"))
-    parser.add_argument("--dia", help="YYYY-MM-DD (UTC); por defecto, hoy")
+    parser.add_argument("--dia", help="YYYY-MM-DD (día de Ecuador); por defecto, hoy en Ecuador")
     parser.add_argument("--capital", type=float)
     args = parser.parse_args(argv)
-    day = date.fromisoformat(args.dia) if args.dia else datetime.now(timezone.utc).date()
+    day = date.fromisoformat(args.dia) if args.dia else datetime.now(ECUADOR).date()
     report = build(args.dir, day, args.capital)
     args.salida.mkdir(parents=True, exist_ok=True)
     (args.salida / f"{day.isoformat()}.json").write_text(json.dumps(report, indent=1, ensure_ascii=False),
