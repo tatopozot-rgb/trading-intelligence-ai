@@ -455,3 +455,10 @@ only the latest work blocks. The history up to 2026-10-10 (sections 1–90) is i
 - **Still open from the audit:** H2 (the trailing-stop fallback), H3 (deposits counted as profit), M1–M4, and the out-of-sample evidence.
 - **Tests:** 9 new ones (plus the close-order test rewritten) in `tests/test_binance_futures.py` and `tests/test_two_way.py`.
 - **To go live:** the owner's yes, then Local updates the PC to main and restarts `TradingIntelligence-FuturosReal`.
+
+### 116. Fix to §115: Binance sends the algo order kind as "orderType" (2026-10-15)
+
+- **Found by Local before installing #72**, on the real account's `/fapi/v1/openAlgoOrders` response: the kind of each conditional order comes as `orderType`, and `type` comes back empty.
+- With #72 as merged, the check would not have seen SOL's and AVAX's stops. It would have tried to add a stop every pass and, if Binance refused, closed the position. The PC was not updated, so nothing ran with it.
+- The same field also broke the trailing stop since before #72: `move_stop` never found the old stop, so old stops were never cancelled.
+- **Fix:** `algo_kind()` reads `orderType` (falling back to `type`) in the stop check and in `move_stop`. The test fake now returns real-shaped rows (`orderType`, `type` empty, boolean `closePosition`, numeric `algoId`), and a new test uses exact rows like the real account's.
