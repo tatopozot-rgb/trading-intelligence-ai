@@ -67,9 +67,9 @@ def _block(task: tuple) -> tuple:
     return setup, flt, lo, rm.stats(rep), rep.curve
 
 
-def evaluate(times: np.ndarray, workers: int) -> dict:
+def evaluate(times: np.ndarray, workers: int, filters: tuple[str, ...] = FILTERS) -> dict:
     bl = rm.blocks(len(times), tw.WARMUP)
-    tasks = [(s, f, lo, hi) for s in SETUPS for f in FILTERS for lo, hi in bl]
+    tasks = [(s, f, lo, hi) for s in SETUPS for f in filters for lo, hi in bl]
     with Pool(max(1, workers)) as pool:
         out = pool.map(_block, tasks)
     res: dict[tuple[str, str], dict[int, tuple]] = {}
@@ -78,7 +78,7 @@ def evaluate(times: np.ndarray, workers: int) -> dict:
     table: dict[str, dict[str, Any]] = {}
     for s in SETUPS:
         table[s] = {}
-        for f in FILTERS:
+        for f in filters:
             los = sorted(res[(s, f)])
             year = rm.chain([res[(s, f)][lo][0] for lo in los], [res[(s, f)][lo][1] for lo in los])
             quarters = []
