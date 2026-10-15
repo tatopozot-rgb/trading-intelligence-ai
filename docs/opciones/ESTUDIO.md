@@ -28,7 +28,7 @@ persona que sabe del tema; el líder lo acopla a este plan cuando llegue.
 | 1 | Lo básico: call, put, strike, vencimiento, prima | hecho ([nota 15-10](2026-10-15.md)) |
 | 2 | Las griegas y la volatilidad implícita | hecho ([nota 15-10](2026-10-15.md)) |
 | 3 | Dónde se opera: Interactive Brokers (opciones de EE. UU.), Binance Options, Deribit, OKX, Bybit (mínimos, comisiones, Ecuador) | en curso: falta mínimo de Binance y Bybit, y Ecuador en OKX/Bybit |
-| 4 | Qué dicen las opciones a la mesa de futuros (put/call, sesgo, DVOL, vencimientos grandes) | en curso: vencimiento 30-10 anotado |
+| 4 | Qué dicen las opciones a la mesa de futuros (put/call, sesgo, DVOL, vencimientos grandes) | en curso: vencimiento 30-10 en `config/eventos.json` (Líder, 15-10) |
 | 5 | Estrategias de riesgo limitado para 30–100 USDT | pendiente |
 | 6 | Plan de práctica: regla, tamaño, salida y prueba con comisiones | pendiente |
 
@@ -36,7 +36,7 @@ persona que sabe del tema; el líder lo acopla a este plan cuando llegue.
 
 - Nunca vender opciones «al descubierto» (pérdida sin límite).
 - Pérdida máxima conocida antes de entrar.
-- Todo se liquida en USDT. (Deribit lineal liquida en USDC: el Líder decide si vale.)
+- Todo se liquida en USDT. Líder, 15-10: por ahora solo USDT (Binance, OKX), sin USDC; se reevalúa en la fase 2.
 - Con 30–100 USDT solo caben contratos de 0,01 BTC; los de 0,1 BTC no caben.
 
 ## Interactive Brokers (pedido del dueño, 2026-10-14)
