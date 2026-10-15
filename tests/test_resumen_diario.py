@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -116,6 +117,27 @@ def test_real_futures_result_comes_from_binance_fills_net_of_fees():
     assert broker.market.asked[0][1] == int(NOW.timestamp() * 1000) - 60_000
     broker.market = TradesMarket(rows[:1])  # type: ignore[assignment]
     assert broker.realized("SOLUSDT", {"side": "BUY", "opened": NOW.isoformat()}) is None  # no exit yet
+
+
+def test_real_futures_result_without_opening_time_looks_back_seven_days_at_the_last_trade_only():
+    rows = [{"side": "BUY", "price": "90", "qty": "1", "realizedPnl": "0", "commission": "0.04",
+             "commissionAsset": "USDT", "time": 1},
+            {"side": "SELL", "price": "95", "qty": "1", "realizedPnl": "5", "commission": "0.04",
+             "commissionAsset": "USDT", "time": 2},  # an earlier trade on the same coin: not this one
+            {"side": "BUY", "price": "100", "qty": "1", "realizedPnl": "0", "commission": "0.05",
+             "commissionAsset": "USDT", "time": 3},
+            {"side": "SELL", "price": "104", "qty": "1", "realizedPnl": "4", "commission": "0.05",
+             "commissionAsset": "USDT", "time": 4}]
+    broker = F.FuturesBroker.__new__(F.FuturesBroker)
+    broker.market = TradesMarket(rows)  # type: ignore[assignment]
+    before = int(time.time() * 1000)
+    assert broker.realized("SOLUSDT", {"side": "BUY", "opened": ""}) == (Decimal("3.9"), Decimal("104"))
+    since = broker.market.asked[0][1]
+    assert before - 7 * 86_400_000 < since <= int(time.time() * 1000) - 7 * 86_400_000 + 60_000
+    broker.market = TradesMarket(rows[3:])  # type: ignore[assignment]
+    assert broker.realized("SOLUSDT", {"side": "BUY"}) is None  # entry older than the window: estimate instead
+    broker.market = TradesMarket(rows[:3])  # type: ignore[assignment]
+    assert broker.realized("SOLUSDT", {"side": "BUY"}) is None  # still open on Binance
 
 
 def test_practice_futures_result_comes_from_its_own_book(tmp_path):

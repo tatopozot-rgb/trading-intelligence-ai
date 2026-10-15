@@ -83,6 +83,8 @@ CLIENT_PREFIX = "TIF-"
 SETTLED = ("FILLED", "REJECTED", "NOT_FOUND", "CANCELED", "EXPIRED", "EXPIRED_IN_MATCH")
 
 
+LOOKBACK_DAYS = 7  # how far back a closed trade with no recorded opening time is looked up
+
 class FuturesError(LiveError):
     pass
 
@@ -564,14 +566,25 @@ class FuturesBroker:
         return self.market.balance(), "USDT"
 
     def realized(self, symbol: str, info: Mapping[str, Any]) -> Optional[tuple[Decimal, Decimal]]:
-        """(net result in USDT after fees, average exit price) of the trade opened at info["opened"], from
-        Binance's own fills. None while Binance shows no exit fill. Read only: no order is sent."""
+        """(net result in USDT after fees, average exit price) of the last trade on ``symbol``, from Binance's own
+        fills: its last run of entry fills and the exits after it. Without info["opened"] (positions opened
+        before it was recorded) it looks back LOOKBACK_DAYS. None while Binance shows no exit fill, or no entry
+        in the window. Read only: no order is sent."""
         opened = info.get("opened")
-        if not opened:
+        if opened:
+            since = int(datetime.fromisoformat(str(opened)).timestamp() * 1000) - 60_000
+        else:
+            since = int(time.time() * 1000) - LOOKBACK_DAYS * 86_400_000 + 60_000  # Binance allows at most 7 days
+        entry_side = "BUY" if info.get("side") == "BUY" else "SELL"
+        exit_side = "SELL" if entry_side == "BUY" else "BUY"
+        rows = sorted(self.market.user_trades(symbol, since), key=lambda r: int(r.get("time", 0) or 0))
+        entries = [i for i, r in enumerate(rows) if r.get("side") == entry_side]
+        if not entries:
             return None
-        since = int(datetime.fromisoformat(str(opened)).timestamp() * 1000) - 60_000
-        exit_side = "SELL" if info.get("side") == "BUY" else "BUY"
-        rows = self.market.user_trades(symbol, since)
+        start = entries[-1]
+        while start > 0 and rows[start - 1].get("side") == entry_side:
+            start -= 1
+        rows = rows[start:]
         exits = [r for r in rows if r.get("side") == exit_side]
         qty = sum((Decimal(str(r.get("qty", "0"))) for r in exits), Decimal("0"))
         if qty <= 0:
