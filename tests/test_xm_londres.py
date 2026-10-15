@@ -127,3 +127,33 @@ def test_a_real_account_never_trades(tmp_path):
     at = (DAY + pd.Timedelta(hours=8, minutes=7)).to_pydatetime()
     with pytest.raises(NotDemo):
         _bot(tmp_path, at, _frames(pd.Timedelta(hours=8, minutes=5), high=2611.0), mode=2)
+
+
+def test_a_close_on_the_server_is_recorded_with_its_result_for_the_daily_summary(tmp_path):
+    at = (DAY + pd.Timedelta(hours=8, minutes=7)).to_pydatetime()
+    bot, m, _ = _bot(tmp_path, at, _frames(pd.Timedelta(hours=8, minutes=5), high=2611.0), tick=(2611.0, 2611.35))
+    bot.step()
+    from tests import test_xm_mt5 as X
+    X.SYMBOLS["GOLD"]["tick"] = dict(bid=2630.0, ask=2630.35)  # at the target
+    m.positions.clear()
+    bot.step()
+    close = bot.state["trades"][-1]
+    assert close["accion"] == "cierre" and close["motivo"] == "meta" and close["estimado"]
+    assert 0 < float(close["pnl"]) and "open" not in bot.state
+    entry = bot.state["trades"][0]
+    risk = float(entry["lotes"]) * 100 * abs(float(entry["sl"]) - float(entry["precio"]))
+    assert float(close["pnl"]) == pytest.approx(risk * 19.0 / 21.35, rel=0.02)  # target 19 away, stop 21.35
+
+
+def test_its_trades_stay_off_telegram_but_a_refused_order_is_an_alarm(tmp_path):
+    at = (DAY + pd.Timedelta(hours=8, minutes=7)).to_pydatetime()
+    bot, m, notes = _bot(tmp_path, at, _frames(pd.Timedelta(hours=8, minutes=5), high=2611.0), tick=(2611.0, 2611.35))
+    phone: list[str] = []
+    bot.alarm = phone.append
+    bot.step()
+    assert notes and not phone  # the entry: console only (it goes in the 22:00 summary)
+    bot2, m2, notes2 = _bot(tmp_path / "b", at, _frames(pd.Timedelta(hours=8, minutes=5), high=2611.0),
+                            tick=(2611.0, 2611.35), equity=1.0)
+    bot2.alarm = phone.append
+    bot2.step()
+    assert not m2.sent and phone and phone[0].startswith("⚠️") and "no entro" in phone[0]

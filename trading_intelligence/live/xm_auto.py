@@ -30,6 +30,7 @@ from trading_intelligence.live.desk import _get as desk_get
 from trading_intelligence.live.telegram_notify import console, from_env, make_notify
 from trading_intelligence.live.two_way import (
     DEFAULT_WINDOWS,
+    PRACTICE_TELEGRAM,
     Plan,
     Position,
     Signal,
@@ -146,7 +147,7 @@ def main(argv: Optional[list[str]] = None, mt5: Optional[object] = None) -> int:
                       loss_limit_pct=Decimal(args.limite_perdida), warn_before=Decimal(args.aviso),
                       profit_target_pct=Decimal(args.meta), signal=signal_for(args.senal), windows=args.ventanas,
                       inside_every_min=args.cada_dentro, outside_every_min=args.cada_fuera,
-                      notify=make_notify(console, from_env()),
+                      notify=make_notify(console, from_env()), telegram=PRACTICE_TELEGRAM,
                       desk_rules=None if args.sin_mesa else DeskRules.load(), journal_dir=args.diario or args.dir / "mesa",
                       news_get=None if args.sin_mesa else desk_get, heartbeat_every_s=4 * 3600)
         print(f"XM DEMO{' · ' + args.agente if args.agente else ''} · equity {acc.equity} {acc.currency} · {', '.join(args.simbolos)} · "
