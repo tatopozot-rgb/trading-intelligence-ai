@@ -1,0 +1,312 @@
+{
+ "meta": {
+  "simbolos": [
+   "ADAUSDT",
+   "AVAXUSDT",
+   "BNBUSDT",
+   "BTCUSDT",
+   "DOGEUSDT",
+   "DOTUSDT",
+   "ETHUSDT",
+   "LINKUSDT",
+   "LTCUSDT",
+   "SOLUSDT",
+   "TRXUSDT",
+   "XRPUSDT"
+  ]
+ },
+ "years": [
+  {
+   "from": "2024-10-12",
+   "to": "2025-10-12",
+   "rows": {
+    "A pura, umbral 10": {
+     "net_pct": 2.61,
+     "max_dd_pct": 24.67,
+     "net_dd": 0.11,
+     "trades": 71,
+     "win_rate": 63.4,
+     "avg_trade_pct": 0.261,
+     "longs": 71,
+     "shorts": 0,
+     "quarters": [
+      10.82,
+      -12.17,
+      10.1,
+      -4.25
+     ],
+     "worst": {
+      "symbol": "AVAXUSDT",
+      "day": "2025-10-08",
+      "out": "2025-10-11",
+      "days": 3,
+      "ret_pct": -23.28
+     },
+     "avg_days": 3.7,
+     "best_pct": 28.87
+    },
+    "B con frenos, umbral 10": {
+     "net_pct": -11.4,
+     "max_dd_pct": 24.0,
+     "net_dd": -0.47,
+     "trades": 40,
+     "win_rate": 60.0,
+     "avg_trade_pct": -0.722,
+     "longs": 40,
+     "shorts": 0,
+     "quarters": [
+      8.98,
+      -11.73,
+      8.24,
+      -14.91
+     ],
+     "worst": {
+      "symbol": "AVAXUSDT",
+      "day": "2025-10-08",
+      "out": "2025-10-11",
+      "days": 3,
+      "ret_pct": -23.28
+     },
+     "avg_days": 3.5,
+     "best_pct": 11.67
+    },
+    "A pura, umbral 5": {
+     "net_pct": 36.89,
+     "max_dd_pct": 15.17,
+     "net_dd": 2.43,
+     "trades": 46,
+     "win_rate": 65.2,
+     "avg_trade_pct": 2.17,
+     "longs": 46,
+     "shorts": 0,
+     "quarters": [
+      7.8,
+      7.23,
+      7.05,
+      10.62
+     ],
+     "worst": {
+      "symbol": "ADAUSDT",
+      "day": "2025-02-03",
+      "out": "2025-02-11",
+      "days": 8,
+      "ret_pct": -11.58
+     },
+     "avg_days": 3.5,
+     "best_pct": 28.87
+    },
+    "B con frenos, umbral 5": {
+     "net_pct": 10.9,
+     "max_dd_pct": 12.93,
+     "net_dd": 0.84,
+     "trades": 19,
+     "win_rate": 63.2,
+     "avg_trade_pct": 1.741,
+     "longs": 19,
+     "shorts": 0,
+     "quarters": [
+      5.36,
+      0.59,
+      4.83,
+      -0.18
+     ],
+     "worst": {
+      "symbol": "DOGEUSDT",
+      "day": "2024-12-19",
+      "out": "2024-12-24",
+      "days": 5,
+      "ret_pct": -9.42
+     },
+     "avg_days": 3.3,
+     "best_pct": 11.67
+    },
+    "Espejo en corto (A), umbral 10": {
+     "net_pct": -32.42,
+     "max_dd_pct": 46.13,
+     "net_dd": -0.7,
+     "trades": 48,
+     "win_rate": 64.6,
+     "avg_trade_pct": -1.708,
+     "longs": 0,
+     "shorts": 48,
+     "quarters": [
+      -20.49,
+      23.58,
+      -10.81,
+      -22.88
+     ],
+     "worst": {
+      "symbol": "XRPUSDT",
+      "day": "2025-07-09",
+      "out": "2025-07-24",
+      "days": 15,
+      "ret_pct": -37.26
+     },
+     "avg_days": 4.3,
+     "best_pct": 20.33
+    }
+   },
+   "btc_pct": 76.92,
+   "desk": {
+    "l\u00edder": 1.67,
+    "re-medida": 1.73
+   },
+   "judge": {
+    "A pura, umbral 10": {
+     "l\u00edder": "False",
+     "re-medida": "False"
+    },
+    "B con frenos, umbral 10": {
+     "l\u00edder": "False",
+     "re-medida": "False"
+    }
+   }
+  },
+  {
+   "from": "2025-10-13",
+   "to": "2026-10-13",
+   "rows": {
+    "A pura, umbral 10": {
+     "net_pct": 3.09,
+     "max_dd_pct": 10.5,
+     "net_dd": 0.29,
+     "trades": 28,
+     "win_rate": 67.9,
+     "avg_trade_pct": 0.356,
+     "longs": 28,
+     "shorts": 0,
+     "quarters": [
+      -3.1,
+      0.0,
+      -0.85,
+      7.3
+     ],
+     "worst": {
+      "symbol": "SOLUSDT",
+      "day": "2025-10-31",
+      "out": "2025-11-08",
+      "days": 8,
+      "ret_pct": -12.44
+     },
+     "avg_days": 3.8,
+     "best_pct": 5.17
+    },
+    "B con frenos, umbral 10": {
+     "net_pct": 1.9,
+     "max_dd_pct": 3.85,
+     "net_dd": 0.49,
+     "trades": 9,
+     "win_rate": 66.7,
+     "avg_trade_pct": 0.642,
+     "longs": 9,
+     "shorts": 0,
+     "quarters": [
+      0.0,
+      0.0,
+      0.24,
+      1.66
+     ],
+     "worst": {
+      "symbol": "LTCUSDT",
+      "day": "2026-10-08",
+      "out": "2026-10-12",
+      "days": 4,
+      "ret_pct": -2.43
+     },
+     "avg_days": 3.1,
+     "best_pct": 4.36
+    },
+    "A pura, umbral 5": {
+     "net_pct": -2.07,
+     "max_dd_pct": 7.88,
+     "net_dd": -0.26,
+     "trades": 13,
+     "win_rate": 61.5,
+     "avg_trade_pct": -0.459,
+     "longs": 13,
+     "shorts": 0,
+     "quarters": [
+      -4.82,
+      0.0,
+      2.26,
+      0.61
+     ],
+     "worst": {
+      "symbol": "SOLUSDT",
+      "day": "2025-10-31",
+      "out": "2025-11-08",
+      "days": 8,
+      "ret_pct": -12.44
+     },
+     "avg_days": 4.2,
+     "best_pct": 2.69
+    },
+    "B con frenos, umbral 5": {
+     "net_pct": -0.57,
+     "max_dd_pct": 2.86,
+     "net_dd": -0.2,
+     "trades": 4,
+     "win_rate": 50.0,
+     "avg_trade_pct": -0.412,
+     "longs": 4,
+     "shorts": 0,
+     "quarters": [
+      0.0,
+      0.0,
+      0.0,
+      -0.57
+     ],
+     "worst": {
+      "symbol": "LTCUSDT",
+      "day": "2026-10-08",
+      "out": "2026-10-12",
+      "days": 4,
+      "ret_pct": -2.43
+     },
+     "avg_days": 3.8,
+     "best_pct": 1.35
+    },
+    "Espejo en corto (A), umbral 10": {
+     "net_pct": -2.98,
+     "max_dd_pct": 39.03,
+     "net_dd": -0.08,
+     "trades": 78,
+     "win_rate": 67.9,
+     "avg_trade_pct": 0.081,
+     "longs": 0,
+     "shorts": 78,
+     "quarters": [
+      17.77,
+      16.61,
+      0.35,
+      -29.6
+     ],
+     "worst": {
+      "symbol": "LINKUSDT",
+      "day": "2026-08-12",
+      "out": "2026-08-26",
+      "days": 14,
+      "ret_pct": -28.4
+     },
+     "avg_days": 3.9,
+     "best_pct": 9.36
+    }
+   },
+   "btc_pct": -28.8,
+   "desk": {
+    "l\u00edder": -0.21,
+    "re-medida": 0.2
+   },
+   "judge": {
+    "A pura, umbral 10": {
+     "l\u00edder": "True",
+     "re-medida": "True"
+    },
+    "B con frenos, umbral 10": {
+     "l\u00edder": "True",
+     "re-medida": "True"
+    }
+   }
+  }
+ ]
+}
