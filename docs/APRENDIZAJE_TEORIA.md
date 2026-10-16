@@ -87,6 +87,8 @@ marca "aplicado" solo cuando su regla está en el código o en un experimento me
   subestimados y muestras cortas. Los profesionales prerregistran las reglas antes de probarlas.
 - **Hoy:** `docs/research/PROTOCOLO.md`, walk-forward, prerregistros (`PREREG_*`, `research/tendencia/PREREGISTRO.md`).
 - **Lección aprendida:** las ganancias de 30 y 60 días eran de un solo régimen. Un año completo lo desmintió.
+- Lección 2026-10-16: con más de 30 pruebas hechas, la mejor sale bien por suerte. Registro único de pruebas y
+  Sharpe deflactado (Bailey y López de Prado, 2014) como segundo listón, enviados a Quant para medir (no aplicado).
 
 ## 7. Ejecución y costes
 
