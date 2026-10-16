@@ -2,7 +2,7 @@
 
 Pregunta del dueño (2026-10-16): "copiar a los top traders, ¿serviría? Creo que no, porque uno ve sus operaciones
 tarde". Se probó con datos, siguiendo `docs/research/PROTOCOLO.md`: preregistro en
-`docs/research/copiar/PREREGISTRO.md`, informe en `docs/research/copiar/`, filas 314–317 de
+`docs/research/copiar/PREREGISTRO.md`, informe en `docs/research/copiar/`, filas 318–321 de
 `docs/research/REGISTRO_PRUEBAS.md`.
 
 ## Resumen en simple
@@ -36,7 +36,7 @@ tarde". Se probó con datos, siguiendo `docs/research/PROTOCOLO.md`: preregistro
 | 2025-26 | B, los más parejos (ganancia/caída) | −51,7% | 58,9% | −0,88 | −0,21 | no |
 | 2025-26 | A, top 30 (sensibilidad) | −35,4% | 47,1% | −0,75 | — | — |
 
-Sharpe deflactado 2025-26: 0,0 en las dos (listón 0,95). Mediana de las 32 bóvedas elegibles en 2025-26: −26,9%;
+Sharpe deflactado 2025-26: 0,0 en las dos (listón 0,95; se calculó con N = 259 y, con las 2 de opciones que entraron el mismo día, N = 261: sigue en 0,0). Mediana de las 32 bóvedas elegibles en 2025-26: −26,9%;
 25 de 32 perdieron.
 
 Las 10 mejores de octubre 2025 y su año siguiente (de `docs/research/copiar/`): +2.762% → −100%; +1.130% → −100%;
