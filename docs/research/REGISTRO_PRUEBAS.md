@@ -358,6 +358,9 @@ resultado se llena después. Las pruebas decisorias de esta tabla son la N del S
 | 316 | 2026-10-16 | cartera_xm | Cartera multi-mercado EWMAC (Carver), riesgo igual | 200 USD, spread y swap ×2 | 15 mercados de XM, 1d | sensibilidad | pendiente | pendiente |
 | 317 | 2026-10-16 | cartera_xm | Cartera multi-mercado EWMAC (Carver), riesgo igual | 1.000 USD, lotes de XM | 15 mercados de XM, 1d | sensibilidad | pendiente | pendiente |
 | 318 | 2026-10-16 | cartera_xm | Cartera multi-mercado EWMAC (Carver), riesgo igual | 5.000 USD, lotes de XM | 15 mercados de XM, 1d | sensibilidad | pendiente | pendiente |
+| 319 | 2026-10-16 | cripto_xm | Ruptura de Londres (re-prueba con costos de XM) | spread 40 USD por BTC, sin comisión, lotes 0,01, 1.000 USD | BTCUSDT, 1h | decisoria | pendiente | pendiente |
+| 320 | 2026-10-16 | cripto_xm | Ruptura de Londres (re-prueba con costos de XM) | spread ×2 | BTCUSDT, 1h | sensibilidad | pendiente | pendiente |
+| 321 | 2026-10-16 | cripto_xm | Ruptura de Londres (re-prueba con costos de XM) | 200 USD (efecto del lote mínimo) | BTCUSDT, 1h | sensibilidad | pendiente | pendiente |
 
 Formato del resultado: neto % / caída máx. %; "2024-25 ; 2025-26" cuando hay dos años.
 
