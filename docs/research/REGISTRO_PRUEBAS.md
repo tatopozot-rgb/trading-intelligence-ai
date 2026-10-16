@@ -342,10 +342,10 @@ resultado se llena después. Las pruebas decisorias de esta tabla son la N del S
 | 300 | 2026-10-16 | largo | Momento de 12 meses (MOP) | costes ×2 | PAXGUSDT (oro), mensual | sensibilidad | 2024-25 ; 2025-26: +26.7%/11.17% ; -11.8%/34.44% (DSR 0.001) | — (informativa) |
 | 301 | 2026-10-16 | largo | Momento de 12 meses (MOP) | costes ×2 | BTCUSDT, mensual | sensibilidad | 2024-25 ; 2025-26: +53.6%/32.76% ; -14.0%/27.93% (DSR 0.001) | — (informativa) |
 | 302 | 2026-10-16 | largo | Momento dual (Antonacci) | costes ×2 | BTC u oro, mensual | sensibilidad | 2024-25 ; 2025-26: +49.9%/24.49% ; -33.5%/34.42% (DSR 0.0) | — (informativa) |
-| 303 | 2026-10-16 | carry_btceth | Carry de financiación (spot + perpetuo corto) | media de 21 pagos ≥ 0,0042%/8h, salir < 0 | BTCUSDT, 8 h | decisoria | pendiente | pendiente |
-| 304 | 2026-10-16 | carry_btceth | Carry de financiación (spot + perpetuo corto) | media de 21 pagos ≥ 0,0042%/8h, salir < 0 | ETHUSDT, 8 h | decisoria | pendiente | pendiente |
-| 305 | 2026-10-16 | carry_btceth | Carry de financiación (spot + perpetuo corto) | siempre dentro | BTCUSDT, 8 h | sensibilidad | pendiente | pendiente |
-| 306 | 2026-10-16 | carry_btceth | Carry de financiación (spot + perpetuo corto) | siempre dentro | ETHUSDT, 8 h | sensibilidad | pendiente | pendiente |
+| 303 | 2026-10-16 | carry_btceth | Carry de financiación (spot + perpetuo corto) | media de 21 pagos ≥ 0,0042%/8h, salir < 0 | BTCUSDT, 8 h | decisoria | 2024-25 ; 2025-26: +3.47%/0.27% ; +0.95%/0.24% (DSR 0.788) | no |
+| 304 | 2026-10-16 | carry_btceth | Carry de financiación (spot + perpetuo corto) | media de 21 pagos ≥ 0,0042%/8h, salir < 0 | ETHUSDT, 8 h | decisoria | 2024-25 ; 2025-26: +2.56%/0.39% ; +0.66%/0.25% (DSR 0.405) | no |
+| 305 | 2026-10-16 | carry_btceth | Carry de financiación (spot + perpetuo corto) | siempre dentro | BTCUSDT, 8 h | sensibilidad | 2024-25 ; 2025-26: +3.14%/0.22% ; +1.02%/0.14% (DSR 1.0) | — (informativa) |
+| 306 | 2026-10-16 | carry_btceth | Carry de financiación (spot + perpetuo corto) | siempre dentro | ETHUSDT, 8 h | sensibilidad | 2024-25 ; 2025-26: +2.39%/0.13% ; +0.62%/0.13% (DSR 1.0) | — (informativa) |
 | 307 | 2026-10-16 | oro_dia | Ruptura del rango de apertura de NY (Crabel) | rango 30 min | PAXGUSDT (oro), 15 min | decisoria | pendiente | pendiente |
 | 308 | 2026-10-16 | oro_dia | Ruptura del rango de apertura de NY (Crabel) | rango 60 min | PAXGUSDT (oro), 15 min | decisoria | pendiente | pendiente |
 | 309 | 2026-10-16 | oro_dia | Impulso dentro del día (Gao y otros) | 19:00-20:00 UTC | PAXGUSDT (oro), 15 min | decisoria | pendiente | pendiente |
