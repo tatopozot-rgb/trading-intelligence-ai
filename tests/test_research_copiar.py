@@ -1,5 +1,4 @@
 """Tests for research_copiar (synthetic data, no network)."""
-import numpy as np
 import pandas as pd
 import pytest
 

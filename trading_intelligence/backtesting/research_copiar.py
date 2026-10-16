@@ -199,12 +199,12 @@ def load_vaults(probe: bool) -> tuple[list[Vault], dict]:
     keep = [s for s in keep if int(s.get("createTimeMillis", 0)) <= last_needed]
     info["con_edad"] = len(keep)
     out = []
+    failed = 0
     for i, s in enumerate(keep):
         try:
             d = _get(INFO_URL, {"type": "vaultDetails", "vaultAddress": s["vaultAddress"]})
         except Exception:
-            info.setdefault("fallidas", 0)
-            info["fallidas"] += 1
+            failed += 1
             continue
         if probe and i == 0:
             info["detalle_muestra"] = {k: (v if k != "portfolio" else [[p[0], {kk: vv[:3] if isinstance(vv, list) else vv
@@ -219,6 +219,7 @@ def load_vaults(probe: bool) -> tuple[list[Vault], dict]:
         time.sleep(1.0)
         if probe and i >= 4:
             break
+    info["fallidas"] = failed
     info["con_historia"] = len(out)
     info["primer_punto_mas_viejo"] = min((int(v.times[0]) for v in out), default=None)
     return out, info
