@@ -24,7 +24,8 @@ en este mismo commit. Nada se cambia después de ver el resultado.
 1. **Spread alcista mensual siempre:** el primer día de cada bloque de 21 días de bolsa se compra una call de XSP con
    strike = XSP redondeado al entero más cercano y se vende la call de strike +1. Vence 30 días naturales después
    (XSP tiene vencimientos diarios; si cae en día sin bolsa, se usa el día de bolsa anterior). Se liquida al cierre
-   del SPX del vencimiento: valor = min(max(XSP − K1, 0), 1) × 100. Un spread a la vez, 1 contrato.
+   del SPX del vencimiento: valor = min(max(XSP − K1, 0), 1) × 100. Un spread a la vez, 1 contrato. Si el spread anterior
+   todavía no venció el primer día del bloque, se entra el día en que vence (después de cobrarlo).
 2. **Lo mismo, solo si el SPX cierra sobre su media de 200 días** el día de entrada. Si no, ese mes queda en efectivo.
 
 Capital: 200 USD al empezar cada año (el monto que el Líder dio para opciones). Si el capital no alcanza para un
