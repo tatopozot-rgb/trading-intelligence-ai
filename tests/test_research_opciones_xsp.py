@@ -75,8 +75,8 @@ def test_evaluate_and_render_list_the_four_rules():
     assert "Veredicto" in text and "2025-26" in text
 
 
-def test_parse_close_reads_cboe_and_stooq_formats():
+def test_parse_close_reads_cboe_and_fred_formats():
     cboe = rx.parse_close("DATE,OPEN,HIGH,LOW,CLOSE\n01/03/2024,14.0,15,13,14.5\n01/02/2024,13.0,14,12,13.5\n")
     assert list(cboe.values) == [13.5, 14.5] and cboe.index[0] == pd.Timestamp("2024-01-02")
-    stooq = rx.parse_close("Date,Open,High,Low,Close,Volume\n2024-01-02,4745,4754,4722,4742.83,0\n")
-    assert stooq.iloc[0] == pytest.approx(4742.83)
+    fred = rx.parse_close("observation_date,SP500\n2024-01-01,.\n2024-01-02,4742.83\n")
+    assert len(fred) == 1 and fred.iloc[0] == pytest.approx(4742.83)

@@ -32,8 +32,8 @@ COMMISSION, OCC, EXCHANGE, SLIP = 0.65, 0.025, 0.30, 0.03
 SAVINGS = 4.0
 DECISIVE_N = 259
 OUT_DIR = Path("docs/research/opciones_xsp")
+FRED = "https://fred.stlouisfed.org/graph/fredgraph.csv?id={}"
 CBOE = "https://cdn.cboe.com/api/global/us_indices/daily_prices/{}_History.csv"
-STOOQ = "https://stooq.com/q/d/l/?s={}&i=d"
 
 
 def bs_call(s: float, k: float, t: float, vol: float, r: float = RATE, q: float = DIV) -> float:
@@ -183,18 +183,19 @@ def _get(url: str) -> str:
 def parse_close(text: str) -> pd.Series:
     df = pd.read_csv(io.StringIO(text))
     df.columns = [c.strip().lower() for c in df.columns]
-    date_col = "date" if "date" in df.columns else df.columns[0]
-    idx = pd.to_datetime(df[date_col], format="mixed")
-    return pd.Series(df["close"].astype(float).values, index=idx).sort_index()
+    value_col = "close" if "close" in df.columns else df.columns[1]
+    idx = pd.to_datetime(df[df.columns[0]], format="mixed")
+    values = pd.to_numeric(df[value_col], errors="coerce").values
+    return pd.Series(values, index=idx).dropna().sort_index()
 
 
 def load() -> pd.DataFrame:
     series = {}
-    for key, cboe, stooq in (("spx", "SPX", "^spx"), ("vix", "VIX", "^vix")):
-        try:
-            series[key] = parse_close(_get(CBOE.format(cboe)))
-        except Exception:
-            series[key] = parse_close(_get(STOOQ.format(stooq)))
+    series["spx"] = parse_close(_get(FRED.format("SP500")))
+    try:
+        series["vix"] = parse_close(_get(CBOE.format("VIX")))
+    except Exception:
+        series["vix"] = parse_close(_get(FRED.format("VIXCLS")))
     px = pd.concat(series, axis=1).dropna()
     px = px[px.index >= pd.Timestamp(WARM_FROM)]
     px["sma200"] = px["spx"].rolling(200).mean()
