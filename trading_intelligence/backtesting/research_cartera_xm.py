@@ -362,7 +362,7 @@ def load_specs(path: Path) -> dict[str, Spec]:
 def load_candles(path: Path, point: float) -> pd.DataFrame:
     df = pd.read_csv(path, encoding="utf-8-sig")
     t = df["time"]
-    df.index = pd.to_datetime(t, unit="s", utc=True) if np.issubdtype(t.dtype, np.number) else pd.to_datetime(t, utc=True)
+    df.index = pd.to_datetime(t, unit="s", utc=True) if pd.api.types.is_numeric_dtype(t) else pd.to_datetime(t, utc=True)
     df.index = df.index.floor("D")
     df = df[~df.index.duplicated(keep="last")]
     df["spread_px"] = df["spread"] * point if "spread" in df else np.nan
