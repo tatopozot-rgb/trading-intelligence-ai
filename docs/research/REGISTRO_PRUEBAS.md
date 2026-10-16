@@ -18,7 +18,8 @@ resultado se llena después. Las pruebas decisorias de esta tabla son la N del S
 
 ## Totales al 2026-10-16
 
-- **Total: 313 pruebas** (257 decisorias y 56 de sensibilidad), incluidas las de hoy: 5 de RSI-2 y 10 de
+- **Total: 317 pruebas** (259 decisorias y 58 de sensibilidad). Las últimas 4 son los spreads de XSP en opciones
+  (modelo Black-Scholes con VIX): ganan en los dos años, pero su Sharpe deflactado es 0,025; no pasan. Antes, hoy: 5 de RSI-2 y 10 de
   horizonte largo (ninguna pasa), 4 de carry en BTC y ETH y 6 de oro dentro del día. Ninguna pasa.
 - Sharpe deflactado de la ruptura de Londres en oro 2025-26 con N = 292: **0,21** (listón 0,95). Su Sharpe anual
   de 2,04 queda bajo el 2,84 que se esperaría por suerte de la mejor de 292 pruebas sin ventaja
@@ -353,6 +354,10 @@ resultado se llena después. Las pruebas decisorias de esta tabla son la N del S
 | 311 | 2026-10-16 | oro_dia | Ruptura del rango de apertura de NY (Crabel) | rango 60 min, costes ×2 | PAXGUSDT (oro), 15 min | sensibilidad | 2024-25 ; 2025-26: -29.2%/39.39% ; +4.0%/11.94% (DSR 0.006) | — (informativa) |
 | 312 | 2026-10-16 | oro_dia | Impulso dentro del día (Gao y otros) | 19:00-20:00 UTC, costes ×2 | PAXGUSDT (oro), 15 min | sensibilidad | 2024-25 ; 2025-26: -9.1%/9.35% ; -2.7%/6.0% (DSR 0.0) | — (informativa) |
 | 313 | 2026-10-16 | real | Bot real de futuros (mesa con frenos) | riesgo fijo 2%, 31,69 USDT, mínimos de Binance | 12 monedas, 5 min | sensibilidad | 2024-25 ; 2025-26: +13.3%/51.26% ; +13.1%/28.43% (DSR 0.01) | — (informativa) |
+| 314 | 2026-10-16 | opciones_xsp | Spread alcista XSP 1 USD (Black-Scholes con VIX) | mensual siempre, 30 días, ATM/+1 | XSP (S&P 500), diario | decisoria | 2024-25 ; 2025-26: +72.2%/52.75% ; +51.2%/73.14% (DSR 0.025) | no |
+| 315 | 2026-10-16 | opciones_xsp | Spread alcista XSP 1 USD (Black-Scholes con VIX) | solo sobre la media de 200 días | XSP (S&P 500), diario | decisoria | 2024-25 ; 2025-26: +79.7%/35.17% ; +51.2%/73.14% (DSR 0.025) | no |
+| 316 | 2026-10-16 | opciones_xsp | Spread alcista XSP 1 USD (Black-Scholes con VIX) | mensual siempre, costes ×2 | XSP (S&P 500), diario | sensibilidad | 2024-25 ; 2025-26: +24.6%/70.64% ; +3.5%/90.63% (DSR 0.015) | — (informativa) |
+| 317 | 2026-10-16 | opciones_xsp | Spread alcista XSP 1 USD (Black-Scholes con VIX) | media de 200 días, costes ×2 | XSP (S&P 500), diario | sensibilidad | 2024-25 ; 2025-26: +39.9%/48.78% ; +3.5%/90.63% (DSR 0.015) | — (informativa) |
 
 Formato del resultado: neto % / caída máx. %; "2024-25 ; 2025-26" cuando hay dos años.
 
