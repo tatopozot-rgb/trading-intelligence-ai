@@ -2,7 +2,7 @@
 
 Propuesta de Quant (2026-10-16), pedida por el líder en la lección del tema 6 (`docs/inteligencia/2026-10-16.md`).
 Cada vez que se corre una prueba nueva, se agrega aquí **antes** de mirar el resultado (con "pendiente"), y el
-resultado se llena después. El total de esta tabla es la N del Sharpe deflactado.
+resultado se llena después. Las pruebas decisorias de esta tabla son la N del Sharpe deflactado (líder, 2026-10-16; `docs/research/PROTOCOLO.md`).
 
 ## Regla de conteo
 
@@ -31,7 +31,7 @@ resultado se llena después. El total de esta tabla es la N del Sharpe deflactad
 
 1. Antes de correr: agregar las filas con "pendiente" en el mismo commit del preregistro.
 2. Después de correr: llenar el resultado y si pasa.
-3. Antes de pasar algo a práctica: calcular su Sharpe deflactado con N = el total de esta tabla
+3. Antes de pasar algo a práctica: calcular su Sharpe deflactado con N = las decisorias de esta tabla
    (`research_deflactado`). Listón: 0,95.
 4. Los informes nuevos deben guardar el capital diario en su JSON, para poder medir el Sharpe de cada prueba.
 
