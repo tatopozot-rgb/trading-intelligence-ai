@@ -18,12 +18,12 @@ resultado se llena después. Las pruebas decisorias de esta tabla son la N del S
 
 ## Totales al 2026-10-16
 
-- **Total: 306 pruebas** (254 decisorias y 52 de sensibilidad), incluidas las de hoy: 5 de RSI-2 y 10 de
-  horizonte largo (ninguna pasa) y 4 de carry en BTC y ETH (pendientes).
+- **Total: 312 pruebas** (257 decisorias y 55 de sensibilidad), incluidas las de hoy: 5 de RSI-2 y 10 de
+  horizonte largo (ninguna pasa), 4 de carry en BTC y ETH y 6 de oro dentro del día (pendientes).
 - Sharpe deflactado de la ruptura de Londres en oro 2025-26 con N = 292: **0,21** (listón 0,95). Su Sharpe anual
   de 2,04 queda bajo el 2,84 que se esperaría por suerte de la mejor de 292 pruebas sin ventaja
   (`docs/research/deflactado/`).
-- Familias de ideas distintas: 25 (21 estrategias propias y 4 grupos que solo modifican la mesa).
+- Familias de ideas distintas: 27 (23 estrategias propias y 4 grupos que solo modifican la mesa).
 - Rejillas: 206 de las decisorias son combinaciones de una rejilla.
 - Ninguna estrategia pasó su listón. El único "sí" es el filtro L5 del lado saturado, que mejora a la mesa de
   práctica por márgenes mínimos.
@@ -346,6 +346,12 @@ resultado se llena después. Las pruebas decisorias de esta tabla son la N del S
 | 304 | 2026-10-16 | carry_btceth | Carry de financiación (spot + perpetuo corto) | media de 21 pagos ≥ 0,0042%/8h, salir < 0 | ETHUSDT, 8 h | decisoria | pendiente | pendiente |
 | 305 | 2026-10-16 | carry_btceth | Carry de financiación (spot + perpetuo corto) | siempre dentro | BTCUSDT, 8 h | sensibilidad | pendiente | pendiente |
 | 306 | 2026-10-16 | carry_btceth | Carry de financiación (spot + perpetuo corto) | siempre dentro | ETHUSDT, 8 h | sensibilidad | pendiente | pendiente |
+| 307 | 2026-10-16 | oro_dia | Ruptura del rango de apertura de NY (Crabel) | rango 30 min | PAXGUSDT (oro), 15 min | decisoria | pendiente | pendiente |
+| 308 | 2026-10-16 | oro_dia | Ruptura del rango de apertura de NY (Crabel) | rango 60 min | PAXGUSDT (oro), 15 min | decisoria | pendiente | pendiente |
+| 309 | 2026-10-16 | oro_dia | Impulso dentro del día (Gao y otros) | 19:00-20:00 UTC | PAXGUSDT (oro), 15 min | decisoria | pendiente | pendiente |
+| 310 | 2026-10-16 | oro_dia | Ruptura del rango de apertura de NY (Crabel) | rango 30 min, costes ×2 | PAXGUSDT (oro), 15 min | sensibilidad | pendiente | pendiente |
+| 311 | 2026-10-16 | oro_dia | Ruptura del rango de apertura de NY (Crabel) | rango 60 min, costes ×2 | PAXGUSDT (oro), 15 min | sensibilidad | pendiente | pendiente |
+| 312 | 2026-10-16 | oro_dia | Impulso dentro del día (Gao y otros) | 19:00-20:00 UTC, costes ×2 | PAXGUSDT (oro), 15 min | sensibilidad | pendiente | pendiente |
 
 Formato del resultado: neto % / caída máx. %; "2024-25 ; 2025-26" cuando hay dos años.
 
