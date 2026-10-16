@@ -18,8 +18,8 @@ resultado se llena después. Las pruebas decisorias de esta tabla son la N del S
 
 ## Totales al 2026-10-16
 
-- **Total: 302 pruebas** (252 decisorias y 50 de sensibilidad), incluidas las 5 de RSI-2 y las 10 de horizonte
-  largo de hoy. Ninguna de las dos pasa.
+- **Total: 306 pruebas** (254 decisorias y 52 de sensibilidad), incluidas las de hoy: 5 de RSI-2 y 10 de
+  horizonte largo (ninguna pasa) y 4 de carry en BTC y ETH (pendientes).
 - Sharpe deflactado de la ruptura de Londres en oro 2025-26 con N = 292: **0,21** (listón 0,95). Su Sharpe anual
   de 2,04 queda bajo el 2,84 que se esperaría por suerte de la mejor de 292 pruebas sin ventaja
   (`docs/research/deflactado/`).
@@ -342,6 +342,10 @@ resultado se llena después. Las pruebas decisorias de esta tabla son la N del S
 | 300 | 2026-10-16 | largo | Momento de 12 meses (MOP) | costes ×2 | PAXGUSDT (oro), mensual | sensibilidad | 2024-25 ; 2025-26: +26.7%/11.17% ; -11.8%/34.44% (DSR 0.001) | — (informativa) |
 | 301 | 2026-10-16 | largo | Momento de 12 meses (MOP) | costes ×2 | BTCUSDT, mensual | sensibilidad | 2024-25 ; 2025-26: +53.6%/32.76% ; -14.0%/27.93% (DSR 0.001) | — (informativa) |
 | 302 | 2026-10-16 | largo | Momento dual (Antonacci) | costes ×2 | BTC u oro, mensual | sensibilidad | 2024-25 ; 2025-26: +49.9%/24.49% ; -33.5%/34.42% (DSR 0.0) | — (informativa) |
+| 303 | 2026-10-16 | carry_btceth | Carry de financiación (spot + perpetuo corto) | media de 21 pagos ≥ 0,0042%/8h, salir < 0 | BTCUSDT, 8 h | decisoria | pendiente | pendiente |
+| 304 | 2026-10-16 | carry_btceth | Carry de financiación (spot + perpetuo corto) | media de 21 pagos ≥ 0,0042%/8h, salir < 0 | ETHUSDT, 8 h | decisoria | pendiente | pendiente |
+| 305 | 2026-10-16 | carry_btceth | Carry de financiación (spot + perpetuo corto) | siempre dentro | BTCUSDT, 8 h | sensibilidad | pendiente | pendiente |
+| 306 | 2026-10-16 | carry_btceth | Carry de financiación (spot + perpetuo corto) | siempre dentro | ETHUSDT, 8 h | sensibilidad | pendiente | pendiente |
 
 Formato del resultado: neto % / caída máx. %; "2024-25 ; 2025-26" cuando hay dos años.
 
