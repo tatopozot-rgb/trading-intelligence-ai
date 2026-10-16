@@ -18,11 +18,12 @@ resultado se llena después. Las pruebas decisorias de esta tabla son la N del S
 
 ## Totales al 2026-10-16
 
-- **Total: 292 pruebas** (247 decisorias y 45 de sensibilidad), incluidas las 5 de RSI-2 de hoy.
+- **Total: 302 pruebas** (252 decisorias y 50 de sensibilidad), incluidas las 5 de RSI-2 y las 10 de horizonte
+  largo de hoy (estas, pendientes).
 - Sharpe deflactado de la ruptura de Londres en oro 2025-26 con N = 292: **0,21** (listón 0,95). Su Sharpe anual
   de 2,04 queda bajo el 2,84 que se esperaría por suerte de la mejor de 292 pruebas sin ventaja
   (`docs/research/deflactado/`).
-- Familias de ideas distintas: 22 (18 estrategias propias y 4 grupos que solo modifican la mesa).
+- Familias de ideas distintas: 25 (21 estrategias propias y 4 grupos que solo modifican la mesa).
 - Rejillas: 206 de las decisorias son combinaciones de una rejilla.
 - Ninguna estrategia pasó su listón. El único "sí" es el filtro L5 del lado saturado, que mejora a la mesa de
   práctica por márgenes mínimos.
@@ -331,6 +332,16 @@ resultado se llena después. Las pruebas decisorias de esta tabla son la N del S
 | 290 | 2026-10-16 | rsi2 | RSI-2 de Connors | A pura, umbral 5 | 12 monedas, 1d | sensibilidad | 2024-25 ; 2025-26: +36.9%/15.17% ; -2.1%/7.88% (2,43 ; −0,26) | — (informativa) |
 | 291 | 2026-10-16 | rsi2 | RSI-2 de Connors | B con frenos, umbral 5 | 12 monedas, 1d | sensibilidad | 2024-25 ; 2025-26: +10.9%/12.93% ; -0.6%/2.86% (0,84 ; −0,20) | — (informativa) |
 | 292 | 2026-10-16 | rsi2 | RSI-2 de Connors | Espejo en corto (A), umbral 10 | 12 monedas, 1d | sensibilidad | 2024-25 ; 2025-26: -32.4%/46.13% ; -3.0%/39.03% (−0,70 ; −0,08) | — (informativa) |
+| 293 | 2026-10-16 | largo | Media de 10 meses (Faber) | costes base | PAXGUSDT (oro), mensual | decisoria | pendiente | pendiente |
+| 294 | 2026-10-16 | largo | Media de 10 meses (Faber) | costes base | BTCUSDT, mensual | decisoria | pendiente | pendiente |
+| 295 | 2026-10-16 | largo | Momento de 12 meses (MOP) | costes base | PAXGUSDT (oro), mensual | decisoria | pendiente | pendiente |
+| 296 | 2026-10-16 | largo | Momento de 12 meses (MOP) | costes base | BTCUSDT, mensual | decisoria | pendiente | pendiente |
+| 297 | 2026-10-16 | largo | Momento dual (Antonacci) | costes base | BTC u oro, mensual | decisoria | pendiente | pendiente |
+| 298 | 2026-10-16 | largo | Media de 10 meses (Faber) | costes ×2 | PAXGUSDT (oro), mensual | sensibilidad | pendiente | pendiente |
+| 299 | 2026-10-16 | largo | Media de 10 meses (Faber) | costes ×2 | BTCUSDT, mensual | sensibilidad | pendiente | pendiente |
+| 300 | 2026-10-16 | largo | Momento de 12 meses (MOP) | costes ×2 | PAXGUSDT (oro), mensual | sensibilidad | pendiente | pendiente |
+| 301 | 2026-10-16 | largo | Momento de 12 meses (MOP) | costes ×2 | BTCUSDT, mensual | sensibilidad | pendiente | pendiente |
+| 302 | 2026-10-16 | largo | Momento dual (Antonacci) | costes ×2 | BTC u oro, mensual | sensibilidad | pendiente | pendiente |
 
 Formato del resultado: neto % / caída máx. %; "2024-25 ; 2025-26" cuando hay dos años.
 
