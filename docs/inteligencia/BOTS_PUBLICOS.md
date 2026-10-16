@@ -15,6 +15,7 @@ canal de Donchian (reglas "Turtle"), cruce de medias EMA y momento de serie temp
 | 2026-10-15 | Ruptura de volatilidad de Larry Williams | *Long-Term Secrets to Short-Term Trading* (1999), cap. 4; [resumen LuxAlgo](https://www.luxalgo.com/library/concept/volatility-breakout/) | No pasa: pierde en los dos años, con y sin frenos (2026-10-15). Archivada |
 | 2026-10-15 | Rebote a la media en lateral (Bollinger 20/2 + ADX < 20), diario y 4 h | Bollinger, *Bollinger on Bollinger Bands* (2001); Wilder, *New Concepts in Technical Trading Systems* (1978) | No pasa en ningún marco ni versión (2026-10-15). Archivada |
 | 2026-10-15 | Oro: ruptura de Londres, Tortugas diaria y reversión tras noticia (y en BTC) | Kathy Lien (2008); Curtis Faith, *Way of the Turtle* (2007) | Ninguna pasa en los dos años (2026-10-15). Archivadas; Londres en oro, a vigilar |
+| 2026-10-16 | RSI-2 de Larry Connors (comprar caídas cortas sobre la media de 200 días) | Connors y Alvarez, *Short Term Trading Strategies That Work* (2008); [resumen LuxAlgo](https://www.luxalgo.com/library/concept/rsi-2/) | Enviada a Quant para probar en los dos años |
 
 ---
 
@@ -233,3 +234,59 @@ dos años):
 - Tortugas y noticia operan muy poco (10 a 21 veces al año): muestra corta. No dicen nada todavía.
 - Comprar y mantener oro le ganó a todo en 2024-25 (+49,6%).
 
+---
+
+## 2026-10-16 · RSI-2 de Larry Connors
+
+**Qué es.** Larry Connors y Cesar Alvarez la publicaron en *Short Term Trading Strategies That Work* (2008). Es una
+de las estrategias públicas más copiadas en bots de acciones y ETF. La idea: en un mercado que sube, una caída
+fuerte de dos o tres días suele rebotar pronto.
+([resumen LuxAlgo](https://www.luxalgo.com/library/concept/rsi-2/),
+[diagrama en StockSharp](https://doc.stocksharp.com/en/designer-gallery/Larry_Connors_Rsi2),
+[prueba en el S&P 500, Backtrex](https://backtrex.com/en/backtests/connors-rsi-2-sp-500))
+
+**Reglas, en simple (fijadas hoy por el líder, antes de probar):**
+
+1. Velas diarias UTC. RSI de 2 días con el cierre.
+2. **Compra** si al cierre el precio está sobre su media de 200 días y el RSI-2 está bajo 10. Se entra en la
+   apertura del día siguiente, más el deslizamiento.
+3. **Venta** cuando un cierre queda sobre la media de 5 días. Se sale en la apertura siguiente. Sin stop, como el
+   original.
+4. Solo compras (el original es para acciones y ETF; el espejo en corto se informa aparte, no decide).
+5. Máximo 3 posiciones, cada una con un tercio del capital y sin apalancamiento (1x). Si hay más de 3 señales, se
+   toman las 3 con el RSI-2 más bajo.
+
+**En qué se diferencia de lo que ya probamos:**
+
+- El rebote a la media del 15-10 (Bollinger + ADX) buscaba mercado **lateral**. Este busca caídas cortas dentro
+  de una **tendencia alcista** (sobre la media de 200).
+- La reversión 1h/4h/diario descartada antes no tenía filtro de tendencia.
+- Se parece en espíritu a la regla de la mesa: la mesa solo compra con BTC sobre su media; aquí el filtro es por
+  moneda.
+
+**Señales de sobreajuste: medias.**
+
+- Los números (2, 10, 200, 5) vienen del libro de 2008, probados en acciones de EE. UU. No se eligen con nuestros
+  datos.
+- Los sitios que la venden cambian el umbral (5 o 10) o la salida según qué dio mejor. Aquí queda fijo en 10 y en
+  la media de 5. El umbral 5 se informa solo para ver la sensibilidad.
+- Sin stop, una caída que no rebota puede costar mucho. Por eso se mira también la peor operación.
+
+**Cómo se prueba con nuestros datos:**
+
+- Las 12 monedas de la mesa, en dos versiones:
+  - (A) pura;
+  - (B) con los frenos de la mesa: régimen b y sin entradas los días de FOMC o IPC.
+- Comisión 0,05% y deslizamiento 0,02% por lado, más la financiación real.
+- Años 2024-25 y 2025-26, contra la mesa de práctica y contra mantener BTC.
+
+**Cómo se juzga (fijado hoy):**
+
+- Pasa a práctica solo si su neto/caída supera al de la mesa de práctica en **los dos años** (mesa con freno b:
+  1,67 en 2024-25 y −0,21 en 2025-26).
+- Con menos de 100 operaciones en un año, se informa como muestra corta.
+- Desde hoy también se informa el número total de pruebas hechas y el Sharpe deflactado (ver la lección del tema 6
+  en `docs/inteligencia/2026-10-16.md`).
+- El dinero real no cambia por este estudio.
+
+**Estado:** enviada a Quant el 2026-10-16. No se pudo correr en la nube (Binance bloqueado en este contenedor).
