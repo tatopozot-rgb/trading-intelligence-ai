@@ -116,7 +116,7 @@ def follower_curve(vs: list[Vault], a: int, b: int, cut: float) -> pd.Series:
     parts = []
     for v in vs:
         base = at(v, a)
-        g = np.array([at(v, d) / base for d in days]) - 1
+        g = np.array([at(v, int(d)) / base for d in days]) - 1
         parts.append(1 + g - cut * np.maximum(g, 0))
     eq = np.mean(parts, axis=0) if parts else np.ones(len(days))
     return pd.Series(eq, index=pd.to_datetime(days, unit="ms", utc=True))
