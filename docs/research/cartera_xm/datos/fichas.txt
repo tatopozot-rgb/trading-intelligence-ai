@@ -1,0 +1,79 @@
+﻿# Fichas de la demo XM (MT5), leidas el 2026-10-16. Sin las lineas COMPRA/VENTA, que citan el margen libre de la cuenta.
+
+EURUSD: abierto · modo COMPLETO
+  precio 1.1237 / 1.12392 · spread 0.00022 (0.020%)
+  lote mínimo 0.01 (paso 0.01, contrato 100000.0) → expone 1123.81 USD, margen 1123.92 USD
+  swap por noche: compra -7.58 · venta 1.42 (modo 1)
+GBPUSD: abierto · modo COMPLETO
+  precio 1.3326799999999999 / 1.33292 · spread 0.0002400000000001 (0.018%)
+  lote mínimo 0.01 (paso 0.01, contrato 100000.0) → expone 1332.80 USD, margen 1332.92 USD
+  swap por noche: compra -4.65 · venta -2.94 (modo 1)
+USDJPY: abierto · modo COMPLETO
+  precio 157.974 / 157.999 · spread 0.025 (0.016%)
+  lote mínimo 0.01 (paso 0.01, contrato 100000.0) → expone 999.92 USD, margen 1000.00 USD
+  swap por noche: compra 2.11 · venta -29.59 (modo 1)
+AUDUSD: abierto · modo COMPLETO
+  precio 0.69433 / 0.69456 · spread 0.00023 (0.033%)
+  lote mínimo 0.01 (paso 0.01, contrato 100000.0) → expone 694.44 USD, margen 694.56 USD
+  swap por noche: compra -1.62 · venta -2.52 (modo 1)
+USDCAD: abierto · modo COMPLETO
+  precio 1.41444 / 1.41473 · spread 0.00029 (0.021%)
+  lote mínimo 0.01 (paso 0.01, contrato 100000.0) → expone 999.90 USD, margen 1000.00 USD
+  swap por noche: compra 2.62 · venta -11.4 (modo 1)
+USDCHF: abierto · modo COMPLETO
+  precio 0.82393 / 0.8242 · spread 0.00027 (0.033%)
+  lote mínimo 0.01 (paso 0.01, contrato 100000.0) → expone 999.84 USD, margen 1000.00 USD
+  swap por noche: compra 4.74 · venta -14.03 (modo 1)
+US500Cash: abierto · modo COMPLETO
+  precio 7652.55 / 7653.35 · spread 0.80 (0.010%)
+  lote mínimo 0.1 (paso 0.1, contrato 1.0) → expone 765.30 USD, margen 765.34 USD
+  swap por noche: compra -1.26 · venta 0.19 (modo 3)
+US100Cash: abierto · modo COMPLETO
+  precio 29199.21 / 29202.11 · spread 2.90 (0.010%)
+  lote mínimo 0.1 (paso 0.1, contrato 1.0) → expone 2920.07 USD, margen 2920.21 USD
+  swap por noche: compra -5.06 · venta 0.65 (modo 3)
+GER40Cash: abierto · modo COMPLETO
+  precio 25449.48 / 25452.08 · spread 2.60 (0.010%)
+  lote mínimo 0.1 (paso 0.1, contrato 1.0) → expone 2545.08 USD, margen 2860.61 USD
+  swap por noche: compra -3.45 · venta -0.04 (modo 3)
+JP225Cash: abierto · modo COMPLETO
+  precio 63852.0 / 63860.0 · spread 8.0 (0.013%)
+  lote mínimo 0.1 (paso 0.1, contrato 1.0) → expone 6385.60 USD, margen 40.42 USD
+  swap por noche: compra -5.22 · venta -1.1 (modo 3)
+GOLD: abierto · modo COMPLETO
+  precio 4166.73 / 4167.27 · spread 0.54 (0.013%)
+  lote mínimo 0.01 (paso 0.01, contrato 100.0) → expone 4167.00 USD, margen 4167.27 USD
+  swap por noche: compra -83.83 · venta 20.64 (modo 1)
+SILVER: abierto · modo COMPLETO
+  precio 57.044 / 57.111 · spread 0.067 (0.117%)
+  lote mínimo 0.01 (paso 0.01, contrato 5000.0) → expone 2853.88 USD, margen 2855.55 USD
+  swap por noche: compra -18.91 · venta 4.42 (modo 1)
+OILCash: abierto · modo COMPLETO
+  precio 100.83 / 100.93 · spread 0.10 (0.099%)
+  lote mínimo 0.01 (paso 0.01, contrato 100.0) → expone 100.88 USD, margen 100.93 USD
+  swap por noche: compra 0.0 · venta 0.0 (modo 3)
+BTCUSD: abierto · modo COMPLETO
+  precio 81594.65 / 81634.65 · spread 40.00 (0.049%)
+  lote mínimo 0.01 (paso 0.01, contrato 1.0) → expone 816.15 USD, margen 816.35 USD
+  swap por noche: compra -3452.16 · venta -2301.44 (modo 1)
+ETHUSD: abierto · modo COMPLETO
+  precio 2415.71 / 2418.71 · spread 3.00 (0.124%)
+  lote mínimo 0.02 (paso 0.01, contrato 1.0) → expone 48.34 USD, margen 48.37 USD
+  swap por noche: compra -103.99 · venta -69.33 (modo 1)
+
+# symbol_info extra: swap_rollover3days (0=domingo ... 3=miercoles ... 5=viernes; 7 en BTCUSD/ETHUSD = sin dia triple, MT5 no da otro detalle), trade_calc_mode, currency_profit, digits
+EURUSD: swap_rollover3days=3 trade_calc_mode=0 currency_profit=USD digits=5
+GBPUSD: swap_rollover3days=3 trade_calc_mode=0 currency_profit=USD digits=5
+USDJPY: swap_rollover3days=3 trade_calc_mode=0 currency_profit=JPY digits=3
+AUDUSD: swap_rollover3days=3 trade_calc_mode=0 currency_profit=USD digits=5
+USDCAD: swap_rollover3days=3 trade_calc_mode=0 currency_profit=CAD digits=5
+USDCHF: swap_rollover3days=3 trade_calc_mode=0 currency_profit=CHF digits=5
+US500Cash: swap_rollover3days=5 trade_calc_mode=4 currency_profit=USD digits=2
+US100Cash: swap_rollover3days=5 trade_calc_mode=4 currency_profit=USD digits=2
+GER40Cash: swap_rollover3days=5 trade_calc_mode=4 currency_profit=EUR digits=2
+JP225Cash: swap_rollover3days=5 trade_calc_mode=4 currency_profit=JPY digits=0
+GOLD: swap_rollover3days=3 trade_calc_mode=4 currency_profit=USD digits=2
+SILVER: swap_rollover3days=3 trade_calc_mode=4 currency_profit=USD digits=3
+OILCash: swap_rollover3days=5 trade_calc_mode=4 currency_profit=USD digits=2
+BTCUSD: swap_rollover3days=7 trade_calc_mode=4 currency_profit=USD digits=2
+ETHUSD: swap_rollover3days=7 trade_calc_mode=4 currency_profit=USD digits=2
