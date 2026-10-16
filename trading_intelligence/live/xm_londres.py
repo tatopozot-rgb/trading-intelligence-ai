@@ -10,7 +10,8 @@ DEMO account the other agents share. The 5x size cap is of that same nominal cap
 
     python -m trading_intelligence.live.xm_londres            # one pass (Task Scheduler, every 5 minutes)
     python -m trading_intelligence.live.xm_londres resumen    # where it stands
-    python -m trading_intelligence.live.xm_londres --simbolo BTCUSD --dir <xm-wt>/live_runs/xm_londres_btc --capital-nominal 1000
+    python -m trading_intelligence.live.xm_londres --simbolo BTCUSD --dir <xm-wt>/live_runs/xm_londres_btc --capital-nominal 1000 \
+        --terminal <second MT5>/terminal64.exe   # its own DEMO account, in a second MT5 installation
 
 Each pass, in UTC:
 - Asian range = high and low of the 1h candles 00:00-06:00 of today (all 7 needed).
@@ -290,9 +291,12 @@ def main(argv: Optional[list[str]] = None, mt5: Optional[object] = None) -> int:
     parser.add_argument("--simbolo", default=SYMBOL, help="nombre exacto en MT5 (GOLD o BTCUSD)")
     parser.add_argument("--capital-nominal", type=Decimal, default=None,
                         help="arriesga 1%% de este capital (USD) y no de la equity de la cuenta DEMO compartida")
+    parser.add_argument("--terminal", default=None,
+                        help="terminal64.exe de otra instalación de MT5 (otra cuenta DEMO); sin ella, la de siempre")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    trader = XmDemoTrader(args.dir / "orders.json", mt5, magic=agent_magic(agent_name(args.simbolo)))
+    trader = XmDemoTrader(args.dir / "orders.json", mt5, magic=agent_magic(agent_name(args.simbolo)),
+                           terminal=args.terminal)
     telegram = make_notify(console, from_env())
     notify = telegram if args.cmd == "resumen" else console  # its trades go in the 22:00 summary
     try:

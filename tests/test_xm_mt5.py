@@ -32,7 +32,8 @@ class FakeMt5:
         self.selected = []
 
     def initialize(self, *a, **k):
-        assert not a and not k, "never pass login, password or server"
+        assert not a and set(k) <= {"path"}, "never pass login, password or server"
+        self.path = k.get("path")
         return True
 
     def shutdown(self):
@@ -171,3 +172,12 @@ def test_a_shadow_session_runs_the_engine_on_xm_candles(tmp_path, monkeypatch):
     loop = __import__("json").loads((tmp_path / "engine" / "loop.json").read_text())
     assert loop["journal"] and loop["journal"][-1]["symbol"] == "EURUSD"
     assert list(tmp_path.glob("reporte_final_*.md"))
+
+
+def test_a_second_mt5_installation_is_reached_by_its_path_only():
+    m = FakeMt5()
+    X.XmReader(m, clock=lambda: NOW, terminal=r"C:\MT5 BTC\terminal64.exe").connect()
+    assert m.path == r"C:\MT5 BTC\terminal64.exe"
+    m2 = FakeMt5()
+    X.XmReader(m2, clock=lambda: NOW).connect()
+    assert m2.path is None  # without --terminal: the terminal of always, called with no arguments
