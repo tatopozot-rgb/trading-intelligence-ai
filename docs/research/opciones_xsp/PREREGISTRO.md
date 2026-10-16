@@ -7,8 +7,9 @@ en este mismo commit. Nada se cambia después de ver el resultado.
 
 ## Datos
 
-- Cierres diarios del S&P 500 (FRED, serie SP500) y del VIX (Cboe, `cdn.cboe.com`; respaldo FRED VIXCLS).
-  XSP = SPX / 10. (Corrección antes de tener resultados: la primera corrida falló al bajar los datos de Cboe/Stooq.)
+- Cierres diarios del S&P 500 (^GSPC) y del VIX (^VIX) de Yahoo Finance; respaldos: Cboe y FRED. El informe dice
+  qué fuente respondió. XSP = SPX / 10. (Corrección antes de tener resultados: las dos primeras corridas fallaron al
+  bajar los datos de Cboe, Stooq y FRED.)
 - **No hay precios grabados de opciones.** Cada opción se valora con Black-Scholes usando el VIX del día como
   volatilidad para los dos strikes, tasa 4% y dividendo 1,3% al año. Es un modelo, no un registro real.
 

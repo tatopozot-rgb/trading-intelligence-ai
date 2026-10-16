@@ -80,3 +80,9 @@ def test_parse_close_reads_cboe_and_fred_formats():
     assert list(cboe.values) == [13.5, 14.5] and cboe.index[0] == pd.Timestamp("2024-01-02")
     fred = rx.parse_close("observation_date,SP500\n2024-01-01,.\n2024-01-02,4742.83\n")
     assert len(fred) == 1 and fred.iloc[0] == pytest.approx(4742.83)
+
+
+def test_parse_yahoo_chart_json():
+    text = '{"chart": {"result": [{"timestamp": [1704205800, 1704292200], "indicators": {"quote": [{"close": [4742.8, null]}]}}]}}'
+    out = rx.parse_yahoo(text)
+    assert len(out) == 1 and out.index[0] == pd.Timestamp("2024-01-02")

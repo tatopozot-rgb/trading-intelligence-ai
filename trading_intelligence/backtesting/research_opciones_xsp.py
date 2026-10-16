@@ -32,6 +32,7 @@ COMMISSION, OCC, EXCHANGE, SLIP = 0.65, 0.025, 0.30, 0.03
 SAVINGS = 4.0
 DECISIVE_N = 259
 OUT_DIR = Path("docs/research/opciones_xsp")
+YAHOO = "https://query1.finance.yahoo.com/v8/finance/chart/{}?period1=1672531200&period2=1798761600&interval=1d"
 FRED = "https://fred.stlouisfed.org/graph/fredgraph.csv?id={}"
 CBOE = "https://cdn.cboe.com/api/global/us_indices/daily_prices/{}_History.csv"
 
@@ -189,13 +190,31 @@ def parse_close(text: str) -> pd.Series:
     return pd.Series(values, index=idx).dropna().sort_index()
 
 
+def parse_yahoo(text: str) -> pd.Series:
+    res = json.loads(text)["chart"]["result"][0]
+    idx = pd.to_datetime(res["timestamp"], unit="s").normalize()
+    close = pd.to_numeric(pd.Series(res["indicators"]["quote"][0]["close"]), errors="coerce").values
+    return pd.Series(close, index=idx).dropna().sort_index()
+
+
+def fetch(sources: list[tuple[str, str]]) -> pd.Series:
+    """First source that answers: ("yahoo" | "csv", url). Errors are printed so the report says which source was used."""
+    for kind, url in sources:
+        try:
+            out = parse_yahoo(_get(url)) if kind == "yahoo" else parse_close(_get(url))
+            if len(out) > 300:
+                print(f"datos: {url.split('?')[0]}")
+                return out
+        except Exception as exc:  # next source
+            print(f"fuente sin respuesta: {url.split('?')[0]} ({type(exc).__name__})")
+    raise RuntimeError("no data source answered")
+
+
 def load() -> pd.DataFrame:
-    series = {}
-    series["spx"] = parse_close(_get(FRED.format("SP500")))
-    try:
-        series["vix"] = parse_close(_get(CBOE.format("VIX")))
-    except Exception:
-        series["vix"] = parse_close(_get(FRED.format("VIXCLS")))
+    series = {
+        "spx": fetch([("yahoo", YAHOO.format("%5EGSPC")), ("csv", FRED.format("SP500"))]),
+        "vix": fetch([("yahoo", YAHOO.format("%5EVIX")), ("csv", CBOE.format("VIX")), ("csv", FRED.format("VIXCLS"))]),
+    }
     px = pd.concat(series, axis=1).dropna()
     px = px[px.index >= pd.Timestamp(WARM_FROM)]
     px["sma200"] = px["spx"].rolling(200).mean()
