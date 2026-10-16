@@ -164,17 +164,21 @@ def _paper_closes(path: Path, since: datetime) -> Optional[list[tuple[str, Decim
 
 
 def _londres(path: Path, d: dict, since: datetime) -> Bot:
-    bot = Bot("🧪 XM DEMO · Londres oro", path, "londres", False, str(d.get("moneda", "")))
+    # the asset as live/xm_londres.py names it; gold's state has no "simbolo" from before 2026-10-16
+    sym = str(d.get("simbolo") or "GOLD").upper()
+    name = "Oro" if sym.startswith(("GOLD", "XAU")) else sym[:3] if sym.startswith(("BTC", "ETH")) else sym
+    bot = Bot(f"🧪 XM DEMO · Londres {name.lower() if name == 'Oro' else name}", path, "londres", False,
+              str(d.get("moneda", "")))
     for t in d.get("trades", []):
         at = _at(t.get("t"))
         if at is None or at < since:
             continue
         if t.get("accion") == "entrada":
-            bot.opened.append(("Oro", str(t.get("lado", "BUY"))))
+            bot.opened.append((name, str(t.get("lado", "BUY"))))
         elif t.get("accion") == "cierre" and _d(t.get("pnl")) is not None:
-            bot.closed.append(("Oro", _d(t["pnl"]) or Decimal("0"), not t.get("estimado")))
+            bot.closed.append((name, _d(t["pnl"]) or Decimal("0"), not t.get("estimado")))
     if d.get("open"):
-        bot.open_now = [f"Oro ({_side(str(d['open'].get('lado', 'BUY')))})"]
+        bot.open_now = [f"{name} ({_side(str(d['open'].get('lado', 'BUY')))})"]
     return bot
 
 
