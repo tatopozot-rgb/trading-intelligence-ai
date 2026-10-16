@@ -16,6 +16,7 @@ canal de Donchian (reglas "Turtle"), cruce de medias EMA y momento de serie temp
 | 2026-10-15 | Rebote a la media en lateral (Bollinger 20/2 + ADX < 20), diario y 4 h | Bollinger, *Bollinger on Bollinger Bands* (2001); Wilder, *New Concepts in Technical Trading Systems* (1978) | No pasa en ningún marco ni versión (2026-10-15). Archivada |
 | 2026-10-15 | Oro: ruptura de Londres, Tortugas diaria y reversión tras noticia (y en BTC) | Kathy Lien (2008); Curtis Faith, *Way of the Turtle* (2007) | Ninguna pasa en los dos años (2026-10-15). Archivadas; Londres en oro, a vigilar |
 | 2026-10-16 | RSI-2 de Larry Connors (comprar caídas cortas sobre la media de 200 días) | Connors y Alvarez, *Short Term Trading Strategies That Work* (2008); [resumen LuxAlgo](https://www.luxalgo.com/library/concept/rsi-2/) | No pasa en ninguna versión (2026-10-16). Archivada |
+| 2026-10-16 | Horizonte largo en oro y BTC: media de 10 meses, momento de 12 meses y momento dual | Faber (2007); Moskowitz, Ooi y Pedersen (2012); Antonacci, *Dual Momentum Investing* (2014) | Ninguna pasa (2026-10-16): el oro gana a la mesa en los dos años, pero su Sharpe deflactado es 0,002. Archivadas. Ver `docs/research/largo/` |
 
 ---
 
