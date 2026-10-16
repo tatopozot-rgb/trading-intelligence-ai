@@ -105,11 +105,11 @@ def size_lots(sheet: Sheet, account: Account, stop_distance: Decimal, risk_pct: 
 
 class XmDemoTrader:
     def __init__(self, journal: Path, mt5: Optional[object] = None, reader: Optional[XmReader] = None,
-                 magic: int = MAGIC) -> None:
+                 magic: int = MAGIC, terminal: Optional[str] = None) -> None:
         module = load_mt5() if mt5 is None else mt5
         self.magic = magic  # one per agent: each agent sees and touches only its own positions
         self._mt5 = _DemoGate(module)
-        self.reader = reader or XmReader(module)
+        self.reader = reader or XmReader(module, terminal=terminal)
         self.journal = Path(journal)
 
     def connect(self) -> Account:

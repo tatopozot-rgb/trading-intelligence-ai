@@ -14,7 +14,8 @@ Phase 1 (this module): READ-ONLY.
   XM-specific limits approved by him.
 
 Credentials: the owner logs in to the MT5 terminal himself. initialize() is called WITHOUT
-login, password or server, so no credential ever passes through this code.
+login, password or server, so no credential ever passes through this code. With a second MT5
+installation (another DEMO account), only the path of its terminal64.exe is passed.
 Windows only: the MetaTrader5 package talks to the terminal on the same PC (Claude local).
 """
 from __future__ import annotations
@@ -121,15 +122,19 @@ class Sheet:
 
 
 class XmReader:
-    def __init__(self, mt5: Optional[object] = None, clock=lambda: datetime.now(timezone.utc)) -> None:
+    def __init__(self, mt5: Optional[object] = None, clock=lambda: datetime.now(timezone.utc),
+                 terminal: Optional[str] = None) -> None:
         self._mt5 = _ReadOnly(load_mt5() if mt5 is None else mt5)
         self._clock = clock
         self._connected = False
+        self.terminal = terminal  # terminal64.exe of a second MT5 installation; None: the default one
 
     def connect(self) -> None:
         """Attaches to the terminal the owner already opened and logged in to."""
-        if self._mt5.initialize() is not True:  # type: ignore[operator]
-            raise XmError("La terminal MT5 no respondió: ábrela e inicia sesión en tu cuenta XM.")
+        ok = self._mt5.initialize(path=self.terminal) if self.terminal else self._mt5.initialize()  # type: ignore[operator]
+        if ok is not True:
+            where = f" ({self.terminal})" if self.terminal else ""
+            raise XmError(f"La terminal MT5{where} no respondió: ábrela e inicia sesión en tu cuenta XM.")
         self._connected = True
         self.account()  # fails here if no account is logged in
 

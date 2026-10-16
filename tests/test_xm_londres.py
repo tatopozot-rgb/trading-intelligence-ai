@@ -250,3 +250,14 @@ def test_a_nominal_capital_must_be_positive(tmp_path, btc):
     at = (DAY + pd.Timedelta(hours=8)).to_pydatetime()
     with pytest.raises(ValueError):
         _btc_bot(tmp_path, at, _btc_frames(DAY, pd.Timedelta(hours=8), high=82010.0), nominal=Decimal("0"))
+
+
+def test_main_runs_btc_on_its_own_terminal(tmp_path, btc, monkeypatch):
+    from trading_intelligence.live import telegram_notify as T
+    for k in (T.TOKEN_VAR, T.CHAT_VAR):
+        monkeypatch.delenv(k, raising=False)
+    m = TradingMt5(equity=5_000.0)
+    exe = r"C:\MT5 BTC\terminal64.exe"
+    assert L.main(["resumen", "--simbolo", "BTCUSD", "--dir", str(tmp_path), "--capital-nominal", "1000",
+                   "--terminal", exe], mt5=m) == 0
+    assert m.path == exe
