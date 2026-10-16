@@ -18,8 +18,9 @@ resultado se llena después. Las pruebas decisorias de esta tabla son la N del S
 
 ## Totales al 2026-10-16
 
-- **Total: 317 pruebas** (259 decisorias y 58 de sensibilidad). Las últimas 4 son los spreads de XSP en opciones
-  (modelo Black-Scholes con VIX): ganan en los dos años, pero su Sharpe deflactado es 0,025; no pasan. Antes, hoy: 5 de RSI-2 y 10 de
+- **Total: 321 pruebas** (261 decisorias y 60 de sensibilidad). Las últimas 4 son copiar bóvedas de Hyperliquid
+  con un año ganador (`docs/research/copiar/`): pierden −65,6% en 2025-26; no pasan. Antes, 4 de spreads de XSP en
+  opciones (modelo Black-Scholes con VIX): ganan en los dos años, pero su Sharpe deflactado es 0,025; no pasan. Antes, hoy: 5 de RSI-2 y 10 de
   horizonte largo (ninguna pasa), 4 de carry en BTC y ETH y 6 de oro dentro del día. Ninguna pasa.
 - Sharpe deflactado de la ruptura de Londres en oro 2025-26 con N = 292: **0,21** (listón 0,95). Su Sharpe anual
   de 2,04 queda bajo el 2,84 que se esperaría por suerte de la mejor de 292 pruebas sin ventaja
@@ -358,6 +359,10 @@ resultado se llena después. Las pruebas decisorias de esta tabla son la N del S
 | 315 | 2026-10-16 | opciones_xsp | Spread alcista XSP 1 USD (Black-Scholes con VIX) | solo sobre la media de 200 días | XSP (S&P 500), diario | decisoria | 2024-25 ; 2025-26: +79.7%/35.17% ; +51.2%/73.14% (DSR 0.025) | no |
 | 316 | 2026-10-16 | opciones_xsp | Spread alcista XSP 1 USD (Black-Scholes con VIX) | mensual siempre, costes ×2 | XSP (S&P 500), diario | sensibilidad | 2024-25 ; 2025-26: +24.6%/70.64% ; +3.5%/90.63% (DSR 0.015) | — (informativa) |
 | 317 | 2026-10-16 | opciones_xsp | Spread alcista XSP 1 USD (Black-Scholes con VIX) | media de 200 días, costes ×2 | XSP (S&P 500), diario | sensibilidad | 2024-25 ; 2025-26: +39.9%/48.78% ; +3.5%/90.63% (DSR 0.015) | — (informativa) |
+| 318 | 2026-10-16 | copiar | Copiar bóvedas de Hyperliquid con un año ganador | A: top 10 por rentabilidad del año previo, 10% al líder | bóvedas de usuarios, diario | decisoria | 2024-25 ; 2025-26: +14.7%/17.3% ; -65.6%/73.7% (DSR 0.0; 2024-25 muestra corta: 1 bóveda elegible) | no |
+| 319 | 2026-10-16 | copiar | Copiar bóvedas de Hyperliquid con un año ganador | B: top 10 por rentabilidad/caída del año previo, 10% al líder | bóvedas de usuarios, diario | decisoria | 2024-25 ; 2025-26: +14.7%/17.3% ; -51.7%/58.9% (DSR 0.0; 2024-25 muestra corta) | no |
+| 320 | 2026-10-16 | copiar | Copiar bóvedas de Hyperliquid con un año ganador | A con 30% al líder | bóvedas de usuarios, diario | sensibilidad | 2024-25 ; 2025-26: +11.5%/14.3% ; -65.9%/73.7% (DSR 0.0) | — (informativa) |
+| 321 | 2026-10-16 | copiar | Copiar bóvedas de Hyperliquid con un año ganador | A, top 30 | bóvedas de usuarios, diario | sensibilidad | 2024-25 ; 2025-26: +14.7%/17.3% ; -35.4%/47.1% (DSR 0.0) | — (informativa) |
 
 Formato del resultado: neto % / caída máx. %; "2024-25 ; 2025-26" cuando hay dos años.
 
