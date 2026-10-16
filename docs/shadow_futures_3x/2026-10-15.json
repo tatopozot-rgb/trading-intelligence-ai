@@ -1,0 +1,140 @@
+{
+ "dia": "2026-10-15",
+ "capital_inicial": 30.0,
+ "cuenta": "práctica (dinero ficticio)",
+ "estado": "RUNNING",
+ "hoy": {
+  "operaciones": 2,
+  "ganadas": 0,
+  "acierto_pct": 0.0,
+  "neto_usdt": -2.8143,
+  "esperanza_r": -1.03,
+  "factor_beneficio": 0.0
+ },
+ "acumulado": {
+  "operaciones": 3,
+  "ganadas": 1,
+  "acierto_pct": 33.3,
+  "neto_usdt": -2.7073,
+  "esperanza_r": -0.67,
+  "factor_beneficio": 0.04
+ },
+ "neto_pct": -9.02,
+ "caida_max_pct": 9.35,
+ "por_moneda": {
+  "BNBUSDT": {
+   "operaciones": 1,
+   "ganadas": 0,
+   "acierto_pct": 0.0,
+   "neto_usdt": -0.2312,
+   "esperanza_r": -1.03,
+   "factor_beneficio": 0.0
+  },
+  "BTCUSDT": {
+   "operaciones": 1,
+   "ganadas": 0,
+   "acierto_pct": 0.0,
+   "neto_usdt": -2.5831,
+   "esperanza_r": -1.03,
+   "factor_beneficio": 0.0
+  },
+  "TRXUSDT": {
+   "operaciones": 1,
+   "ganadas": 1,
+   "acierto_pct": 100.0,
+   "neto_usdt": 0.107,
+   "esperanza_r": 0.04,
+   "factor_beneficio": null
+  }
+ },
+ "por_lado": {
+  "BUY": {
+   "operaciones": 2,
+   "ganadas": 0,
+   "acierto_pct": 0.0,
+   "neto_usdt": -2.8143,
+   "esperanza_r": -1.03,
+   "factor_beneficio": 0.0
+  },
+  "SELL": {
+   "operaciones": 1,
+   "ganadas": 1,
+   "acierto_pct": 100.0,
+   "neto_usdt": 0.107,
+   "esperanza_r": 0.04,
+   "factor_beneficio": null
+  }
+ },
+ "por_salida": {
+  "señal contraria": {
+   "operaciones": 1,
+   "ganadas": 1,
+   "acierto_pct": 100.0,
+   "neto_usdt": 0.107,
+   "esperanza_r": 0.04,
+   "factor_beneficio": null
+  },
+  "stop": {
+   "operaciones": 2,
+   "ganadas": 0,
+   "acierto_pct": 0.0,
+   "neto_usdt": -2.8143,
+   "esperanza_r": -1.03,
+   "factor_beneficio": 0.0
+  }
+ },
+ "vetos": {
+  "evitó pérdida": 0,
+  "dejó pasar ganancia": 0,
+  "sin resultado": 0
+ },
+ "abiertas": [
+  {
+   "symbol": "SOLUSDT",
+   "side": "BUY",
+   "entry": "105.9700",
+   "sl": "100.6100",
+   "tp": "122.0500000000000000000000000"
+  },
+  {
+   "symbol": "AVAXUSDT",
+   "side": "BUY",
+   "entry": "10.0150",
+   "sl": "9.4440",
+   "tp": "11.72800000000000000000000000"
+  },
+  {
+   "symbol": "ADAUSDT",
+   "side": "BUY",
+   "entry": "0.23080",
+   "sl": "0.21700",
+   "tp": "0.2722000000000000000000000001"
+  }
+ ],
+ "operaciones_hoy": [
+  {
+   "symbol": "BTCUSDT",
+   "side": "BUY",
+   "entry": "83366.30",
+   "exit": "80865.30",
+   "qty": "0.001",
+   "pnl": "-2.5831",
+   "r": "-1.03",
+   "opened": "2026-10-13T21:00:12.922393+00:00",
+   "why": "stop",
+   "at": "2026-10-15T13:20:10.413933+00:00"
+  },
+  {
+   "symbol": "BNBUSDT",
+   "side": "BUY",
+   "entry": "746.090",
+   "exit": "723.700",
+   "qty": "0.01",
+   "pnl": "-0.2312",
+   "r": "-1.03",
+   "opened": "2026-10-14T03:30:15.662385+00:00",
+   "why": "stop",
+   "at": "2026-10-15T13:20:11.005609+00:00"
+  }
+ ]
+}
