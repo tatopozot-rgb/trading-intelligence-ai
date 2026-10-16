@@ -353,6 +353,9 @@ resultado se llena después. Las pruebas decisorias de esta tabla son la N del S
 | 311 | 2026-10-16 | oro_dia | Ruptura del rango de apertura de NY (Crabel) | rango 60 min, costes ×2 | PAXGUSDT (oro), 15 min | sensibilidad | 2024-25 ; 2025-26: -29.2%/39.39% ; +4.0%/11.94% (DSR 0.006) | — (informativa) |
 | 312 | 2026-10-16 | oro_dia | Impulso dentro del día (Gao y otros) | 19:00-20:00 UTC, costes ×2 | PAXGUSDT (oro), 15 min | sensibilidad | 2024-25 ; 2025-26: -9.1%/9.35% ; -2.7%/6.0% (DSR 0.0) | — (informativa) |
 | 313 | 2026-10-16 | real | Bot real de futuros (mesa con frenos) | riesgo fijo 2%, 31,69 USDT, mínimos de Binance | 12 monedas, 5 min | sensibilidad | 2024-25 ; 2025-26: +13.3%/51.26% ; +13.1%/28.43% (DSR 0.01) | — (informativa) |
+| 314 | 2026-10-16 | cartera_xm | Cartera multi-mercado EWMAC (Carver), riesgo igual | 200 USD, lotes de XM, spread y swap de XM | 15 mercados de XM (forex, índices, metales, petróleo, BTC, ETH), 1d | decisoria | pendiente | pendiente |
+| 315 | 2026-10-16 | cartera_xm | Cartera multi-mercado EWMAC (Carver), riesgo igual | 100.000 USD (sin efecto del lote mínimo) | 15 mercados de XM, 1d | sensibilidad | pendiente | pendiente |
+| 316 | 2026-10-16 | cartera_xm | Cartera multi-mercado EWMAC (Carver), riesgo igual | 200 USD, spread y swap ×2 | 15 mercados de XM, 1d | sensibilidad | pendiente | pendiente |
 
 Formato del resultado: neto % / caída máx. %; "2024-25 ; 2025-26" cuando hay dos años.
 
