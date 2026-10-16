@@ -353,6 +353,10 @@ resultado se llena después. Las pruebas decisorias de esta tabla son la N del S
 | 311 | 2026-10-16 | oro_dia | Ruptura del rango de apertura de NY (Crabel) | rango 60 min, costes ×2 | PAXGUSDT (oro), 15 min | sensibilidad | 2024-25 ; 2025-26: -29.2%/39.39% ; +4.0%/11.94% (DSR 0.006) | — (informativa) |
 | 312 | 2026-10-16 | oro_dia | Impulso dentro del día (Gao y otros) | 19:00-20:00 UTC, costes ×2 | PAXGUSDT (oro), 15 min | sensibilidad | 2024-25 ; 2025-26: -9.1%/9.35% ; -2.7%/6.0% (DSR 0.0) | — (informativa) |
 | 313 | 2026-10-16 | real | Bot real de futuros (mesa con frenos) | riesgo fijo 2%, 31,69 USDT, mínimos de Binance | 12 monedas, 5 min | sensibilidad | 2024-25 ; 2025-26: +13.3%/51.26% ; +13.1%/28.43% (DSR 0.01) | — (informativa) |
+| 314 | 2026-10-16 | copiar | Copiar bóvedas de Hyperliquid con un año ganador | A: top 10 por rentabilidad del año previo, 10% al líder | bóvedas de usuarios, diario | decisoria | pendiente | pendiente |
+| 315 | 2026-10-16 | copiar | Copiar bóvedas de Hyperliquid con un año ganador | B: top 10 por rentabilidad/caída del año previo, 10% al líder | bóvedas de usuarios, diario | decisoria | pendiente | pendiente |
+| 316 | 2026-10-16 | copiar | Copiar bóvedas de Hyperliquid con un año ganador | A con 30% al líder | bóvedas de usuarios, diario | sensibilidad | pendiente | — (informativa) |
+| 317 | 2026-10-16 | copiar | Copiar bóvedas de Hyperliquid con un año ganador | A, top 30 | bóvedas de usuarios, diario | sensibilidad | pendiente | — (informativa) |
 
 Formato del resultado: neto % / caída máx. %; "2024-25 ; 2025-26" cuando hay dos años.
 
