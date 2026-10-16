@@ -22,3 +22,13 @@ Referencia, SPX comprar y mantener: 2024: +11.82% ; 2025: +17.29%
 - **media200:** no pasa (listón: neto > 4% en los dos años y Sharpe deflactado 2025-26 ≥ 0.95).
 
 Aunque pasara, no va a práctica sin repetir la prueba con precios reales de opciones.
+
+## Lectura (escrita después del resultado)
+
+- El spread de 1 USD en el dinero es casi una apuesta de sí o no a que el S&P 500 sube en 30 días: se paga ~50 USD
+  y se cobra ~100 o 0. Ganó 8 de 12 porque el S&P subió en los dos años (+11,8% y +17,3%), no por una ventaja.
+- Cada spread arriesga ~25% de la cuenta de 200 USD: la caída llegó a 73% en 2025-26, y a 91% con costes al doble.
+- Con 12 operaciones por año, el Sharpe deflactado (0,025) queda muy lejos del 0,95: con 259 pruebas ya hechas, este
+  resultado se explica por suerte. **No pasa.** No se escala al Líder.
+- Lo que sí deja: los costes de IBKR pesan ~4 USD por spread (8% del precio). Con costes al doble, el resultado de
+  2025-26 casi desaparece.

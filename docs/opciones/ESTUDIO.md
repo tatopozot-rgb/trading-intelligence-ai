@@ -29,7 +29,7 @@ persona que sabe del tema; el líder lo acopla a este plan cuando llegue.
 | 2 | Las griegas y la volatilidad implícita | hecho ([nota 15-10](2026-10-15.md)) |
 | 3 | Dónde se opera. **Dueño, 16-10: se usará Interactive Brokers.** Las plataformas cripto quedan solo como referencia ([nota 15-10](2026-10-15.md)) | hecho para IBKR ([nota 16-10](2026-10-16.md)); falta confirmar spreads en cuenta de efectivo y el depósito desde Ecuador |
 | 4 | Qué dicen las opciones a la mesa de futuros (put/call, sesgo, DVOL, vencimientos grandes) | en curso: vencimiento 30-10 en `config/eventos.json` (Líder, 15-10) |
-| 5 | Estrategias de riesgo limitado para ~200 USD en IBKR | en curso: spreads de 1 USD en XSP o IBIT ([nota 16-10](2026-10-16.md)) |
+| 5 | Estrategias de riesgo limitado para ~200 USD en IBKR | en curso: spread alcista de 1 USD en XSP probado con modelo, **no pasa** (Sharpe deflactado 0,025; `docs/research/opciones_xsp/`) |
 | 6 | Plan de práctica: regla, tamaño, salida y prueba con comisiones | pendiente |
 
 ## Reglas que ya están claras
