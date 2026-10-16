@@ -18,7 +18,7 @@ resultado se llena después. Las pruebas decisorias de esta tabla son la N del S
 
 ## Totales al 2026-10-16
 
-- **Total: 313 pruebas** (257 decisorias y 56 de sensibilidad), incluidas las de hoy: 5 de RSI-2 y 10 de
+- **Total: 321 pruebas** (259 decisorias y 62 de sensibilidad), incluidas las de hoy: 5 de RSI-2 y 10 de
   horizonte largo (ninguna pasa), 4 de carry en BTC y ETH y 6 de oro dentro del día. Ninguna pasa.
 - Sharpe deflactado de la ruptura de Londres en oro 2025-26 con N = 292: **0,21** (listón 0,95). Su Sharpe anual
   de 2,04 queda bajo el 2,84 que se esperaría por suerte de la mejor de 292 pruebas sin ventaja
@@ -353,14 +353,14 @@ resultado se llena después. Las pruebas decisorias de esta tabla son la N del S
 | 311 | 2026-10-16 | oro_dia | Ruptura del rango de apertura de NY (Crabel) | rango 60 min, costes ×2 | PAXGUSDT (oro), 15 min | sensibilidad | 2024-25 ; 2025-26: -29.2%/39.39% ; +4.0%/11.94% (DSR 0.006) | — (informativa) |
 | 312 | 2026-10-16 | oro_dia | Impulso dentro del día (Gao y otros) | 19:00-20:00 UTC, costes ×2 | PAXGUSDT (oro), 15 min | sensibilidad | 2024-25 ; 2025-26: -9.1%/9.35% ; -2.7%/6.0% (DSR 0.0) | — (informativa) |
 | 313 | 2026-10-16 | real | Bot real de futuros (mesa con frenos) | riesgo fijo 2%, 31,69 USDT, mínimos de Binance | 12 monedas, 5 min | sensibilidad | 2024-25 ; 2025-26: +13.3%/51.26% ; +13.1%/28.43% (DSR 0.01) | — (informativa) |
-| 314 | 2026-10-16 | cartera_xm | Cartera multi-mercado EWMAC (Carver), riesgo igual | 200 USD, lotes de XM, spread y swap de XM | 15 mercados de XM (forex, índices, metales, petróleo, BTC, ETH), 1d | decisoria | pendiente | pendiente |
-| 315 | 2026-10-16 | cartera_xm | Cartera multi-mercado EWMAC (Carver), riesgo igual | 100.000 USD (sin efecto del lote mínimo) | 15 mercados de XM, 1d | sensibilidad | pendiente | pendiente |
-| 316 | 2026-10-16 | cartera_xm | Cartera multi-mercado EWMAC (Carver), riesgo igual | 200 USD, spread y swap ×2 | 15 mercados de XM, 1d | sensibilidad | pendiente | pendiente |
-| 317 | 2026-10-16 | cartera_xm | Cartera multi-mercado EWMAC (Carver), riesgo igual | 1.000 USD, lotes de XM | 15 mercados de XM, 1d | sensibilidad | pendiente | pendiente |
-| 318 | 2026-10-16 | cartera_xm | Cartera multi-mercado EWMAC (Carver), riesgo igual | 5.000 USD, lotes de XM | 15 mercados de XM, 1d | sensibilidad | pendiente | pendiente |
-| 319 | 2026-10-16 | cripto_xm | Ruptura de Londres (re-prueba con costos de XM) | spread 40 USD por BTC, sin comisión, lotes 0,01, 1.000 USD | BTCUSDT, 1h | decisoria | pendiente | pendiente |
-| 320 | 2026-10-16 | cripto_xm | Ruptura de Londres (re-prueba con costos de XM) | spread ×2 | BTCUSDT, 1h | sensibilidad | pendiente | pendiente |
-| 321 | 2026-10-16 | cripto_xm | Ruptura de Londres (re-prueba con costos de XM) | 200 USD (efecto del lote mínimo) | BTCUSDT, 1h | sensibilidad | pendiente | pendiente |
+| 314 | 2026-10-16 | cartera_xm | Cartera multi-mercado EWMAC (Carver), riesgo igual | 200 USD, lotes de XM, spread y swap de XM | 15 mercados de XM (forex, índices, metales, petróleo, BTC, ETH), 1d | decisoria | 2024-25 ; 2025-26: -3.5%/7.33% ; -4.6%/10.94% (DSR 0.0); con 200 USD solo cabe 1 de 15 mercados | no |
+| 315 | 2026-10-16 | cartera_xm | Cartera multi-mercado EWMAC (Carver), riesgo igual | 100.000 USD (sin efecto del lote mínimo) | 15 mercados de XM, 1d | sensibilidad | 2024-25 ; 2025-26: +9.7%/17.24% ; -13.6%/33.02% (DSR 0.0) | — (informativa) |
+| 316 | 2026-10-16 | cartera_xm | Cartera multi-mercado EWMAC (Carver), riesgo igual | 200 USD, spread y swap ×2 | 15 mercados de XM, 1d | sensibilidad | 2024-25 ; 2025-26: -4.0%/7.44% ; -3.1%/10.62% (DSR 0.001) | — (informativa) |
+| 317 | 2026-10-16 | cartera_xm | Cartera multi-mercado EWMAC (Carver), riesgo igual | 1.000 USD, lotes de XM | 15 mercados de XM, 1d | sensibilidad | 2024-25 ; 2025-26: -17.3%/24.14% ; -7.1%/11.98% (DSR 0.0) | — (informativa) |
+| 318 | 2026-10-16 | cartera_xm | Cartera multi-mercado EWMAC (Carver), riesgo igual | 5.000 USD, lotes de XM | 15 mercados de XM, 1d | sensibilidad | 2024-25 ; 2025-26: +13.6%/17.63% ; -26.5%/32.51% (DSR 0.0) | — (informativa) |
+| 319 | 2026-10-16 | cripto_xm | Ruptura de Londres (re-prueba con costos de XM) | spread 40 USD por BTC, sin comisión, lotes 0,01, 1.000 USD | BTCUSDT, 1h | decisoria | 2024-25 ; 2025-26: +31.2%/13.32% ; +8.1%/13.29% (DSR 0.011); gana a la mesa los dos años, no pasa el DSR | no |
+| 320 | 2026-10-16 | cripto_xm | Ruptura de Londres (re-prueba con costos de XM) | spread ×2 | BTCUSDT, 1h | sensibilidad | 2024-25 ; 2025-26: +14.0%/16.55% ; -7.4%/18.53% (DSR 0.001) | — (informativa) |
+| 321 | 2026-10-16 | cripto_xm | Ruptura de Londres (re-prueba con costos de XM) | 200 USD (efecto del lote mínimo) | BTCUSDT, 1h | sensibilidad | 2024-25 ; 2025-26: +3.6%/1.77% ; +0.8%/6.19% (4 y 28 ops: el lote mínimo impide casi todo) | — (informativa) |
 
 Formato del resultado: neto % / caída máx. %; "2024-25 ; 2025-26" cuando hay dos años.
 
