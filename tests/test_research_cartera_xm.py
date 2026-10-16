@@ -98,5 +98,6 @@ def test_render_says_no_pass_when_it_loses():
            "per_market_pct": {"A": -5.0}}
     years = [{"label": "y", "desk": 1.67, "rows": {k: row for k in cx.ROWS}},
              {"label": "z", "desk": -0.21, "rows": {k: row for k in cx.ROWS}}]
-    md = cx.render(years, [{"market": "A", "min_lot_usd": 1000.0, "target_usd": 50.0, "ratio": 20.0, "fits": False}], 258)
-    assert "**No pasa.**" in md and "caben 0 de 1" in md
+    lot = [{"market": "A", "min_lot_usd": 1000.0, "target_usd": 50.0, "ratio": 20.0, "fits": False}]
+    md = cx.render(years, {"200": lot, "1000": lot, "5000": lot}, 258)
+    assert "**No pasa.**" in md and "caben 0 de 1" in md and "con ninguno de 200" in md

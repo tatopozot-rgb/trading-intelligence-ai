@@ -37,6 +37,8 @@ DESK = {"2024-10-12": 1.67, "2025-10-13": -0.21}  # practice desk net/drawdown (
 DATA_DIR = Path("docs/research/cartera_xm/datos")
 OUT_DIR = Path("docs/research/cartera_xm")
 ROWS = {"base": ("Cartera EWMAC, 200 USD, lotes de XM", CAPITAL, 1.0, True),
+        "mil": ("Cartera EWMAC, 1.000 USD, lotes de XM", 1000.0, 1.0, True),
+        "cincomil": ("Cartera EWMAC, 5.000 USD, lotes de XM", 5000.0, 1.0, True),
         "grande": ("Misma regla con 100.000 USD (sin efecto del lote mínimo)", 100_000.0, 1.0, True),
         "costes2": ("200 USD, spread y swap ×2", CAPITAL, 2.0, True)}
 
@@ -284,9 +286,13 @@ def lot_check(specs: list[Spec], m: Market, t: int, capital: float) -> list[dict
     return out
 
 
-def render(years: list[dict], lots: list[dict], n_decisive: int) -> str:
+CAPITAL_ROWS = (("200", "base"), ("1000", "mil"), ("5000", "cincomil"))
+
+
+def render(years: list[dict], lots: dict[str, list[dict]], n_decisive: int) -> str:
     ok, beats, dsr_ok = passes(years)
-    fit = [x["market"] for x in lots if x["fits"]]
+    fit = [x["market"] for x in lots["200"] if x["fits"]]
+    works = [cap for cap, key in CAPITAL_ROWS if all(passes(years, key)[:2])]
     L = ["# Cartera de tendencia multi-mercado en XM", "",
          "Preregistro: `docs/research/cartera_xm/PREREGISTRO.md`, escrito antes de correr. EWMAC de Carver (cuatro pares, "
          "escalas fijas) en todos los mercados a la vez, riesgo igual por mercado, lotes de XM; spread y swap de XM. "
@@ -296,8 +302,11 @@ def render(years: list[dict], lots: list[dict], n_decisive: int) -> str:
          + f" contra la mesa {' ; '.join(str(y['desk']) for y in years)} ({'gana' if beats else 'no gana'} los dos "
          f"años); Sharpe deflactado 2025-26 {years[-1]['rows']['base']['dsr']} (listón {rd.PASS_DSR}"
          f"{', pasa' if dsr_ok else ', no pasa'}).",
-         f"- **Lotes con 200 USD:** caben {len(fit)} de {len(lots)} mercados con riesgo igual ("
-         + (", ".join(fit) if fit else "ninguno") + ")."]
+         f"- **Lotes con 200 USD:** caben {len(fit)} de {len(lots['200'])} mercados con riesgo igual ("
+         + (", ".join(fit) if fit else "ninguno") + "); con 1.000 USD caben "
+         f"{sum(x['fits'] for x in lots['1000'])} y con 5.000 USD {sum(x['fits'] for x in lots['5000'])}.",
+         "- **Desde qué capital funciona** (gana a la mesa los dos años y pasa el Sharpe deflactado): "
+         + (f"desde {works[0]} USD." if works else "con ninguno de 200, 1.000 o 5.000 USD.")]
     for y in years:
         L += ["", f"## {y['label']} (mesa de práctica neto/caída {y['desk']})", "",
               "| Fila | Neto % | Máx. caída | Neto/caída | Órdenes | Entradas | Spread % | Swap % | Sharpe anual | "
@@ -308,10 +317,12 @@ def render(years: list[dict], lots: list[dict], n_decisive: int) -> str:
                      + " / ".join(f"{q:+.1f}" for q in r["quarters"]) + f" | {len(r['traded_markets'])} |")
         L += ["", "Aporte por mercado, fila de 100.000 USD (neto % del capital): "
               + ", ".join(f"{k} {v:+.1f}" for k, v in y["rows"]["grande"]["per_market_pct"].items())]
-    L += ["", "## Lote mínimo contra el tamaño de riesgo igual con 200 USD", "",
-          "| Mercado | Lote mínimo (USD expuestos) | Tamaño buscado a pronóstico 10 (USD) | Veces | Cabe |", "|---|---|---|---|---|"]
-    for x in lots:
-        L.append(f"| {x['market']} | {x['min_lot_usd']} | {x['target_usd']} | {x['ratio']} | {'sí' if x['fits'] else 'no'} |")
+    L += ["", "## Lote mínimo contra el tamaño de riesgo igual (pronóstico 10)", "",
+          "| Mercado | Lote mínimo (USD expuestos) | Buscado con 200 USD | Veces | Cabe con 200 | con 1.000 | con 5.000 |",
+          "|---|---|---|---|---|---|---|"]
+    for x, y, z in zip(lots["200"], lots["1000"], lots["5000"]):
+        L.append(f"| {x['market']} | {x['min_lot_usd']} | {x['target_usd']} | {x['ratio']} | {'sí' if x['fits'] else 'no'} | "
+                 f"{'sí' if y['fits'] else 'no'} | {'sí' if z['fits'] else 'no'} |")
     L += ["", "El spread y el swap son los de la ficha de hoy y el spread de cada vela; el swap histórico pudo ser otro. "
           "El capital diario está en el JSON. Un resultado pasado no promete uno futuro."]
     return "\n".join(L) + "\n"
@@ -395,7 +406,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     m = build(frames, specs)
     ordered = [specs[s] for s in m.names]
     years = [year(m, ordered, a, b, args.decisorias) for a, b in YEARS]
-    lots = lot_check(ordered, m, int(m.days.searchsorted(pd.Timestamp(YEARS[-1][1], tz="UTC"))) - 1, CAPITAL)
+    last = int(m.days.searchsorted(pd.Timestamp(YEARS[-1][1], tz="UTC"))) - 1
+    lots = {str(int(c)): lot_check(ordered, m, last, c) for c in (CAPITAL, 1000.0, 5000.0)}
     args.salida.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).date().isoformat()
     out: dict[str, Any] = {"years": years, "lots": lots}
