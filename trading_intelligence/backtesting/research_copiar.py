@@ -216,7 +216,7 @@ def load_vaults(probe: bool) -> tuple[list[Vault], dict]:
         if len(t):
             out.append(Vault(s["vaultAddress"], s.get("name", ""), int(s.get("createTimeMillis", 0)),
                              bool(s.get("isClosed", d.get("isClosed", False))), t, idx, val))
-        time.sleep(0.35)
+        time.sleep(1.0)
         if probe and i >= 4:
             break
     info["con_historia"] = len(out)
@@ -224,14 +224,36 @@ def load_vaults(probe: bool) -> tuple[list[Vault], dict]:
     return out, info
 
 
-def binance_snapshot() -> dict:
-    body = {"pageNumber": 1, "pageSize": 20, "timeRange": "180D", "dataType": "ROI", "favoriteOnly": False,
-            "hideFull": False, "nickname": "", "order": "DESC", "portfolioType": "PUBLIC"}
+def binance_snapshot(pages: int = 100) -> dict:
+    """Current Binance Futures lead traders, last 180 days (informative: only the living ones are listed)."""
+    rows: list[dict] = []
     try:
-        r = _get(BINANCE_LIST, body, tries=2)
-        return {"ok": True, "muestra": r}
+        for page in range(1, pages + 1):
+            body = {"pageNumber": page, "pageSize": 20, "timeRange": "180D", "dataType": "ROI", "favoriteOnly": False,
+                    "hideFull": False, "nickname": "", "order": "DESC", "portfolioType": "PUBLIC"}
+            data = (_get(BINANCE_LIST, body, tries=2) or {}).get("data") or {}
+            lst = data.get("list") or []
+            rows += [{k: r.get(k) for k in ("roi", "pnl", "aum", "mdd", "copierPnl", "currentCopyCount")} for r in lst]
+            if not lst:
+                break
+            time.sleep(0.5)
     except Exception as e:  # informative only
-        return {"ok": False, "error": str(e)[:200]}
+        if not rows:
+            return {"ok": False, "error": str(e)[:200]}
+    def f(x: Any) -> float:
+        try:
+            return float(x)
+        except (TypeError, ValueError):
+            return 0.0
+    cp = [f(r["copierPnl"]) for r in rows]
+    top = rows[:20]
+    return {"ok": True, "lideres": len(rows), "copiadores_ganan": sum(c > 0 for c in cp),
+            "copiadores_pierden": sum(c < 0 for c in cp), "suma_copier_pnl": round(sum(cp)),
+            "suma_pnl_lider": round(sum(f(r["pnl"]) for r in rows)),
+            "top20_roi_mediana": round(float(np.median([f(r["roi"]) for r in top])), 1) if top else None,
+            "top20_copiadores_pierden": sum(f(r["copierPnl"]) < 0 for r in top),
+            "top20_suma_copier_pnl": round(sum(f(r["copierPnl"]) for r in top)),
+            "top20_mdd_mediana": round(float(np.median([f(r["mdd"]) for r in top])), 1) if top else None}
 
 
 def judge(years: list[dict], name: str) -> tuple[bool, str]:
@@ -267,7 +289,16 @@ def report(years: list[dict], info: dict, bnb: dict) -> str:
         for v in y["rows"]["A, los que más ganaron"]["vaults"]:
             L.append(f"| {v['name'][:40]} | {v['previo_pct']} | {v['previo_caida']} | {v['siguiente_pct']} | "
                      f"{v['caida_siguiente']} |")
-    L += ["", f"Foto de Binance (informativa): {'leída' if bnb.get('ok') else 'no se pudo leer: ' + str(bnb.get('error'))}."]
+    if bnb.get("ok"):
+        L += ["", "## Foto de Binance Futures, últimos 180 días (informativa, solo líderes vivos)", "",
+              f"Líderes leídos (por ROI, de mayor a menor): {bnb['lideres']}. Con copiadores en ganancia: "
+              f"{bnb['copiadores_ganan']}; en pérdida: {bnb['copiadores_pierden']}. Suma de la ganancia de los "
+              f"copiadores: {bnb['suma_copier_pnl']} USDT; de los líderes: {bnb['suma_pnl_lider']} USDT. Los 20 de "
+              f"mayor ROI: ROI mediano {bnb['top20_roi_mediana']}%, caída mediana {bnb['top20_mdd_mediana']}%, "
+              f"copiadores en pérdida en {bnb['top20_copiadores_pierden']} de 20, suma de los copiadores "
+              f"{bnb['top20_suma_copier_pnl']} USDT."]
+    else:
+        L += ["", f"Foto de Binance: no se pudo leer ({bnb.get('error')})."]
     return "\n".join(L) + "\n"
 
 
@@ -277,7 +308,7 @@ def main(argv: Optional[list[str]] = None) -> None:
     args = ap.parse_args(argv)
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     vaults, info = load_vaults(args.probe)
-    bnb = binance_snapshot()
+    bnb = binance_snapshot(2 if args.probe else 100)
     if args.probe:
         (OUT_DIR / "probe.json").write_text(json.dumps({"info": info, "binance": bnb}, indent=1, default=str)[:400_000])
         print(json.dumps(info, default=str)[:3000])
@@ -289,7 +320,7 @@ def main(argv: Optional[list[str]] = None) -> None:
         years.append(y)
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     (OUT_DIR / f"copiar_{stamp}.json").write_text(json.dumps({"info": info, "years": years,
-                                                              "binance": {"ok": bnb.get("ok")}}, indent=1))
+                                                              "binance": bnb}, indent=1))
     text = report(years, info, bnb)
     (OUT_DIR / f"copiar_{stamp}.md").write_text(text)
     print(text)

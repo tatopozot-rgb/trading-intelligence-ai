@@ -51,6 +51,9 @@ Escrito el 2026-10-16, **antes** de correr nada. Pregunta del dueño (2026-10-16
 - Correlación de rangos (Spearman) entre la rentabilidad del año previo y la del año siguiente, en todas las
   elegibles.
 - Mediana de todas las elegibles en el año siguiente.
+- Foto de Binance Futures (agregada tras la lectura de prueba, que confirmó que GitHub sí la lee): los primeros
+  2.000 lead traders por ROI de 180 días; cuántos tienen a sus copiadores en ganancia o en pérdida y la suma de lo
+  que ganaron los copiadores contra lo que ganaron los líderes. Solo líderes vivos: no es prueba.
 
 ## Cómo se juzga (fijado ahora)
 
