@@ -353,6 +353,10 @@ resultado se llena después. Las pruebas decisorias de esta tabla son la N del S
 | 311 | 2026-10-16 | oro_dia | Ruptura del rango de apertura de NY (Crabel) | rango 60 min, costes ×2 | PAXGUSDT (oro), 15 min | sensibilidad | 2024-25 ; 2025-26: -29.2%/39.39% ; +4.0%/11.94% (DSR 0.006) | — (informativa) |
 | 312 | 2026-10-16 | oro_dia | Impulso dentro del día (Gao y otros) | 19:00-20:00 UTC, costes ×2 | PAXGUSDT (oro), 15 min | sensibilidad | 2024-25 ; 2025-26: -9.1%/9.35% ; -2.7%/6.0% (DSR 0.0) | — (informativa) |
 | 313 | 2026-10-16 | real | Bot real de futuros (mesa con frenos) | riesgo fijo 2%, 31,69 USDT, mínimos de Binance | 12 monedas, 5 min | sensibilidad | 2024-25 ; 2025-26: +13.3%/51.26% ; +13.1%/28.43% (DSR 0.01) | — (informativa) |
+| 314 | 2026-10-16 | opciones_xsp | Spread alcista XSP 1 USD (Black-Scholes con VIX) | mensual siempre, 30 días, ATM/+1 | XSP (S&P 500), diario | decisoria | pendiente | pendiente |
+| 315 | 2026-10-16 | opciones_xsp | Spread alcista XSP 1 USD (Black-Scholes con VIX) | solo sobre la media de 200 días | XSP (S&P 500), diario | decisoria | pendiente | pendiente |
+| 316 | 2026-10-16 | opciones_xsp | Spread alcista XSP 1 USD (Black-Scholes con VIX) | mensual siempre, costes ×2 | XSP (S&P 500), diario | sensibilidad | pendiente | — (informativa) |
+| 317 | 2026-10-16 | opciones_xsp | Spread alcista XSP 1 USD (Black-Scholes con VIX) | media de 200 días, costes ×2 | XSP (S&P 500), diario | sensibilidad | pendiente | — (informativa) |
 
 Formato del resultado: neto % / caída máx. %; "2024-25 ; 2025-26" cuando hay dos años.
 
@@ -370,7 +374,3 @@ Formato del resultado: neto % / caída máx. %; "2024-25 ; 2025-26" cuando hay d
 | WF de las 18 combinaciones sobre el top 30 de cada día (mencionado en `rotacion/PREREGISTRO.md`) | No aparece en el informe ni en el JSON: no se corrió | 0 |
 | `BOTS_PUBLICOS.md` "bajar el riesgo de las dos patas" (cartera) | Razonamiento, sin corrida informada | 0 |
 | `docs/research/real/` filas "real tal cual" (31,69 USDT) y "real con 1.000 USDT" | Re-mediciones de la mesa con frenos (la estrategia del bot real), 2026-10-16: real tal cual +19.9%/57.54% ; -11.4%/34.09% (DSR 0.001), no pasa; con 1.000 USDT +56.0%/53.95% ; +6.0%/32.49% | 0 |
-| 314 | 2026-10-16 | opciones_xsp | Spread alcista XSP 1 USD (Black-Scholes con VIX) | mensual siempre, 30 días, ATM/+1 | XSP (S&P 500), diario | decisoria | pendiente | pendiente |
-| 315 | 2026-10-16 | opciones_xsp | Spread alcista XSP 1 USD (Black-Scholes con VIX) | solo sobre la media de 200 días | XSP (S&P 500), diario | decisoria | pendiente | pendiente |
-| 316 | 2026-10-16 | opciones_xsp | Spread alcista XSP 1 USD (Black-Scholes con VIX) | mensual siempre, costes ×2 | XSP (S&P 500), diario | sensibilidad | pendiente | — (informativa) |
-| 317 | 2026-10-16 | opciones_xsp | Spread alcista XSP 1 USD (Black-Scholes con VIX) | media de 200 días, costes ×2 | XSP (S&P 500), diario | sensibilidad | pendiente | — (informativa) |
