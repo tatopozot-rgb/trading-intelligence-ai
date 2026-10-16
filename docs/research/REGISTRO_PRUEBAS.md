@@ -356,6 +356,8 @@ resultado se llena después. Las pruebas decisorias de esta tabla son la N del S
 | 314 | 2026-10-16 | cartera_xm | Cartera multi-mercado EWMAC (Carver), riesgo igual | 200 USD, lotes de XM, spread y swap de XM | 15 mercados de XM (forex, índices, metales, petróleo, BTC, ETH), 1d | decisoria | pendiente | pendiente |
 | 315 | 2026-10-16 | cartera_xm | Cartera multi-mercado EWMAC (Carver), riesgo igual | 100.000 USD (sin efecto del lote mínimo) | 15 mercados de XM, 1d | sensibilidad | pendiente | pendiente |
 | 316 | 2026-10-16 | cartera_xm | Cartera multi-mercado EWMAC (Carver), riesgo igual | 200 USD, spread y swap ×2 | 15 mercados de XM, 1d | sensibilidad | pendiente | pendiente |
+| 317 | 2026-10-16 | cartera_xm | Cartera multi-mercado EWMAC (Carver), riesgo igual | 1.000 USD, lotes de XM | 15 mercados de XM, 1d | sensibilidad | pendiente | pendiente |
+| 318 | 2026-10-16 | cartera_xm | Cartera multi-mercado EWMAC (Carver), riesgo igual | 5.000 USD, lotes de XM | 15 mercados de XM, 1d | sensibilidad | pendiente | pendiente |
 
 Formato del resultado: neto % / caída máx. %; "2024-25 ; 2025-26" cuando hay dos años.
 

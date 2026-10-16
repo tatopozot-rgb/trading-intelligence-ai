@@ -63,3 +63,15 @@ uno contra su tamaño de riesgo igual a pronóstico 10. Cabe si el lote mínimo 
 2 veces el capital.
 
 El dinero real no cambia por este estudio. Abrir una cuenta real o mover dinero exige la frase escrita del dueño.
+
+## Enmienda del 2026-10-16, antes de recibir datos y de correr nada
+
+El líder (con la autorización de Renato para usar más capital en demo y en pruebas) pide medir también con 1.000 y
+5.000 USD, para saber desde qué capital funciona la cartera. Se agregan dos filas de sensibilidad con la misma regla:
+
+4. Cartera EWMAC con 1.000 USD y lotes de XM.
+5. Cartera EWMAC con 5.000 USD y lotes de XM.
+
+La regla no cambia con el capital: solo cambia cuántos mercados caben con el lote mínimo. La fila decisoria sigue
+siendo la de 200 USD. Si una fila de más capital gana, se informa como "funciona desde X USD", pero eso no es un
+pase: para usarla habría que repetir los listones con ese capital.
