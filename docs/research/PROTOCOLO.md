@@ -37,3 +37,13 @@ resultados se puedan comparar y nadie se engañe con un número bonito.
 
 Neto/caída mejor que `mesa_r3` fuera de muestra, positivo en al menos 3 de 4 trimestres, con 100+
 operaciones. Una estrategia sin correlación con la mesa también sirve aunque gane algo menos: suma.
+
+## Segundo listón y registro de pruebas (líder, 2026-10-16)
+
+- **Registro:** cada prueba se anota en `docs/research/REGISTRO_PRUEBAS.md` como "pendiente" en el mismo commit del
+  preregistro, **antes** de correr; el resultado se llena después.
+- **Segundo listón obligatorio:** antes de pasar algo a práctica, además de ganarle a la mesa en los dos años, su
+  Sharpe deflactado (Bailey y López de Prado, 2014; `research_deflactado`) debe ser al menos 0,95, con N = las
+  pruebas **decisorias** del registro y V = 1/T.
+- **Capital diario:** cada informe nuevo guarda en su JSON el capital marcado al cierre de cada día, para poder
+  medir el Sharpe de cada prueba.
