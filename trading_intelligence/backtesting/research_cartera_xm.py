@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -332,15 +333,34 @@ def render(years: list[dict], lots: dict[str, list[dict]], n_decisive: int) -> s
 # Data (files written by Claude local from the XM DEMO terminal)
 # ---------------------------------------------------------------------------
 
+SHEET = re.compile(r"^(\S+): abierto")
+LOT = re.compile(r"lote mínimo ([\d.]+) \(paso ([\d.]+), contrato ([\d.]+)\)")
+SPREAD = re.compile(r"spread ([\d.]+) \(")
+SWAP = re.compile(r"swap por noche: compra (-?[\d.]+) · venta (-?[\d.]+) \(modo (\d+)\)")
+EXTRA = re.compile(r"^(\S+): swap_rollover3days=(\d+) trade_calc_mode=\d+ currency_profit=(\w+) digits=(\d+)")
+
+
 def load_specs(path: Path) -> dict[str, Spec]:
-    data = json.loads(path.read_text(encoding="utf-8"))
-    return {k: Spec(k, float(v["contract"]), float(v["vmin"]), float(v["step"]), float(v["point"]),
-                    float(v["spread_pts"]), float(v["swap_long"]), float(v["swap_short"]), int(v["swap_mode"]),
-                    int(v["triple_day"]), str(v["profit_ccy"])) for k, v in data.items()}
+    """Parses fichas.txt as written from the XM terminal (xm_mt5 fichas output plus the symbol_info extras)."""
+    raw: dict[str, dict[str, Any]] = {}
+    cur = None
+    for line in path.read_text(encoding="utf-8-sig").splitlines():
+        if (m := SHEET.match(line)):
+            cur = raw.setdefault(m.group(1), {})
+        elif (m := EXTRA.match(line)):
+            raw[m.group(1)].update(triple=int(m.group(2)), ccy=m.group(3), point=10.0 ** -int(m.group(4)))
+        elif cur is not None and (m := LOT.search(line)):
+            cur.update(vmin=float(m.group(1)), step=float(m.group(2)), contract=float(m.group(3)))
+        elif cur is not None and (m := SWAP.search(line)):
+            cur.update(sl=float(m.group(1)), ss=float(m.group(2)), mode=int(m.group(3)))
+        elif cur is not None and (m := SPREAD.search(line)):
+            cur.update(spread_px=float(m.group(1)))
+    return {k: Spec(k, v["contract"], v["vmin"], v["step"], v["point"], round(v["spread_px"] / v["point"], 6),
+                    v["sl"], v["ss"], v["mode"], v["triple"], v["ccy"]) for k, v in raw.items()}
 
 
 def load_candles(path: Path, point: float) -> pd.DataFrame:
-    df = pd.read_csv(path)
+    df = pd.read_csv(path, encoding="utf-8-sig")
     t = df["time"]
     df.index = pd.to_datetime(t, unit="s", utc=True) if np.issubdtype(t.dtype, np.number) else pd.to_datetime(t, utc=True)
     df.index = df.index.floor("D")
@@ -394,7 +414,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--decisorias", type=int, default=DECISIVE_N)
     parser.add_argument("--salida", type=Path, default=OUT_DIR)
     args = parser.parse_args(argv)
-    specs = load_specs(args.datos / "fichas.json")
+    specs = load_specs(args.datos / "fichas.txt")
     frames = {}
     for name, s in specs.items():
         path = args.datos / f"{name}_D1.csv"
