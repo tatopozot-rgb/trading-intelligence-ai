@@ -19,6 +19,9 @@ resultado se llena después. El total de esta tabla es la N del Sharpe deflactad
 ## Totales al 2026-10-16
 
 - **Total: 292 pruebas** (247 decisorias y 45 de sensibilidad), incluidas las 5 de RSI-2 de hoy.
+- Sharpe deflactado de la ruptura de Londres en oro 2025-26 con N = 292: **0,21** (listón 0,95). Su Sharpe anual
+  de 2,04 queda bajo el 2,84 que se esperaría por suerte de la mejor de 292 pruebas sin ventaja
+  (`docs/research/deflactado/`).
 - Familias de ideas distintas: 22 (18 estrategias propias y 4 grupos que solo modifican la mesa).
 - Rejillas: 206 de las decisorias son combinaciones de una rejilla.
 - Ninguna estrategia pasó su listón. El único "sí" es el filtro L5 del lado saturado, que mejora a la mesa de
@@ -323,11 +326,11 @@ resultado se llena después. El total de esta tabla es la N del Sharpe deflactad
 | 285 | 2026-10-13 | carry | Carry de financiación neutral | media de 21 pagos > 0.02%/8h | 4 monedas, 8 h, 2020-2026 | decisoria (rejilla WF) | +44.5%/1.34% (todo el periodo) | no (fuera de la regla de los dos años; ver informe) |
 | 286 | 2026-10-13 | carry | Carry de financiación neutral | siempre dentro, todas las monedas | 4 monedas, 8 h, 2020-2026 | decisoria (rejilla WF) | +26.1%/1.15% (todo el periodo) | no (fuera de la regla de los dos años; ver informe) |
 | 287 | 2026-10-13 | carry | Carry de financiación neutral | siempre dentro, BTCUSDT | 4 monedas, 8 h, 2020-2026 | decisoria (rejilla WF) | +39.6%/1.6% (todo el periodo) | no (fuera de la regla de los dos años; ver informe) |
-| 288 | 2026-10-16 | rsi2 | RSI-2 de Connors | A pura, umbral 10 | 12 monedas, 1d | decisoria | pendiente | pendiente |
-| 289 | 2026-10-16 | rsi2 | RSI-2 de Connors | B con frenos, umbral 10 | 12 monedas, 1d | decisoria | pendiente | pendiente |
-| 290 | 2026-10-16 | rsi2 | RSI-2 de Connors | A pura, umbral 5 | 12 monedas, 1d | sensibilidad | pendiente | pendiente |
-| 291 | 2026-10-16 | rsi2 | RSI-2 de Connors | B con frenos, umbral 5 | 12 monedas, 1d | sensibilidad | pendiente | pendiente |
-| 292 | 2026-10-16 | rsi2 | RSI-2 de Connors | Espejo en corto (A), umbral 10 | 12 monedas, 1d | sensibilidad | pendiente | pendiente |
+| 288 | 2026-10-16 | rsi2 | RSI-2 de Connors | A pura, umbral 10 | 12 monedas, 1d | decisoria | 2024-25 ; 2025-26: +2.6%/24.67% ; +3.1%/10.5% (neto/caída 0,11 ; 0,29) | no |
+| 289 | 2026-10-16 | rsi2 | RSI-2 de Connors | B con frenos, umbral 10 | 12 monedas, 1d | decisoria | 2024-25 ; 2025-26: -11.4%/24.0% ; +1.9%/3.85% (−0,47 ; 0,49) | no |
+| 290 | 2026-10-16 | rsi2 | RSI-2 de Connors | A pura, umbral 5 | 12 monedas, 1d | sensibilidad | 2024-25 ; 2025-26: +36.9%/15.17% ; -2.1%/7.88% (2,43 ; −0,26) | — (informativa) |
+| 291 | 2026-10-16 | rsi2 | RSI-2 de Connors | B con frenos, umbral 5 | 12 monedas, 1d | sensibilidad | 2024-25 ; 2025-26: +10.9%/12.93% ; -0.6%/2.86% (0,84 ; −0,20) | — (informativa) |
+| 292 | 2026-10-16 | rsi2 | RSI-2 de Connors | Espejo en corto (A), umbral 10 | 12 monedas, 1d | sensibilidad | 2024-25 ; 2025-26: -32.4%/46.13% ; -3.0%/39.03% (−0,70 ; −0,08) | — (informativa) |
 
 Formato del resultado: neto % / caída máx. %; "2024-25 ; 2025-26" cuando hay dos años.
 

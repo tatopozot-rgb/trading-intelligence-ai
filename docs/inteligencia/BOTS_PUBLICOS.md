@@ -15,7 +15,7 @@ canal de Donchian (reglas "Turtle"), cruce de medias EMA y momento de serie temp
 | 2026-10-15 | Ruptura de volatilidad de Larry Williams | *Long-Term Secrets to Short-Term Trading* (1999), cap. 4; [resumen LuxAlgo](https://www.luxalgo.com/library/concept/volatility-breakout/) | No pasa: pierde en los dos años, con y sin frenos (2026-10-15). Archivada |
 | 2026-10-15 | Rebote a la media en lateral (Bollinger 20/2 + ADX < 20), diario y 4 h | Bollinger, *Bollinger on Bollinger Bands* (2001); Wilder, *New Concepts in Technical Trading Systems* (1978) | No pasa en ningún marco ni versión (2026-10-15). Archivada |
 | 2026-10-15 | Oro: ruptura de Londres, Tortugas diaria y reversión tras noticia (y en BTC) | Kathy Lien (2008); Curtis Faith, *Way of the Turtle* (2007) | Ninguna pasa en los dos años (2026-10-15). Archivadas; Londres en oro, a vigilar |
-| 2026-10-16 | RSI-2 de Larry Connors (comprar caídas cortas sobre la media de 200 días) | Connors y Alvarez, *Short Term Trading Strategies That Work* (2008); [resumen LuxAlgo](https://www.luxalgo.com/library/concept/rsi-2/) | Enviada a Quant para probar en los dos años |
+| 2026-10-16 | RSI-2 de Larry Connors (comprar caídas cortas sobre la media de 200 días) | Connors y Alvarez, *Short Term Trading Strategies That Work* (2008); [resumen LuxAlgo](https://www.luxalgo.com/library/concept/rsi-2/) | No pasa en ninguna versión (2026-10-16). Archivada |
 
 ---
 
@@ -290,3 +290,21 @@ fuerte de dos o tres días suele rebotar pronto.
 - El dinero real no cambia por este estudio.
 
 **Estado:** enviada a Quant el 2026-10-16. No se pudo correr en la nube (Binance bloqueado en este contenedor).
+
+**Resultado (Quant, 2026-10-16, preregistrado antes de correr; `docs/research/rsi2/`):**
+
+| Año | A pura: neto (caída), neto/caída | B con frenos: neto (caída), neto/caída | Mesa de práctica | BTC |
+|---|---|---|---|---|
+| 2024-10 → 2025-10 | +2,6% (24,7%), 0,11 | −11,4% (24,0%), −0,47 | 1,67 | +76,9% |
+| 2025-10 → 2026-10 | +3,1% (10,5%), 0,29 | +1,9% (3,9%), 0,49 | −0,21 | −28,8% |
+
+- **No pasa:** gana a la mesa solo en el año bajista, en las dos versiones. Archivada.
+- **Muestra corta:** de 9 a 71 operaciones por año. Con los frenos casi no opera en 2025-26 (9 entradas).
+- **Peor operación:** −23,3% del tamaño (AVAX, 8 → 11 de octubre de 2025, la caída grande del 10-10). Sin stop,
+  un desplome pega entero, como se temía.
+- **Sensibilidad (no decide):** con umbral 5, la versión pura hizo 2,43 en 2024-25, pero perdió en 2025-26. Es el
+  caso típico de un número que se ve bien en un año y no en el otro. El espejo en corto pierde en los dos años.
+- **Pruebas hechas desde el 12-10:** 292 (247 decisorias), en `docs/research/REGISTRO_PRUEBAS.md`.
+- **Sharpe deflactado de Londres en oro 2025-26:** 0,21 con N = 292 (listón 0,95). Su Sharpe anual de 2,04 está
+  bajo el 2,84 que daría por suerte la mejor de 292 pruebas sin ventaja. Su año bueno puede ser suerte; por eso
+  sigue solo en observación con dinero ficticio (`docs/research/deflactado/`).
