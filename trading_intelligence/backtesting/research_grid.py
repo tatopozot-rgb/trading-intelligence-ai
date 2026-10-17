@@ -94,7 +94,7 @@ class GridBook:
 
     def step(self, high: float, low: float, close: float) -> None:
         sold = np.zeros(STEPS, dtype=bool)
-        for i in np.flatnonzero(self.qty > 0):  # bought in an earlier candle
+        for i in map(int, np.flatnonzero(self.qty > 0)):  # bought in an earlier candle
             up = self.lv[i + 1]
             if high > up:
                 gross = self.qty[i] * up * (1 + self.costs.edge)

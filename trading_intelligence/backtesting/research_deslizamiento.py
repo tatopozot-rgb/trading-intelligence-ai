@@ -171,7 +171,7 @@ def real_trades(state_path: Path, orders_path: Path, exits: list[dict], fuente: 
     return out
 
 
-def describe(values: list[float], seed: int = 7) -> dict:
+def describe(values: list[Optional[float]], seed: int = 7) -> dict:
     v = np.array([x for x in values if x is not None], dtype=float)
     if len(v) == 0:
         return {"n": 0}
