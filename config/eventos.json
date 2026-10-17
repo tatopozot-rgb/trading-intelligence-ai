@@ -5,6 +5,7 @@
     {"at": "2026-10-14T12:30:00Z", "name": "IPC (CPI) de EE. UU., septiembre"},
     {"at": "2026-10-28T18:00:00Z", "name": "Decisión de la Fed (FOMC)"},
     {"at": "2026-10-30T08:00:00Z", "name": "Vencimiento mensual de opciones en Deribit (~35% del interés abierto)"},
-    {"at": "2026-12-09T19:00:00Z", "name": "Decisión de la Fed (FOMC)"}
+    {"at": "2026-12-09T19:00:00Z", "name": "Decisión de la Fed (FOMC)"},
+    {"at": "2026-12-25T08:00:00Z", "name": "Vencimiento trimestral de opciones en Deribit (el más grande del año)"}
   ]
 }
