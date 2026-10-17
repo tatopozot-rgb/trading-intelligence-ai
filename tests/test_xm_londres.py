@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from decimal import Decimal
 
 import pandas as pd
 import pytest
 
 from tests.test_xm_demo import TradingMt5
 from trading_intelligence.live import xm_londres as L
+from trading_intelligence.live.xm_auto import agent_magic
 from trading_intelligence.live.xm_demo import NotDemo, XmDemoTrader
 from trading_intelligence.live.xm_mt5 import XmError, XmReader
 
@@ -157,3 +159,105 @@ def test_its_trades_stay_off_telegram_but_a_refused_order_is_an_alarm(tmp_path):
     bot2.alarm = phone.append
     bot2.step()
     assert not m2.sent and phone and phone[0].startswith("⚠️") and "no entro" in phone[0]
+
+
+# BTCUSD (Leader, 2026-10-16): its own agent, weekends, 1% of a nominal 1,000 USD in a shared DEMO account
+BTC = dict(info=dict(trade_mode=4, volume_min=0.01, volume_step=0.01, volume_max=100.0, trade_contract_size=1.0,
+                     trade_tick_value=0.01, trade_tick_size=0.01, swap_long=-3452.0, swap_short=-2301.0, swap_mode=1,
+                     trade_stops_level=0, point=0.01),
+           tick=dict(bid=82000.0, ask=82040.0), margin=816.0)  # XM: margin 1:1 on crypto, spread 40 USD
+
+
+def _btc_frames(day, touch_at, high, low=81999.0, asia=(82000.0, 81500.0)):
+    mid = (asia[0] + asia[1]) / 2
+    flat = {"open": mid, "high": mid + 1, "low": mid - 1, "close": mid}
+    h_idx = pd.date_range(day - pd.Timedelta(hours=24), day + pd.Timedelta(hours=23), freq="h")
+    hourly = pd.DataFrame(flat, index=h_idx)
+    hourly.loc[day + pd.Timedelta(hours=2), "high"] = asia[0]
+    hourly.loc[day + pd.Timedelta(hours=5), "low"] = asia[1]
+    f_idx = pd.date_range(day + pd.Timedelta(hours=6), day + pd.Timedelta(hours=23), freq="5min")
+    five = pd.DataFrame(flat, index=f_idx)
+    five.loc[day + touch_at, ["high", "low"]] = [high, low]
+    return {"1h": hourly, "5m": five}
+
+
+@pytest.fixture
+def btc():
+    from tests import test_xm_mt5 as X
+    X.SYMBOLS["BTCUSD"] = {k: dict(v) if isinstance(v, dict) else v for k, v in BTC.items()}
+    yield X.SYMBOLS["BTCUSD"]
+    X.SYMBOLS.pop("BTCUSD", None)
+
+
+def _btc_bot(tmp_path, at, frames, equity=50_000.0, nominal=Decimal("1000")):
+    m = TradingMt5(equity=equity, now=at)
+    trader = XmDemoTrader(tmp_path / "orders.json", m, reader=XmReader(m, clock=lambda: at),
+                          magic=agent_magic(L.agent_name("BTCUSD")))
+    trader.connect()
+    notes: list[str] = []
+    bot = L.LondonBot(trader, tmp_path / "state.json", notes.append, clock=lambda: at,
+                      candles=lambda s, tf, n: frames[tf], offset=lambda: 0, symbol="BTCUSD", nominal=nominal)
+    return bot, m, notes
+
+
+def test_btc_has_its_own_agent_and_gold_keeps_its_own():
+    assert L.agent_name("GOLD") == "Londres" and L.agent_name("BTCUSD") == "Londres BTCUSD"
+    assert agent_magic(L.agent_name("GOLD")) == agent_magic("Londres") != agent_magic(L.agent_name("BTCUSD"))
+    assert L.tag_for("GOLD") == L.TAG and "Londres BTC " in L.tag_for("BTCUSD")
+
+
+def test_btc_risks_one_percent_of_the_nominal_capital_not_of_the_shared_equity(tmp_path, btc):
+    at = (DAY + pd.Timedelta(hours=8, minutes=7)).to_pydatetime()
+    bot, m, notes = _btc_bot(tmp_path, at, _btc_frames(DAY, pd.Timedelta(hours=8, minutes=5), high=82010.0))
+    msg = bot.step()
+    (order,) = m.sent
+    assert order["type"] == 0 and order["sl"] == pytest.approx(81500.0, abs=0.02)
+    assert order["tp"] == pytest.approx(82500.0, abs=0.02)
+    risk = order["volume"] * abs(order["price"] - order["sl"])  # 1 lot = 1 BTC
+    assert order["volume"] == pytest.approx(0.01) and risk <= 10.0  # 1% of 1,000, not 500 of the 50,000 equity
+    assert "Londres BTC" in msg and bot.state["simbolo"] == "BTCUSD" and bot.state["capital_nominal"] == "1000"
+    assert m.sent[0]["magic"] == agent_magic("Londres BTCUSD")
+
+
+def test_btc_size_is_capped_at_five_times_the_nominal(tmp_path, btc):
+    at = (DAY + pd.Timedelta(hours=8, minutes=7)).to_pydatetime()
+    frames = _btc_frames(DAY, pd.Timedelta(hours=8, minutes=5), high=82010.0, asia=(82000.0, 81900.0))
+    bot, m, _ = _btc_bot(tmp_path, at, frames)
+    bot.step()
+    (order,) = m.sent
+    # 10 USD over a 140 USD stop would be 0.07 BTC; 5x 1,000 at 82,020 allows 0.06
+    assert order["volume"] == pytest.approx(0.06)
+
+
+def test_btc_trades_the_weekend_and_gold_does_not(tmp_path, btc):
+    saturday = DAY + pd.Timedelta(days=3)
+    at = (saturday + pd.Timedelta(hours=8, minutes=7)).to_pydatetime()
+    bot, m, _ = _btc_bot(tmp_path, at, _btc_frames(saturday, pd.Timedelta(hours=8, minutes=5), high=82010.0))
+    bot.step()
+    assert len(m.sent) == 1
+    gold, mg, _ = _bot(tmp_path / "oro", at, _frames())
+    assert not gold.weekends and gold.step() == "fuera de horario o ya operé hoy" and not mg.sent
+
+
+def test_gold_without_a_nominal_still_risks_one_percent_of_equity(tmp_path):
+    at = (DAY + pd.Timedelta(hours=9)).to_pydatetime()
+    bot, m, _ = _bot(tmp_path, at, _frames(pd.Timedelta(hours=8), low=2589.0), tick=(2589.0, 2589.35))
+    assert bot.nominal is None and bot._sizing() == (L.RISK_PCT, L.CAPS)
+    assert bot.state["simbolo"] == "GOLD" and "capital_nominal" not in bot.state
+
+
+def test_a_nominal_capital_must_be_positive(tmp_path, btc):
+    at = (DAY + pd.Timedelta(hours=8)).to_pydatetime()
+    with pytest.raises(ValueError):
+        _btc_bot(tmp_path, at, _btc_frames(DAY, pd.Timedelta(hours=8), high=82010.0), nominal=Decimal("0"))
+
+
+def test_main_runs_btc_on_its_own_terminal(tmp_path, btc, monkeypatch):
+    from trading_intelligence.live import telegram_notify as T
+    for k in (T.TOKEN_VAR, T.CHAT_VAR):
+        monkeypatch.delenv(k, raising=False)
+    m = TradingMt5(equity=5_000.0)
+    exe = r"C:\MT5 BTC\terminal64.exe"
+    assert L.main(["resumen", "--simbolo", "BTCUSD", "--dir", str(tmp_path), "--capital-nominal", "1000",
+                   "--terminal", exe], mt5=m) == 0
+    assert m.path == exe

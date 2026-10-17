@@ -27,17 +27,18 @@ persona que sabe del tema; el líder lo acopla a este plan cuando llegue.
 |---|------|--------|
 | 1 | Lo básico: call, put, strike, vencimiento, prima | hecho ([nota 15-10](2026-10-15.md)) |
 | 2 | Las griegas y la volatilidad implícita | hecho ([nota 15-10](2026-10-15.md)) |
-| 3 | Dónde se opera: Interactive Brokers (opciones de EE. UU.), Binance Options, Deribit, OKX, Bybit (mínimos, comisiones, Ecuador) | en curso: falta mínimo de Binance y Bybit, y Ecuador en OKX/Bybit |
+| 3 | Dónde se opera. **Dueño, 16-10: se usará Interactive Brokers.** Las plataformas cripto quedan solo como referencia ([nota 15-10](2026-10-15.md)) | hecho para IBKR ([nota 16-10](2026-10-16.md)); falta confirmar spreads en cuenta de efectivo y el depósito desde Ecuador |
 | 4 | Qué dicen las opciones a la mesa de futuros (put/call, sesgo, DVOL, vencimientos grandes) | en curso: vencimiento 30-10 en `config/eventos.json` (Líder, 15-10) |
-| 5 | Estrategias de riesgo limitado para 30–100 USDT | pendiente |
+| 5 | Estrategias de riesgo limitado para ~200 USD en IBKR | en curso: spread alcista de 1 USD en XSP probado con modelo, **no pasa** (Sharpe deflactado 0,025; `docs/research/opciones_xsp/`) |
 | 6 | Plan de práctica: regla, tamaño, salida y prueba con comisiones | pendiente |
 
 ## Reglas que ya están claras
 
 - Nunca vender opciones «al descubierto» (pérdida sin límite).
 - Pérdida máxima conocida antes de entrar.
-- Todo se liquida en USDT. Líder, 15-10: por ahora solo USDT (Binance, OKX), sin USDC; se reevalúa en la fase 2.
-- Con 30–100 USDT solo caben contratos de 0,01 BTC; los de 0,1 BTC no caben.
+- Plataforma: **Interactive Brokers** (dueño, 16-10). Se opera en USD; la regla de USDT era para las plataformas cripto.
+- Con ~200 USD no cabe comprar una opción sola en el dinero; solo spreads de 1 USD de ancho u opciones fuera del dinero.
+- Cerrar siempre antes del vencimiento las opciones que entregan acciones (IBIT, SPY).
 
 ## Interactive Brokers (pedido del dueño, 2026-10-14)
 

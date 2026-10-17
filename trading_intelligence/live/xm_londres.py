@@ -3,8 +3,15 @@ London breakout on GOLD, XM DEMO only, "en observación". Leader, 2026-10-15: th
 docs/research/oro/PREREGISTRO.md (strategy 1), no re-tuning, 1% of equity at risk, stop and target on every order.
 It passed 2025-26 (+26.6%, net/drawdown 3.72) and failed 2024-25 (-7.7%), so it is measured forward on virtual money.
 
+Leader, 2026-10-16: the same rule on BTCUSD, also in observation (docs/research/cripto_xm/: with XM's costs it wins
+both years but its deflated Sharpe does not pass). Its own agent and MAGIC ("Londres BTCUSD"; gold keeps "Londres"),
+weekends included as in the test, and 1% of a nominal 1,000 USD at risk (--capital-nominal), not of the equity of the
+DEMO account the other agents share. The 5x size cap is of that same nominal capital, as in the test.
+
     python -m trading_intelligence.live.xm_londres            # one pass (Task Scheduler, every 5 minutes)
     python -m trading_intelligence.live.xm_londres resumen    # where it stands
+    python -m trading_intelligence.live.xm_londres --simbolo BTCUSD --dir <xm-wt>/live_runs/xm_londres_btc --capital-nominal 1000 \
+        --terminal <second MT5>/terminal64.exe   # its own DEMO account, in a second MT5 installation
 
 Each pass, in UTC:
 - Asian range = high and low of the 1h candles 00:00-06:00 of today (all 7 needed).
@@ -12,7 +19,7 @@ Each pass, in UTC:
   one entry per day, at market, stop at the other side of the range, target 1x the range beyond the broken level. A candle
   that touched both sides is the backtest's stop: no entry that day. Price already past the stop or the target: no
   entry that day.
-- From 20:00 an open position is closed. Weekends: nothing.
+- From 20:00 an open position is closed. Weekends: nothing on gold; crypto trades them (it quotes 7 days).
 
 MT5 candle and tick times are XM server time (GMT+2/+3), not UTC: the offset is read from the last tick each pass.
 Every order goes through XmDemoTrader: DEMO re-checked before each order, pre-entry check, MT5's order_check, own
@@ -23,7 +30,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -39,9 +46,36 @@ from trading_intelligence.live.xm_mt5 import EntryCaps, XmError
 AGENT, SYMBOL = "Londres", "GOLD"
 RISK_PCT = Decimal("1")
 ASIA_FROM, ENTRY_FROM, ENTRY_TO, EXIT_AT = 0, 7, 16, 20  # UTC hours; Asia is 00:00-06:59
-CAPS = EntryCaps(max_effective_leverage=Decimal("5"))  # the backtest's cap: size at most 5x equity
+MAX_LEVERAGE = Decimal("5")  # the backtest's cap: size at most 5x the capital
+CAPS = EntryCaps(max_effective_leverage=MAX_LEVERAGE)
 DEFAULT_DIR = Path("live_runs/xm_londres")
 TAG = "🧪 XM DEMO · Londres oro (en observación)"
+CRYPTO_PREFIXES = ("BTC", "ETH")
+
+
+def is_crypto(symbol: str) -> bool:
+    return symbol.upper().startswith(CRYPTO_PREFIXES)
+
+
+def asset_name(symbol: str) -> str:
+    """What the owner reads: "Oro" for gold, "BTC" for BTCUSD."""
+    up = symbol.upper()
+    if up.startswith(("GOLD", "XAU")):
+        return "Oro"
+    for prefix in CRYPTO_PREFIXES:
+        if up.startswith(prefix):
+            return prefix
+    return symbol
+
+
+def agent_name(symbol: str) -> str:
+    """Gold keeps the agent (and MAGIC) it has traded with since 2026-10-15; any other symbol gets its own."""
+    return AGENT if symbol == SYMBOL else f"{AGENT} {symbol}"
+
+
+def tag_for(symbol: str) -> str:
+    name = asset_name(symbol)
+    return f"🧪 XM DEMO · Londres {name.lower() if name == 'Oro' else name} (en observación)"
 
 Candles = Callable[[str, str, int], pd.DataFrame]
 
@@ -93,16 +127,26 @@ class LondonBot:
                  clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
                  candles: Optional[Candles] = None, offset: Optional[Callable[[], int]] = None,
                  symbol: str = SYMBOL, risk_pct: Decimal = RISK_PCT,
-                 alarm: Optional[Callable[[str], None]] = None) -> None:
+                 alarm: Optional[Callable[[str], None]] = None, nominal: Optional[Decimal] = None,
+                 weekends: Optional[bool] = None) -> None:
         # notify: the day's trades (the console; the owner reads them in the 22:00 summary, live/resumen_diario.py);
         # alarm: what goes to Telegram at once (an order XM refused)
         self.trader, self.state_path, self.notify, self.clock = trader, Path(state_path), notify, clock
         self.alarm = alarm or notify
         self.symbol, self.risk_pct = symbol, risk_pct
+        # nominal: risk and size cap are of this capital, not of the shared DEMO account's equity
+        if nominal is not None and nominal <= 0:
+            raise ValueError("el capital nominal tiene que ser positivo")
+        self.nominal = nominal
+        self.weekends = is_crypto(symbol) if weekends is None else weekends
+        self.tag = tag_for(symbol)
         self.candles = candles or trader.reader.candles
         self.offset = offset or self._tick_offset
         self.state: dict[str, Any] = (json.loads(self.state_path.read_text(encoding="utf-8"))
                                       if self.state_path.exists() else {"day": "", "done": False, "trades": []})
+        self.state["simbolo"] = symbol  # live/resumen_diario.py names the asset from it
+        if nominal is not None:
+            self.state["capital_nominal"] = str(nominal)
 
     def _tick_offset(self) -> int:
         tick = self.trader.reader._mt5.symbol_info_tick(self.symbol)  # type: ignore[operator]
@@ -137,11 +181,11 @@ class LondonBot:
                     else:  # opened before the results were recorded
                         self.state["trades"].append({"t": now.isoformat(), "accion": "cierre 20:00",
                                                      "ticket": str(getattr(pos, "ticket"))})
-                    msg = f"{TAG}: 20:00 UTC, cierro la posición {getattr(pos, 'ticket')}{result}."
+                    msg = f"{self.tag}: 20:00 UTC, cierro la posición {getattr(pos, 'ticket')}{result}."
                     self.notify(msg)
                     return msg
                 return "posición abierta: stop y meta descansan en XM"
-            if now.weekday() >= 5 or self.state["done"] or not ENTRY_FROM <= now.hour < ENTRY_TO:
+            if (now.weekday() >= 5 and not self.weekends) or self.state["done"] or not ENTRY_FROM <= now.hour < ENTRY_TO:
                 return "fuera de horario o ya operé hoy"
             offset = self.offset()
             hourly = to_utc(self.candles(self.symbol, "1h", 48), offset)
@@ -151,7 +195,7 @@ class LondonBot:
             hi, lo = rng
             setup = first_touch(to_utc(self.candles(self.symbol, "5m", 200), offset), day, now, hi, lo)
             if setup.note:
-                self.notify(f"{TAG}: {setup.note}.")
+                self.notify(f"{self.tag}: {setup.note}.")
                 return self._done(setup.note)
             if setup.side == 0:
                 return f"esperando ruptura del rango {lo:.2f}-{hi:.2f}"
@@ -171,11 +215,12 @@ class LondonBot:
         sl_pct = Decimal(str(abs(price - stop) / price * 100)).quantize(Decimal("0.0001"))
         tp_pct = Decimal(str(abs(target - price) / price * 100)).quantize(Decimal("0.0001"))
         try:
-            plan = self.trader.plan(self.symbol, side, sl_pct, tp_pct, risk_pct=self.risk_pct, caps=CAPS)
+            risk_pct, caps = self._sizing()
+            plan = self.trader.plan(self.symbol, side, sl_pct, tp_pct, risk_pct=risk_pct, caps=caps)
             opened = self.trader.open(plan)
         except XmError as error:
             note = f"no entro: {error}"
-            self.alarm(f"⚠️ {TAG}: {note}")
+            self.alarm(f"⚠️ {self.tag}: {note}")
             return self._done(note)
         self.state["trades"].append({"t": now.isoformat(), "accion": "entrada", "lado": side, "lotes": str(plan.lots),
                                      "precio": str(plan.price), "sl": str(plan.sl), "tp": str(plan.tp),
@@ -186,11 +231,22 @@ class LondonBot:
             pass
         self.state["open"] = {"lado": side, "precio": str(plan.price), "sl": str(plan.sl), "tp": str(plan.tp),
                               "riesgo": str(plan.risk_money)}
-        msg = (f"{TAG}: rompió el rango asiático {s.low:.2f}-{s.high:.2f} → {'COMPRO' if s.side > 0 else 'VENDO'} "
+        msg = (f"{self.tag}: rompió el rango asiático {s.low:.2f}-{s.high:.2f} → {'COMPRO' if s.side > 0 else 'VENDO'} "
                f"{plan.lots} lotes a {plan.price} · stop {plan.sl} · meta {plan.tp} · riesgo {plan.risk_money}.")
         self.notify(msg)
         self._done("operé hoy")
         return msg
+
+    def _sizing(self) -> tuple[Decimal, EntryCaps]:
+        """Risk % and caps as XmDemoTrader takes them (of the account's equity). With a nominal capital they are
+        rescaled so the money at risk is risk_pct of the nominal and the size at most 5x the nominal."""
+        if self.nominal is None:
+            return self.risk_pct, CAPS
+        equity = self.trader._demo_account().equity
+        if equity <= 0:
+            raise XmError("equity cero en la cuenta DEMO")
+        scale = self.nominal / equity
+        return self.risk_pct * scale, replace(CAPS, max_effective_leverage=MAX_LEVERAGE * scale)
 
     def _mid(self) -> Optional[Decimal]:
         try:
@@ -223,22 +279,30 @@ class LondonBot:
         entries = [t for t in self.state.get("trades", []) if t.get("accion") == "entrada"]
         pos = self.trader.positions().get(self.symbol)
         now = "con posición abierta" if pos is not None else "sin posición"
-        return f"{TAG}: {len(entries)} entradas desde el inicio, {now}. Equity de la cuenta DEMO {acc.equity} {acc.currency}."
+        base = f" Riesgo {self.risk_pct}% de {self.nominal} nominales." if self.nominal is not None else ""
+        return (f"{self.tag}: {len(entries)} entradas desde el inicio, {now}.{base} "
+                f"Equity de la cuenta DEMO {acc.equity} {acc.currency}.")
 
 
 def main(argv: Optional[list[str]] = None, mt5: Optional[object] = None) -> int:
-    parser = argparse.ArgumentParser(description="XM DEMO: ruptura de Londres en oro (en observación, sin dinero real)")
+    parser = argparse.ArgumentParser(description="XM DEMO: ruptura de Londres en oro o BTC (en observación, sin dinero real)")
     parser.add_argument("cmd", nargs="?", choices=("revisar", "resumen"), default="revisar")
     parser.add_argument("--dir", type=Path, default=DEFAULT_DIR)
-    parser.add_argument("--simbolo", default=SYMBOL, help="nombre exacto del oro en MT5")
+    parser.add_argument("--simbolo", default=SYMBOL, help="nombre exacto en MT5 (GOLD o BTCUSD)")
+    parser.add_argument("--capital-nominal", type=Decimal, default=None,
+                        help="arriesga 1%% de este capital (USD) y no de la equity de la cuenta DEMO compartida")
+    parser.add_argument("--terminal", default=None,
+                        help="terminal64.exe de otra instalación de MT5 (otra cuenta DEMO); sin ella, la de siempre")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    trader = XmDemoTrader(args.dir / "orders.json", mt5, magic=agent_magic(AGENT))
+    trader = XmDemoTrader(args.dir / "orders.json", mt5, magic=agent_magic(agent_name(args.simbolo)),
+                           terminal=args.terminal)
     telegram = make_notify(console, from_env())
     notify = telegram if args.cmd == "resumen" else console  # its trades go in the 22:00 summary
     try:
         trader.connect()
-        bot = LondonBot(trader, args.dir / "state.json", notify, symbol=args.simbolo, alarm=telegram)
+        bot = LondonBot(trader, args.dir / "state.json", notify, symbol=args.simbolo, alarm=telegram,
+                        nominal=args.capital_nominal)
         if args.cmd == "resumen":
             notify(bot.summary())
         else:

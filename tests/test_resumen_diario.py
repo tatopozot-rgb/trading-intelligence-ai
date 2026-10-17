@@ -285,3 +285,16 @@ def test_ver_prints_without_sending(tmp_path, capsys):
     assert R.main(["ver", "--runs", str(runs)]) == 0
     assert "Resumen del día" in capsys.readouterr().out
     assert not (runs / "resumen_diario" / "ultimo.json").exists()
+
+
+def test_london_on_btc_is_named_btc_and_gold_stays_gold(tmp_path):
+    runs = _runs(tmp_path)
+    at = (NOW - timedelta(hours=3)).isoformat()
+    _write(runs / "xm_londres_btc" / "state.json", {
+        "day": "2026-10-12", "done": True, "moneda": "USD", "simbolo": "BTCUSD", "capital_nominal": "1000",
+        "trades": [{"t": at, "accion": "entrada", "lado": "SELL"},
+                   {"t": at, "accion": "cierre", "pnl": "-10", "estimado": True}],
+        "open": None}, now=NOW)
+    text = R.render(R.find_bots(runs, NOW - timedelta(hours=24), NOW), NOW)
+    assert "🧪 XM DEMO · Londres BTC\n" in text and "BTC ❌ -10,00 USD aprox." in text
+    assert "Londres oro" in text and "Oro ✅ +85,30 USD aprox." in text

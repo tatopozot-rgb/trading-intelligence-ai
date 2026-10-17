@@ -88,7 +88,8 @@ marca "aplicado" solo cuando su regla está en el código o en un experimento me
 - **Hoy:** `docs/research/PROTOCOLO.md`, walk-forward, prerregistros (`PREREG_*`, `research/tendencia/PREREGISTRO.md`).
 - **Lección aprendida:** las ganancias de 30 y 60 días eran de un solo régimen. Un año completo lo desmintió.
 - Lección 2026-10-16: con más de 30 pruebas hechas, la mejor sale bien por suerte. Registro único de pruebas y
-  Sharpe deflactado (Bailey y López de Prado, 2014) como segundo listón, enviados a Quant para medir (no aplicado).
+  Sharpe deflactado (Bailey y López de Prado, 2014) como segundo listón: **aplicado** 2026-10-16
+  (`docs/research/REGISTRO_PRUEBAS.md`, PR #83).
 
 ## 7. Ejecución y costes
 
@@ -96,6 +97,8 @@ marca "aplicado" solo cuando su regla está en el código o en un experimento me
   operaciones. Las órdenes límite (maker) pagan menos que las de mercado (taker).
 - **Hoy:** costes explícitos (0,05% por lado, deslizamiento 0,02%, financiación real).
 - **Falta:** medir las órdenes maker en la práctica y la calibración real de las ejecuciones.
+- Lección 2026-10-17: selección adversa de las órdenes límite y deslizamiento real de los stops. Anotar
+  señal contra ejecución (pb) en cada cierre real y de práctica, enviado a Quant para medir (no aplicado).
 
 ## 8. Psicología y proceso
 
