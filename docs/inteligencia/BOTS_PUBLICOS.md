@@ -18,7 +18,7 @@ canal de Donchian (reglas "Turtle"), cruce de medias EMA y momento de serie temp
 | 2026-10-15 | Oro: ruptura de Londres, Tortugas diaria y reversión tras noticia (y en BTC) | Kathy Lien (2008); Curtis Faith, *Way of the Turtle* (2007) | Ninguna pasa en los dos años (2026-10-15). Archivadas; Londres en oro, a vigilar |
 | 2026-10-16 | RSI-2 de Larry Connors (comprar caídas cortas sobre la media de 200 días) | Connors y Alvarez, *Short Term Trading Strategies That Work* (2008); [resumen LuxAlgo](https://www.luxalgo.com/library/concept/rsi-2/) | No pasa en ninguna versión (2026-10-16). Archivada |
 | 2026-10-16 | Horizonte largo en oro y BTC: media de 10 meses, momento de 12 meses y momento dual | Faber (2007); Moskowitz, Ooi y Pedersen (2012); Antonacci, *Dual Momentum Investing* (2014) | Ninguna pasa (2026-10-16): el oro gana a la mesa en los dos años, pero su Sharpe deflactado es 0,002. Archivadas. Ver `docs/research/largo/` |
-| 2026-10-17 | Bot de cuadrícula ("Spot Grid"): 20 escalones geométricos en ±10%, cuadrícula nueva cada lunes | Bots de Binance, Pionex, Bybit y KuCoin; [Mobee](https://mobee.com/en/mobee-academy/blog/spot-grid-trading) | Enviada a Quant (2026-10-17) |
+| 2026-10-17 | Bot de cuadrícula ("Spot Grid"): 20 escalones geométricos en ±10%, cuadrícula nueva cada lunes | Bots de Binance, Pionex, Bybit y KuCoin; [Mobee](https://mobee.com/en/mobee-academy/blog/spot-grid-trading) | No pasa (2026-10-17): BTC −0,0% / −15,0%, ETH −29,4% / −29,0%; lo ganado en idas y vueltas se pierde en inventario. Archivada. Ver `docs/research/grid/` |
 
 ---
 
@@ -364,4 +364,10 @@ escalonadas bajo el precio y de venta sobre él. Gana cuando el precio va y vien
 - Se informa aparte cuánto se ganó en idas y vueltas y cuánto se perdió en inventario.
 - El dinero real no cambia por este estudio.
 
-**Estado:** enviada a Quant el 2026-10-17. No se pudo correr en la nube (Binance bloqueado en este contenedor).
+**Estado: no pasa (2026-10-17, Quant, PR #89). Archivada.** Ver `docs/research/grid/grid_2026-10-17.md`.
+
+- BTC ±10%: −0,0% en 2024-25 y −15,0% en 2025-26 (neto/caída −0,0 y −0,8, contra 1,67 y −0,21 de la mesa).
+  Sharpe deflactado 0,0. Ganó +314 y +254 USDT en idas y vueltas, pero perdió −314 y −404 en inventario.
+- ETH ±10%: −29,4% y −29,0%. A mitades: −15,8% y −22,2%.
+- Ni el mejor caso maker ni ±20% pasan los dos años. Confirma la trampa: lo que muestra el exchange no cuenta el
+  inventario.
