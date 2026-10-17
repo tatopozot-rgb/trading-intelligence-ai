@@ -18,6 +18,7 @@ canal de Donchian (reglas "Turtle"), cruce de medias EMA y momento de serie temp
 | 2026-10-15 | Oro: ruptura de Londres, Tortugas diaria y reversión tras noticia (y en BTC) | Kathy Lien (2008); Curtis Faith, *Way of the Turtle* (2007) | Ninguna pasa en los dos años (2026-10-15). Archivadas; Londres en oro, a vigilar |
 | 2026-10-16 | RSI-2 de Larry Connors (comprar caídas cortas sobre la media de 200 días) | Connors y Alvarez, *Short Term Trading Strategies That Work* (2008); [resumen LuxAlgo](https://www.luxalgo.com/library/concept/rsi-2/) | No pasa en ninguna versión (2026-10-16). Archivada |
 | 2026-10-16 | Horizonte largo en oro y BTC: media de 10 meses, momento de 12 meses y momento dual | Faber (2007); Moskowitz, Ooi y Pedersen (2012); Antonacci, *Dual Momentum Investing* (2014) | Ninguna pasa (2026-10-16): el oro gana a la mesa en los dos años, pero su Sharpe deflactado es 0,002. Archivadas. Ver `docs/research/largo/` |
+| 2026-10-17 | Bot de cuadrícula ("Spot Grid"): 20 escalones geométricos en ±10%, cuadrícula nueva cada lunes | Bots de Binance, Pionex, Bybit y KuCoin; [Mobee](https://mobee.com/en/mobee-academy/blog/spot-grid-trading) | Enviada a Quant (2026-10-17) |
 
 ---
 
@@ -310,3 +311,57 @@ fuerte de dos o tres días suele rebotar pronto.
 - **Sharpe deflactado de Londres en oro 2025-26:** 0,21 con N = 292 (listón 0,95). Su Sharpe anual de 2,04 está
   bajo el 2,84 que daría por suerte la mejor de 292 pruebas sin ventaja. Su año bueno puede ser suerte; por eso
   sigue solo en observación con dinero ficticio (`docs/research/deflactado/`).
+
+---
+
+## 2026-10-17 · Bot de cuadrícula ("Spot Grid") de Binance y Pionex
+
+**Qué es.** El bot que más ofrecen los exchanges a usuarios comunes: Binance, Pionex, Bybit y KuCoin lo traen
+listo. La idea es comprar barato y vender caro de forma automática dentro de un rango: se ponen órdenes de compra
+escalonadas bajo el precio y de venta sobre él. Gana cuando el precio va y viene; sufre cuando sale del rango.
+([Mobee: cuadrícula al contado](https://mobee.com/en/mobee-academy/blog/spot-grid-trading),
+[Mobee: aritmética contra geométrica](https://mobee.com/en/mobee-academy/blog/geometric-vs-arithmetic),
+[glosario Spark](https://www.spark.money/glossary/grid-trading),
+[Binance Square #spotgrid](https://www.binance.com/en/square/hashtag/spotgrid))
+
+**Reglas, en simple (fijadas hoy por el líder, antes de probar):**
+
+1. Velas de 1 hora. Cada lunes a las 00:00 UTC se arma una cuadrícula nueva para la semana, y se cierra la de la
+   semana anterior al precio de ese momento.
+2. **Rango:** del precio de apertura ±10% (la "IA" de los exchanges suele proponer algo así para BTC en una semana).
+3. **20 escalones geométricos** (cada uno ~1% más arriba que el anterior). Cada escalón usa 1/20 del capital.
+4. **Compra** al tocar un escalón bajo el precio; cuando el precio sube un escalón desde esa compra, **vende** esa
+   porción. Cada ida y vuelta gana ~1% menos costos.
+5. Si el precio sale del rango, no se compra más abajo ni se vende más arriba hasta el lunes; se mantiene lo que
+   haya. Sin stop, como el bot por defecto.
+6. Solo al contado y sin apalancamiento (1x). Monedas: BTC y ETH, cada una por separado y juntas a mitades.
+
+**En qué se diferencia de lo que ya probamos:**
+
+- Nada de lo probado gana en lateral sin predecir dirección; este bot no predice, solo cobra el ir y venir.
+- La reversión 1h/4h y el rebote a la media también compran caídas, pero con una señal por vez. Aquí hay 20
+  órdenes repartidas a la vez.
+
+**Señales de sobreajuste y trampas: altas.**
+
+- Los exchanges muestran el "rendimiento de la cuadrícula" sin contar la pérdida del inventario cuando el precio
+  cae. En una caída fuerte, el bot termina con todo el capital comprado arriba.
+- Cuanto más chico el escalón, más idas y vueltas y más pesan los costos. Con ~1% de escalón y 0,1% ida y vuelta,
+  el 10% de cada ganancia se va en comisión.
+- Se fija ±10% y 20 escalones y no se optimiza. ±5% y ±20% se informan solo para ver la sensibilidad.
+
+**Cómo se prueba con nuestros datos:**
+
+- Velas de 1 hora de Binance; las órdenes límite se llenan solo si el precio cruza el escalón (no si solo lo toca).
+- Comisión 0,1% por lado (contado, cuenta normal) y, aparte, 0,02% de maker más 0,01% de deslizamiento (lado
+  bueno) para ver el mejor caso.
+- Años 2024-25 y 2025-26, contra la mesa de práctica y contra mantener BTC.
+
+**Cómo se juzga (fijado hoy):**
+
+- Pasa a práctica solo si su neto/caída supera al de la mesa de práctica en **los dos años** (mesa con freno b:
+  1,67 en 2024-25 y −0,21 en 2025-26) **y** pasa el Sharpe deflactado (ver `docs/research/REGISTRO_PRUEBAS.md`).
+- Se informa aparte cuánto se ganó en idas y vueltas y cuánto se perdió en inventario.
+- El dinero real no cambia por este estudio.
+
+**Estado:** enviada a Quant el 2026-10-17. No se pudo correr en la nube (Binance bloqueado en este contenedor).
