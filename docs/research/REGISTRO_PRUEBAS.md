@@ -16,9 +16,9 @@ resultado se llena después. Las pruebas decisorias de esta tabla son la N del S
   mesa, los análisis que no operan reglas (correlaciones) y las re-corridas de la misma regla.
 - Desde el 2026-10-12, por fecha de corrida (no por la fecha que lleva el nombre del informe).
 
-## Totales al 2026-10-16
+## Totales al 2026-10-17
 
-- **Total: 321 pruebas** (261 decisorias y 60 de sensibilidad). Las últimas 4 son copiar bóvedas de Hyperliquid
+- **Total: 339 pruebas** (266 decisorias y 73 de sensibilidad). Las últimas 10 son el bot de cuadrícula al contado en BTC y ETH (`docs/research/grid/`): ninguna pasa; lo ganado en idas y vueltas se pierde en el inventario (BTC −0,0% y −15,0%, ETH −29,4% y −29,0%). Antes, 8 son la cartera multi-mercado en XM y la ruptura de Londres en BTC con costos de XM (`docs/research/cartera_xm/`, `docs/research/cripto_xm/`): ninguna pasa (Londres BTC gana a la mesa, DSR 0,011). Antes, 4 son copiar bóvedas de Hyperliquid
   con un año ganador (`docs/research/copiar/`): pierden −65,6% en 2025-26; no pasan. Antes, 4 de spreads de XSP en
   opciones (modelo Black-Scholes con VIX): ganan en los dos años, pero su Sharpe deflactado es 0,025; no pasan. Antes, hoy: 5 de RSI-2 y 10 de
   horizonte largo (ninguna pasa), 4 de carry en BTC y ETH y 6 de oro dentro del día. Ninguna pasa.
@@ -363,6 +363,24 @@ resultado se llena después. Las pruebas decisorias de esta tabla son la N del S
 | 319 | 2026-10-16 | copiar | Copiar bóvedas de Hyperliquid con un año ganador | B: top 10 por rentabilidad/caída del año previo, 10% al líder | bóvedas de usuarios, diario | decisoria | 2024-25 ; 2025-26: +14.7%/17.3% ; -51.7%/58.9% (DSR 0.0; 2024-25 muestra corta) | no |
 | 320 | 2026-10-16 | copiar | Copiar bóvedas de Hyperliquid con un año ganador | A con 30% al líder | bóvedas de usuarios, diario | sensibilidad | 2024-25 ; 2025-26: +11.5%/14.3% ; -65.9%/73.7% (DSR 0.0) | — (informativa) |
 | 321 | 2026-10-16 | copiar | Copiar bóvedas de Hyperliquid con un año ganador | A, top 30 | bóvedas de usuarios, diario | sensibilidad | 2024-25 ; 2025-26: +14.7%/17.3% ; -35.4%/47.1% (DSR 0.0) | — (informativa) |
+| 322 | 2026-10-16 | cartera_xm | Cartera multi-mercado EWMAC (Carver), riesgo igual | 200 USD, lotes de XM, spread y swap de XM | 15 mercados de XM (forex, índices, metales, petróleo, BTC, ETH), 1d | decisoria | 2024-25 ; 2025-26: -3.5%/7.33% ; -4.6%/10.94% (DSR 0.0); con 200 USD solo cabe 1 de 15 mercados | no |
+| 323 | 2026-10-16 | cartera_xm | Cartera multi-mercado EWMAC (Carver), riesgo igual | 100.000 USD (sin efecto del lote mínimo) | 15 mercados de XM, 1d | sensibilidad | 2024-25 ; 2025-26: +9.7%/17.24% ; -13.6%/33.02% (DSR 0.0) | — (informativa) |
+| 324 | 2026-10-16 | cartera_xm | Cartera multi-mercado EWMAC (Carver), riesgo igual | 200 USD, spread y swap ×2 | 15 mercados de XM, 1d | sensibilidad | 2024-25 ; 2025-26: -4.0%/7.44% ; -3.1%/10.62% (DSR 0.001) | — (informativa) |
+| 325 | 2026-10-16 | cartera_xm | Cartera multi-mercado EWMAC (Carver), riesgo igual | 1.000 USD, lotes de XM | 15 mercados de XM, 1d | sensibilidad | 2024-25 ; 2025-26: -17.3%/24.14% ; -7.1%/11.98% (DSR 0.0) | — (informativa) |
+| 326 | 2026-10-16 | cartera_xm | Cartera multi-mercado EWMAC (Carver), riesgo igual | 5.000 USD, lotes de XM | 15 mercados de XM, 1d | sensibilidad | 2024-25 ; 2025-26: +13.6%/17.63% ; -26.5%/32.51% (DSR 0.0) | — (informativa) |
+| 327 | 2026-10-16 | cripto_xm | Ruptura de Londres (re-prueba con costos de XM) | spread 40 USD por BTC, sin comisión, lotes 0,01, 1.000 USD | BTCUSDT, 1h | decisoria | 2024-25 ; 2025-26: +31.2%/13.32% ; +8.1%/13.29% (DSR 0.011); gana a la mesa los dos años, no pasa el DSR | no |
+| 328 | 2026-10-16 | cripto_xm | Ruptura de Londres (re-prueba con costos de XM) | spread ×2 | BTCUSDT, 1h | sensibilidad | 2024-25 ; 2025-26: +14.0%/16.55% ; -7.4%/18.53% (DSR 0.001) | — (informativa) |
+| 329 | 2026-10-16 | cripto_xm | Ruptura de Londres (re-prueba con costos de XM) | 200 USD (efecto del lote mínimo) | BTCUSDT, 1h | sensibilidad | 2024-25 ; 2025-26: +3.6%/1.77% ; +0.8%/6.19% (4 y 28 ops: el lote mínimo impide casi todo) | — (informativa) |
+| 330 | 2026-10-17 | grid | Cuadrícula semanal al contado (Spot Grid), 20 escalones geométricos | BTC ±10%, 0,1% por lado | BTCUSDT, 1h | decisoria | 2024-25 ; 2025-26: -0.0%/9.62% ; -15.0%/18.85% (DSR 0.0); idas y vueltas +314 ; +254 USDT, inventario -314 ; -404 USDT | no |
+| 331 | 2026-10-17 | grid | Cuadrícula semanal al contado (Spot Grid), 20 escalones geométricos | ETH ±10%, 0,1% por lado | ETHUSDT, 1h | decisoria | 2024-25 ; 2025-26: -29.4%/33.13% ; -29.0%/34.68% (DSR 0.0); idas y vueltas +499 ; +375 USDT, inventario -793 ; -665 USDT | no |
+| 332 | 2026-10-17 | grid | Cuadrícula semanal al contado (Spot Grid), 20 escalones geométricos | BTC y ETH a mitades ±10%, 0,1% por lado | BTCUSDT + ETHUSDT, 1h | decisoria | 2024-25 ; 2025-26: -15.8%/20.09% ; -22.2%/26.78% (DSR 0.0); idas y vueltas +420 ; +318 USDT, inventario -578 ; -540 USDT | no |
+| 333 | 2026-10-17 | grid | Cuadrícula semanal al contado (Spot Grid), 20 escalones geométricos | BTC ±10%, mejor caso maker | BTCUSDT, 1h | sensibilidad | 2024-25 ; 2025-26: +8.0%/7.73% ; -8.6%/14.71% (DSR 0.0); idas y vueltas +399 ; +322 USDT, inventario -319 ; -408 USDT | — (informativa) |
+| 334 | 2026-10-17 | grid | Cuadrícula semanal al contado (Spot Grid), 20 escalones geométricos | ETH ±10%, mejor caso maker | ETHUSDT, 1h | sensibilidad | 2024-25 ; 2025-26: -18.2%/28.37% ; -20.2%/29.24% (DSR 0.0); idas y vueltas +654 ; +485 USDT, inventario -836 ; -687 USDT | — (informativa) |
+| 335 | 2026-10-17 | grid | Cuadrícula semanal al contado (Spot Grid), 20 escalones geométricos | mitades ±10%, mejor caso maker | BTCUSDT + ETHUSDT, 1h | sensibilidad | 2024-25 ; 2025-26: -5.7%/16.66% ; -14.4%/21.81% (DSR 0.0); idas y vueltas +543 ; +407 USDT, inventario -600 ; -552 USDT | — (informativa) |
+| 336 | 2026-10-17 | grid | Cuadrícula semanal al contado (Spot Grid), 20 escalones geométricos | BTC ±5% | BTCUSDT, 1h | sensibilidad | 2024-25 ; 2025-26: -19.0%/22.85% ; -31.7%/34.9% (DSR 0.0); idas y vueltas +276 ; +227 USDT, inventario -466 ; -544 USDT | — (informativa) |
+| 337 | 2026-10-17 | grid | Cuadrícula semanal al contado (Spot Grid), 20 escalones geométricos | ETH ±5% | ETHUSDT, 1h | sensibilidad | 2024-25 ; 2025-26: -56.8%/57.35% ; -43.8%/46.75% (DSR 0.0); idas y vueltas +323 ; +280 USDT, inventario -891 ; -717 USDT | — (informativa) |
+| 338 | 2026-10-17 | grid | Cuadrícula semanal al contado (Spot Grid), 20 escalones geométricos | BTC ±20% | BTCUSDT, 1h | sensibilidad | 2024-25 ; 2025-26: +5.2%/5.15% ; -5.0%/9.5% (DSR 0.001); idas y vueltas +231 ; +177 USDT, inventario -179 ; -227 USDT | — (informativa) |
+| 339 | 2026-10-17 | grid | Cuadrícula semanal al contado (Spot Grid), 20 escalones geométricos | ETH ±20% | ETHUSDT, 1h | sensibilidad | 2024-25 ; 2025-26: -4.9%/13.32% ; -9.7%/18.62% (DSR 0.0); idas y vueltas +466 ; +326 USDT, inventario -514 ; -423 USDT | — (informativa) |
 
 Formato del resultado: neto % / caída máx. %; "2024-25 ; 2025-26" cuando hay dos años.
 
