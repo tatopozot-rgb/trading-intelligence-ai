@@ -16,9 +16,9 @@ resultado se llena después. Las pruebas decisorias de esta tabla son la N del S
   mesa, los análisis que no operan reglas (correlaciones) y las re-corridas de la misma regla.
 - Desde el 2026-10-12, por fecha de corrida (no por la fecha que lleva el nombre del informe).
 
-## Totales al 2026-10-16
+## Totales al 2026-10-17
 
-- **Total: 329 pruebas** (263 decisorias y 66 de sensibilidad). Las últimas 8 son la cartera multi-mercado en XM y la ruptura de Londres en BTC con costos de XM (`docs/research/cartera_xm/`, `docs/research/cripto_xm/`): ninguna pasa (Londres BTC gana a la mesa, DSR 0,011). Antes, 4 son copiar bóvedas de Hyperliquid
+- **Total: 339 pruebas** (266 decisorias y 73 de sensibilidad). Las últimas 10 son el bot de cuadrícula al contado en BTC y ETH (`docs/research/grid/`): pendiente. Antes, 8 son la cartera multi-mercado en XM y la ruptura de Londres en BTC con costos de XM (`docs/research/cartera_xm/`, `docs/research/cripto_xm/`): ninguna pasa (Londres BTC gana a la mesa, DSR 0,011). Antes, 4 son copiar bóvedas de Hyperliquid
   con un año ganador (`docs/research/copiar/`): pierden −65,6% en 2025-26; no pasan. Antes, 4 de spreads de XSP en
   opciones (modelo Black-Scholes con VIX): ganan en los dos años, pero su Sharpe deflactado es 0,025; no pasan. Antes, hoy: 5 de RSI-2 y 10 de
   horizonte largo (ninguna pasa), 4 de carry en BTC y ETH y 6 de oro dentro del día. Ninguna pasa.
@@ -371,6 +371,16 @@ resultado se llena después. Las pruebas decisorias de esta tabla son la N del S
 | 327 | 2026-10-16 | cripto_xm | Ruptura de Londres (re-prueba con costos de XM) | spread 40 USD por BTC, sin comisión, lotes 0,01, 1.000 USD | BTCUSDT, 1h | decisoria | 2024-25 ; 2025-26: +31.2%/13.32% ; +8.1%/13.29% (DSR 0.011); gana a la mesa los dos años, no pasa el DSR | no |
 | 328 | 2026-10-16 | cripto_xm | Ruptura de Londres (re-prueba con costos de XM) | spread ×2 | BTCUSDT, 1h | sensibilidad | 2024-25 ; 2025-26: +14.0%/16.55% ; -7.4%/18.53% (DSR 0.001) | — (informativa) |
 | 329 | 2026-10-16 | cripto_xm | Ruptura de Londres (re-prueba con costos de XM) | 200 USD (efecto del lote mínimo) | BTCUSDT, 1h | sensibilidad | 2024-25 ; 2025-26: +3.6%/1.77% ; +0.8%/6.19% (4 y 28 ops: el lote mínimo impide casi todo) | — (informativa) |
+| 330 | 2026-10-17 | grid | Cuadrícula semanal al contado (Spot Grid), 20 escalones geométricos | BTC ±10%, 0,1% por lado | BTCUSDT, 1h | decisoria | pendiente | pendiente |
+| 331 | 2026-10-17 | grid | Cuadrícula semanal al contado (Spot Grid), 20 escalones geométricos | ETH ±10%, 0,1% por lado | ETHUSDT, 1h | decisoria | pendiente | pendiente |
+| 332 | 2026-10-17 | grid | Cuadrícula semanal al contado (Spot Grid), 20 escalones geométricos | BTC y ETH a mitades ±10%, 0,1% por lado | BTCUSDT + ETHUSDT, 1h | decisoria | pendiente | pendiente |
+| 333 | 2026-10-17 | grid | Cuadrícula semanal al contado (Spot Grid), 20 escalones geométricos | BTC ±10%, mejor caso maker | BTCUSDT, 1h | sensibilidad | pendiente | — (informativa) |
+| 334 | 2026-10-17 | grid | Cuadrícula semanal al contado (Spot Grid), 20 escalones geométricos | ETH ±10%, mejor caso maker | ETHUSDT, 1h | sensibilidad | pendiente | — (informativa) |
+| 335 | 2026-10-17 | grid | Cuadrícula semanal al contado (Spot Grid), 20 escalones geométricos | mitades ±10%, mejor caso maker | BTCUSDT + ETHUSDT, 1h | sensibilidad | pendiente | — (informativa) |
+| 336 | 2026-10-17 | grid | Cuadrícula semanal al contado (Spot Grid), 20 escalones geométricos | BTC ±5% | BTCUSDT, 1h | sensibilidad | pendiente | — (informativa) |
+| 337 | 2026-10-17 | grid | Cuadrícula semanal al contado (Spot Grid), 20 escalones geométricos | ETH ±5% | ETHUSDT, 1h | sensibilidad | pendiente | — (informativa) |
+| 338 | 2026-10-17 | grid | Cuadrícula semanal al contado (Spot Grid), 20 escalones geométricos | BTC ±20% | BTCUSDT, 1h | sensibilidad | pendiente | — (informativa) |
+| 339 | 2026-10-17 | grid | Cuadrícula semanal al contado (Spot Grid), 20 escalones geométricos | ETH ±20% | ETHUSDT, 1h | sensibilidad | pendiente | — (informativa) |
 
 Formato del resultado: neto % / caída máx. %; "2024-25 ; 2025-26" cuando hay dos años.
 
