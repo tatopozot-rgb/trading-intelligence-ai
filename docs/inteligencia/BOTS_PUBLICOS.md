@@ -19,6 +19,7 @@ canal de Donchian (reglas "Turtle"), cruce de medias EMA y momento de serie temp
 | 2026-10-16 | RSI-2 de Larry Connors (comprar caídas cortas sobre la media de 200 días) | Connors y Alvarez, *Short Term Trading Strategies That Work* (2008); [resumen LuxAlgo](https://www.luxalgo.com/library/concept/rsi-2/) | No pasa en ninguna versión (2026-10-16). Archivada |
 | 2026-10-16 | Horizonte largo en oro y BTC: media de 10 meses, momento de 12 meses y momento dual | Faber (2007); Moskowitz, Ooi y Pedersen (2012); Antonacci, *Dual Momentum Investing* (2014) | Ninguna pasa (2026-10-16): el oro gana a la mesa en los dos años, pero su Sharpe deflactado es 0,002. Archivadas. Ver `docs/research/largo/` |
 | 2026-10-17 | Bot de cuadrícula ("Spot Grid"): 20 escalones geométricos en ±10%, cuadrícula nueva cada lunes | Bots de Binance, Pionex, Bybit y KuCoin; [Mobee](https://mobee.com/en/mobee-academy/blog/spot-grid-trading) | No pasa (2026-10-17): BTC −0,0% / −15,0%, ETH −29,4% / −29,0%; lo ganado en idas y vueltas se pierde en inventario. Archivada. Ver `docs/research/grid/` |
+| 2026-10-18 | Supertrend de freqtrade (3 Supertrend en 1 h, largo y corto) | [FSupertrendStrategy.py](https://raw.githubusercontent.com/freqtrade/freqtrade-strategies/b8a90bebebfc13a78416635166ebafdece596d3f/user_data/strategies/futures/FSupertrendStrategy.py) | Enviada a Quant (2026-10-18). Parámetros salidos de una optimización: riesgo alto de sobreajuste |
 
 ---
 
@@ -371,3 +372,41 @@ escalonadas bajo el precio y de venta sobre él. Gana cuando el precio va y vien
 - ETH ±10%: −29,4% y −29,0%. A mitades: −15,8% y −22,2%.
 - Ni el mejor caso maker ni ±20% pasan los dos años. Confirma la trampa: lo que muestra el exchange no cuenta el
   inventario.
+
+## 2026-10-18 · Supertrend de freqtrade (versión para futuros)
+
+**Qué es.** Una de las estrategias de ejemplo más copiadas del repositorio público de freqtrade, el bot de código
+abierto más usado para cripto. La escribió Juan Carlos Soriano (@juankysoriano). Usa el Supertrend: una línea que va
+bajo el precio cuando sube y sobre el precio cuando baja, a una distancia de N veces el rango medio (ATR).
+([código](https://raw.githubusercontent.com/freqtrade/freqtrade-strategies/b8a90bebebfc13a78416635166ebafdece596d3f/user_data/strategies/futures/FSupertrendStrategy.py))
+
+**Reglas, tal como están en el código:**
+
+1. Velas de 1 hora. ATR como media simple del rango verdadero.
+2. **Entrada en largo:** los tres Supertrend de compra dicen "arriba" (multiplicador y período: 4/8, 7/9 y 1/8).
+3. **Entrada en corto:** los tres Supertrend de venta dicen "abajo" (1/16, 3/18 y 6/18).
+4. **Salida del largo:** el segundo de venta (3/18) pasa a "abajo". **Salida del corto:** el segundo de compra (7/9)
+   pasa a "arriba".
+5. Stop fijo de −26,5%. Toma de ganancia escalonada por tiempo (10% al entrar, 5% a la hora, 2,5% a las 2 horas) y
+   stop que sigue al precio a 5% una vez que gana 10%.
+6. El código no dice apalancamiento ni muestra resultados.
+
+**Señales de sobreajuste: altas.**
+
+- Los seis pares de parámetros salieron de una optimización automática ("hyperopt"), no de una idea. Un ajuste así
+  casi siempre se ve bien en el período donde se buscó y mal fuera de él.
+- El autor avisa que no la validó contra el trabajo original.
+- El stop de −26,5% es mucho más ancho que el de la mesa (1R ≈ 1,5 a 2 ATR); con 1x y nuestro riesgo por
+  operación, el tamaño quedaría muy chico.
+
+**Cómo la debe probar Quant (fijado hoy, antes de mirar resultados):**
+
+- Parámetros tal cual del código, sin volver a optimizar. Velas de 1 hora de Binance, BTC y ETH por separado y juntas.
+- Dos versiones: A) tal cual (stop −26,5% y salidas del código); B) con los frenos de la mesa (stop a 1R de la mesa,
+  freno de mercado y freno de eventos).
+- Costos de la mesa: 0,05% por lado, 0,02% de deslizamiento y financiación real. Años 2024-25 y 2025-26, y Sharpe
+  deflactado con la N del registro.
+- Solo pasa si gana a la mesa en los dos años y pasa el Sharpe deflactado.
+
+**Estado:** enviada a Quant (2026-10-18). No se pudo probar desde la nube (Binance bloqueado en este contenedor).
+
