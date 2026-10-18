@@ -16,9 +16,9 @@ resultado se llena después. Las pruebas decisorias de esta tabla son la N del S
   mesa, los análisis que no operan reglas (correlaciones) y las re-corridas de la misma regla.
 - Desde el 2026-10-12, por fecha de corrida (no por la fecha que lleva el nombre del informe).
 
-## Totales al 2026-10-17
+## Totales al 2026-10-18
 
-- **Total: 339 pruebas** (266 decisorias y 73 de sensibilidad). Las últimas 10 son el bot de cuadrícula al contado en BTC y ETH (`docs/research/grid/`): ninguna pasa; lo ganado en idas y vueltas se pierde en el inventario (BTC −0,0% y −15,0%, ETH −29,4% y −29,0%). Antes, 8 son la cartera multi-mercado en XM y la ruptura de Londres en BTC con costos de XM (`docs/research/cartera_xm/`, `docs/research/cripto_xm/`): ninguna pasa (Londres BTC gana a la mesa, DSR 0,011). Antes, 4 son copiar bóvedas de Hyperliquid
+- **Total: 347 pruebas** (272 decisorias y 75 de sensibilidad). Las últimas 8 son el Supertrend de freqtrade en BTC y ETH (`docs/research/supertrend/`): pendiente. Antes, 10 son el bot de cuadrícula al contado en BTC y ETH (`docs/research/grid/`): ninguna pasa; lo ganado en idas y vueltas se pierde en el inventario (BTC −0,0% y −15,0%, ETH −29,4% y −29,0%). Antes, 8 son la cartera multi-mercado en XM y la ruptura de Londres en BTC con costos de XM (`docs/research/cartera_xm/`, `docs/research/cripto_xm/`): ninguna pasa (Londres BTC gana a la mesa, DSR 0,011). Antes, 4 son copiar bóvedas de Hyperliquid
   con un año ganador (`docs/research/copiar/`): pierden −65,6% en 2025-26; no pasan. Antes, 4 de spreads de XSP en
   opciones (modelo Black-Scholes con VIX): ganan en los dos años, pero su Sharpe deflactado es 0,025; no pasan. Antes, hoy: 5 de RSI-2 y 10 de
   horizonte largo (ninguna pasa), 4 de carry en BTC y ETH y 6 de oro dentro del día. Ninguna pasa.
@@ -381,6 +381,14 @@ resultado se llena después. Las pruebas decisorias de esta tabla son la N del S
 | 337 | 2026-10-17 | grid | Cuadrícula semanal al contado (Spot Grid), 20 escalones geométricos | ETH ±5% | ETHUSDT, 1h | sensibilidad | 2024-25 ; 2025-26: -56.8%/57.35% ; -43.8%/46.75% (DSR 0.0); idas y vueltas +323 ; +280 USDT, inventario -891 ; -717 USDT | — (informativa) |
 | 338 | 2026-10-17 | grid | Cuadrícula semanal al contado (Spot Grid), 20 escalones geométricos | BTC ±20% | BTCUSDT, 1h | sensibilidad | 2024-25 ; 2025-26: +5.2%/5.15% ; -5.0%/9.5% (DSR 0.001); idas y vueltas +231 ; +177 USDT, inventario -179 ; -227 USDT | — (informativa) |
 | 339 | 2026-10-17 | grid | Cuadrícula semanal al contado (Spot Grid), 20 escalones geométricos | ETH ±20% | ETHUSDT, 1h | sensibilidad | 2024-25 ; 2025-26: -4.9%/13.32% ; -9.7%/18.62% (DSR 0.0); idas y vueltas +466 ; +326 USDT, inventario -514 ; -423 USDT | — (informativa) |
+| 340 | 2026-10-18 | supertrend | Supertrend de freqtrade (FSupertrendStrategy, 3+3 Supertrend, largo y corto) | A tal cual (stop −26,5%) | BTCUSDT, 1h | decisoria | pendiente | pendiente |
+| 341 | 2026-10-18 | supertrend | Supertrend de freqtrade (FSupertrendStrategy, 3+3 Supertrend, largo y corto) | A tal cual (stop −26,5%) | ETHUSDT, 1h | decisoria | pendiente | pendiente |
+| 342 | 2026-10-18 | supertrend | Supertrend de freqtrade (FSupertrendStrategy, 3+3 Supertrend, largo y corto) | A tal cual (stop −26,5%) | BTCUSDT + ETHUSDT, 1h | decisoria | pendiente | pendiente |
+| 343 | 2026-10-18 | supertrend | Supertrend de freqtrade (FSupertrendStrategy, 3+3 Supertrend, largo y corto) | B con frenos de la mesa (stop 1R, régimen b, eventos) | BTCUSDT, 1h | decisoria | pendiente | pendiente |
+| 344 | 2026-10-18 | supertrend | Supertrend de freqtrade (FSupertrendStrategy, 3+3 Supertrend, largo y corto) | B con frenos de la mesa (stop 1R, régimen b, eventos) | ETHUSDT, 1h | decisoria | pendiente | pendiente |
+| 345 | 2026-10-18 | supertrend | Supertrend de freqtrade (FSupertrendStrategy, 3+3 Supertrend, largo y corto) | B con frenos de la mesa (stop 1R, régimen b, eventos) | BTCUSDT + ETHUSDT, 1h | decisoria | pendiente | pendiente |
+| 346 | 2026-10-18 | supertrend | Supertrend de freqtrade (FSupertrendStrategy, 3+3 Supertrend, largo y corto) | A juntas, costos ×2 | BTCUSDT + ETHUSDT, 1h | sensibilidad | pendiente | — (informativa) |
+| 347 | 2026-10-18 | supertrend | Supertrend de freqtrade (FSupertrendStrategy, 3+3 Supertrend, largo y corto) | B juntas, costos ×2 | BTCUSDT + ETHUSDT, 1h | sensibilidad | pendiente | — (informativa) |
 
 Formato del resultado: neto % / caída máx. %; "2024-25 ; 2025-26" cuando hay dos años.
 
