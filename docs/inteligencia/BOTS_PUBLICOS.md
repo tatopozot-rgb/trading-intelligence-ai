@@ -19,7 +19,7 @@ canal de Donchian (reglas "Turtle"), cruce de medias EMA y momento de serie temp
 | 2026-10-16 | RSI-2 de Larry Connors (comprar caídas cortas sobre la media de 200 días) | Connors y Alvarez, *Short Term Trading Strategies That Work* (2008); [resumen LuxAlgo](https://www.luxalgo.com/library/concept/rsi-2/) | No pasa en ninguna versión (2026-10-16). Archivada |
 | 2026-10-16 | Horizonte largo en oro y BTC: media de 10 meses, momento de 12 meses y momento dual | Faber (2007); Moskowitz, Ooi y Pedersen (2012); Antonacci, *Dual Momentum Investing* (2014) | Ninguna pasa (2026-10-16): el oro gana a la mesa en los dos años, pero su Sharpe deflactado es 0,002. Archivadas. Ver `docs/research/largo/` |
 | 2026-10-17 | Bot de cuadrícula ("Spot Grid"): 20 escalones geométricos en ±10%, cuadrícula nueva cada lunes | Bots de Binance, Pionex, Bybit y KuCoin; [Mobee](https://mobee.com/en/mobee-academy/blog/spot-grid-trading) | No pasa (2026-10-17): BTC −0,0% / −15,0%, ETH −29,4% / −29,0%; lo ganado en idas y vueltas se pierde en inventario. Archivada. Ver `docs/research/grid/` |
-| 2026-10-18 | Supertrend de freqtrade (3 Supertrend en 1 h, largo y corto) | [FSupertrendStrategy.py](https://raw.githubusercontent.com/freqtrade/freqtrade-strategies/b8a90bebebfc13a78416635166ebafdece596d3f/user_data/strategies/futures/FSupertrendStrategy.py) | Enviada a Quant (2026-10-18). Parámetros salidos de una optimización: riesgo alto de sobreajuste |
+| 2026-10-18 | Supertrend de freqtrade (3 Supertrend en 1 h, largo y corto) | [FSupertrendStrategy.py](https://raw.githubusercontent.com/freqtrade/freqtrade-strategies/b8a90bebebfc13a78416635166ebafdece596d3f/user_data/strategies/futures/FSupertrendStrategy.py) | No pasa (2026-10-18): A tal cual pierde en los dos años (juntas −12,8% / −41,6%, caída 53%); B con frenos gana a la mesa solo en ETH 2024-25 (2,29) y pierde en 2025-26; Sharpe deflactado ≤ 0,001. Archivada. Ver `docs/research/supertrend/` |
 
 ---
 
@@ -408,5 +408,15 @@ bajo el precio cuando sube y sobre el precio cuando baja, a una distancia de N v
   deflactado con la N del registro.
 - Solo pasa si gana a la mesa en los dos años y pasa el Sharpe deflactado.
 
-**Estado:** enviada a Quant (2026-10-18). No se pudo probar desde la nube (Binance bloqueado en este contenedor).
+**Estado: no pasa (2026-10-18). Archivada.** Quant la probó con el plan de arriba (`docs/research/supertrend/`,
+filas 340-347 del registro, N = 272). Neto/caída 2024-25 ; 2025-26, contra la mesa 1,67 ; −0,21:
+
+| Versión | BTC | ETH | Juntas |
+|---|---|---|---|
+| A, tal cual | −0,37 ; −0,73 | −0,10 ; −0,83 | −0,24 ; −0,79 |
+| B, con frenos | 0,59 ; −0,65 | 2,29 ; −0,42 | 1,53 ; −0,55 |
+
+- A juntas pierde −12,8% y −41,6%, con caídas de 53-54%; las comisiones se comen cerca del 20% del capital por año.
+- B en ETH gana a la mesa solo en 2024-25 (+26,9%, caída 11,7%) y pierde en 2025-26.
+- Sharpe deflactado ≤ 0,001 en todas las filas. Se confirma la señal de sobreajuste.
 
