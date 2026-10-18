@@ -106,6 +106,8 @@ marca "aplicado" solo cuando su regla está en el código o en un experimento me
   Lleva un diario, revisa cada operación y acepta días sin operar.
 - **Hoy:** reglas fijas en código, un diario de la mesa en Obsidian, nada de martingala y límite de pérdida.
 - **Falta:** una revisión semanal del diario con lecciones concretas.
+- Lección 2026-10-18: separar "¿seguí el plan?" de "¿funcionó?". Cierre semanal de 3 líneas cada domingo en la nota de
+  aprendizaje de la semana (fuera de reglas, incidente repetido, una mejora): **aplicado** 2026-10-18, empieza en la W42.
 
 ## Lecturas de referencia (teoría clásica)
 
