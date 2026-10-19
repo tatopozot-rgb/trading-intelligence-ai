@@ -20,7 +20,7 @@ canal de Donchian (reglas "Turtle"), cruce de medias EMA y momento de serie temp
 | 2026-10-16 | Horizonte largo en oro y BTC: media de 10 meses, momento de 12 meses y momento dual | Faber (2007); Moskowitz, Ooi y Pedersen (2012); Antonacci, *Dual Momentum Investing* (2014) | Ninguna pasa (2026-10-16): el oro gana a la mesa en los dos años, pero su Sharpe deflactado es 0,002. Archivadas. Ver `docs/research/largo/` |
 | 2026-10-17 | Bot de cuadrícula ("Spot Grid"): 20 escalones geométricos en ±10%, cuadrícula nueva cada lunes | Bots de Binance, Pionex, Bybit y KuCoin; [Mobee](https://mobee.com/en/mobee-academy/blog/spot-grid-trading) | No pasa (2026-10-17): BTC −0,0% / −15,0%, ETH −29,4% / −29,0%; lo ganado en idas y vueltas se pierde en inventario. Archivada. Ver `docs/research/grid/` |
 | 2026-10-18 | Supertrend de freqtrade (3 Supertrend en 1 h, largo y corto) | [FSupertrendStrategy.py](https://raw.githubusercontent.com/freqtrade/freqtrade-strategies/b8a90bebebfc13a78416635166ebafdece596d3f/user_data/strategies/futures/FSupertrendStrategy.py) | No pasa (2026-10-18): A tal cual pierde en los dos años (juntas −12,8% / −41,6%, caída 53%); B con frenos gana a la mesa solo en ETH 2024-25 (2,29) y pierde en 2025-26; Sharpe deflactado ≤ 0,001. Archivada. Ver `docs/research/supertrend/` |
-| 2026-10-19 | Nube de Ichimoku en BTC diario (9/26/52, solo compras) | Goichi Hosoda (1969); [Investopedia](https://www.investopedia.com/terms/i/ichimoku-cloud.asp); [StockCharts ChartSchool](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-overlays/ichimoku-cloud) | Enviada a Quant para medir (2026-10-19) |
+| 2026-10-19 | Nube de Ichimoku en BTC diario (9/26/52, solo compras) | Goichi Hosoda (1969); [Investopedia](https://www.investopedia.com/terms/i/ichimoku-cloud.asp); [StockCharts ChartSchool](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-overlays/ichimoku-cloud) | No pasa (2026-10-19): A juntas gana a la mesa en 2024-25 (2,92) y pierde en 2025-26 (−0,34); B con frenos pierde en 2025-26; Sharpe deflactado ≤ 0,009; 3 a 8 operaciones al año. Archivada. Ver `docs/research/ichimoku/` |
 
 ---
 
@@ -458,5 +458,15 @@ dejan fijos: no se afinan.
   en el año alcista y pierda en el lateral. Si gana en los dos años con pocas operaciones (menos de 10 por año), el
   Sharpe deflactado lo dirá.
 
-**Estado:** enviada a Quant para medir (2026-10-19).
+**Estado: no pasa (2026-10-19). Archivada.** Quant, PR #108 (`docs/research/ichimoku/ichimoku_2026-10-19.md`):
+
+| Versión (BTC y ETH juntas) | 2024-25, neto/caída | 2025-26, neto/caída |
+|---|---|---|
+| A tal cual | 2,92 (+40,5%) | −0,34 (−3,0%) |
+| B con frenos | 0,23 | −0,66 |
+| Mesa de práctica | 1,67 | −0,21 |
+
+- Pasó lo esperado: gana en el año alcista y pierde en el lateral, como la media de 10 meses.
+- El Sharpe deflactado no pasa de 0,009 en ninguna versión. Cada moneda sola tiene muy pocas operaciones (3 a 8 por
+  año) para decir algo.
 

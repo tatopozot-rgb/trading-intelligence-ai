@@ -26,8 +26,9 @@ marca "aplicado" solo cuando su regla está en el código o en un experimento me
   tamaño gana. Medio Kelly solo perdió menos (CHECKPOINT §98). Revisar el 15% de riesgo pedido cuando haya una
   estrategia con ventaja.
 - Lección 2026-10-19 (segunda vuelta): la caída y el apalancamiento. La práctica 3x lleva −23,6% en 6 cierres sin
-  freno por caída. Freno propuesto (riesgo a la mitad con 10% de caída, pausa con 20%) enviado a Quant para medir
-  (no aplicado).
+  freno por caída. Freno propuesto (riesgo a la mitad con 10% de caída, pausa con 20%) medido por Quant (PR #108):
+  en 1x gana a la mesa los dos años (1,92 y 0,18), pero el Sharpe deflactado es 0,005; en 3x no rescata nada
+  (−0,22 y −0,69). No pasa y no se aplica. El problema del 3x es el apalancamiento, no la falta de freno.
 
 ## 2. Régimen de mercado (alcista, bajista, lateral)
 
