@@ -2,7 +2,7 @@
 
 Simulación con datos públicos (PAPER): **sin cuenta, sin claves, sin órdenes reales**. Entradas cada 20 min (velas de 20 min); con posición abierta se revisa la salida cada 3 min (velas de 1 min): stop de la estrategia, su condición de salida y cierre forzado al final de la ventana. 10 USDT por operación, comisión 0.1% por lado + 5 bps. Horas en **Ecuador (UTC−5)**, UTC entre paréntesis. Reglas en `docs/PREREG_HORARIOS.md` (con las Enmiendas 1 y 2).
 
-Días forward: 8/14 (días hábiles lun–vie: 5/10) · días de referencia: 15
+Días forward: 9/14 (días hábiles lun–vie: 5/10) · días de referencia: 15
 
 Las reglas se aplican cuando el período forward esté completo (2026-10-10 → 2026-10-23).
 
@@ -16,7 +16,7 @@ Las reglas se aplican cuando el período forward esté completo (2026-10-10 → 
 | jueves | 11 / -0.092 | · | 86 / -0.111 | 169 / -0.143 |
 | viernes | · | · | 101 / -0.441 | 169 / -0.385 |
 | sábado (aparte) | 1 / -0.268 | 9 / -0.211 | 156 / -0.309 | 338 / -0.334 |
-| domingo (no decide) | 6 / +0.303 | 7 / -0.333 | 99 / -0.195 | 169 / -0.160 |
+| domingo (no decide) | 7 / +0.240 | 8 / -0.387 | 183 / -0.139 | 338 / -0.270 |
 
 ## FORWARD — tendencia: neto % acumulado lun–vie por ventana × símbolo
 
