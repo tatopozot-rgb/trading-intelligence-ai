@@ -1,0 +1,81 @@
+{
+ "generated": "2026-10-19T04:52:56.610313+00:00",
+ "start": "2026-10-12",
+ "symbols": [
+  "BTCUSDT",
+  "ETHUSDT",
+  "BNBUSDT",
+  "SOLUSDT",
+  "XRPUSDT",
+  "DOGEUSDT",
+  "ADAUSDT",
+  "LINKUSDT",
+  "AVAXUSDT",
+  "LTCUSDT",
+  "TRXUSDT",
+  "DOTUSDT",
+  "PAXGUSDT"
+ ],
+ "current_monday": "2026-10-19",
+ "status": "RUNNING",
+ "weeks": [
+  {
+   "week": "2026-10-12",
+   "return": -0.039016330993677184,
+   "pnl": -390.16330993677184,
+   "long_pnl": -381.69218514612345,
+   "short_pnl": -8.471124790641454,
+   "equity_start": 10000.0,
+   "costs": 6.756791113423538,
+   "funding": 13.563620689090591,
+   "model_costs_funding": 20.32041180251413
+  }
+ ],
+ "equity": 9609.836690063228,
+ "max_dd_pct": -4.122999580594587,
+ "positions": {
+  "BTCUSDT": 735.7807265560272,
+  "ETHUSDT": -644.0307384338531,
+  "BNBUSDT": -739.2182069279406,
+  "SOLUSDT": -486.50195404823285,
+  "XRPUSDT": -385.26997959726424,
+  "DOGEUSDT": -390.4517422742407,
+  "ADAUSDT": -359.04000424314887,
+  "LINKUSDT": -393.0182142379867,
+  "AVAXUSDT": -324.7929077175258,
+  "LTCUSDT": 443.82245449948374,
+  "TRXUSDT": -739.2182069279406,
+  "DOTUSDT": -304.88972510384986,
+  "PAXGUSDT": -739.2182069279406
+ },
+ "funding_sources": {
+  "BTCUSDT": "data.binance.vision",
+  "ETHUSDT": "data.binance.vision",
+  "BNBUSDT": "data.binance.vision",
+  "SOLUSDT": "data.binance.vision",
+  "XRPUSDT": "data.binance.vision",
+  "DOGEUSDT": "data.binance.vision",
+  "ADAUSDT": "data.binance.vision",
+  "LINKUSDT": "data.binance.vision",
+  "AVAXUSDT": "data.binance.vision",
+  "LTCUSDT": "data.binance.vision",
+  "TRXUSDT": "data.binance.vision",
+  "DOTUSDT": "data.binance.vision",
+  "PAXGUSDT": "data.binance.vision"
+ },
+ "real_funding_until": {
+  "BTCUSDT": "2026-09-30",
+  "ETHUSDT": "2026-09-30",
+  "BNBUSDT": "2026-09-30",
+  "SOLUSDT": "2026-09-30",
+  "XRPUSDT": "2026-09-30",
+  "DOGEUSDT": "2026-09-30",
+  "ADAUSDT": "2026-09-30",
+  "LINKUSDT": "2026-09-30",
+  "AVAXUSDT": "2026-09-30",
+  "LTCUSDT": "2026-09-30",
+  "TRXUSDT": "2026-09-30",
+  "DOTUSDT": "2026-09-30",
+  "PAXGUSDT": "2026-09-30"
+ }
+}
