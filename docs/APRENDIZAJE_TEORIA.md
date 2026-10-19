@@ -25,6 +25,9 @@ marca "aplicado" solo cuando su regla está en el código o en un experimento me
 - **Falta:** la investigación mostró que la mesa no tiene ventaja fuera del tramo alcista; sin ventaja, ningún
   tamaño gana. Medio Kelly solo perdió menos (CHECKPOINT §98). Revisar el 15% de riesgo pedido cuando haya una
   estrategia con ventaja.
+- Lección 2026-10-19 (segunda vuelta): la caída y el apalancamiento. La práctica 3x lleva −23,6% en 6 cierres sin
+  freno por caída. Freno propuesto (riesgo a la mitad con 10% de caída, pausa con 20%) enviado a Quant para medir
+  (no aplicado).
 
 ## 2. Régimen de mercado (alcista, bajista, lateral)
 

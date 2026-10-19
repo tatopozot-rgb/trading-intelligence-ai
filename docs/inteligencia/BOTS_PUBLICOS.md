@@ -20,6 +20,7 @@ canal de Donchian (reglas "Turtle"), cruce de medias EMA y momento de serie temp
 | 2026-10-16 | Horizonte largo en oro y BTC: media de 10 meses, momento de 12 meses y momento dual | Faber (2007); Moskowitz, Ooi y Pedersen (2012); Antonacci, *Dual Momentum Investing* (2014) | Ninguna pasa (2026-10-16): el oro gana a la mesa en los dos años, pero su Sharpe deflactado es 0,002. Archivadas. Ver `docs/research/largo/` |
 | 2026-10-17 | Bot de cuadrícula ("Spot Grid"): 20 escalones geométricos en ±10%, cuadrícula nueva cada lunes | Bots de Binance, Pionex, Bybit y KuCoin; [Mobee](https://mobee.com/en/mobee-academy/blog/spot-grid-trading) | No pasa (2026-10-17): BTC −0,0% / −15,0%, ETH −29,4% / −29,0%; lo ganado en idas y vueltas se pierde en inventario. Archivada. Ver `docs/research/grid/` |
 | 2026-10-18 | Supertrend de freqtrade (3 Supertrend en 1 h, largo y corto) | [FSupertrendStrategy.py](https://raw.githubusercontent.com/freqtrade/freqtrade-strategies/b8a90bebebfc13a78416635166ebafdece596d3f/user_data/strategies/futures/FSupertrendStrategy.py) | No pasa (2026-10-18): A tal cual pierde en los dos años (juntas −12,8% / −41,6%, caída 53%); B con frenos gana a la mesa solo en ETH 2024-25 (2,29) y pierde en 2025-26; Sharpe deflactado ≤ 0,001. Archivada. Ver `docs/research/supertrend/` |
+| 2026-10-19 | Nube de Ichimoku en BTC diario (9/26/52, solo compras) | Goichi Hosoda (1969); [Investopedia](https://www.investopedia.com/terms/i/ichimoku-cloud.asp); [StockCharts ChartSchool](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-overlays/ichimoku-cloud) | Enviada a Quant para medir (2026-10-19) |
 
 ---
 
@@ -419,4 +420,43 @@ filas 340-347 del registro, N = 272). Neto/caída 2024-25 ; 2025-26, contra la m
 - A juntas pierde −12,8% y −41,6%, con caídas de 53-54%; las comisiones se comen cerca del 20% del capital por año.
 - B en ETH gana a la mesa solo en 2024-25 (+26,9%, caída 11,7%) y pierde en 2025-26.
 - Sharpe deflactado ≤ 0,001 en todas las filas. Se confirma la señal de sobreajuste.
+
+## 2026-10-19 · Nube de Ichimoku en BTC diario
+
+**Fuente:** sistema de Goichi Hosoda (publicado en 1969). Las reglas de uso común están en
+[Investopedia](https://www.investopedia.com/terms/i/ichimoku-cloud.asp) y en
+[StockCharts](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-overlays/ichimoku-cloud).
+Es una de las estrategias de tendencia más usadas en criptomonedas, y muchos bots públicos la traen como plantilla.
+
+**Las piezas (velas diarias, parámetros clásicos sin tocar):**
+- **Línea rápida (Tenkan):** el punto medio entre el máximo y el mínimo de los últimos 9 días.
+- **Línea lenta (Kijun):** el punto medio de los últimos 26 días.
+- **Borde A de la nube:** el promedio de las dos líneas, dibujado 26 días adelante.
+- **Borde B de la nube:** el punto medio de los últimos 52 días, dibujado 26 días adelante.
+- La nube es el espacio entre A y B. Es verde cuando A está sobre B.
+
+**Reglas (versión A, tal cual):**
+1. **Entrada en compra:** el precio cierra sobre la nube de hoy, la línea rápida está sobre la lenta y la nube de 26
+   días adelante es verde. Se entra en la apertura del día siguiente.
+2. **Salida:** el precio cierra bajo la línea lenta o dentro de la nube (la regla más común). Se sale en la apertura
+   siguiente.
+3. **Solo compras.** El sistema original no habla de cortos en criptomonedas, y la mesa no opera cortos con el freno
+   activo.
+4. Posición de 100% a 1x, sin stop aparte. La propia salida hace de stop.
+
+**Versión B (con los frenos de la mesa):** las mismas reglas, más el freno de BTC sobre su media de 50 días, el freno
+de eventos y el riesgo por operación de la mesa (stop en la línea lenta, tamaño para perder 2% como máximo).
+
+**Cómo medirla:** BTC y ETH diario, 2024-10 → 2025-10 y 2025-10 → 2026-10. Costos 0,05% por lado, deslizamiento
+0,02% y financiación real. Se compara con la mesa (neto/caída) y con comprar y mantener. Los parámetros 9/26/52 se
+dejan fijos: no se afinan.
+
+**Señales de sobreajuste a vigilar:**
+- 9/26/52 vienen de la semana de 6 días del Japón de los años 30; no se buscaron para criptomonedas. Eso es bueno:
+  no hay optimización escondida. Pero si alguien muestra una versión con 10/30/60 "para cripto", eso sí es ajuste.
+- Es una regla de tendencia lenta, como la media de 10 meses que ya falló (2026-10-16). Lo más probable es que gane
+  en el año alcista y pierda en el lateral. Si gana en los dos años con pocas operaciones (menos de 10 por año), el
+  Sharpe deflactado lo dirá.
+
+**Estado:** enviada a Quant para medir (2026-10-19).
 
