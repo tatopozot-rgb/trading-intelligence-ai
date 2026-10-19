@@ -16,9 +16,9 @@ resultado se llena después. Las pruebas decisorias de esta tabla son la N del S
   mesa, los análisis que no operan reglas (correlaciones) y las re-corridas de la misma regla.
 - Desde el 2026-10-12, por fecha de corrida (no por la fecha que lleva el nombre del informe).
 
-## Totales al 2026-10-18
+## Totales al 2026-10-19
 
-- **Total: 347 pruebas** (272 decisorias y 75 de sensibilidad). Las últimas 8 son el Supertrend de freqtrade en BTC y ETH (`docs/research/supertrend/`): ninguna pasa. B con frenos en ETH gana a la mesa en 2024-25 (2,29) pero pierde en 2025-26 (−0,42); el Sharpe deflactado de todas es ≤ 0,001. Antes, 10 son el bot de cuadrícula al contado en BTC y ETH (`docs/research/grid/`): ninguna pasa; lo ganado en idas y vueltas se pierde en el inventario (BTC −0,0% y −15,0%, ETH −29,4% y −29,0%). Antes, 8 son la cartera multi-mercado en XM y la ruptura de Londres en BTC con costos de XM (`docs/research/cartera_xm/`, `docs/research/cripto_xm/`): ninguna pasa (Londres BTC gana a la mesa, DSR 0,011). Antes, 4 son copiar bóvedas de Hyperliquid
+- **Total: 359 pruebas** (280 decisorias y 79 de sensibilidad). Las últimas 12 son la nube de Ichimoku en BTC y ETH diario (`docs/research/ichimoku/`) y el freno por caída de la cuenta sobre la mesa (`docs/research/freno_caida/`): pendiente. Antes, 8 son el Supertrend de freqtrade en BTC y ETH (`docs/research/supertrend/`): ninguna pasa. B con frenos en ETH gana a la mesa en 2024-25 (2,29) pero pierde en 2025-26 (−0,42); el Sharpe deflactado de todas es ≤ 0,001. Antes, 10 son el bot de cuadrícula al contado en BTC y ETH (`docs/research/grid/`): ninguna pasa; lo ganado en idas y vueltas se pierde en el inventario (BTC −0,0% y −15,0%, ETH −29,4% y −29,0%). Antes, 8 son la cartera multi-mercado en XM y la ruptura de Londres en BTC con costos de XM (`docs/research/cartera_xm/`, `docs/research/cripto_xm/`): ninguna pasa (Londres BTC gana a la mesa, DSR 0,011). Antes, 4 son copiar bóvedas de Hyperliquid
   con un año ganador (`docs/research/copiar/`): pierden −65,6% en 2025-26; no pasan. Antes, 4 de spreads de XSP en
   opciones (modelo Black-Scholes con VIX): ganan en los dos años, pero su Sharpe deflactado es 0,025; no pasan. Antes, hoy: 5 de RSI-2 y 10 de
   horizonte largo (ninguna pasa), 4 de carry en BTC y ETH y 6 de oro dentro del día. Ninguna pasa.
@@ -389,6 +389,18 @@ resultado se llena después. Las pruebas decisorias de esta tabla son la N del S
 | 345 | 2026-10-18 | supertrend | Supertrend de freqtrade (FSupertrendStrategy, 3+3 Supertrend, largo y corto) | B con frenos de la mesa (stop 1R, régimen b, eventos) | BTCUSDT + ETHUSDT, 1h | decisoria | 2024-25 ; 2025-26: +16.9%/11.06% ; -6.9%/12.43% (DSR 0.001; 231 y 141 ops) | no |
 | 346 | 2026-10-18 | supertrend | Supertrend de freqtrade (FSupertrendStrategy, 3+3 Supertrend, largo y corto) | A juntas, costos ×2 | BTCUSDT + ETHUSDT, 1h | sensibilidad | 2024-25 ; 2025-26: -35.6%/60.99% ; -58.1%/64.15% (DSR 0.0; 461 y 463 ops) | — (informativa) |
 | 347 | 2026-10-18 | supertrend | Supertrend de freqtrade (FSupertrendStrategy, 3+3 Supertrend, largo y corto) | B juntas, costos ×2 | BTCUSDT + ETHUSDT, 1h | sensibilidad | 2024-25 ; 2025-26: +6.7%/13.15% ; -12.7%/14.24% (DSR 0.0; 230 y 139 ops) | — (informativa) |
+| 348 | 2026-10-19 | ichimoku | Nube de Ichimoku 9/26/52, solo compras | A tal cual (100%, 1x) | BTCUSDT, 1d | decisoria | pendiente | pendiente |
+| 349 | 2026-10-19 | ichimoku | Nube de Ichimoku 9/26/52, solo compras | A tal cual (100%, 1x) | ETHUSDT, 1d | decisoria | pendiente | pendiente |
+| 350 | 2026-10-19 | ichimoku | Nube de Ichimoku 9/26/52, solo compras | A tal cual (100%, 1x) | BTCUSDT + ETHUSDT, 1d | decisoria | pendiente | pendiente |
+| 351 | 2026-10-19 | ichimoku | Nube de Ichimoku 9/26/52, solo compras | B con frenos (stop en la Kijun, 2%, régimen b, eventos) | BTCUSDT, 1d | decisoria | pendiente | pendiente |
+| 352 | 2026-10-19 | ichimoku | Nube de Ichimoku 9/26/52, solo compras | B con frenos (stop en la Kijun, 2%, régimen b, eventos) | ETHUSDT, 1d | decisoria | pendiente | pendiente |
+| 353 | 2026-10-19 | ichimoku | Nube de Ichimoku 9/26/52, solo compras | B con frenos (stop en la Kijun, 2%, régimen b, eventos) | BTCUSDT + ETHUSDT, 1d | decisoria | pendiente | pendiente |
+| 354 | 2026-10-19 | ichimoku | Nube de Ichimoku 9/26/52, solo compras | A juntas, costos ×2 | BTCUSDT + ETHUSDT, 1d | sensibilidad | pendiente | — (informativa) |
+| 355 | 2026-10-19 | ichimoku | Nube de Ichimoku 9/26/52, solo compras | B juntas, costos ×2 | BTCUSDT + ETHUSDT, 1d | sensibilidad | pendiente | — (informativa) |
+| 356 | 2026-10-19 | freno_caida | Mesa actual (freno b y eventos) con freno por caída de la cuenta | 1x con freno (riesgo ×0,5 al −10%, pausa al −20% hasta el bloque siguiente) | 12 monedas, 5 min | decisoria | pendiente | pendiente |
+| 357 | 2026-10-19 | freno_caida | Mesa actual (freno b y eventos) con freno por caída de la cuenta | 3x con freno (riesgo ×0,5 al −10%, pausa al −20% hasta el bloque siguiente) | 12 monedas, 5 min | decisoria | pendiente | pendiente |
+| 358 | 2026-10-19 | freno_caida | Mesa actual (freno b y eventos) con freno por caída de la cuenta | 1x, pausa sin reinicio | 12 monedas, 5 min | sensibilidad | pendiente | — (informativa) |
+| 359 | 2026-10-19 | freno_caida | Mesa actual (freno b y eventos) con freno por caída de la cuenta | 3x, pausa sin reinicio | 12 monedas, 5 min | sensibilidad | pendiente | — (informativa) |
 
 Formato del resultado: neto % / caída máx. %; "2024-25 ; 2025-26" cuando hay dos años.
 
