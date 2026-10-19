@@ -284,6 +284,9 @@ class Replay:
     curve: list[float] = field(default_factory=list)
     end: str = "fin del bloque"
     skipped_liquidation: int = 0
+    peak: float = 0.0  # highest bar-close equity seen (drawdown brake)
+    paused: bool = False  # the drawdown brake stopped new entries
+    halved: int = 0  # entries taken at half risk by the drawdown brake
 
 
 def vetoes(s: Sym, k: int, side: int, target_r: float, rules: D.DeskRules) -> list[str]:
@@ -305,12 +308,17 @@ def replay(syms: dict[str, Sym], lo: int, hi: int, exits: Exits = BASELINE, sizi
            rules_on: frozenset[str] = frozenset(RULES), rules: Optional[D.DeskRules] = None,
            slippage: float = SLIPPAGE, capital: float = CAPITAL, risk_override: Optional[float] = None,
            allow: Optional[dict[str, np.ndarray]] = None, close_on_gate: bool = True,
-           entry_allow: Optional[dict[str, np.ndarray]] = None) -> Replay:
-    """`allow`: a regime gate per symbol (bit 1 longs, bit 2 shorts); a closed side is not opened, and a position
+           entry_allow: Optional[dict[str, np.ndarray]] = None,
+           dd_brake: Optional[tuple[float, float]] = None, peak: Optional[float] = None,
+           paused: bool = False) -> Replay:
+    """`dd_brake` (half, pause): from a drawdown of `half` off the highest bar-close equity (`peak` carries it in
+    from earlier blocks) new entries take half the risk; from `pause` on there are no new entries for the rest of
+    the block (`paused` carries a pause in). It only lowers risk, never raises it.
+    `allow`: a regime gate per symbol (bit 1 longs, bit 2 shorts); a closed side is not opened, and a position
     on it is closed at the bar's close ("régimen") unless `close_on_gate` is False (the gate only stops entries).
     `entry_allow`: a second mask, same bits, that only stops new entries (combined with `allow`)."""
     rules = rules or D.DeskRules.load()
-    res = Replay()
+    res = Replay(peak=max(capital, peak or 0.0), paused=paused)
     cash = capital
     pos: dict[str, _Pos] = {}
     liq = 1 / sizing.leverage - tw.MAINTENANCE
@@ -360,6 +368,10 @@ def replay(syms: dict[str, Sym], lo: int, hi: int, exits: Exits = BASELINE, sizi
         equity = cash + sum(((marks.get(n, q.entry) - q.entry) * q.qty if q.side > 0
                              else (q.entry - marks.get(n, q.entry)) * q.qty) for n, q in pos.items())
         res.curve.append(equity)
+        res.peak = max(res.peak, equity)
+        drawdown = 1 - equity / res.peak
+        if dd_brake is not None and drawdown >= dd_brake[1]:
+            res.paused = True
         if equity <= capital * (1 - tw.LOSS_LIMIT) or equity >= capital * (1 + tw.GOAL):
             for name, q in list(pos.items()):
                 cash += close_pos(name, q, marks.get(name, q.entry), "fin de sesión", k)
@@ -367,6 +379,8 @@ def replay(syms: dict[str, Sym], lo: int, hi: int, exits: Exits = BASELINE, sizi
             res.end = "límite de pérdida" if equity <= capital * (1 - tw.LOSS_LIMIT) else "meta"
             break
         for name, s in syms.items():
+            if res.paused and dd_brake is not None:
+                break
             if name in pos or len(pos) >= tw.MAX_OPEN:
                 continue
             sig = int(s.side[k])
@@ -393,6 +407,9 @@ def replay(syms: dict[str, Sym], lo: int, hi: int, exits: Exits = BASELINE, sizi
                 risk = sizing.risk
             else:
                 risk = tw.RISK_MIN + (tw.RISK_MAX - tw.RISK_MIN) * qual
+            halve = dd_brake is not None and drawdown >= dd_brake[0]
+            if halve:
+                risk *= 0.5
             used = sum(o.qty * o.entry for o in pos.values())
             qty = min(equity * risk / dist, equity * sizing.max_position / c,
                       max(0.0, sizing.leverage * equity - used) * 0.95 / c)
@@ -403,6 +420,7 @@ def replay(syms: dict[str, Sym], lo: int, hi: int, exits: Exits = BASELINE, sizi
             cash -= fee_in
             tp = c + sig * exits.target_r * dist
             pos[name] = _Pos(sig, qty, entry, sl, tp, dist, k, fee_in)
+            res.halved += int(halve)
     else:
         last = hi - 1
         for name, q in list(pos.items()):
