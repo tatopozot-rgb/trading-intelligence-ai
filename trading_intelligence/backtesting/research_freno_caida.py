@@ -46,7 +46,7 @@ EVENTS: dict[str, np.ndarray] = {}
 
 def run_chained(syms: dict, bounds: list[tuple[int, int]], capital: float, sizing: rm.Sizing, brake: bool,
                 reset: bool, allow: Optional[dict] = None, entry_allow: Optional[dict] = None,
-                replay: Any = None) -> dict:
+                replay: Any = None, close_on_gate: bool = True) -> dict:
     """research_real.run_chained with the sizing and the brake; the peak and a pause carry over between blocks."""
     replay = replay or rm.replay
     equity: list[float] = []
@@ -59,7 +59,7 @@ def run_chained(syms: dict, bounds: list[tuple[int, int]], capital: float, sizin
             peak, paused = level, False
         starts.append(level)
         rep = replay(syms, lo, hi, sizing=sizing, capital=level, allow=allow, entry_allow=entry_allow,
-                     dd_brake=BRAKE if brake else None, peak=peak, paused=paused)
+                     dd_brake=BRAKE if brake else None, peak=peak, paused=paused, close_on_gate=close_on_gate)
         end = level + sum(t["pnl"] for t in rep.trades)
         curve = list(rep.curve) or [level]
         curve += [curve[-1]] * (hi - lo - len(curve))
