@@ -1,0 +1,132 @@
+{
+ "dia": "2026-10-19",
+ "capital_inicial": 30.0,
+ "cuenta": "práctica (dinero ficticio)",
+ "estado": "RUNNING",
+ "hoy": {
+  "operaciones": 0,
+  "ganadas": 0,
+  "acierto_pct": 0.0,
+  "neto_usdt": 0,
+  "esperanza_r": null,
+  "factor_beneficio": null
+ },
+ "acumulado": {
+  "operaciones": 6,
+  "ganadas": 1,
+  "acierto_pct": 16.7,
+  "neto_usdt": -7.0743,
+  "esperanza_r": -0.85,
+  "factor_beneficio": 0.01
+ },
+ "neto_pct": -23.58,
+ "caida_max_pct": 23.85,
+ "por_moneda": {
+  "ADAUSDT": {
+   "operaciones": 1,
+   "ganadas": 0,
+   "acierto_pct": 0.0,
+   "neto_usdt": -0.3646,
+   "esperanza_r": -1.02,
+   "factor_beneficio": 0.0
+  },
+  "AVAXUSDT": {
+   "operaciones": 1,
+   "ganadas": 0,
+   "acierto_pct": 0.0,
+   "neto_usdt": -1.1615,
+   "esperanza_r": -1.02,
+   "factor_beneficio": 0.0
+  },
+  "BNBUSDT": {
+   "operaciones": 1,
+   "ganadas": 0,
+   "acierto_pct": 0.0,
+   "neto_usdt": -0.2312,
+   "esperanza_r": -1.03,
+   "factor_beneficio": 0.0
+  },
+  "BTCUSDT": {
+   "operaciones": 1,
+   "ganadas": 0,
+   "acierto_pct": 0.0,
+   "neto_usdt": -2.5831,
+   "esperanza_r": -1.03,
+   "factor_beneficio": 0.0
+  },
+  "SOLUSDT": {
+   "operaciones": 1,
+   "ganadas": 0,
+   "acierto_pct": 0.0,
+   "neto_usdt": -2.8409,
+   "esperanza_r": -1.02,
+   "factor_beneficio": 0.0
+  },
+  "TRXUSDT": {
+   "operaciones": 1,
+   "ganadas": 1,
+   "acierto_pct": 100.0,
+   "neto_usdt": 0.107,
+   "esperanza_r": 0.04,
+   "factor_beneficio": null
+  }
+ },
+ "por_lado": {
+  "BUY": {
+   "operaciones": 5,
+   "ganadas": 0,
+   "acierto_pct": 0.0,
+   "neto_usdt": -7.1813,
+   "esperanza_r": -1.02,
+   "factor_beneficio": 0.0
+  },
+  "SELL": {
+   "operaciones": 1,
+   "ganadas": 1,
+   "acierto_pct": 100.0,
+   "neto_usdt": 0.107,
+   "esperanza_r": 0.04,
+   "factor_beneficio": null
+  }
+ },
+ "por_salida": {
+  "señal contraria": {
+   "operaciones": 1,
+   "ganadas": 1,
+   "acierto_pct": 100.0,
+   "neto_usdt": 0.107,
+   "esperanza_r": 0.04,
+   "factor_beneficio": null
+  },
+  "stop": {
+   "operaciones": 5,
+   "ganadas": 0,
+   "acierto_pct": 0.0,
+   "neto_usdt": -7.1813,
+   "esperanza_r": -1.02,
+   "factor_beneficio": 0.0
+  }
+ },
+ "vetos": {
+  "evitó pérdida": 0,
+  "dejó pasar ganancia": 0,
+  "sin resultado": 0
+ },
+ "abiertas": [
+  {
+   "symbol": "XRPUSDT",
+   "side": "BUY",
+   "entry": "1.2985",
+   "sl": "1.2526",
+   "tp": "1.436200000000000000000000001"
+  },
+  {
+   "symbol": "DOGEUSDT",
+   "side": "BUY",
+   "entry": "0.079860",
+   "sl": "0.076960",
+   "tp": "0.08855999999999999999999999997"
+  }
+ ],
+ "operaciones_hoy": []
+}
