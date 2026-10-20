@@ -38,6 +38,9 @@ marca "aplicado" solo cuando su regla está en el código o en un experimento me
 - **Hoy:** la mesa gana solo en el régimen alcista y pierde en los demás (−53% en el año).
 - ~~**Falta:** el interruptor de régimen~~ **aplicado** 2026-10-13: freno de mercado `regime_btc_sma` 50 (sin
   entradas nuevas con BTC bajo su media de 50 días; si no puede leer los datos, tampoco abre).
+- Lección 2026-10-20 (segunda vuelta): el freno no abre, pero lo ya abierto sigue hasta su stop. Desde el 15-10,
+  las prácticas cerraron 10 compras viejas por stop a −1R. Propuesta: salida por régimen (cerrar las compras al día
+  siguiente de que BTC cierre bajo su media de 50 días), enviada a Quant para medir (no aplicado).
 
 ## 3. Macro y liquidez
 
