@@ -21,6 +21,7 @@ canal de Donchian (reglas "Turtle"), cruce de medias EMA y momento de serie temp
 | 2026-10-17 | Bot de cuadrícula ("Spot Grid"): 20 escalones geométricos en ±10%, cuadrícula nueva cada lunes | Bots de Binance, Pionex, Bybit y KuCoin; [Mobee](https://mobee.com/en/mobee-academy/blog/spot-grid-trading) | No pasa (2026-10-17): BTC −0,0% / −15,0%, ETH −29,4% / −29,0%; lo ganado en idas y vueltas se pierde en inventario. Archivada. Ver `docs/research/grid/` |
 | 2026-10-18 | Supertrend de freqtrade (3 Supertrend en 1 h, largo y corto) | [FSupertrendStrategy.py](https://raw.githubusercontent.com/freqtrade/freqtrade-strategies/b8a90bebebfc13a78416635166ebafdece596d3f/user_data/strategies/futures/FSupertrendStrategy.py) | No pasa (2026-10-18): A tal cual pierde en los dos años (juntas −12,8% / −41,6%, caída 53%); B con frenos gana a la mesa solo en ETH 2024-25 (2,29) y pierde en 2025-26; Sharpe deflactado ≤ 0,001. Archivada. Ver `docs/research/supertrend/` |
 | 2026-10-19 | Nube de Ichimoku en BTC diario (9/26/52, solo compras) | Goichi Hosoda (1969); [Investopedia](https://www.investopedia.com/terms/i/ichimoku-cloud.asp); [StockCharts ChartSchool](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-overlays/ichimoku-cloud) | No pasa (2026-10-19): A juntas gana a la mesa en 2024-25 (2,92) y pierde en 2025-26 (−0,34); B con frenos pierde en 2025-26; Sharpe deflactado ≤ 0,009; 3 a 8 operaciones al año. Archivada. Ver `docs/research/ichimoku/` |
+| 2026-10-20 | Cruce del MACD en BTC y ETH diario (12/26/9, solo compras) | Gerald Appel, *Technical Analysis: Power Tools for Active Investors* (2005); [Investopedia](https://www.investopedia.com/terms/m/macd.asp) | Enviada a Quant (2026-10-20) |
 
 ---
 
@@ -469,4 +470,20 @@ dejan fijos: no se afinan.
 - Pasó lo esperado: gana en el año alcista y pierde en el lateral, como la media de 10 meses.
 - El Sharpe deflactado no pasa de 0,009 en ninguna versión. Cada moneda sola tiene muy pocas operaciones (3 a 8 por
   año) para decir algo.
+
+## Cruce del MACD en BTC y ETH diario (2026-10-20)
+
+- **Fuente:** Gerald Appel, *Technical Analysis: Power Tools for Active Investors* (2005);
+  [Investopedia](https://www.investopedia.com/terms/m/macd.asp).
+- **Reglas, versión A (tal cual):**
+  - MACD = media exponencial de 12 días menos la de 26 días; señal = media exponencial de 9 días del MACD.
+  - Compra al abrir el día siguiente al cierre en que el MACD cruza sobre la señal.
+  - Vende al abrir el día siguiente al cierre en que el MACD cruza bajo la señal. Sin stop propio. Solo compras.
+  - BTC y ETH por separado y juntas (mitad y mitad), 1x, comisión y deslizamiento de la mesa.
+- **Versión B (con los frenos de la mesa):** las mismas reglas, más el freno de mercado (BTC sobre su media de 50
+  días), el stop de la mesa y el freno de eventos.
+- **Prueba:** 2024-10 → 2025-10 y 2025-10 → 2026-10, con costos, contra la mesa de práctica (1,67 y −0,21 de
+  neto/caída). Pasa solo si gana a la mesa en los dos años y su Sharpe deflactado pasa el listón.
+- **Señales de sobreajuste:** ninguna en los parámetros (son los clásicos y no se afinan). El riesgo es el
+  contrario: en mercados laterales el MACD cruza muchas veces y las comisiones se comen la ganancia.
 
