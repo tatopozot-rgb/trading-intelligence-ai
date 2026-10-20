@@ -40,7 +40,10 @@ marca "aplicado" solo cuando su regla está en el código o en un experimento me
   entradas nuevas con BTC bajo su media de 50 días; si no puede leer los datos, tampoco abre).
 - Lección 2026-10-20 (segunda vuelta): el freno no abre, pero lo ya abierto sigue hasta su stop. Desde el 15-10,
   las prácticas cerraron 10 compras viejas por stop a −1R. Propuesta: salida por régimen (cerrar las compras al día
-  siguiente de que BTC cierre bajo su media de 50 días), enviada a Quant para medir (no aplicado).
+  siguiente de que BTC cierre bajo su media de 50 días), enviada a Quant para medir. Resultado (PR #113): no pasa
+  (1x 1,04 y 0,18, DSR 0,005; 3x −0,25 y −0,28); cuesta en el año bueno y salva en el malo. Además, la regla YA
+  está en el código (`live/two_way.py`, `_decide`, cierra los largos con el freno activo). Pendiente: saber por qué
+  la práctica abrió y cerró compras por stop sin que actuara el freno (¿BTC sobre su media o la PC sin el freno?).
 
 ## 3. Macro y liquidez
 
