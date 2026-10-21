@@ -22,7 +22,7 @@ canal de Donchian (reglas "Turtle"), cruce de medias EMA y momento de serie temp
 | 2026-10-18 | Supertrend de freqtrade (3 Supertrend en 1 h, largo y corto) | [FSupertrendStrategy.py](https://raw.githubusercontent.com/freqtrade/freqtrade-strategies/b8a90bebebfc13a78416635166ebafdece596d3f/user_data/strategies/futures/FSupertrendStrategy.py) | No pasa (2026-10-18): A tal cual pierde en los dos años (juntas −12,8% / −41,6%, caída 53%); B con frenos gana a la mesa solo en ETH 2024-25 (2,29) y pierde en 2025-26; Sharpe deflactado ≤ 0,001. Archivada. Ver `docs/research/supertrend/` |
 | 2026-10-19 | Nube de Ichimoku en BTC diario (9/26/52, solo compras) | Goichi Hosoda (1969); [Investopedia](https://www.investopedia.com/terms/i/ichimoku-cloud.asp); [StockCharts ChartSchool](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-overlays/ichimoku-cloud) | No pasa (2026-10-19): A juntas gana a la mesa en 2024-25 (2,92) y pierde en 2025-26 (−0,34); B con frenos pierde en 2025-26; Sharpe deflactado ≤ 0,009; 3 a 8 operaciones al año. Archivada. Ver `docs/research/ichimoku/` |
 | 2026-10-20 | Cruce del MACD en BTC y ETH diario (12/26/9, solo compras) | Gerald Appel, *Technical Analysis: Power Tools for Active Investors* (2005); [Investopedia](https://www.investopedia.com/terms/m/macd.asp) | No pasa (2026-10-20): A juntas −0,26 / −0,10; B con frenos −0,67 / 2,86 (gana solo 2025-26, con 12 operaciones); Sharpe deflactado ≤ 0,023. Archivada. Ver `docs/research/macd/` |
-| 2026-10-21 | "Squeeze" de John Carter (TTM Squeeze) en BTC y ETH diario, solo compras | John Carter, *Mastering the Trade* (2.ª ed., 2012); [StockCharts ChartSchool](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/ttm-squeeze) | Enviada a Quant (2026-10-21) |
+| 2026-10-21 | "Squeeze" de John Carter (TTM Squeeze) en BTC y ETH diario, solo compras | John Carter, *Mastering the Trade* (2.ª ed., 2012); [StockCharts ChartSchool](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/ttm-squeeze) | No pasa (2026-10-21): A juntas 0,80 / −0,21; B con frenos 1,44 / 0,16 (pierde 2024-25, gana 2025-26 con 8 operaciones); Sharpe deflactado ≤ 0,004. Archivada. Ver `docs/research/ttm/` |
 
 ---
 
@@ -509,3 +509,6 @@ dejan fijos: no se afinan.
   neto/caída). Pasa solo si gana a la mesa en los dos años y su Sharpe deflactado pasa el listón.
 - **Señales de sobreajuste:** ninguna en los parámetros (son los de Carter y no se afinan). Riesgo: en diario hay
   pocos apretones al año, así que habrá pocas operaciones y el resultado puede depender de dos o tres.
+- **Resultado (Quant, 2026-10-21, PR #119):** no pasa. B con frenos, juntas: 1,44 en 2024-25 (bajo la mesa, 1,67)
+  y 0,16 en 2025-26 (sobre la mesa, −0,21), con solo 8 operaciones al año. A tal cual, juntas: 0,80 y −0,21.
+  Sharpe deflactado ≤ 0,004 en todas (listón 0,95). Archivada.
