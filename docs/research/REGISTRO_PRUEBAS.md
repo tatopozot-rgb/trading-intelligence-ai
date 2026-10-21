@@ -15,6 +15,11 @@ resultado se llena después. Las pruebas decisorias de esta tabla son la N del S
 - No cuentan: las filas de referencia (mesa de práctica, mesa_r3, BTC comprar y mantener), las re-mediciones de la
   mesa, los análisis que no operan reglas (correlaciones) y las re-corridas de la misma regla.
 - Desde el 2026-10-12, por fecha de corrida (no por la fecha que lleva el nombre del informe).
+- **Bots públicos, desde el 2026-10-21 (líder; no se aplica hacia atrás):** cada bot público corre **solo 3**
+  filas decisorias: A juntas, B juntas y una moneda sola. Esa moneda se elige en el preregistro con una razón previa
+  (liquidez, la que usa el autor, etc.), nunca mirando resultados de esa misma estrategia. Si por cualquier motivo
+  se calcula o se mira otra variante (otras monedas, otra mezcla), cuenta en la N igual. Menos filas significa menos
+  variantes miradas, no menos anotadas.
 
 ## Totales al 2026-10-19
 
