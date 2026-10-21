@@ -310,10 +310,11 @@ def replay(syms: dict[str, Sym], lo: int, hi: int, exits: Exits = BASELINE, sizi
            allow: Optional[dict[str, np.ndarray]] = None, close_on_gate: bool = True,
            entry_allow: Optional[dict[str, np.ndarray]] = None,
            dd_brake: Optional[tuple[float, float]] = None, peak: Optional[float] = None,
-           paused: bool = False) -> Replay:
+           paused: bool = False, risk_scale: Optional[np.ndarray] = None) -> Replay:
     """`dd_brake` (half, pause): from a drawdown of `half` off the highest bar-close equity (`peak` carries it in
     from earlier blocks) new entries take half the risk; from `pause` on there are no new entries for the rest of
-    the block (`paused` carries a pause in). It only lowers risk, never raises it.
+    the block (`paused` carries a pause in). It only lowers risk, never raises it. `risk_scale`: a per-bar factor
+    (<= 1) on the risk of new entries.
     `allow`: a regime gate per symbol (bit 1 longs, bit 2 shorts); a closed side is not opened, and a position
     on it is closed at the bar's close ("régimen") unless `close_on_gate` is False (the gate only stops entries).
     `entry_allow`: a second mask, same bits, that only stops new entries (combined with `allow`)."""
@@ -407,6 +408,8 @@ def replay(syms: dict[str, Sym], lo: int, hi: int, exits: Exits = BASELINE, sizi
                 risk = sizing.risk
             else:
                 risk = tw.RISK_MIN + (tw.RISK_MAX - tw.RISK_MIN) * qual
+            if risk_scale is not None:
+                risk *= min(1.0, float(risk_scale[k]))
             halve = dd_brake is not None and drawdown >= dd_brake[0]
             if halve:
                 risk *= 0.5
