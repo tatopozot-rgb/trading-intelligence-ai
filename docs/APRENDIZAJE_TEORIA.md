@@ -55,6 +55,8 @@ marca "aplicado" solo cuando su regla está en el código o en un experimento me
   - Una nota diaria de inteligencia (`docs/inteligencia/`).
   - ~~Un filtro de eventos~~ **aplicado** 2026-10-13: sin entradas ±2 h alrededor de FOMC/CPI (`config/eventos.json`); falta medir el tamaño de la ventana.
   - El estado de tasas y dólar como entrada del régimen.
+  - Lección 2026-10-21: la macro decide cuánto arriesgar, no cuándo entrar. Regla "riesgo a la mitad" (bono a 10
+    años y DXY sobre su media de 50 días) enviada a Quant para medir (no aplicado).
 
 ## 4. Estructura de los futuros perpetuos
 

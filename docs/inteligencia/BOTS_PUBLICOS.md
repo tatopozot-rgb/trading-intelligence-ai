@@ -22,6 +22,7 @@ canal de Donchian (reglas "Turtle"), cruce de medias EMA y momento de serie temp
 | 2026-10-18 | Supertrend de freqtrade (3 Supertrend en 1 h, largo y corto) | [FSupertrendStrategy.py](https://raw.githubusercontent.com/freqtrade/freqtrade-strategies/b8a90bebebfc13a78416635166ebafdece596d3f/user_data/strategies/futures/FSupertrendStrategy.py) | No pasa (2026-10-18): A tal cual pierde en los dos años (juntas −12,8% / −41,6%, caída 53%); B con frenos gana a la mesa solo en ETH 2024-25 (2,29) y pierde en 2025-26; Sharpe deflactado ≤ 0,001. Archivada. Ver `docs/research/supertrend/` |
 | 2026-10-19 | Nube de Ichimoku en BTC diario (9/26/52, solo compras) | Goichi Hosoda (1969); [Investopedia](https://www.investopedia.com/terms/i/ichimoku-cloud.asp); [StockCharts ChartSchool](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-overlays/ichimoku-cloud) | No pasa (2026-10-19): A juntas gana a la mesa en 2024-25 (2,92) y pierde en 2025-26 (−0,34); B con frenos pierde en 2025-26; Sharpe deflactado ≤ 0,009; 3 a 8 operaciones al año. Archivada. Ver `docs/research/ichimoku/` |
 | 2026-10-20 | Cruce del MACD en BTC y ETH diario (12/26/9, solo compras) | Gerald Appel, *Technical Analysis: Power Tools for Active Investors* (2005); [Investopedia](https://www.investopedia.com/terms/m/macd.asp) | No pasa (2026-10-20): A juntas −0,26 / −0,10; B con frenos −0,67 / 2,86 (gana solo 2025-26, con 12 operaciones); Sharpe deflactado ≤ 0,023. Archivada. Ver `docs/research/macd/` |
+| 2026-10-21 | "Squeeze" de John Carter (TTM Squeeze) en BTC y ETH diario, solo compras | John Carter, *Mastering the Trade* (2.ª ed., 2012); [StockCharts ChartSchool](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/ttm-squeeze) | Enviada a Quant (2026-10-21) |
 
 ---
 
@@ -487,3 +488,24 @@ dejan fijos: no se afinan.
 - **Señales de sobreajuste:** ninguna en los parámetros (son los clásicos y no se afinan). El riesgo es el
   contrario: en mercados laterales el MACD cruza muchas veces y las comisiones se comen la ganancia.
 
+## "Squeeze" de John Carter (TTM Squeeze) en BTC y ETH diario (2026-10-21)
+
+- **Fuente:** John Carter, *Mastering the Trade* (2.ª ed., 2012);
+  [StockCharts ChartSchool](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/ttm-squeeze).
+- **Reglas, versión A (tal cual):**
+  - Bandas de Bollinger de 20 días y 2 desviaciones; canal de Keltner de 20 días con 1,5 ATR de 20 días.
+  - Apretón activo: la banda alta de Bollinger está bajo la alta de Keltner y la baja de Bollinger sobre la baja de
+    Keltner.
+  - Impulso: cierre menos el promedio de (punto medio del máximo y mínimo de 20 días) y (media simple de 20 días);
+    se suaviza con una regresión lineal de 20 días y se toma su último valor.
+  - Compra al abrir el día siguiente al primer cierre sin apretón tras uno o más días con apretón, si el impulso es
+    positivo y mayor que el del día anterior.
+  - Vende al abrir el día siguiente al segundo cierre seguido con el impulso más bajo que el del día anterior. Sin
+    stop propio. Solo compras.
+  - BTC y ETH por separado y juntas (mitad y mitad), 1x, comisión y deslizamiento de la mesa.
+- **Versión B (con los frenos de la mesa):** las mismas reglas, más el freno de mercado (BTC sobre su media de 50
+  días), el stop de la mesa y el freno de eventos.
+- **Prueba:** 2024-10 → 2025-10 y 2025-10 → 2026-10, con costos, contra la mesa de práctica (1,67 y −0,21 de
+  neto/caída). Pasa solo si gana a la mesa en los dos años y su Sharpe deflactado pasa el listón.
+- **Señales de sobreajuste:** ninguna en los parámetros (son los de Carter y no se afinan). Riesgo: en diario hay
+  pocos apretones al año, así que habrá pocas operaciones y el resultado puede depender de dos o tres.
