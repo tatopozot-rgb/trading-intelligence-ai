@@ -1,0 +1,121 @@
+{
+ "dia": "2026-10-20",
+ "capital_inicial": 50.0,
+ "cuenta": "práctica (dinero ficticio)",
+ "estado": "RUNNING",
+ "hoy": {
+  "operaciones": 1,
+  "ganadas": 1,
+  "acierto_pct": 100.0,
+  "neto_usdt": 0.3879,
+  "esperanza_r": 0.48,
+  "factor_beneficio": null
+ },
+ "acumulado": {
+  "operaciones": 6,
+  "ganadas": 1,
+  "acierto_pct": 16.7,
+  "neto_usdt": -3.7302,
+  "esperanza_r": -0.77,
+  "factor_beneficio": 0.09
+ },
+ "neto_pct": -7.46,
+ "caida_max_pct": 8.24,
+ "por_moneda": {
+  "AVAXUSDT": {
+   "operaciones": 1,
+   "ganadas": 0,
+   "acierto_pct": 0.0,
+   "neto_usdt": -1.1695,
+   "esperanza_r": -1.02,
+   "factor_beneficio": 0.0
+  },
+  "BNBUSDT": {
+   "operaciones": 1,
+   "ganadas": 0,
+   "acierto_pct": 0.0,
+   "neto_usdt": -0.6934,
+   "esperanza_r": -1.03,
+   "factor_beneficio": 0.0
+  },
+  "DOGEUSDT": {
+   "operaciones": 1,
+   "ganadas": 0,
+   "acierto_pct": 0.0,
+   "neto_usdt": -0.2251,
+   "esperanza_r": -1.02,
+   "factor_beneficio": 0.0
+  },
+  "SOLUSDT": {
+   "operaciones": 1,
+   "ganadas": 0,
+   "acierto_pct": 0.0,
+   "neto_usdt": -1.2019,
+   "esperanza_r": -1.02,
+   "factor_beneficio": 0.0
+  },
+  "XRPUSDT": {
+   "operaciones": 2,
+   "ganadas": 1,
+   "acierto_pct": 50.0,
+   "neto_usdt": -0.4403,
+   "esperanza_r": -0.28,
+   "factor_beneficio": 0.47
+  }
+ },
+ "por_lado": {
+  "BUY": {
+   "operaciones": 6,
+   "ganadas": 1,
+   "acierto_pct": 16.7,
+   "neto_usdt": -3.7302,
+   "esperanza_r": -0.77,
+   "factor_beneficio": 0.09
+  }
+ },
+ "por_salida": {
+  "stop": {
+   "operaciones": 6,
+   "ganadas": 1,
+   "acierto_pct": 16.7,
+   "neto_usdt": -3.7302,
+   "esperanza_r": -0.77,
+   "factor_beneficio": 0.09
+  }
+ },
+ "vetos": {
+  "evitó pérdida": 0,
+  "dejó pasar ganancia": 0,
+  "sin resultado": 4
+ },
+ "abiertas": [
+  {
+   "symbol": "ETHUSDT",
+   "side": "BUY",
+   "entry": "2409.19",
+   "sl": "2322.45",
+   "tp": "2669.410000000000000000000000"
+  },
+  {
+   "symbol": "XRPUSDT",
+   "side": "BUY",
+   "entry": "1.3233",
+   "sl": "1.2836",
+   "tp": "1.442400000000000000000000000"
+  }
+ ],
+ "operaciones_hoy": [
+  {
+   "symbol": "XRPUSDT",
+   "side": "BUY",
+   "entry": "1.2983",
+   "exit": "1.32165",
+   "qty": "17.6",
+   "pnl": "0.3879",
+   "r": "0.48",
+   "opened": "2026-10-18T22:24:06.034232+00:00",
+   "why": "stop",
+   "at": "2026-10-20T15:13:04.498341+00:00"
+  }
+ ]
+}
