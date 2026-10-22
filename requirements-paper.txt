@@ -1,3 +1,4 @@
 # Dependencies of the existing Windows PAPER runtime (not research experiments).
 pandas==3.0.6
 requests==2.34.2
+anthropic==2.1.0  # live/revision_riesgo.py, optional: without it (or without ANTHROPIC_API_KEY) the review just does not run
