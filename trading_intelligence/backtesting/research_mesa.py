@@ -52,10 +52,12 @@ class Exits:
     trail_start: float = tw.TRAIL_START_R
     trail_dist: float = tw.TRAIL_DISTANCE_R
     max_hold_bars: Optional[int] = None
+    close_on_signal: bool = True  # an opposite signal closes the position
 
     def label(self) -> str:
         hold = f", salida {self.max_hold_bars // 12} h" if self.max_hold_bars else ""
-        return f"{self.target_r:g}R, trailing desde {self.trail_start:g}R a {self.trail_dist:g}R{hold}"
+        sig = "" if self.close_on_signal else ", sin cierre por señal"
+        return f"{self.target_r:g}R, trailing desde {self.trail_start:g}R a {self.trail_dist:g}R{hold}{sig}"
 
 
 BASELINE = Exits()
@@ -353,7 +355,7 @@ def replay(syms: dict[str, Sym], lo: int, hi: int, exits: Exits = BASELINE, sizi
             sig = int(s.side[k])
             if hit_sl or hit_tp:
                 cash += close_pos(name, p, p.sl if hit_sl else p.tp, "stop" if hit_sl else "meta", k)
-            elif sig != 0 and sig != p.side:
+            elif exits.close_on_signal and sig != 0 and sig != p.side:
                 cash += close_pos(name, p, c, "señal contraria", k)
             elif close_on_gate and allow is not None and not allow[name][k] & (LONG if long else SHORT):
                 cash += close_pos(name, p, c, "régimen", k)
