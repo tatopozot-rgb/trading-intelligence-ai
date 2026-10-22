@@ -132,6 +132,7 @@ class State:
     equity: str = ""  # the last equity read at a decision, for the daily summary
     equity_at: str = ""
     currency: str = ""
+    flows_cursor: str = ""  # the broker's last deposit/withdrawal/balance adjustment already applied
 
     @classmethod
     def load(cls, path: Path) -> "State":
@@ -146,6 +147,7 @@ class State:
         state.month, state.month_start_equity = d.get("month", ""), d.get("month_start_equity", "0")
         state.name, state.equity, state.equity_at = d.get("name", ""), d.get("equity", ""), d.get("equity_at", "")
         state.currency = d.get("currency", "")
+        state.flows_cursor = d.get("flows_cursor", "")
         return state
 
     def save(self, path: Path) -> None:
@@ -310,6 +312,33 @@ class TwoWayAuto:
                 return self.broker.positions()
         return ours
 
+    def _cash_flows(self, equity: Decimal) -> None:
+        """Money put in or taken out (a deposit, a withdrawal, the XM demo's SetCustomBalance) is not a trading result:
+        the bases of the loss limit, the month's goal and the day's stop move by the same amount. Before this, the
+        demo set from ~964 to 5,000 USD on 2026-10-17 counted as the month's goal met (docs/INCIDENTES.md, 2026-10-22).
+        Only brokers that can read it (XM) have ``cash_flows``; the first read only takes the bookmark."""
+        flows = getattr(self.broker, "cash_flows", None)
+        if flows is None:
+            return
+        s = self.state
+        try:
+            amount, cursor = flows(s.flows_cursor)
+        except AttributeError:  # an MT5 module without the account history: as before
+            return
+        except (RuntimeError, ValueError, OSError) as error:
+            self._note_once("flows", f"no pude leer depósitos ni ajustes de saldo: {error}")
+            return
+        first, s.flows_cursor = not s.flows_cursor, cursor
+        if first or amount == 0:
+            return
+        for attr in ("capital", "month_start_equity", "day_start_equity"):
+            base = Decimal(getattr(s, attr))
+            if base > 0:
+                setattr(s, attr, str(base + amount if base + amount > 0 else equity))
+        self._event("CASH_FLOW", f"depósito o ajuste de saldo {amount:+}: no cuenta como ganancia ni pérdida")
+        self.chatter(f"💵 {self.broker.name}: entró o salió dinero de la cuenta ({amount:+} {s.currency}). No es ganancia "
+                     f"ni pérdida: el límite de pérdida y la meta del mes cuentan desde el nuevo saldo.")
+
     def step(self) -> None:
         s = self.state
         equity, currency = self.broker.equity()
@@ -318,6 +347,7 @@ class TwoWayAuto:
         self._currency = s.currency = currency
         if Decimal(s.capital) <= 0:
             s.capital = str(equity)
+        self._cash_flows(equity)
         month = self.clock().strftime("%Y-%m")
         if s.month != month:
             resumed = s.status == GOAL  # also a GOAL left by the old session goal (before 2026-10-11)

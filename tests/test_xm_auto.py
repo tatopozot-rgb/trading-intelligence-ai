@@ -176,3 +176,61 @@ def test_the_cli_names_the_agent(tmp_path, capsys):
     assert A.main(["--simbolos", "EURUSD", "--dir", str(tmp_path), "--una-vez", "--agente", "Aprendiz",
                    "--margen-max", "90", "--spread-max", "1.5"], mt5=m) == 0
     assert "XM DEMO · Aprendiz" in capsys.readouterr().out
+
+
+# --- money put in or taken out is not a result (incident 2026-10-22) ---------------------------------------
+
+from types import SimpleNamespace as _NS  # noqa: E402
+
+
+class FundedMt5(TradingMt5):
+    def __init__(self, **kw):
+        super().__init__(**kw)
+        self.deals = [_NS(ticket=5, type=2, profit=900.0)]  # the account's first deposit, before the bot started
+
+    def history_deals_get(self, date_from, date_to):
+        assert date_from < date_to
+        return tuple(self.deals)
+
+
+def _funded(tmp_path, sig):
+    m = FundedMt5(equity=964.0)
+    t = D.XmDemoTrader(tmp_path / "orders.json", m, reader=XmReader(m, clock=lambda: NOW))
+    t.connect()
+    sent: list[str] = []
+    auto = A.XmAuto(t, list(sig), tmp_path / "state.json", signal=lambda sym, data, htf=None, top=None: sig.get(sym),
+                    pause=lambda s: None, notify=sent.append, chatter=sent.append, clock=lambda: NOW)
+    return auto, m, sent
+
+
+def test_a_balance_set_by_hand_is_not_the_month_goal_and_trading_goes_on(tmp_path):
+    sig = {"EURUSD": None}
+    auto, m, sent = _funded(tmp_path, sig)
+    auto.step()
+    assert auto.state.capital == "964.0" and auto.state.flows_cursor == "5"  # the old deposit only sets the bookmark
+    m.equity = 5000.0  # 2026-10-17: SetCustomBalance from ~964 to 5,000 USD
+    m.deals += [_NS(ticket=9, type=2, profit=4036.0), _NS(ticket=8, type=1, profit=-3.0)]  # a trade's deal: ignored
+    auto.step()
+    s = auto.state
+    assert s.status == "RUNNING"
+    assert Decimal(s.capital) == Decimal("5000") and Decimal(s.month_start_equity) == Decimal("5000")
+    assert Decimal(s.day_start_equity) == Decimal("5000") and s.flows_cursor == "9"
+    assert any(e["kind"] == "CASH_FLOW" for e in s.events) and not any("meta del mes cumplida" in x for x in sent)
+    m.equity = 5000.0 * 1.6  # a real 60% gain on the new base does reach the goal
+    auto.step()
+    assert auto.state.status == "GOAL"
+
+
+def test_a_withdrawal_moves_the_loss_limit_down_instead_of_stopping_the_bot(tmp_path):
+    auto, m, sent = _funded(tmp_path, {"EURUSD": None})
+    auto.step()
+    m.equity = 464.0
+    m.deals.append(_NS(ticket=11, type=2, profit=-500.0))
+    auto.step()
+    assert auto.state.status == "RUNNING" and Decimal(auto.state.capital) == Decimal("464")
+
+
+def test_without_the_history_the_engine_carries_on_as_before(tmp_path):
+    auto, m, sent = _auto(tmp_path, {"EURUSD": "BUY"})  # this fake MT5 has no history_deals_get
+    auto.step()
+    assert m.positions and auto.state.flows_cursor == ""

@@ -26,7 +26,7 @@ import math
 import re
 import sys
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Optional
 
@@ -35,7 +35,8 @@ import pandas as pd
 from trading_intelligence.execution.base import AbstractExchangeAdapter
 
 READS = frozenset({"initialize", "shutdown", "last_error", "account_info", "positions_get", "symbol_info",
-                   "symbol_info_tick", "symbol_select", "symbols_get", "copy_rates_from_pos", "order_calc_margin"})
+                   "symbol_info_tick", "symbol_select", "symbols_get", "copy_rates_from_pos", "order_calc_margin",
+                   "history_deals_get"})
 ACCOUNT_MODES = {0: "DEMO", 1: "CONCURSO", 2: "REAL"}
 ORDER_TYPE_BUY, ORDER_TYPE_SELL = 0, 1
 # SYMBOL_TRADE_MODE_*: what the broker allows on the instrument right now.
@@ -44,6 +45,9 @@ TRADE_MODES = {0: "DESHABILITADO", 1: "SOLO_COMPRA", 2: "SOLO_VENTA", 3: "SOLO_C
 TIMEFRAMES = {"1m": 1, "5m": 5, "15m": 15, "20m": 20, "30m": 30, "1h": 16385, "4h": 16388, "1d": 16408}
 SYMBOL = re.compile(r"^[A-Za-z0-9._#-]{1,32}$")
 MAX_TICK_AGE_S = 300  # a quote older than this means the market is closed (weekend, holiday, session break)
+# DEAL_TYPE_BALANCE, _CREDIT, _CHARGE, _CORRECTION, _BONUS: money put in or taken out (a deposit, a withdrawal, the
+# demo's SetCustomBalance), not the result of a trade
+CASH_DEALS = frozenset({2, 3, 4, 5, 6})
 
 
 class XmError(RuntimeError):
@@ -155,6 +159,18 @@ class XmReader:
             raise XmError("datos de cuenta MT5 con formato inesperado")
         return Account(mode, currency, leverage, _dec(info.balance, "balance"), _dec(info.equity, "equity"),
                        _dec(info.margin_free, "margen libre"), bool(getattr(info, "trade_allowed", False)))
+
+    def cash_deals(self, after: int = 0, days: int = 31) -> list[tuple[int, Decimal]]:
+        """Deposits, withdrawals and balance set by hand of the last ``days`` with a ticket above ``after``:
+        (ticket, amount). Tickets, not times: MT5 keeps deal times in the server's clock, not UTC."""
+        if not self._connected:
+            raise XmError("sin conexión con la terminal MT5")
+        now = self._clock()
+        deals = self._mt5.history_deals_get(now - timedelta(days=days), now + timedelta(days=1))  # type: ignore[operator]
+        if deals is None:
+            raise XmError("MT5 no devolvió el historial de la cuenta")
+        return [(int(d.ticket), _dec(d.profit, "monto")) for d in deals
+                if int(getattr(d, "type", -1)) in CASH_DEALS and int(d.ticket) > after]
 
     def _info(self, symbol: str):
         if not SYMBOL.match(symbol):

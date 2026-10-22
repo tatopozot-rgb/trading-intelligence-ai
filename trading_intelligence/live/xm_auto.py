@@ -57,6 +57,12 @@ class XmBroker:
         acc = self.trader._demo_account()
         return acc.equity, acc.currency
 
+    def cash_flows(self, cursor: str) -> tuple[Decimal, str]:
+        """Money put in or taken out since ``cursor`` (the last deal seen), and the new cursor."""
+        after = int(cursor) if cursor.isdigit() else 0
+        deals = self.trader.reader.cash_deals(after)
+        return sum((amount for _, amount in deals), Decimal("0")), str(max([after] + [t for t, _ in deals]))
+
     def positions(self) -> dict[str, Position]:
         return {sym: Position(sym, "BUY" if int(getattr(p, "type")) == 0 else "SELL",
                               Decimal(str(getattr(p, "volume", 0))), str(getattr(p, "ticket")),
