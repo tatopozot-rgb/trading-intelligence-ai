@@ -2,6 +2,10 @@
 
 Preregistro escrito el 2026-10-22, antes de arrancar. Lo decidió el Líder el 22-10.
 
+## Arranque
+
+Arrancó el 2026-10-22 a las 02:07:56 UTC (21:07:56 de Ecuador) desde londres-wt (main 07b3045). La tarea es TradingIntelligence-Practica2R, cada 10 minutos, y el estado queda en `xm-wt\live_runs\futures_auto_2r\shadow`. Sus avisos dicen "PRÁCTICA SIMULADO · trailing 2R · sin cierre por señal".
+
 ## Por qué
 
 En las dos prácticas de futuros y en el bot real, ninguna operación ganadora llegó a su meta, desde el inicio hasta el 21-10. Las ganadoras salen por el stop que sigue la ganancia (desde +1R, a R/2 del precio) o por una señal contraria. Las perdedoras salen enteras (−1R). Eso va contra el estilo que eligió el dueño: pérdida chica, ganancia grande.
