@@ -201,7 +201,8 @@ def _claude(path: Path, d: dict, since: datetime) -> Bot:
             bot.opened.append((name, str(t.get("lado", "BUY"))))
         elif t.get("accion") == "cierre" and _d(t.get("pnl")) is not None:
             bot.closed.append((name, _d(t["pnl"]) or Decimal("0"), not t.get("estimado")))
-    opened = d.get("open") if isinstance(d.get("open"), dict) else {}
+    raw = d.get("open")
+    opened: dict = raw if isinstance(raw, dict) else {}
     bot.open_now = [f"{xm_name(s)} ({_side(str(o.get('lado', 'BUY')))})" for s, o in opened.items()
                     if isinstance(o, dict)]
     if d.get("halted"):
