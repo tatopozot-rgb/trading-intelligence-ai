@@ -38,10 +38,10 @@ import urllib.parse
 import urllib.request
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import ROUND_DOWN, ROUND_UP, Decimal
 from pathlib import Path
-from typing import Any, Callable, Mapping, Optional
+from typing import Any, Callable, Iterator, Mapping, Optional
 
 import pandas as pd
 
@@ -700,6 +700,15 @@ class FuturesBroker:
             self.market.cancel_algo(position.symbol, algo_id)
 
 
+def _funding_times(since: datetime, until: datetime) -> Iterator[datetime]:
+    """The funding cuts (every 8 h from 00:00 UTC) after ``since`` and up to ``until``."""
+    step = timedelta(hours=8)
+    cut = since.replace(hour=since.hour - since.hour % 8, minute=0, second=0, microsecond=0) + step
+    while cut <= until:
+        yield cut
+        cut += step
+
+
 class PaperFuturesBroker:
     """SHADOW: real public prices, simulated positions with their stop, target and taker fee."""
     name, unit = "🧪 Binance Futuros · PRÁCTICA SIMULADO (dinero ficticio)", "unidades"
@@ -724,13 +733,38 @@ class PaperFuturesBroker:
         qty, entry = Decimal(p["qty"]), Decimal(p["entry"])
         pnl = (price - entry) * qty if p["side"] == "BUY" else (entry - price) * qty
         fee = price * qty * self.fee
-        net = pnl - fee - Decimal(p["fee"])
+        net = pnl - fee - Decimal(p["fee"]) - Decimal(p.get("funding", "0"))
         self.book["cash"] = str(Decimal(self.book["cash"]) + pnl - fee)
         risk = abs(entry - Decimal(p.get("sl0", p["sl"]))) * qty  # what the first stop put at stake
         self.book["closed"].append({"symbol": sym, "side": p["side"], "entry": p["entry"], "exit": str(price),
                                     "qty": p["qty"], "pnl": str(net.quantize(Decimal("0.0001"))),
                                     "r": str((net / risk).quantize(Decimal("0.01"))) if risk > 0 else None,
-                                    "opened": p.get("opened"), "why": why, "at": datetime.now(timezone.utc).isoformat()})
+                                    "opened": p.get("opened"), "why": why, "at": datetime.now(timezone.utc).isoformat(),
+                                    "funding": p.get("funding", "0")})
+
+    def _fund(self) -> None:
+        """Binance charges funding at 00:00, 08:00 and 16:00 UTC on what is still open: longs pay a positive rate,
+        shorts get it. Charged here at the current public rate, as the real account pays it. A position opened
+        before this rule (no "funded" mark) starts counting now, never backwards."""
+        now = datetime.now(timezone.utc)
+        for sym, p in self.book["positions"].items():
+            if not p.get("funded"):
+                p["funded"] = now.isoformat()
+                continue
+            since = datetime.fromisoformat(p["funded"])
+            due = sum(1 for _ in _funding_times(since, now))
+            if not due:
+                continue
+            rate = self.market.funding(sym)
+            if rate is None:
+                continue  # no rate now: the next pass pays it
+            bid, ask = self.market.book(sym)
+            paid = Decimal(p["qty"]) * (bid + ask) / 2 * Decimal(str(rate)) / 100 * due
+            if p["side"] != "BUY":
+                paid = -paid
+            self.book["cash"] = str(Decimal(self.book["cash"]) - paid)
+            p["funding"] = str((Decimal(p.get("funding", "0")) + paid).quantize(Decimal("0.0001")))
+            p["funded"] = now.isoformat()
 
     def _settle(self) -> None:
         """A stop or a target touched since the last pass (on 1m bars) closes there; stop first if both."""
@@ -759,6 +793,7 @@ class PaperFuturesBroker:
 
     def positions(self) -> dict[str, Position]:
         self._settle()
+        self._fund()  # after the stops: what closed since the last pass does not pay
         self._save()
         return {s: Position(s, p["side"], Decimal(p["qty"]), p["ticket"], Decimal(p["entry"]))
                 for s, p in self.book["positions"].items()}
@@ -788,7 +823,7 @@ class PaperFuturesBroker:
         self.book["positions"][plan.symbol] = {
             "side": plan.side, "qty": str(plan.qty), "entry": str(plan.price), "sl": str(plan.sl), "sl0": str(plan.sl),
             "tp": str(plan.tp), "fee": str(fee), "ticket": ticket, "checked": datetime.now(timezone.utc).isoformat(),
-            "opened": datetime.now(timezone.utc).isoformat()}
+            "opened": datetime.now(timezone.utc).isoformat(), "funded": datetime.now(timezone.utc).isoformat()}
         self._save()
         return ticket
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 import urllib.parse
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 import numpy as np
@@ -489,3 +489,45 @@ def test_the_observed_exits_only_in_practice(tmp_path, capsys):
     for extra in (["--trailing-desde", "2"], ["--sin-cierre-por-senal"]):
         assert F.main(["--dir", str(tmp_path), "--modo", "real", "--una-vez", *extra], transport=FakeFapi(), env={}) == 1
         assert "solo para la práctica" in capsys.readouterr().out
+
+
+def test_shadow_pays_the_funding_at_each_cut_like_the_real_account(tmp_path):
+    fake = FakeFapi()
+    market = F.FuturesMarket(None, transport=fake)
+    market.funding = lambda symbol: 0.01  # % per 8 h: longs pay
+    broker = F.PaperFuturesBroker(market, Decimal("37"), tmp_path / "paper.json")
+    plan = broker.plan("SOLUSDT", "BUY", Decimal("1"), "5m")
+    broker.open(plan)
+    broker.positions()
+    cash = Decimal(broker.book["cash"])
+    assert "funding" not in broker.book["positions"]["SOLUSDT"]  # no cut since it opened
+    now = datetime.now(timezone.utc)
+    cut = now.replace(hour=now.hour - now.hour % 8, minute=0, second=0, microsecond=0)
+    broker.book["positions"]["SOLUSDT"]["funded"] = (cut - timedelta(minutes=1)).isoformat()  # one cut since
+    broker.positions()
+    paid = Decimal(broker.book["positions"]["SOLUSDT"]["funding"])
+    assert paid > 0 and abs(cash - paid - Decimal(broker.book["cash"])) < Decimal("0.0001")
+    broker.positions()
+    assert Decimal(broker.book["positions"]["SOLUSDT"]["funding"]) == paid  # the same cut is not paid twice
+    broker.close(broker.positions()["SOLUSDT"])
+    row = broker.book["closed"][-1]
+    assert Decimal(row["funding"]) == paid
+    bid, ask = market.book("SOLUSDT")
+    gross = (bid - plan.price) * plan.qty - (bid + plan.price) * plan.qty * F.TAKER_FEE
+    assert Decimal(row["pnl"]) == (gross - paid).quantize(Decimal("0.0001"))
+
+
+def test_shadow_short_collects_a_positive_funding_and_old_positions_start_now(tmp_path):
+    fake = FakeFapi()
+    market = F.FuturesMarket(None, transport=fake)
+    market.funding = lambda symbol: 0.01
+    broker = F.PaperFuturesBroker(market, Decimal("37"), tmp_path / "paper.json")
+    broker.open(broker.plan("SOLUSDT", "SELL", Decimal("1"), "5m"))
+    pos = broker.book["positions"]["SOLUSDT"]
+    del pos["funded"]  # a position from before this rule
+    pos["opened"] = "2026-01-01T00:00:00+00:00"
+    broker.positions()
+    assert "funding" not in pos and pos["funded"]  # nothing charged backwards
+    pos["funded"] = (datetime.now(timezone.utc) - timedelta(hours=8)).isoformat()
+    broker.positions()
+    assert Decimal(pos["funding"]) < 0  # the short got paid
