@@ -306,3 +306,25 @@ def test_the_observed_practice_has_its_own_name(tmp_path):
                                                                "events": []})
     (bot,) = R.find_bots(runs, NOW - timedelta(hours=24), NOW)
     assert bot.name == "🧪 Futuros práctica 1x · trailing 2R"
+
+
+def test_the_claude_decide_bot_is_in_the_summary_and_its_silence_counts(tmp_path):
+    runs = tmp_path / "live_runs"
+    at = (NOW - timedelta(hours=2)).isoformat()
+    state = {"agente": "Claude decide", "capital_nominal": "1000", "gasto": {"2026-10": "1.20"}, "halted": "",
+             "last": {}, "trades": [
+                 {"t": at, "accion": "entrada", "simbolo": "GOLD", "lado": "BUY", "precio": "4100", "sl": "4060",
+                  "tp": "4180"},
+                 {"t": at, "accion": "cierre", "simbolo": "BTCUSD", "lado": "SELL", "r": "-1", "pnl": "-10",
+                  "estimado": True}],
+             "open": {"GOLD": {"t": at, "lado": "BUY", "precio": "4100", "sl": "4060", "tp": "4180", "riesgo": "10"}}}
+    _write(runs / "xm_claude" / "state.json", state, now=NOW)
+    (bot,) = R.find_bots(runs, NOW - timedelta(hours=24), NOW)
+    assert bot.name == "🧪 XM DEMO · Claude decide" and bot.kind == "claude" and not bot.silent
+    text = R.render([bot], NOW)
+    assert "Oro" in text and "BTC ❌ -10,00 USD aprox." in text and "Sigue abierta: Oro (compra)" in text
+    (late,) = R.find_bots(runs, NOW - timedelta(hours=24), NOW + timedelta(minutes=45))
+    assert late.silent  # it writes every 5 minutes: 45 minutes quiet is down
+    from trading_intelligence.live import revision_riesgo as V
+    assert V._positions(bot, state) == [{"simbolo": "Oro", "lado": "BUY", "entrada": "4100", "stop": "4060",
+                                         "meta": "4180"}]

@@ -94,6 +94,9 @@ def _positions(bot: R.Bot, state: dict) -> list[dict]:
         return [{"simbolo": bot.name.rsplit(" ", 1)[-1], "lado": str(o.get("lado", "BUY")),
                  "entrada": o.get("entrada", o.get("precio")), "stop": o.get("stop", o.get("sl")),
                  "meta": o.get("meta", o.get("tp"))}]
+    if bot.kind == "claude" and isinstance(state.get("open"), dict):
+        return [{"simbolo": R.xm_name(s), "lado": str(o.get("lado", "BUY")), "entrada": o.get("precio"), "stop": o.get("sl"),
+                 "meta": o.get("tp")} for s, o in state["open"].items() if isinstance(o, dict)]
     return [{"simbolo": p, "lado": "", "entrada": None, "stop": None, "meta": None} for p in bot.open_now]
 
 
