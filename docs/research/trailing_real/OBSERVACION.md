@@ -40,3 +40,6 @@ Por eso el bot real no cambia. Esto es solo una observación en práctica.
   - cuántas ganadoras salieron por meta.
 - Pasar a dinero real exige la prueba completa: ganarle a la mesa en los dos años con costos y pasar el Sharpe deflactado. Si sale bien, esta observación no basta para cambiar el real.
 - Esta observación no suma a la N: no es una variante nueva, es la misma regla de la fila 380 en vivo.
+
+- 2026-10-22: desde el PR #131 el simulador cobra la financiación de 8 h a las posiciones abiertas. Rige igual para
+  la práctica 1x y la de 2R desde el mismo momento, así que la comparación sigue siendo justa.
