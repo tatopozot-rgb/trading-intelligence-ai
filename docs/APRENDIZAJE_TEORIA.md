@@ -74,6 +74,8 @@ marca "aplicado" solo cuando su regla está en el código o en un experimento me
     `data.binance.vision` y en su API).
   - Estudiar estrategias de "después de la cascada".
   - Lección 2026-10-14: filtro "lado saturado" enviado a Quant para medir (no aplicado).
+  - Lección 2026-10-22: el simulador de las prácticas no cobra la financiación de las posiciones abiertas (las
+    pruebas de Quant y el real sí). Cobrarla en cada corte de 8 h, en un PR de la rutina de código (no aplicado).
 
 ## 5. Volatilidad
 

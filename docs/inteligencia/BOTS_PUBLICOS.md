@@ -23,6 +23,7 @@ canal de Donchian (reglas "Turtle"), cruce de medias EMA y momento de serie temp
 | 2026-10-19 | Nube de Ichimoku en BTC diario (9/26/52, solo compras) | Goichi Hosoda (1969); [Investopedia](https://www.investopedia.com/terms/i/ichimoku-cloud.asp); [StockCharts ChartSchool](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-overlays/ichimoku-cloud) | No pasa (2026-10-19): A juntas gana a la mesa en 2024-25 (2,92) y pierde en 2025-26 (−0,34); B con frenos pierde en 2025-26; Sharpe deflactado ≤ 0,009; 3 a 8 operaciones al año. Archivada. Ver `docs/research/ichimoku/` |
 | 2026-10-20 | Cruce del MACD en BTC y ETH diario (12/26/9, solo compras) | Gerald Appel, *Technical Analysis: Power Tools for Active Investors* (2005); [Investopedia](https://www.investopedia.com/terms/m/macd.asp) | No pasa (2026-10-20): A juntas −0,26 / −0,10; B con frenos −0,67 / 2,86 (gana solo 2025-26, con 12 operaciones); Sharpe deflactado ≤ 0,023. Archivada. Ver `docs/research/macd/` |
 | 2026-10-21 | "Squeeze" de John Carter (TTM Squeeze) en BTC y ETH diario, solo compras | John Carter, *Mastering the Trade* (2.ª ed., 2012); [StockCharts ChartSchool](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/ttm-squeeze) | No pasa (2026-10-21): A juntas 0,80 / −0,21; B con frenos 1,44 / 0,16 (pierde 2024-25, gana 2025-26 con 8 operaciones); Sharpe deflactado ≤ 0,004. Archivada. Ver `docs/research/ttm/` |
+| 2026-10-22 | Bot DCA con órdenes de seguridad (compra más en cada caída, cierra con una meta chica sobre el promedio) | 3Commas, Gainium; [script Zendog V2 en TradingView](https://pl.tradingview.com/script/9NXf1Bqb-Zendog-V2-backtest-DCA-bot-3commas/); [calculadora de Gainium](https://gainium.io/tools/dca-calculator) | Descartado por reglas (2026-10-22): sube el riesgo tras perder (martingala de tamaño). No se prueba, no suma a N |
 
 ---
 
@@ -512,3 +513,26 @@ dejan fijos: no se afinan.
 - **Resultado (Quant, 2026-10-21, PR #119):** no pasa. B con frenos, juntas: 1,44 en 2024-25 (bajo la mesa, 1,67)
   y 0,16 en 2025-26 (sobre la mesa, −0,21), con solo 8 operaciones al año. A tal cual, juntas: 0,80 y −0,21.
   Sharpe deflactado ≤ 0,004 en todas (listón 0,95). Archivada.
+
+## Bot DCA con "órdenes de seguridad" (2026-10-22)
+
+- **Fuente:** los bots DCA de 3Commas, Gainium, Pionex y otros; el
+  [script abierto Zendog V2](https://pl.tradingview.com/script/9NXf1Bqb-Zendog-V2-backtest-DCA-bot-3commas/) que copia
+  su configuración; la [calculadora de Gainium](https://gainium.io/tools/dca-calculator).
+- **Reglas (como se configuran):**
+  - Abre con una **orden base** cuando se cumple una condición (por ejemplo, RSI de 7 bajo cierto valor).
+  - Si el precio cae una **desviación** (por ejemplo 1–2%), compra una **orden de seguridad**. Puede haber 5 a 25.
+  - Cada orden de seguridad es más grande que la anterior (**escala de volumen**, a menudo 1,5–2 veces) y está más
+    lejos (**escala de paso**). Así el precio promedio baja rápido.
+  - Cierra todo con una **meta chica** (1–3%) sobre el precio promedio. El stop es opcional y casi nunca se usa.
+  - Los valores son ejemplos típicos de la comunidad; cada usuario los elige.
+- **Por qué parece ganar:** casi todas las operaciones cierran en ganancia, porque cada caída se "promedia". La
+  pérdida queda escondida: cuando el precio cae más que lo que cubren las órdenes, la posición es enorme, no tiene stop
+  y una sola caída se come meses de ganancias. Es el mismo problema de la cuadrícula del 17-10 (inventario), pero peor,
+  porque el tamaño crece.
+- **Veredicto:** descartado por reglas, sin prueba. Sube el riesgo después de perder, que es una martingala de tamaño,
+  y nuestras reglas lo prohíben ("sin martingala"; "nada de doblar tras perder"). Probarlo sería gastar una fila de N
+  en algo que no se podría usar aunque saliera bien.
+- **Lo que sí se aprende:** una tasa de aciertos alta no dice nada sin mirar la peor pérdida. Por eso la mesa mide
+  neto/caída y no el porcentaje de operaciones ganadas.
+
