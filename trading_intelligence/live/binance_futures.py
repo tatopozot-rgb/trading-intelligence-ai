@@ -831,6 +831,10 @@ def main(argv: Optional[list[str]] = None, transport=None, env: Optional[Mapping
     parser.add_argument("--apalancamiento", type=int, help="SOLO práctica: apalancamiento simulado (1-5) para aprender "
                                                             "con más riesgo; en real manda config/futures_limits.json")
     parser.add_argument("--posicion-max", help="SOLO práctica: tamaño máximo de una posición, %% de la cuenta (hasta 250)")
+    parser.add_argument("--trailing-desde", default="1", help="SOLO práctica: el stop sigue la ganancia desde esta "
+                                                             "cantidad de R (observación del 22-10: 2)")
+    parser.add_argument("--sin-cierre-por-senal", action="store_true",
+                        help="SOLO práctica: una señal contraria no cierra la posición (sale por stop o meta)")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     d: Path = args.dir / args.modo
@@ -851,6 +855,12 @@ def main(argv: Optional[list[str]] = None, transport=None, env: Optional[Mapping
             if not (1 <= lev <= 5 and 0 < pos <= 250):
                 raise FuturesError("práctica: apalancamiento 1-5 y posición máxima hasta 250%")
             limits = replace(limits, max_leverage=lev, max_position_pct=pos)
+        trail_start = Decimal(args.trailing_desde)
+        if args.modo == "real" and (trail_start != 1 or args.sin_cierre_por_senal):
+            raise FuturesError("--trailing-desde y --sin-cierre-por-senal son solo para la práctica: no pasaron la "
+                               "prueba (fila 380 de REGISTRO_PRUEBAS.md)")
+        if not 1 <= trail_start <= 5:
+            raise FuturesError("práctica: --trailing-desde entre 1 y 5")
         if args.modo == "real":
             market = FuturesMarket(FuturesCredentials.from_env(env), d / "orders.json", transport=transport)
             broker: object = FuturesBroker(market, limits)
@@ -867,6 +877,7 @@ def main(argv: Optional[list[str]] = None, transport=None, env: Optional[Mapping
                           inside_every_min=args.cada_dentro, outside_every_min=args.cada_fuera,
                           signal=signal_for(args.senal), notify=make_notify(console, from_env()),
                           telegram=REAL_TELEGRAM if args.modo == "real" else PRACTICE_TELEGRAM,
+                          trail_start_r=trail_start, close_on_signal=not args.sin_cierre_por_senal,
                           desk_rules=None if args.sin_mesa else DeskRules.load(),
                           journal_dir=args.diario or d / "mesa", news_get=None if args.sin_mesa else desk_get,
                           report_every_s=120 if args.modo == "real" else 1800, goal_usd=limits.monthly_goal_usd,

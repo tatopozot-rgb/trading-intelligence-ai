@@ -298,3 +298,11 @@ def test_london_on_btc_is_named_btc_and_gold_stays_gold(tmp_path):
     text = R.render(R.find_bots(runs, NOW - timedelta(hours=24), NOW), NOW)
     assert "🧪 XM DEMO · Londres BTC\n" in text and "BTC ❌ -10,00 USD aprox." in text
     assert "Londres oro" in text and "Oro ✅ +85,30 USD aprox." in text
+
+
+def test_the_observed_practice_has_its_own_name(tmp_path):
+    runs = tmp_path / "live_runs"
+    _write(runs / "futures_auto_2r" / "shadow" / "state.json", {"capital": "50", "status": "RUNNING", "known": {},
+                                                               "events": []})
+    (bot,) = R.find_bots(runs, NOW - timedelta(hours=24), NOW)
+    assert bot.name == "🧪 Futuros práctica 1x · trailing 2R"

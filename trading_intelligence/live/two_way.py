@@ -169,6 +169,7 @@ class TwoWayAuto:
                  loss_limit_pct: Decimal = Decimal("45"),
                  warn_before: Decimal = Decimal("2"), profit_target_pct: Optional[Decimal] = Decimal("58"),
                  daily_loss_pct: Optional[Decimal] = None, trailing: bool = True,
+                 trail_start_r: Decimal = TRAIL_START_R, close_on_signal: bool = True,
                  confirm_timeframe: Optional[str] = "1h", windows: Optional[list[str]] = None,
                  inside_every_min: float = 0.5, outside_every_min: float = 5, signal: Optional[Signal] = None,
                  desk_rules: Optional[D.DeskRules] = None, journal_dir: Optional[Path] = None,
@@ -186,6 +187,11 @@ class TwoWayAuto:
         self.risk_min_pct, self.risk_max_pct = risk_min_pct, risk_max_pct
         self.loss_limit_pct, self.warn_before, self.profit_target_pct = loss_limit_pct, warn_before, profit_target_pct
         self.daily_loss_pct, self.trailing, self.confirm_timeframe = daily_loss_pct, trailing, confirm_timeframe
+        # the exits under observation in a separate practice (docs/research/trailing_real/OBSERVACION.md): the stop
+        # starts following the gain later, and an opposite signal does not close; the defaults are the real bot's
+        if trail_start_r < TRAIL_START_R:
+            raise ValueError("trail_start_r >= 1")
+        self.trail_start_r, self.close_on_signal = trail_start_r, close_on_signal
         self.windows = parse_windows(list(windows if windows is not None else DEFAULT_WINDOWS))
         self.inside_every_min, self.outside_every_min = inside_every_min, outside_every_min
         self.signal: Signal = signal or signal_for()
@@ -641,7 +647,7 @@ class TwoWayAuto:
         r, entry, stop = Decimal(info["r"]), Decimal(info["entry"]), Decimal(info["stop"])
         long = pos.side == "BUY"
         gain = price - entry if long else entry - price
-        if r <= 0 or gain < TRAIL_START_R * r:
+        if r <= 0 or gain < self.trail_start_r * r:
             return
         new = price - TRAIL_DISTANCE_R * r if long else price + TRAIL_DISTANCE_R * r
         if (long and new > stop) or (not long and new < stop):
@@ -736,7 +742,7 @@ class TwoWayAuto:
             return
         if pos is not None:
             riding = pos.side == "BUY" and bool(s.known.get(sym, {}).get("rally"))
-            if signal is not None and signal != pos.side and not riding:  # a bull run ends only at the trailing stop
+            if signal is not None and signal != pos.side and not riding and self.close_on_signal:  # a bull run ends only at the trailing stop
                 price = self._price_or(sym, pos.entry)
                 self.broker.close(pos)
                 ours.pop(sym)

@@ -214,6 +214,27 @@ def test_the_stop_follows_the_gain_from_one_r_and_never_moves_back(tmp_path):
     assert len(b.moved) == 1  # never back down
 
 
+def test_the_observed_practice_trails_from_two_r_and_ignores_the_opposite_signal(tmp_path):
+    sig = {"SOLUSDT": "BUY"}
+    auto, b, _ = _engine(tmp_path, sig, trail_start_r=Decimal("2"), close_on_signal=False)
+    auto.step()  # entry 100, stop 97: R = 3
+    b.px = Decimal("105")
+    auto.step()
+    assert b.moved == []  # +1.67R: the real bot would trail here, this one waits for +2R
+    b.px = Decimal("106")
+    auto.step()
+    assert b.moved == [("SOLUSDT", Decimal("104.5"))]  # still R/2 behind
+    sig["SOLUSDT"] = "SELL"
+    auto.step()
+    assert "SOLUSDT" in b.pos  # the opposite signal does not close it: stop or target do
+
+
+def test_the_trailing_cannot_start_before_one_r(tmp_path):
+    import pytest
+    with pytest.raises(ValueError):
+        _engine(tmp_path, {}, trail_start_r=Decimal("0.5"))
+
+
 def test_a_short_trails_downward(tmp_path):
     sig = {"SOLUSDT": "SELL"}
     auto, b, _ = _engine(tmp_path, sig)
