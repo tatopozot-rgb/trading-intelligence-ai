@@ -34,7 +34,8 @@ RUNS = Path("live_runs")
 MEMORY = Path("live_runs/resumen_diario")  # when the last summary went out, and which bots are reported down
 LIVE_DAYS = 3  # a state file untouched for longer belongs to a bot that was retired
 # how long each kind of bot may stay silent before it counts as down (it writes its state at every pass)
-SILENT = {"motor": timedelta(minutes=20), "londres": timedelta(minutes=30), "nucleo": timedelta(hours=3)}
+SILENT = {"motor": timedelta(minutes=20), "londres": timedelta(minutes=30), "claude": timedelta(minutes=30),
+          "nucleo": timedelta(hours=3)}
 ENDED = ("STOPPED", "GOAL")  # an engine that ended its session on purpose is not down
 
 
@@ -42,7 +43,7 @@ ENDED = ("STOPPED", "GOAL")  # an engine that ended its session on purpose is no
 class Bot:
     name: str
     path: Path
-    kind: str  # motor (two-way engine), londres, nucleo
+    kind: str  # motor (two-way engine), londres, claude (xm_claude), nucleo
     real: bool
     currency: str = ""
     opened: list[tuple[str, str]] = field(default_factory=list)  # (symbol, side)
@@ -164,10 +165,15 @@ def _paper_closes(path: Path, since: datetime) -> Optional[list[tuple[str, Decim
     return out
 
 
+def xm_name(symbol: str) -> str:
+    """An XM symbol as people say it: GOLD is Oro, BTCUSD is BTC."""
+    sym = symbol.upper()
+    return "Oro" if sym.startswith(("GOLD", "XAU")) else sym[:3] if sym.startswith(("BTC", "ETH")) else sym
+
+
 def _londres(path: Path, d: dict, since: datetime) -> Bot:
     # the asset as live/xm_londres.py names it; gold's state has no "simbolo" from before 2026-10-16
-    sym = str(d.get("simbolo") or "GOLD").upper()
-    name = "Oro" if sym.startswith(("GOLD", "XAU")) else sym[:3] if sym.startswith(("BTC", "ETH")) else sym
+    name = xm_name(str(d.get("simbolo") or "GOLD"))
     bot = Bot(f"🧪 XM DEMO · Londres {name.lower() if name == 'Oro' else name}", path, "londres", False,
               str(d.get("moneda", "")))
     for t in d.get("trades", []):
@@ -180,6 +186,27 @@ def _londres(path: Path, d: dict, since: datetime) -> Bot:
             bot.closed.append((name, _d(t["pnl"]) or Decimal("0"), not t.get("estimado")))
     if d.get("open"):
         bot.open_now = [f"{name} ({_side(str(d['open'].get('lado', 'BUY')))})"]
+    return bot
+
+
+def _claude(path: Path, d: dict, since: datetime) -> Bot:
+    """live/xm_claude.py: several markets, open positions keyed by symbol, results estimated (shared DEMO account)."""
+    bot = Bot("🧪 XM DEMO · Claude decide", path, "claude", False, "USD")
+    for t in d.get("trades", []):
+        at = _at(t.get("t"))
+        if at is None or at < since:
+            continue
+        name = xm_name(str(t.get("simbolo", "?")))
+        if t.get("accion") == "entrada":
+            bot.opened.append((name, str(t.get("lado", "BUY"))))
+        elif t.get("accion") == "cierre" and _d(t.get("pnl")) is not None:
+            bot.closed.append((name, _d(t["pnl"]) or Decimal("0"), not t.get("estimado")))
+    raw = d.get("open")
+    opened: dict = raw if isinstance(raw, dict) else {}
+    bot.open_now = [f"{xm_name(s)} ({_side(str(o.get('lado', 'BUY')))})" for s, o in opened.items()
+                    if isinstance(o, dict)]
+    if d.get("halted"):
+        bot.ended, bot.status = True, f"detenido: {d['halted']}"
     return bot
 
 
@@ -241,6 +268,8 @@ def find_bots(root: Path, since: datetime, now: Optional[datetime] = None) -> li
             bot = _motor(path, d, since)
         elif path.name == "state.json" and "trades" in d and "done" in d:
             bot = _londres(path, d, since)
+        elif path.name == "state.json" and "trades" in d and "gasto" in d:
+            bot = _claude(path, d, since)
         elif "start_capital" in d and "trades" in d and "qty" in d:
             bot = _nucleo(path, d, since)
         else:
