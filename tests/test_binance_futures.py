@@ -485,7 +485,7 @@ def test_more_leverage_only_in_practice(tmp_path, capsys):
 def test_the_observed_exits_only_in_practice(tmp_path, capsys):
     assert F.main(["--dir", str(tmp_path), "--una-vez", "--simbolos", "SOLUSDT", "--trailing-desde", "2",
                    "--sin-cierre-por-senal"], transport=FakeFapi()) == 0
-    capsys.readouterr()
+    assert "PRÁCTICA SIMULADO · trailing 2R · sin cierre por señal" in capsys.readouterr().out
     for extra in (["--trailing-desde", "2"], ["--sin-cierre-por-senal"]):
         assert F.main(["--dir", str(tmp_path), "--modo", "real", "--una-vez", *extra], transport=FakeFapi(), env={}) == 1
         assert "solo para la práctica" in capsys.readouterr().out

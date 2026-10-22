@@ -869,6 +869,10 @@ def main(argv: Optional[list[str]] = None, transport=None, env: Optional[Mapping
             market = FuturesMarket(None, transport=transport)
             broker = PaperFuturesBroker(market, Decimal(args.capital), d / "paper.json", leverage=limits.max_leverage,
                                         max_position_pct=limits.max_position_pct)
+            if trail_start != 1 or args.sin_cierre_por_senal:  # its Telegram notices must not read like the 1x practice
+                tag = " · ".join(([f"trailing {trail_start.normalize()}R"] if trail_start != 1 else [])
+                                 + (["sin cierre por señal"] if args.sin_cierre_por_senal else []))
+                broker.name = broker.name.replace("SIMULADO", f"SIMULADO · {tag}", 1)
         auto = TwoWayAuto(broker, list(args.simbolos or limits.symbols), d / "state.json",  # type: ignore[arg-type]
                           timeframe=args.temporalidad, risk_min_pct=limits.risk_min_pct,
                           risk_max_pct=limits.risk_max_pct, max_open=limits.max_open,
