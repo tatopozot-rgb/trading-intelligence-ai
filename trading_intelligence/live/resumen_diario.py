@@ -137,7 +137,8 @@ def _motor_name(path: Path, d: dict, real: bool) -> str:
     folder = path.parent.parent.name if path.parent.name in ("shadow", "real") else path.parent.name
     if not real and folder.startswith("futures_auto"):
         lev = re.search(r"(\d+)x", folder) or re.search(r"(\d+)x", str(d.get("name", "")))
-        return f"🧪 Futuros práctica {lev.group(1) if lev else 1}x"
+        trail = re.search(r"_(\d)r$", folder)  # live_runs/futures_auto_2r: the exits under observation since 22-10
+        return f"🧪 Futuros práctica {lev.group(1) if lev else 1}x" + (f" · trailing {trail.group(1)}R" if trail else "")
     name = str(d.get("name") or "")
     if not name and folder.startswith("xm_auto"):
         agent = folder.removeprefix("xm_auto").strip("_")
