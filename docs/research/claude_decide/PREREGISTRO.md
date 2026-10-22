@@ -7,7 +7,8 @@ puede juzgar hacia adelante. Código: `trading_intelligence/live/xm_claude.py`; 
 
 ## Qué es
 
-- **Dónde:** cuenta DEMO de XM (la misma que usan los otros agentes, con su propio MAGIC «Claude decide»). Nunca
+- **Dónde:** cuenta DEMO de XM 108596668 (la misma de los otros agentes), con su propio MAGIC «Claude decide»
+  (26101753), distinto del Operador, Cripto, Índices, Londres y Londres BTCUSD (lo revisa una prueba). Nunca
   una cuenta real: el código revisa que sea DEMO antes de cada orden.
 - **Mercados:** GOLD y BTCUSD, los mismos de la ruptura de Londres, para comparar en los mismos días.
 - **Quién decide qué:** Claude (modelo `claude-opus-5-5`, esfuerzo medio, por la API) lee cada hora cerrada, por
@@ -27,8 +28,8 @@ puede juzgar hacia adelante. Código: `trading_intelligence/live/xm_claude.py`; 
   Claude hasta el mes siguiente (las posiciones abiertas siguen con su stop y su meta en el servidor de XM). Además,
   el dueño pone el mismo límite en la consola de Anthropic como segunda barrera.
 - Estimación: unas 45 preguntas al día (BTC 24 h, oro ~21 h), ~0,04 USD cada una ≈ 1,8 USD al día.
-- Si se usa el motor `cli` (Claude Code del PC, suscripción del dueño), ese gasto no sale de los créditos de la API
-  y no cuenta para el tope; se anota igual.
+- Sale de los créditos de la API del dueño (~100 USD). Sin clave, sin créditos o con el tope alcanzado, el bot no
+  pregunta y no opera. No se usa la suscripción Max (líder, 22-10).
 - La clave va solo en la variable de entorno `ANTHROPIC_API_KEY` del PC. Nunca en el repo, Notion ni registros.
 
 ## Cómo se juzga (fijado hoy, no se cambia después)

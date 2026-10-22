@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-import subprocess
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from types import SimpleNamespace as NS
@@ -28,15 +27,15 @@ def _frame(n: int = 80, price: float = 2600.0) -> pd.DataFrame:
 class Scripted:
     """A decider that answers from a list and remembers what it was shown."""
 
-    def __init__(self, *answers: C.Decision, cost: float = 0.05, cap: bool = True) -> None:
-        self.answers, self.cost, self.cap, self.briefs = list(answers), cost, cap, []
+    def __init__(self, *answers: C.Decision, cost: float = 0.05) -> None:
+        self.answers, self.cost, self.briefs = list(answers), cost, []
 
     def decide(self, brief: str):
         self.briefs.append(brief)
         answer = self.answers.pop(0)
         if isinstance(answer, Exception):
             raise answer
-        return answer, C.Usage("claude-opus-5-5", self.cost, 1000, 500, self.cap)
+        return answer, C.Usage("claude-opus-5-5", self.cost, 1000, 500)
 
 
 def buy(stop=2574.0, meta=2652.0) -> C.Decision:
@@ -156,12 +155,6 @@ def test_the_monthly_cap_stops_the_calls_and_warns_once(tmp_path):
     assert len(decider.briefs) == 1 and len(alarms) == 1
 
 
-def test_cli_spend_does_not_count_against_the_api_cap(tmp_path):
-    bot, _, _ = _bot(tmp_path, Scripted(WAIT, cost=3.0, cap=False))
-    bot.step()
-    assert bot.spent("2026-10") == 0
-
-
 def test_a_failed_call_is_logged_and_waits(tmp_path):
     bot, m, _ = _bot(tmp_path, Scripted(RuntimeError("sin red")))
     assert "no respondió" in bot.step()
@@ -223,15 +216,7 @@ def test_api_decider_needs_the_key_in_the_environment(monkeypatch):
         C.ApiDecider()
 
 
-def test_cli_decider_reads_the_result_of_claude_p():
-    calls: list = []
-
-    def run(cmd, **kw):
-        calls.append((cmd, kw))
-        out = {"result": '{"accion": "ESPERAR", "stop": 0, "meta": 0, "confianza": 5, "razon": "lateral"}',
-               "total_cost_usd": 0.04}
-        return subprocess.CompletedProcess(cmd, 0, stdout=json.dumps(out), stderr="")
-
-    d, u = C.CliDecider(run=run).decide("datos")
-    assert d.razon == "lateral" and not u.counts_against_cap
-    assert calls[0][0][:2] == ["claude", "-p"] and "datos" in calls[0][1]["input"]
+def test_its_magic_differs_from_every_other_agent_on_the_demo_account():
+    from trading_intelligence.live.xm_auto import agent_magic
+    others = {agent_magic(a) for a in ("", "Cripto", "Índices", "Londres", "Londres BTCUSD")}
+    assert agent_magic(C.AGENT) not in others

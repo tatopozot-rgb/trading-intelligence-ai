@@ -20,8 +20,8 @@ What Claude decides and what it does not:
   pre-entry check (spread, margin, market open), MT5's order_check, own MAGIC, journal before sending.
 - Spend: the API costs are counted per call from the usage the API returns; at the monthly cap no more calls are made
   (open positions keep their stop and target resting on XM's server). The key is only the environment variable
-  ANTHROPIC_API_KEY on the PC, never in the repository. With --motor cli it asks the Claude Code CLI on the PC
-  instead (the owner's subscription), and the API cap does not apply.
+  ANTHROPIC_API_KEY on the PC, never in the repository. No key, no credits or the cap reached: no calls, no trades.
+- MAGIC: agent_magic("Claude decide"), apart from every other agent on the shared DEMO account.
 """
 from __future__ import annotations
 
@@ -32,7 +32,6 @@ import logging
 import math
 import os
 import re
-import subprocess
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -117,7 +116,6 @@ class Usage:
     cost_usd: float
     input_tokens: int = 0
     output_tokens: int = 0
-    counts_against_cap: bool = True  # False for the CLI: the owner's subscription, not the API credits
 
 
 class Decider(Protocol):
@@ -179,23 +177,9 @@ class ApiDecider:
         return parse_decision(text), usage
 
 
-class CliDecider:
-    """Claude through the Claude Code CLI installed on the PC (`claude -p`), on the owner's subscription."""
-
-    def __init__(self, model: str = MODEL, binary: str = "claude",
-                 run: Callable[..., subprocess.CompletedProcess] = subprocess.run) -> None:
-        self.model, self.binary, self.run = model, binary, run
-
+class _NoDecider:
     def decide(self, brief: str) -> tuple[Decision, Usage]:
-        prompt = (f"{SYSTEM}\n\nResponde SOLO con un objeto JSON con las claves accion, stop, meta, confianza y razon."
-                  f"\n\n{brief}")
-        done = self.run([self.binary, "-p", "--output-format", "json", "--model", self.model, "--max-turns", "1"],
-                        input=prompt, capture_output=True, text=True, timeout=600, encoding="utf-8")
-        if done.returncode != 0:
-            raise XmError(f"claude -p terminó con código {done.returncode}: {(done.stderr or '')[:200]}")
-        out = json.loads(done.stdout)
-        cost = float(out.get("total_cost_usd") or 0.0)
-        return parse_decision(str(out.get("result", ""))), Usage(self.model, cost, counts_against_cap=False)
+        raise XmError("el resumen no pregunta a Claude")
 
 
 def _indicators(frame: pd.DataFrame) -> dict[str, float]:
@@ -389,8 +373,7 @@ class ClaudeBot:
             row.update({"error": str(error)[:300], "accion": WAIT_ON_ERROR})
             self._log(row)
             return f"Claude no respondió ({type(error).__name__}): espero"
-        if usage.counts_against_cap:
-            self.state["gasto"][month] = float(self.spent(month) + Decimal(str(usage.cost_usd)))
+        self.state["gasto"][month] = float(self.spent(month) + Decimal(str(usage.cost_usd)))
         price = float(sheet.ask if decision.accion == "COMPRAR" else sheet.bid)
         refused = check_decision(decision, price, has_position)
         row.update({**asdict(decision), **{f"uso_{k}": v for k, v in asdict(usage).items()}, "rechazos": refused})
@@ -458,8 +441,6 @@ def main(argv: Optional[list[str]] = None, mt5: Optional[object] = None) -> int:
     parser.add_argument("--capital-nominal", type=Decimal, default=NOMINAL)
     parser.add_argument("--tope-usd", type=Decimal, default=BUDGET_USD, help="gasto máximo en la API por mes")
     parser.add_argument("--cada-min", type=int, default=DECIDE_EVERY_MIN, help="minutos entre preguntas por símbolo")
-    parser.add_argument("--motor", choices=("api", "cli"), default="api",
-                        help="api: ANTHROPIC_API_KEY; cli: el Claude Code instalado en el PC (suscripción)")
     parser.add_argument("--modelo", default=MODEL)
     parser.add_argument("--terminal", default=None, help="terminal64.exe de otra instalación de MT5")
     args = parser.parse_args(argv)
@@ -470,8 +451,7 @@ def main(argv: Optional[list[str]] = None, mt5: Optional[object] = None) -> int:
     try:
         trader.connect()
         # the summary asks nothing of Claude: no key needed for it
-        decider: Decider = (ApiDecider(args.modelo) if args.motor == "api" and args.cmd == "revisar"
-                            else CliDecider(args.modelo))
+        decider: Decider = ApiDecider(args.modelo) if args.cmd == "revisar" else _NoDecider()
         bot = ClaudeBot(trader, args.dir, decider, notify, alarm=telegram, symbols=tuple(args.simbolos),
                         nominal=args.capital_nominal, budget=args.tope_usd, every_min=args.cada_min)
         if args.cmd == "resumen":
