@@ -24,6 +24,7 @@ canal de Donchian (reglas "Turtle"), cruce de medias EMA y momento de serie temp
 | 2026-10-20 | Cruce del MACD en BTC y ETH diario (12/26/9, solo compras) | Gerald Appel, *Technical Analysis: Power Tools for Active Investors* (2005); [Investopedia](https://www.investopedia.com/terms/m/macd.asp) | No pasa (2026-10-20): A juntas −0,26 / −0,10; B con frenos −0,67 / 2,86 (gana solo 2025-26, con 12 operaciones); Sharpe deflactado ≤ 0,023. Archivada. Ver `docs/research/macd/` |
 | 2026-10-21 | "Squeeze" de John Carter (TTM Squeeze) en BTC y ETH diario, solo compras | John Carter, *Mastering the Trade* (2.ª ed., 2012); [StockCharts ChartSchool](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/ttm-squeeze) | No pasa (2026-10-21): A juntas 0,80 / −0,21; B con frenos 1,44 / 0,16 (pierde 2024-25, gana 2025-26 con 8 operaciones); Sharpe deflactado ≤ 0,004. Archivada. Ver `docs/research/ttm/` |
 | 2026-10-22 | Bot DCA con órdenes de seguridad (compra más en cada caída, cierra con una meta chica sobre el promedio) | 3Commas, Gainium; [script Zendog V2 en TradingView](https://pl.tradingview.com/script/9NXf1Bqb-Zendog-V2-backtest-DCA-bot-3commas/); [calculadora de Gainium](https://gainium.io/tools/dca-calculator) | Descartado por reglas (2026-10-22): sube el riesgo tras perder (martingala de tamaño). No se prueba, no suma a N |
+| 2026-10-23 | Parabolic SAR de Welles Wilder en BTC y ETH diario (0,02 / 0,02 / 0,20, solo compras) | Wilder, *New Concepts in Technical Trading Systems* (1978); [StockCharts ChartSchool](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-overlays/parabolic-sar) | Enviado a Quant (2026-10-23), 3 filas decisorias. Pendiente |
 
 ---
 
@@ -536,3 +537,29 @@ dejan fijos: no se afinan.
 - **Lo que sí se aprende:** una tasa de aciertos alta no dice nada sin mirar la peor pérdida. Por eso la mesa mide
   neto/caída y no el porcentaje de operaciones ganadas.
 
+## Parabolic SAR de Welles Wilder en BTC y ETH diario (2026-10-23)
+
+- **Fuente:** J. Welles Wilder, *New Concepts in Technical Trading Systems* (1978);
+  [StockCharts ChartSchool](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-overlays/parabolic-sar).
+- **Qué es:** un stop que sigue al precio. En subida arranca en el mínimo reciente y cada día se acerca al precio.
+  Cada día suma "aceleración" × (máximo más alto de la subida − SAR). La aceleración empieza en 0,02, sube 0,02 cada
+  vez que hay un máximo nuevo y llega como máximo a 0,20. Cuanto más dura la tendencia, más rápido se cierra el stop.
+- **Reglas, versión A (tal cual):**
+  - SAR clásico de Wilder sobre velas diarias, con 0,02, 0,02 y 0,20. El SAR de subida nunca pasa del mínimo de los
+    dos días anteriores.
+  - Compra al abrir el día siguiente a un cierre sobre el SAR, cuando el día anterior el SAR estaba por encima (giro a
+    subida).
+  - Vende al abrir el día siguiente a un cierre bajo el SAR. Solo compras: en el giro a bajada se queda fuera, sin
+    cortos. Sin stop aparte: el SAR es el stop.
+  - BTC y ETH juntas (mitad y mitad), 1x, comisión y deslizamiento de la mesa.
+- **Versión B (con los frenos de la mesa):** las mismas reglas, más el freno de mercado (BTC sobre su media de 50
+  días), el stop de la mesa (el que esté más cerca entre ese y el SAR) y el freno de eventos.
+- **Las 3 filas decisorias (regla del 21-10):** A juntas, B juntas y **BTC solo con B**. Se elige BTC antes de ver
+  resultados por una razón previa: es la moneda con más liquidez y menor costo, y es la que manda el freno de
+  mercado. Cualquier otra variante que se mire cuenta en N.
+- **Prueba:** 2024-10 → 2025-10 y 2025-10 → 2026-10, con costos, contra la mesa de práctica (1,67 y −0,21 de
+  neto/caída). Pasa solo si gana a la mesa en los dos años y su Sharpe deflactado pasa el listón.
+- **Señales de sobreajuste:** ninguna en los parámetros, porque son los de Wilder y no se afinan. Riesgos:
+  - En mercados de lado el SAR gira seguido y paga muchas comisiones. Wilder mismo advierte que solo sirve en
+    tendencia.
+  - Como vende en cada giro, puede dejar pasar buena parte de las subidas largas.

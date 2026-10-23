@@ -96,6 +96,9 @@ marca "aplicado" solo cuando su regla está en el código o en un experimento me
     (1,93) y empata 2025-26; es informativo y no decide: elegirlo ahora sería sobreajuste.
     Sin el freno de régimen, V90 mejora un poco, pero sigue perdiendo en 2025-26 (−50% contra −62%). Conclusión: el
     stop por volatilidad que ya usa la mesa basta; no frenar las entradas por la volatilidad de BTC.
+  - Lección 2026-10-23 (segunda vuelta): en las caídas las monedas se mueven juntas, así que 3 compras son casi una
+    sola apuesta; nada suma hoy el riesgo abierto de las 3 (peor caso 3 × 15% = 45%). Medirlo en la revisión
+    nocturna (rutina de código, no suma a N) y un tope al riesgo abierto total enviado a Quant (no aplicado).
 
 ## 6. Ventaja estadística y cómo no engañarse
 
