@@ -289,6 +289,7 @@ class Replay:
     peak: float = 0.0  # highest bar-close equity seen (drawdown brake)
     paused: bool = False  # the drawdown brake stopped new entries
     halved: int = 0  # entries taken at half risk by the drawdown brake
+    capped: int = 0  # signals kept out by the open-risk cap (a run of bars on one symbol counts once)
 
 
 def vetoes(s: Sym, k: int, side: int, target_r: float, rules: D.DeskRules) -> list[str]:
@@ -312,19 +313,23 @@ def replay(syms: dict[str, Sym], lo: int, hi: int, exits: Exits = BASELINE, sizi
            allow: Optional[dict[str, np.ndarray]] = None, close_on_gate: bool = True,
            entry_allow: Optional[dict[str, np.ndarray]] = None,
            dd_brake: Optional[tuple[float, float]] = None, peak: Optional[float] = None,
-           paused: bool = False, risk_scale: Optional[np.ndarray] = None) -> Replay:
+           paused: bool = False, risk_scale: Optional[np.ndarray] = None,
+           open_risk_cap: Optional[float] = None) -> Replay:
     """`dd_brake` (half, pause): from a drawdown of `half` off the highest bar-close equity (`peak` carries it in
     from earlier blocks) new entries take half the risk; from `pause` on there are no new entries for the rest of
     the block (`paused` carries a pause in). It only lowers risk, never raises it. `risk_scale`: a per-bar factor
     (<= 1) on the risk of new entries.
     `allow`: a regime gate per symbol (bit 1 longs, bit 2 shorts); a closed side is not opened, and a position
     on it is closed at the bar's close ("régimen") unless `close_on_gate` is False (the gate only stops entries).
-    `entry_allow`: a second mask, same bits, that only stops new entries (combined with `allow`)."""
+    `entry_allow`: a second mask, same bits, that only stops new entries (combined with `allow`).
+    `open_risk_cap`: no new entry while the open positions on the same side would lose more than this share of the
+    bar's equity if every stop were hit (a stop trailed past its entry counts 0)."""
     rules = rules or D.DeskRules.load()
     res = Replay(peak=max(capital, peak or 0.0), paused=paused)
     cash = capital
     pos: dict[str, _Pos] = {}
     liq = 1 / sizing.leverage - tw.MAINTENANCE
+    last_capped: dict[str, int] = {}
 
     def close_pos(name: str, p: _Pos, price: float, why: str, k: int) -> float:
         long = p.side > 0
@@ -403,6 +408,12 @@ def replay(syms: dict[str, Sym], lo: int, hi: int, exits: Exits = BASELINE, sizi
             if dist / c >= liq:
                 res.skipped_liquidation += 1
                 continue
+            if open_risk_cap is not None:
+                at_risk = sum(max(0.0, (o.entry - o.sl) * o.side) * o.qty for o in pos.values() if o.side == sig)
+                if at_risk > open_risk_cap * equity:
+                    res.capped += int(last_capped.get(name) != k - 1)
+                    last_capped[name] = k
+                    continue
             qual = max(0.0, min(1.0, float(s.qual[k])))  # no sentiment tilt on the size, as the desk since f8912db
             if risk_override is not None:
                 risk = risk_override
