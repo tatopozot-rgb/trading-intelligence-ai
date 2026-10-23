@@ -24,7 +24,7 @@ canal de Donchian (reglas "Turtle"), cruce de medias EMA y momento de serie temp
 | 2026-10-20 | Cruce del MACD en BTC y ETH diario (12/26/9, solo compras) | Gerald Appel, *Technical Analysis: Power Tools for Active Investors* (2005); [Investopedia](https://www.investopedia.com/terms/m/macd.asp) | No pasa (2026-10-20): A juntas −0,26 / −0,10; B con frenos −0,67 / 2,86 (gana solo 2025-26, con 12 operaciones); Sharpe deflactado ≤ 0,023. Archivada. Ver `docs/research/macd/` |
 | 2026-10-21 | "Squeeze" de John Carter (TTM Squeeze) en BTC y ETH diario, solo compras | John Carter, *Mastering the Trade* (2.ª ed., 2012); [StockCharts ChartSchool](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/ttm-squeeze) | No pasa (2026-10-21): A juntas 0,80 / −0,21; B con frenos 1,44 / 0,16 (pierde 2024-25, gana 2025-26 con 8 operaciones); Sharpe deflactado ≤ 0,004. Archivada. Ver `docs/research/ttm/` |
 | 2026-10-22 | Bot DCA con órdenes de seguridad (compra más en cada caída, cierra con una meta chica sobre el promedio) | 3Commas, Gainium; [script Zendog V2 en TradingView](https://pl.tradingview.com/script/9NXf1Bqb-Zendog-V2-backtest-DCA-bot-3commas/); [calculadora de Gainium](https://gainium.io/tools/dca-calculator) | Descartado por reglas (2026-10-22): sube el riesgo tras perder (martingala de tamaño). No se prueba, no suma a N |
-| 2026-10-23 | Parabolic SAR de Welles Wilder en BTC y ETH diario (0,02 / 0,02 / 0,20, solo compras) | Wilder, *New Concepts in Technical Trading Systems* (1978); [StockCharts ChartSchool](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-overlays/parabolic-sar) | Enviado a Quant (2026-10-23), 3 filas decisorias. Pendiente |
+| 2026-10-23 | Parabolic SAR de Welles Wilder en BTC y ETH diario (0,02 / 0,02 / 0,20, solo compras) | Wilder, *New Concepts in Technical Trading Systems* (1978); [StockCharts ChartSchool](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-overlays/parabolic-sar) | No pasa (2026-10-23): A juntas −0,38 / −0,22; B juntas −0,72 / 1,35; B solo BTC 0,03 / 1,98 (6 operaciones en 2025-26); Sharpe deflactado ≤ 0,017. Archivada. Ver `docs/research/sar/` |
 
 ---
 
@@ -563,3 +563,9 @@ dejan fijos: no se afinan.
   - En mercados de lado el SAR gira seguido y paga muchas comisiones. Wilder mismo advierte que solo sirve en
     tendencia.
   - Como vende en cada giro, puede dejar pasar buena parte de las subidas largas.
+- **Resultado (Quant, 2026-10-23, filas 381-383):** no pasa.
+  - A tal cual, juntas: −0,38 en 2024-25 y −0,22 en 2025-26.
+  - B con frenos, juntas: −0,72 y 1,35.
+  - B solo BTC: 0,03 y 1,98, con solo 6 operaciones en 2025-26.
+  - Con frenos gana en el año bajista, pero pierde en 2024-25, cuando mantener BTC daba 2,74.
+  - Sharpe deflactado ≤ 0,017 (listón 0,95). Archivada.

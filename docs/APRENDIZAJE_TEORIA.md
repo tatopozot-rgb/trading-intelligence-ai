@@ -99,6 +99,11 @@ marca "aplicado" solo cuando su regla está en el código o en un experimento me
   - Lección 2026-10-23 (segunda vuelta): en las caídas las monedas se mueven juntas, así que 3 compras son casi una
     sola apuesta; nada suma hoy el riesgo abierto de las 3 (peor caso 3 × 15% = 45%). Medirlo en la revisión
     nocturna (rutina de código, no suma a N) y un tope al riesgo abierto total enviado a Quant (no aplicado).
+  - **Resultado (Quant, 2026-10-23, fila 384; `docs/research/tope_riesgo/`): no prueba ventaja.** El tope de 2% al
+    riesgo abierto del mismo lado, en la mesa 1x, da 0,58 y 0,74 de neto/caída contra 1,04 y 0,18 sin tope. Sharpe
+    deflactado 0,013. Baja la caída los dos años (53,9% → 34,9% y 32,5% → 24,9%), pero el neto pierde 36 puntos
+    en 2024-25 (+20% contra +56%) y gana 12 en 2025-26. Es un freno de riesgo que hace lo esperado, no una ventaja.
+    Usarlo solo como medida de seguridad es decisión del Líder y del dueño, fuera del listón.
 
 ## 6. Ventaja estadística y cómo no engañarse
 
