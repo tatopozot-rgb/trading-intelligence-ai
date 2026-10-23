@@ -64,8 +64,10 @@ def desk_stop(f: pd.DataFrame, j: int, px: float) -> float:
 
 def simulate(f: pd.DataFrame, x: Cross, lo: int, hi: int, capital: float, brakes: bool, mult: float = 1.0,
              gate: Optional[np.ndarray] = None, events: Optional[np.ndarray] = None,
-             funding: Optional[np.ndarray] = None, stop_fn=desk_stop) -> tuple[ri.Book, np.ndarray]:
-    """One coin over days [lo, hi). Day j-1's close decides; day j's open acts."""
+             funding: Optional[np.ndarray] = None, stop_fn=desk_stop,
+             trail: Optional[np.ndarray] = None) -> tuple[ri.Book, np.ndarray]:
+    """One coin over days [lo, hi). Day j-1's close decides; day j's open acts. `trail` (with brakes): a level per
+    day, known at its open, that raises the stop when it is closer (never lowers it)."""
     o, low, c = (f[k].to_numpy(float) for k in ("open", "low", "close"))
     days = f.index
     fee, slip = FEE * mult, SLIP * mult
@@ -96,6 +98,8 @@ def simulate(f: pd.DataFrame, x: Cross, lo: int, hi: int, capital: float, brakes
             ok = not brakes or ((gate is None or gate[j]) and (events is None or not events[j]))
             fill = o[j] * (1 + slip)
             stop = stop_fn(f, j, fill) if ok and brakes else None
+            if stop is not None and trail is not None and np.isfinite(trail[j]):
+                stop = max(stop, float(trail[j]))
             if stop is not None and not (np.isfinite(stop) and stop < fill):
                 ok = False
             if ok and book.cash > 0:
@@ -108,6 +112,8 @@ def simulate(f: pd.DataFrame, x: Cross, lo: int, hi: int, capital: float, brakes
                 book.pos = {"j": j, "qty": qty, "fill": fill, "stop": stop, "fee": cost, "fund": 0.0,
                             "equity": book.cash + cost}
         p = book.pos
+        if p is not None and p["stop"] is not None and trail is not None and np.isfinite(trail[j]):
+            p["stop"] = max(p["stop"], float(trail[j]))
         if p is not None and p["stop"] is not None:
             if o[j] <= p["stop"]:
                 close_pos(j, o[j], "stop")

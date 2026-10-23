@@ -47,21 +47,22 @@ EVENTS: dict[str, np.ndarray] = {}
 def run_chained(syms: dict, bounds: list[tuple[int, int]], capital: float, sizing: rm.Sizing, brake: bool,
                 reset: bool, allow: Optional[dict] = None, entry_allow: Optional[dict] = None,
                 replay: Any = None, close_on_gate: bool = True,
-                risk_scale: Optional[np.ndarray] = None, exits: rm.Exits = rm.BASELINE) -> dict:
+                risk_scale: Optional[np.ndarray] = None, exits: rm.Exits = rm.BASELINE,
+                open_risk_cap: Optional[float] = None) -> dict:
     """research_real.run_chained with the sizing and the brake; the peak and a pause carry over between blocks."""
     replay = replay or rm.replay
     equity: list[float] = []
     trades: list[dict] = []
     starts: list[float] = []
     level, peak, paused = capital, capital, False
-    pauses = halved = 0
+    pauses = halved = capped = 0
     for lo, hi in bounds:
         if paused and reset:
             peak, paused = level, False
         starts.append(level)
         rep = replay(syms, lo, hi, sizing=sizing, capital=level, allow=allow, entry_allow=entry_allow,
                      dd_brake=BRAKE if brake else None, peak=peak, paused=paused, close_on_gate=close_on_gate,
-                     risk_scale=risk_scale, exits=exits)
+                     risk_scale=risk_scale, exits=exits, open_risk_cap=open_risk_cap)
         end = level + sum(t["pnl"] for t in rep.trades)
         curve = list(rep.curve) or [level]
         curve += [curve[-1]] * (hi - lo - len(curve))
@@ -70,8 +71,10 @@ def run_chained(syms: dict, bounds: list[tuple[int, int]], capital: float, sizin
         trades.extend({**t, "block_capital": level} for t in rep.trades)
         pauses += int(rep.paused and not paused)
         halved += rep.halved
+        capped += rep.capped
         peak, paused, level = max(rep.peak, end), rep.paused, end
-    return {"equity": equity, "trades": trades, "starts": starts, "pauses": pauses, "halved": halved}
+    return {"equity": equity, "trades": trades, "starts": starts, "pauses": pauses, "halved": halved,
+            "capped": capped}
 
 
 def summarize(run: dict, times: np.ndarray, first: int, n_decisive: int) -> dict:
