@@ -65,6 +65,18 @@ No suma a la N de `docs/research/REGISTRO_PRUEBAS.md`: es una sola configuració
 búsqueda en historia. Si se prueban otras versiones (otro modelo, otro prompt), cada versión se anota aquí como
 experimento propio.
 
+## Créditos que vencen el 15-11-2026 (líder, 23-10)
+
+- Los 100 USD de la API son créditos promocionales que **vencen el 15-11-2026**, sin tarjeta ni recarga. El bot
+  corre en demo hasta que se acaben o venzan; entonces Claude deja de responder, el bot registra el error y ya no
+  abre nada (las posiciones abiertas siguen con su stop y su meta en XM). Las reglas no cambian por esto.
+- Con ~3 semanas de datos es muy probable que no haya 30 operaciones ni 6 semanas. Por eso el **15-11-2026** se
+  publica un **informe intermedio, no un veredicto**: operaciones cerradas, suma y media de R, t de la media,
+  acierto, gasto total en Claude y gasto por operación, y la suma de R de Londres oro + Londres BTC en las mismas
+  fechas. Si hay menos de 30 operaciones dice «muestra corta: sin veredicto» y no se declara que pasa ni que falla.
+- Seguir después del 15-11 necesita créditos nuevos (pagados por el dueño). Solo se le propone si el informe
+  intermedio va mejor que Londres en el mismo periodo; si no, el experimento se cierra como «sin evidencia».
+
 ## Cómo se instala (Claude local)
 
 1. `pip install anthropic` en el Python de la worktree `xm-wt`.
