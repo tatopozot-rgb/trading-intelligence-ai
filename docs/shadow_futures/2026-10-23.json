@@ -1,0 +1,116 @@
+{
+ "dia": "2026-10-23",
+ "capital_inicial": 50.0,
+ "cuenta": "práctica (dinero ficticio)",
+ "estado": "RUNNING",
+ "hoy": {
+  "operaciones": 0,
+  "ganadas": 0,
+  "acierto_pct": 0.0,
+  "neto_usdt": 0,
+  "esperanza_r": null,
+  "factor_beneficio": null
+ },
+ "acumulado": {
+  "operaciones": 10,
+  "ganadas": 3,
+  "acierto_pct": 30.0,
+  "neto_usdt": -3.7332,
+  "esperanza_r": -0.46,
+  "factor_beneficio": 0.34
+ },
+ "neto_pct": -7.47,
+ "caida_max_pct": 8.24,
+ "por_moneda": {
+  "AVAXUSDT": {
+   "operaciones": 1,
+   "ganadas": 0,
+   "acierto_pct": 0.0,
+   "neto_usdt": -1.1695,
+   "esperanza_r": -1.02,
+   "factor_beneficio": 0.0
+  },
+  "BNBUSDT": {
+   "operaciones": 1,
+   "ganadas": 0,
+   "acierto_pct": 0.0,
+   "neto_usdt": -0.6934,
+   "esperanza_r": -1.03,
+   "factor_beneficio": 0.0
+  },
+  "DOGEUSDT": {
+   "operaciones": 1,
+   "ganadas": 0,
+   "acierto_pct": 0.0,
+   "neto_usdt": -0.2251,
+   "esperanza_r": -1.02,
+   "factor_beneficio": 0.0
+  },
+  "ETHUSDT": {
+   "operaciones": 1,
+   "ganadas": 1,
+   "acierto_pct": 100.0,
+   "neto_usdt": 0.5993,
+   "esperanza_r": 0.77,
+   "factor_beneficio": null
+  },
+  "SOLUSDT": {
+   "operaciones": 1,
+   "ganadas": 0,
+   "acierto_pct": 0.0,
+   "neto_usdt": -1.2019,
+   "esperanza_r": -1.02,
+   "factor_beneficio": 0.0
+  },
+  "XRPUSDT": {
+   "operaciones": 5,
+   "ganadas": 2,
+   "acierto_pct": 40.0,
+   "neto_usdt": -1.0426,
+   "esperanza_r": -0.25,
+   "factor_beneficio": 0.56
+  }
+ },
+ "por_lado": {
+  "BUY": {
+   "operaciones": 10,
+   "ganadas": 3,
+   "acierto_pct": 30.0,
+   "neto_usdt": -3.7332,
+   "esperanza_r": -0.46,
+   "factor_beneficio": 0.34
+  }
+ },
+ "por_salida": {
+  "stop": {
+   "operaciones": 10,
+   "ganadas": 3,
+   "acierto_pct": 30.0,
+   "neto_usdt": -3.7332,
+   "esperanza_r": -0.46,
+   "factor_beneficio": 0.34
+  }
+ },
+ "vetos": {
+  "evitó pérdida": 0,
+  "dejó pasar ganancia": 0,
+  "sin resultado": 4
+ },
+ "abiertas": [
+  {
+   "symbol": "BNBUSDT",
+   "side": "BUY",
+   "entry": "747.540",
+   "sl": "725.110",
+   "tp": "814.8299999999999999999999999"
+  },
+  {
+   "symbol": "SOLUSDT",
+   "side": "BUY",
+   "entry": "104.5500",
+   "sl": "101.4100",
+   "tp": "113.9700000000000000000000000"
+  }
+ ],
+ "operaciones_hoy": []
+}
