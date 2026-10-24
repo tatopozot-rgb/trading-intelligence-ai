@@ -25,6 +25,7 @@ canal de Donchian (reglas "Turtle"), cruce de medias EMA y momento de serie temp
 | 2026-10-21 | "Squeeze" de John Carter (TTM Squeeze) en BTC y ETH diario, solo compras | John Carter, *Mastering the Trade* (2.ª ed., 2012); [StockCharts ChartSchool](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/ttm-squeeze) | No pasa (2026-10-21): A juntas 0,80 / −0,21; B con frenos 1,44 / 0,16 (pierde 2024-25, gana 2025-26 con 8 operaciones); Sharpe deflactado ≤ 0,004. Archivada. Ver `docs/research/ttm/` |
 | 2026-10-22 | Bot DCA con órdenes de seguridad (compra más en cada caída, cierra con una meta chica sobre el promedio) | 3Commas, Gainium; [script Zendog V2 en TradingView](https://pl.tradingview.com/script/9NXf1Bqb-Zendog-V2-backtest-DCA-bot-3commas/); [calculadora de Gainium](https://gainium.io/tools/dca-calculator) | Descartado por reglas (2026-10-22): sube el riesgo tras perder (martingala de tamaño). No se prueba, no suma a N |
 | 2026-10-23 | Parabolic SAR de Welles Wilder en BTC y ETH diario (0,02 / 0,02 / 0,20, solo compras) | Wilder, *New Concepts in Technical Trading Systems* (1978); [StockCharts ChartSchool](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-overlays/parabolic-sar) | No pasa (2026-10-23): A juntas −0,38 / −0,22; B juntas −0,72 / 1,35; B solo BTC 0,03 / 1,98 (6 operaciones en 2025-26); Sharpe deflactado ≤ 0,017. Archivada. Ver `docs/research/sar/` |
+| 2026-10-24 | Ruptura del canal de Keltner (versión de Linda Raschke) en BTC y ETH diario (EMA 20, 2 × ATR 10, solo compras) | Chester Keltner, *How to Make Money in Commodities* (1960); Raschke y Connors, *Street Smarts* (1995); [StockCharts ChartSchool](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-overlays/keltner-channels) | Enviada a Quant (2026-10-24) |
 
 ---
 
@@ -569,3 +570,30 @@ dejan fijos: no se afinan.
   - B solo BTC: 0,03 y 1,98, con solo 6 operaciones en 2025-26.
   - Con frenos gana en el año bajista, pero pierde en 2024-25, cuando mantener BTC daba 2,74.
   - Sharpe deflactado ≤ 0,017 (listón 0,95). Archivada.
+
+## Ruptura del canal de Keltner en BTC y ETH diario (2026-10-24)
+
+- **Fuente:** Chester Keltner, *How to Make Money in Commodities* (1960); versión moderna de Linda Raschke en
+  Raschke y Connors, *Street Smarts* (1995);
+  [StockCharts ChartSchool](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-overlays/keltner-channels).
+- **Qué es:** un canal alrededor de la media exponencial (EMA) de 20 días. La banda de arriba es la EMA + 2 × ATR
+  de 10 días y la de abajo, la EMA − 2 × ATR. A diferencia de Bollinger, el ancho sale del rango verdadero y no de la
+  desviación estándar, así que se mueve más suave. Un cierre fuera del canal se lee como inicio de tendencia.
+- **Reglas, versión A (tal cual):**
+  - Velas diarias. EMA de 20 cierres, ATR de Wilder de 10 días, multiplicador 2 (los valores por defecto de
+    StockCharts; no se afinan).
+  - Compra al abrir el día siguiente a un cierre sobre la banda de arriba.
+  - Vende al abrir el día siguiente a un cierre bajo la EMA de 20 (la línea del medio). Sin stop aparte: la media
+    es el stop. Solo compras, sin cortos.
+  - BTC y ETH juntas (mitad y mitad), 1x, comisión y deslizamiento de la mesa.
+- **Versión B (con los frenos de la mesa):** las mismas reglas, más el freno de mercado (BTC sobre su media de 50
+  días), el stop de la mesa (el que esté más cerca entre ese y la EMA de 20) y el freno de eventos.
+- **Las 3 filas decisorias (regla del 21-10):** A juntas, B juntas y **BTC solo con B**. Se elige BTC antes de ver
+  resultados, por la misma razón previa de siempre: es la moneda con más liquidez y menor costo, y es la que manda
+  el freno de mercado. Cualquier otra variante que se mire cuenta en N.
+- **Prueba:** 2024-10 → 2025-10 y 2025-10 → 2026-10, con costos, contra la mesa de práctica (1,67 y −0,21 de
+  neto/caída). Pasa solo si gana a la mesa en los dos años y su Sharpe deflactado pasa el listón.
+- **Señales de sobreajuste:** ninguna en los parámetros, porque son los publicados y no se afinan. Riesgos:
+  - Es de la familia de rupturas que ya falló (Donchian, Larry Williams, Supertrend). Puede repetir el resultado.
+  - Comprar sobre la banda de arriba es comprar caro: en mercados de lado da muchas entradas falsas.
+

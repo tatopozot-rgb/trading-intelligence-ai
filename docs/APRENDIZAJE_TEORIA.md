@@ -115,6 +115,10 @@ marca "aplicado" solo cuando su regla está en el código o en un experimento me
 - Lección 2026-10-16: con más de 30 pruebas hechas, la mejor sale bien por suerte. Registro único de pruebas y
   Sharpe deflactado (Bailey y López de Prado, 2014) como segundo listón: **aplicado** 2026-10-16
   (`docs/research/REGISTRO_PRUEBAS.md`, PR #83).
+- Lección 2026-10-24 (segunda vuelta): largo mínimo del historial (Bailey y López de Prado, 2012). Con Sharpe anual
+  1,5 hacen falta ~440 días en vivo para descartar la suerte con 95% de confianza; con Sharpe 3, ~110. El aviso de
+  "30 días o 30 operaciones con ganancia" de XM demo es solo un aviso. Mostrar el Sharpe probabilístico y los días
+  que faltan en la revisión de cada bot demo (rutina de código, no suma a N; no aplicado).
 
 ## 7. Ejecución y costes
 
