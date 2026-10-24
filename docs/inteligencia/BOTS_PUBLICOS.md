@@ -25,7 +25,7 @@ canal de Donchian (reglas "Turtle"), cruce de medias EMA y momento de serie temp
 | 2026-10-21 | "Squeeze" de John Carter (TTM Squeeze) en BTC y ETH diario, solo compras | John Carter, *Mastering the Trade* (2.ª ed., 2012); [StockCharts ChartSchool](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/ttm-squeeze) | No pasa (2026-10-21): A juntas 0,80 / −0,21; B con frenos 1,44 / 0,16 (pierde 2024-25, gana 2025-26 con 8 operaciones); Sharpe deflactado ≤ 0,004. Archivada. Ver `docs/research/ttm/` |
 | 2026-10-22 | Bot DCA con órdenes de seguridad (compra más en cada caída, cierra con una meta chica sobre el promedio) | 3Commas, Gainium; [script Zendog V2 en TradingView](https://pl.tradingview.com/script/9NXf1Bqb-Zendog-V2-backtest-DCA-bot-3commas/); [calculadora de Gainium](https://gainium.io/tools/dca-calculator) | Descartado por reglas (2026-10-22): sube el riesgo tras perder (martingala de tamaño). No se prueba, no suma a N |
 | 2026-10-23 | Parabolic SAR de Welles Wilder en BTC y ETH diario (0,02 / 0,02 / 0,20, solo compras) | Wilder, *New Concepts in Technical Trading Systems* (1978); [StockCharts ChartSchool](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-overlays/parabolic-sar) | No pasa (2026-10-23): A juntas −0,38 / −0,22; B juntas −0,72 / 1,35; B solo BTC 0,03 / 1,98 (6 operaciones en 2025-26); Sharpe deflactado ≤ 0,017. Archivada. Ver `docs/research/sar/` |
-| 2026-10-24 | Ruptura del canal de Keltner (versión de Linda Raschke) en BTC y ETH diario (EMA 20, 2 × ATR 10, solo compras) | Chester Keltner, *How to Make Money in Commodities* (1960); Raschke y Connors, *Street Smarts* (1995); [StockCharts ChartSchool](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-overlays/keltner-channels) | Enviada a Quant (2026-10-24) |
+| 2026-10-24 | Ruptura del canal de Keltner (versión de Linda Raschke) en BTC y ETH diario (EMA 20, 2 × ATR 10, solo compras) | Chester Keltner, *How to Make Money in Commodities* (1960); Raschke y Connors, *Street Smarts* (1995); [StockCharts ChartSchool](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-overlays/keltner-channels) | No pasa (2026-10-24): A juntas 1,15 / −0,87; B juntas 1,24 / −0,67; B solo BTC 0,33 / 0,09; 3 a 13 operaciones al año; Sharpe deflactado ≤ 0,002. Archivada. Ver `docs/research/keltner/` |
 
 ---
 
@@ -596,4 +596,10 @@ dejan fijos: no se afinan.
 - **Señales de sobreajuste:** ninguna en los parámetros, porque son los publicados y no se afinan. Riesgos:
   - Es de la familia de rupturas que ya falló (Donchian, Larry Williams, Supertrend). Puede repetir el resultado.
   - Comprar sobre la banda de arriba es comprar caro: en mercados de lado da muchas entradas falsas.
-
+- **Resultado (Quant, 2026-10-24, filas 385-387):** no pasa.
+  - A tal cual, juntas: 1,15 en 2024-25 y −0,87 en 2025-26.
+  - B con frenos, juntas: 1,24 y −0,67.
+  - B solo BTC: 0,33 y 0,09.
+  - Queda bajo la mesa en 2024-25 (mantener BTC daba 2,74) y pierde o empata en 2025-26. La muestra es corta: de 3
+    a 13 operaciones al año.
+  - Sharpe deflactado ≤ 0,002 (listón 0,95). Repite lo de las otras rupturas. Archivada.
