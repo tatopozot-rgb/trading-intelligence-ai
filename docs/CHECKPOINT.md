@@ -462,3 +462,15 @@ only the latest work blocks. The history up to 2026-10-10 (sections 1–90) is i
 - With #72 as merged, the check would not have seen SOL's and AVAX's stops. It would have tried to add a stop every pass and, if Binance refused, closed the position. The PC was not updated, so nothing ran with it.
 - The same field also broke the trailing stop since before #72: `move_stop` never found the old stop, so old stops were never cancelled.
 - **Fix:** `algo_kind()` reads `orderType` (falling back to `type`) in the stop check and in `move_stop`. The test fake now returns real-shaped rows (`orderType`, `type` empty, boolean `closePosition`, numeric `algoId`), and a new test uses exact rows like the real account's.
+
+### 117. Schedule experiment closed: no hour or market beats chance (2026-10-24)
+
+- **Rule applied once**, as fixed in `docs/PREREG_HORARIOS.md` (with Amendments 1 and 2), on the final report of 2026-10-23 (`docs/experimento_horarios/resumen.md`, default branch ccr-b66a9a9e-okj2pl, commit 4bde7e1). Forward: 14/14 days, 10/10 weekdays.
+- **Result, Mon–Fri scope (decides):** 0 cells qualify in every family.
+  - PRIMARY, the owner's window 07–10 Ecuador (12–15 UTC), pooled by strategy at α = 0.0125: 0 pass, 2 with too few trades.
+  - Owner's window per symbol (baseline, BH q = 0.10): 0.
+  - The exploratory search, by window, by symbol and window × symbol (BH q = 0.10): 0. Tendencia and rango never reached the minimum trades.
+  - The Mon–Sat alternative gives the same result.
+- **Decision (Leader):** nothing is added or removed. The bots keep the owner's windows, 07–10 and 17–19 Ecuador, plus every 5 minutes 24/7 outside them, as before. No window passes the rule, so there is no new `--ventanas` order for Claude local.
+- **Why:** the owner's window was the closest (ruptura +5.8% pooled at day 13), but it did not survive the second half. A positive descriptive cell (DOT, ETH and DOGE ruptura in the owner's window) is luck until its own forward test.
+- **Closed:** the daily routine "Daily review: experimento horarios" is disabled. The scheduled workflow on ccr-b66a9a9e-okj2pl may keep writing reports; they no longer decide anything.
